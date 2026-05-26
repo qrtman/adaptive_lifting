@@ -1,0 +1,16 @@
+# Antigravity IDE Ignore File
+# Based on the Context Guardian Master Strategy
+
+# Ignore heavy build outputs and dependency folders to prevent context bloating
+node_modules/
+dist/
+build/
+.cache/
+__pycache__/
+*.pyc
+
+# CRITICAL EXCLUSIONS (Do NOT ignore these configuration files)
+# !package.json
+# !.env
+# !tsconfig.json
+# !vite.config.ts
