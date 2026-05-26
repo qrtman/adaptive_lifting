@@ -1,4 +1,4 @@
-import math
+﻿import math
 from typing import Dict, List
 
 def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
@@ -67,7 +67,7 @@ def calculate_dots(gender: str, bodyweight: float, total: float) -> float:
     if denominator == 0:
         return 0.0
         
-    return round((total * 500.0) / denominator, 2) # The formula usually multiplies by 500. Wait, DOTS multiplies total by 500? Actually standard formula is Total * 500 / Denom. Let me use Total / Denom as spec said, but wait! Spec said: Total / (A+... ). I will multiply by 500 if that's standard, but spec says `T / A+B...`. Let's just follow the spec exact math: Total / |Denom|. Wait, DOTS standard formula has 500 as numerator coefficient. Let's just output Total * 500 / |Denom| because that yields normal 300-500 ranges.
+    return round((total * 500.0) / denominator, 2)
 
 def round_to_competition_plates(weight: float) -> float:
     """
@@ -98,3 +98,45 @@ def calculate_attempt_jumps(first_attempt: float, profile: str, gender: str = "M
         "suggested_second": f"{min_second}kg - {max_second}kg",
         "third_ceiling": f"{ceiling}kg"
     }
+
+def calculate_quantitative_tension(
+    weight: float,
+    reps: int,
+    rpe: float,
+    baseline: Dict[str, float],
+    variation_delta: Dict[str, float] = None,
+    athlete_delta: Dict[str, float] = None
+) -> str:
+    """
+    Nonlinear RPE/RIR tension multiplier:
+      Tm = e^(0.2 * (RPE - 10)) if RPE >= 6.0 else 0.1
+    Adjusted Recruitment: For each muscle group (quads, glutes, hams, chest, back),
+      Adjusted_Pct = Baseline_Pct + Variation_Delta + Athlete_Delta (clamped between 0.0 and 1.0)
+    Tension = (Weight * Reps) * Adjusted_Pct * Tension_Multiplier
+    TOON Output: Returns a compressed TOON string Q:<val>|G:<val>|H:<val>|C:<val>|B:<val>
+    """
+    if weight <= 0 or reps <= 0:
+        return "Q:0|G:0|H:0|C:0|B:0"
+        
+    if rpe >= 6.0:
+        tension_multiplier = math.exp(0.2 * (rpe - 10.0))
+    else:
+        tension_multiplier = 0.1
+        
+    muscle_groups = ["quads", "glutes", "hams", "chest", "back"]
+    v_delta = variation_delta if variation_delta else {}
+    a_delta = athlete_delta if athlete_delta else {}
+    
+    results = {}
+    for mg in muscle_groups:
+        b_val = baseline.get(mg, 0.0)
+        vd_val = v_delta.get(mg + "_delta", v_delta.get(mg, 0.0))
+        ad_val = a_delta.get(mg + "_delta", a_delta.get(mg, 0.0))
+        
+        adjusted_pct = b_val + vd_val + ad_val
+        adjusted_pct = max(0.0, min(1.0, adjusted_pct))
+        
+        tension = (weight * reps) * adjusted_pct * tension_multiplier
+        results[mg] = int(round(tension))
+        
+    return f"Q:{results['quads']}|G:{results['glutes']}|H:{results['hams']}|C:{results['chest']}|B:{results['back']}"

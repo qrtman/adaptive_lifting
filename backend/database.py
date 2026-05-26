@@ -1,4 +1,4 @@
-import os
+﻿import os
 from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
@@ -71,8 +71,8 @@ class Exercise(Base):
     tier = Column(String, default="Comp") # "Comp", "Variation", "Accessory"
     lift_category = Column(String, default="Squat") # "Squat", "Bench", "Deadlift", "Other"
     tags_raw = Column(String, default="")  # Comma-separated list of tags
-    top = Column(String, default="—")
-    vol = Column(String, default="—")
+    top = Column(String, default="?")
+    vol = Column(String, default="?")
     workout_id = Column(String, ForeignKey("workouts.id"))
 
     workout = relationship("Workout", back_populates="exercises")
@@ -105,6 +105,7 @@ class ExerciseSet(Base):
     readiness = Column(Integer, nullable=True)
     hrv = Column(Float, nullable=True)
     exercise_id = Column(String, ForeignKey("exercises.id"))
+    tension_units_toon = Column(String, nullable=True)
 
     exercise = relationship("Exercise", back_populates="sets")
 
@@ -122,6 +123,37 @@ class Accessory(Base):
     workout_id = Column(String, ForeignKey("workouts.id"))
 
     workout = relationship("Workout", back_populates="accessories")
+
+class BiomechanicsBaseline(Base):
+    __tablename__ = "biomechanics_baselines"
+    id = Column(String, primary_key=True, index=True)
+    lift_category = Column(String, unique=True, index=True, nullable=False)
+    quads = Column(Float, default=0.0)
+    glutes = Column(Float, default=0.0)
+    hams = Column(Float, default=0.0)
+    chest = Column(Float, default=0.0)
+    back = Column(Float, default=0.0)
+
+class ExerciseVariationDelta(Base):
+    __tablename__ = "exercise_variation_deltas"
+    id = Column(String, primary_key=True, index=True)
+    variation = Column(String, unique=True, index=True, nullable=False)
+    quads_delta = Column(Float, default=0.0)
+    glutes_delta = Column(Float, default=0.0)
+    hams_delta = Column(Float, default=0.0)
+    chest_delta = Column(Float, default=0.0)
+    back_delta = Column(Float, default=0.0)
+
+class AthleteBiomechanicalDelta(Base):
+    __tablename__ = "athlete_biomechanical_deltas"
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    lift_category = Column(String, nullable=False)
+    quads_delta = Column(Float, default=0.0)
+    glutes_delta = Column(Float, default=0.0)
+    hams_delta = Column(Float, default=0.0)
+    chest_delta = Column(Float, default=0.0)
+    back_delta = Column(Float, default=0.0)
 
 # Create tables
 def init_db():

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, MoreHorizontal, Plus, Trash2, Zap, Copy } from 'lucide-react';
+import { ArrowRight, MoreHorizontal, Plus, Trash2, Zap, Copy, Share2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
+import { ShareCardGenerator } from './social/ShareCardGenerator';
+import { audioService } from '../services/audioService';
 import { 
   calculateCapacityScaledWeight, 
   calculateE1RM, 
@@ -15,7 +17,8 @@ export const ExerciseCard = ({
   tags, 
   initialSets,
   onUpdateSets,
-  roleMode = 'coach'
+  roleMode = 'coach',
+  workoutTitle
 }: { 
   id: string,
   title: string, 
@@ -24,8 +27,11 @@ export const ExerciseCard = ({
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
   roleMode?: 'coach' | 'athlete',
+  workoutTitle?: string,
   key?: any
 }) => {
+  const [showShare, setShowShare] = useState(false);
+
   const recalculatePresetsAndSugs = (setArray: any[]) => {
     if (setArray.length === 0) return setArray;
 

@@ -1,4 +1,5 @@
 import { MicrocycleData, INITIAL_MICROCYCLES } from '../types';
+import { audioService } from './audioService';
 
 const STORAGE_KEY = 'iron_box_microcycles';
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
@@ -216,6 +217,7 @@ export const apiService = {
     recalculateWorkoutMetrics(workoutObj, prevWorkoutTonnage);
     
     saveLocalData(data);
+    audioService.playChime();
     return data;
   },
 
@@ -238,7 +240,9 @@ export const apiService = {
           body: JSON.stringify({ workoutId, accessoryId, weight, reps, rpe, status })
         });
         if (!response.ok) throw new Error('API accessory log request failed');
-        return await response.json();
+        const data = await response.json();
+        audioService.playChime();
+        return data;
       } catch (err) {
         console.warn('Backend server save failed. Syncing to LocalStorage.', err);
       }
@@ -272,7 +276,7 @@ export const apiService = {
       recalculateWorkoutMetrics(workoutObj, prevWorkoutTonnage);
       saveLocalData(data);
     }
-
+    audioService.playChime();
     return data;
   },
 

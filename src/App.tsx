@@ -14,6 +14,7 @@ import { ExerciseCard } from './components/ExerciseCard';
 import { AccessoryLedger } from './components/AccessoryLedger';
 import TelegramSessionTerminal from './components/mobile/TelegramSessionTerminal';
 import { apiService } from './services/api';
+import { audioService } from './services/audioService';
 import { 
   INITIAL_MICROCYCLES, 
   INITIAL_MESOCYCLE, 
@@ -131,7 +132,7 @@ export default function App() {
   const handleViewSession = (workout: WorkoutData, microId: string) => {
     setActiveWorkoutId(workout.id);
     setActiveMicrocycleId(microId);
-    setCurrentView('session');
+    audioService.playClick(); setCurrentView('session');
     
     // Smooth scroll page focus to training focus
     setTimeout(() => {
@@ -229,7 +230,7 @@ export default function App() {
       };
     }));
 
-    setCurrentView('dashboard');
+    audioService.playClick(); setCurrentView('dashboard');
     
     // Sync to backend
     if (updatedWorkoutData) {
@@ -374,7 +375,7 @@ export default function App() {
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <button 
-                          onClick={() => setCurrentView('dashboard')}
+                          onClick={() => { audioService.playClick(); setCurrentView('dashboard'); }}
                           className="p-2 glass-card rounded-lg text-gray-500 hover:text-white transition-all hover:bg-white/5 active:scale-95 cursor-pointer"
                         >
                           <ChevronRight size={16} className="rotate-180" />
@@ -461,7 +462,7 @@ export default function App() {
                   <h3 className="text-xl font-bold text-white">No active logging session</h3>
                   <p className="text-xs text-gray-500 mt-2">Select a session from the Dashboard grid or Feed to begin logging.</p>
                   <button 
-                    onClick={() => setCurrentView('dashboard')}
+                    onClick={() => { audioService.playClick(); setCurrentView('dashboard'); }}
                     className="mt-6 px-6 py-2 bg-mac-blue text-white font-bold rounded-xl text-xs uppercase tracking-widest cursor-pointer hover:bg-blue-600 transition-colors"
                   >
                     Return to Dashboard
@@ -487,7 +488,7 @@ export default function App() {
             {currentView === 'session' ? (
               <>
                 <button 
-                  onClick={() => setCurrentView('dashboard')}
+                  onClick={() => { audioService.playClick(); setCurrentView('dashboard'); }}
                   className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[13px] font-black uppercase tracking-widest text-[#AEAEB2] hover:text-white transition-all cursor-pointer font-sans"
                 >
                   OVERRIDE PLAN
@@ -514,7 +515,7 @@ export default function App() {
                   // Pre-load Day 1 active session of Micro 3
                   setActiveWorkoutId('w-3-1');
                   setActiveMicrocycleId('micro-3');
-                  setCurrentView('session');
+                  audioService.playClick(); setCurrentView('session');
                 }}
                 className="px-8 py-3 bg-mac-blue text-white rounded-xl text-[15px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-all active:scale-95 cursor-pointer font-sans"
               >

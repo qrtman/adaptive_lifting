@@ -5,7 +5,7 @@ from typing import List, Optional
 import os
 
 from sqlalchemy.orm import Session
-from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, Accessory, User, CoachingRelationship
+from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, Accessory, User, CoachingRelationship, BiomechanicsBaseline, ExerciseVariationDelta, AthleteBiomechanicalDelta
 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -13,14 +13,15 @@ import jwt
 from datetime import datetime, timedelta
 import uuid
 
-from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots, calculate_attempt_jumps
+from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_quantitative_tension
 
 from sqlalchemy import text
 # Make sure SQLite tables exist on launch
 init_db()
 
 def migrate_db():
-    from .database import SessionLocal
+    from .database import SessionLocal, init_db, BiomechanicsBaseline, ExerciseVariationDelta
+    init_db()
     db = SessionLocal()
     try:
         db.execute(text("ALTER TABLE microcycles ADD COLUMN owner_id VARCHAR"))
@@ -57,6 +58,46 @@ def migrate_db():
         db.commit()
     except Exception:
         db.rollback()
+
+    try:
+        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN tension_units_toon VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Seed default Biomechanics baselines
+    try:
+        baselines = [
+            BiomechanicsBaseline(id="b_squat", lift_category="Squat", quads=0.6, glutes=0.3, hams=0.1, chest=0.0, back=0.0),
+            BiomechanicsBaseline(id="b_bench", lift_category="Bench", quads=0.0, glutes=0.0, hams=0.0, chest=0.8, back=0.2),
+            BiomechanicsBaseline(id="b_deadlift", lift_category="Deadlift", quads=0.2, glutes=0.3, hams=0.3, chest=0.0, back=0.2),
+            BiomechanicsBaseline(id="b_other", lift_category="Other", quads=0.2, glutes=0.2, hams=0.2, chest=0.2, back=0.2),
+        ]
+        for b in baselines:
+            existing = db.query(BiomechanicsBaseline).filter_by(lift_category=b.lift_category).first()
+            if not existing:
+                db.add(b)
+        db.commit()
+    except Exception as e:
+        print(f"Error seeding baselines: {e}")
+        db.rollback()
+
+    # Seed default Exercise variation deltas
+    try:
+        variations = [
+            ExerciseVariationDelta(id="v_def_dl", variation="Deficit Deadlift", quads_delta=0.0, glutes_delta=0.1, hams_delta=0.1, chest_delta=0.0, back_delta=0.1),
+            ExerciseVariationDelta(id="v_front_sq", variation="Front Squat", quads_delta=0.15, glutes_delta=-0.1, hams_delta=-0.05, chest_delta=0.0, back_delta=0.0),
+            ExerciseVariationDelta(id="v_incline_bp", variation="Incline Bench Press", quads_delta=0.0, glutes_delta=0.0, hams_delta=0.0, chest_delta=-0.1, back_delta=0.1),
+        ]
+        for v in variations:
+            existing = db.query(ExerciseVariationDelta).filter_by(variation=v.variation).first()
+            if not existing:
+                db.add(v)
+        db.commit()
+    except Exception as e:
+        print(f"Error seeding variation deltas: {e}")
+        db.rollback()
+
     finally:
         db.close()
 
@@ -182,6 +223,41 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
         top_single_weight = 0.0
         top_single_reps = 0
 
+        # Fetch biomechanics baselines and deltas
+        lift_cat = exercise.lift_category or "Other"
+        baseline_model = db.query(BiomechanicsBaseline).filter_by(lift_category=lift_cat).first()
+        if not baseline_model:
+            baseline_model = db.query(BiomechanicsBaseline).filter_by(lift_category="Other").first()
+        baseline_dict = {
+            "quads": baseline_model.quads if baseline_model else 0.2,
+            "glutes": baseline_model.glutes if baseline_model else 0.2,
+            "hams": baseline_model.hams if baseline_model else 0.2,
+            "chest": baseline_model.chest if baseline_model else 0.2,
+            "back": baseline_model.back if baseline_model else 0.2,
+        }
+
+        variation_model = db.query(ExerciseVariationDelta).filter_by(variation=exercise.variation).first()
+        v_delta_dict = {
+            "quads_delta": variation_model.quads_delta if variation_model else 0.0,
+            "glutes_delta": variation_model.glutes_delta if variation_model else 0.0,
+            "hams_delta": variation_model.hams_delta if variation_model else 0.0,
+            "chest_delta": variation_model.chest_delta if variation_model else 0.0,
+            "back_delta": variation_model.back_delta if variation_model else 0.0,
+        }
+
+        owner_id = workout.microcycle.owner_id if (workout.microcycle and workout.microcycle.owner_id) else None
+        a_delta_dict = {}
+        if owner_id:
+            athlete_model = db.query(AthleteBiomechanicalDelta).filter_by(user_id=owner_id, lift_category=lift_cat).first()
+            if athlete_model:
+                a_delta_dict = {
+                    "quads_delta": athlete_model.quads_delta,
+                    "glutes_delta": athlete_model.glutes_delta,
+                    "hams_delta": athlete_model.hams_delta,
+                    "chest_delta": athlete_model.chest_delta,
+                    "back_delta": athlete_model.back_delta,
+                }
+
         for s in exercise.sets:
             try:
                 wt = float(s.actual or s.plannedWeight or "0")
@@ -198,7 +274,17 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
                     max_weight = wt
                     max_weight_reps = rp
 
-                set_e1rm = calculate_e1rm(wt, rp, rp_val)
+                # Calculate TOON tension units
+                s.tension_units_toon = calculate_quantitative_tension(
+                    weight=wt,
+                    reps=rp,
+                    rpe=rp_val,
+                    baseline=baseline_dict,
+                    variation_delta=v_delta_dict,
+                    athlete_delta=a_delta_dict
+                )
+
+                set_e1rm = calculate_e1rm_linear_decay(wt, rp, rp_val)
                 if s.isTop or set_e1rm > top_single_e1rm:
                     top_single_e1rm = set_e1rm
                     top_single_weight = wt
@@ -259,6 +345,7 @@ def format_microcycle(mc: Microcycle) -> dict:
                     "plannedReps": s.plannedReps,
                     "plannedRpe": s.plannedRpe,
                     "isAuto": s.isAuto,
+                    "tension_units_toon": s.tension_units_toon,
                     "isTop": s.isTop,
                 }
                 if s.dropPercent is not None:
@@ -771,7 +858,14 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
         "athlete_id": target_id,
         "current_bw": latest_bw,
         "dots_score": dots,
-        "volume_splitting_weekly": {
+        "weekly_muscle_tension": {
+              "quads": total_quads,
+              "glutes": total_glutes,
+              "hams": total_hams,
+              "chest": total_chest,
+              "back": total_back
+          },
+          "volume_splitting_weekly": {
             "comp_nl": comp_nl,
             "variation_nl": var_nl,
             "accessory_nl": acc_nl
@@ -803,3 +897,63 @@ def reset_database(db: Session = Depends(get_db), current_user: User = Depends(g
     analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
+
+@app.get("/api/export/csv")
+def export_csv(athlete_id: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    target_id = athlete_id if athlete_id else current_user.id
+    
+    if current_user.role == "COACH":
+        rel = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id, CoachingRelationship.athlete_id == target_id).first()
+        if not rel:
+            raise HTTPException(status_code=403, detail="Not authorized to view this athlete")
+    elif current_user.role == "ATHLETE" and target_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to view other athletes")
+        
+    mcs = db.query(Microcycle).filter(Microcycle.owner_id == target_id).all()
+    mc_ids = [mc.id for mc in mcs]
+    workouts = db.query(Workout).filter(Workout.microcycle_id.in_(mc_ids)).order_by(Workout.date).all()
+    
+    import csv
+    import io
+    from fastapi.responses import Response
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow([
+        "Date", "Lift Category", "Tier", "Title", "Set Label",
+        "Planned Weight", "Actual Weight", "Reps", "RPE",
+        "e1RM", "INOL", "Muscle Tension (TOON)"
+    ])
+    
+    for w in workouts:
+        for e in w.exercises:
+            for s in e.sets:
+                try:
+                    wt = float(s.actual or "0")
+                    rp = int(s.reps or "0")
+                    rpe = float(s.executedRpe or "0")
+                except ValueError:
+                    wt, rp, rpe = 0.0, 0, 0.0
+                    
+                e1rm = 0.0
+                inol = 0.0
+                if wt > 0.0 and rp > 0 and e.tier != "Accessory":
+                    e1rm = calculate_e1rm_linear_decay(wt, rp, rpe)
+                    if e1rm > 0.0:
+                        intensity_pct = (wt / e1rm) * 100.0
+                        inol = calculate_inol(rp, intensity_pct)
+                
+                writer.writerow([
+                    w.date, e.lift_category, e.tier, e.title, s.label,
+                    s.plannedWeight, s.actual, s.reps, s.executedRpe,
+                    round(e1rm, 2) if e1rm > 0 else "",
+                    round(inol, 2) if inol > 0 else "",
+                    s.tension_units_toon or ""
+                ])
+                
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=training_log_{target_id}.csv"}
+    )
