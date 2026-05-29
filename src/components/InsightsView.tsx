@@ -28,7 +28,7 @@ interface TrendPoint {
 export function InsightsView() {
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeChart, setActiveChart] = useState<'e1rm' | 'tonnage'>('e1rm');
+  const [activeChart, setActiveChart] = useState<'e1rm' | 'tonnage' | 'acwr'>('e1rm');
   const [selectedLift, setSelectedLift] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [timeRange, setTimeRange] = useState<'All' | '30d' | '90d'>('All');
   
@@ -364,6 +364,46 @@ export function InsightsView() {
 
   const barCoords = getBarCoordinates();
 
+  // --- ACWR Coordinates & Ticks Engine ---
+  const acwrSeries = analytics?.fatigue_metrics?.acwr_series || [];
+  
+  const getFilteredACWRSeries = () => {
+    let result = [...acwrSeries];
+    if (timeRange !== 'All') {
+      const limitDate = new Date();
+      limitDate.setDate(limitDate.getDate() - (timeRange === '30d' ? 30 : 90));
+      const limitStr = limitDate.toISOString().split('T')[0];
+      result = result.filter((p: any) => p.date >= limitStr);
+    }
+    return result;
+  };
+
+  const filteredACWRSeries = getFilteredACWRSeries();
+
+  const getACWRMaxY = () => {
+    if (filteredACWRSeries.length === 0) return 2.0;
+    const maxVal = Math.max(...filteredACWRSeries.map((p: any) => p.acwr));
+    return Math.max(2.0, Math.ceil(maxVal * 2) / 2);
+  };
+
+  const acwrYMax = getACWRMaxY();
+
+  const getACWRY = (val: number) => {
+    return height - paddingBottom - (val / acwrYMax) * (height - paddingTop - paddingBottom);
+  };
+
+  const getACWRCoordinates = () => {
+    if (filteredACWRSeries.length === 0) return [];
+    const xRange = filteredACWRSeries.length > 1 ? filteredACWRSeries.length - 1 : 1;
+    return filteredACWRSeries.map((point: any, idx: number) => {
+      const x = paddingLeft + (idx / xRange) * (width - paddingLeft - paddingRight);
+      const y = getACWRY(point.acwr);
+      return { x, y, data: point };
+    });
+  };
+
+  const acwrCoords = getACWRCoordinates();
+
   // Y-Axis Ticks helper
   const getYAxisTicks = () => {
     if (activeChart === 'e1rm') {
@@ -380,6 +420,16 @@ export function InsightsView() {
         ticks.push({
           value: `${val}kg`,
           y: height - paddingBottom - ((val - yMin) / (yMax - yMin)) * (height - paddingTop - paddingBottom)
+        });
+      }
+      return ticks;
+    } else if (activeChart === 'acwr') {
+      const ticks = [];
+      const step = 0.5;
+      for (let val = 0.0; val <= acwrYMax; val += step) {
+        ticks.push({
+          value: `${val.toFixed(1)}`,
+          y: getACWRY(val)
         });
       }
       return ticks;
@@ -404,7 +454,10 @@ export function InsightsView() {
 
   // X-Axis Dates helper
   const getXAxisDates = () => {
-    const dates = Array.from(new Set(filteredTrends.map(p => p.date))).sort();
+    const dates = activeChart === 'acwr'
+      ? filteredACWRSeries.map((p: any) => p.date)
+      : Array.from(new Set(filteredTrends.map(p => p.date))).sort();
+      
     if (dates.length === 0) return [];
     
     // Limit to max 6 labels for clean display spacing
@@ -437,6 +490,37 @@ export function InsightsView() {
       setTooltipPos({ x, y });
       setHoveredPoint({ ...pointData, type });
     }
+  };
+
+  const handleACWRMouseMove = (e: React.MouseEvent<SVGSVGElement>, coords: any[]) => {
+    if (coords.length === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Find the coordinate with the closest X value
+    let closest = coords[0];
+    let minDiff = Math.abs(coords[0].x - mouseX);
+    
+    for (let i = 1; i < coords.length; i++) {
+      const diff = Math.abs(coords[i].x - mouseX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = coords[i];
+      }
+    }
+    
+    // Position tooltip near the hover point
+    setTooltipPos({
+      x: closest.x + 15,
+      y: closest.y - 120
+    });
+    setHoveredPoint({
+      ...closest.data,
+      type: 'acwr',
+      x: closest.x,
+      y: closest.y
+    });
   };
 
   return (
@@ -617,6 +701,14 @@ export function InsightsView() {
                   >
                     Tonnage & Deltas
                   </button>
+                  <button
+                    onClick={() => { setActiveChart('acwr'); setHoveredPoint(null); }}
+                    className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                      activeChart === 'acwr' ? 'bg-mac-blue text-white shadow' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    ACWR Stress Analyzer
+                  </button>
                 </div>
 
                 {/* Switch Movement filter (Only show for line chart) */}
@@ -642,7 +734,7 @@ export function InsightsView() {
 
               {/* Pure SVG Graph Container */}
               <div className="relative w-full aspect-[850/350] border border-white/5 bg-black/20 rounded-2xl p-2 select-none overflow-visible">
-                {filteredTrends.length === 0 ? (
+                {(activeChart === 'acwr' ? filteredACWRSeries.length === 0 : filteredTrends.length === 0) ? (
                   <div className="absolute inset-0 flex flex-col justify-center items-center">
                     <AlertCircle className="text-orange-500 animate-pulse mb-3" size={24} />
                     <span className="text-xs text-gray-500 font-black uppercase tracking-widest">No matching logged points found</span>
@@ -651,6 +743,8 @@ export function InsightsView() {
                   <svg 
                     viewBox={`0 0 ${width} ${height}`} 
                     className="w-full h-full overflow-visible"
+                    onMouseMove={activeChart === 'acwr' ? (e) => handleACWRMouseMove(e, acwrCoords) : undefined}
+                    onMouseLeave={activeChart === 'acwr' ? () => setHoveredPoint(null) : undefined}
                   >
                     {/* SVG Filters for glowing paths */}
                     <defs>
@@ -835,6 +929,171 @@ export function InsightsView() {
                         })}
                       </>
                     )}
+
+                    {/* 3. Render ACWR Time-Series Chart */}
+                    {activeChart === 'acwr' && (
+                      <>
+                        {/* Shaded Safety Zones Background Bands */}
+                        {/* 1. Under-training zone (< 0.8) */}
+                        {getACWRY(0.8) > getACWRY(0.0) && (
+                          <rect
+                            x={paddingLeft}
+                            y={getACWRY(0.8)}
+                            width={width - paddingLeft - paddingRight}
+                            height={getACWRY(0.0) - getACWRY(0.8)}
+                            fill="rgba(241, 196, 15, 0.04)"
+                          />
+                        )}
+                        {/* 2. Optimal zone (0.8 - 1.3) */}
+                        <rect
+                          x={paddingLeft}
+                          y={getACWRY(1.3)}
+                          width={width - paddingLeft - paddingRight}
+                          height={getACWRY(0.8) - getACWRY(1.3)}
+                          fill="rgba(46, 204, 113, 0.08)"
+                        />
+                        {/* 3. Caution zone (1.3 - 1.5) */}
+                        <rect
+                          x={paddingLeft}
+                          y={getACWRY(1.5)}
+                          width={width - paddingLeft - paddingRight}
+                          height={getACWRY(1.3) - getACWRY(1.5)}
+                          fill="rgba(230, 126, 34, 0.08)"
+                        />
+                        {/* 4. Danger zone (> 1.5) */}
+                        <rect
+                          x={paddingLeft}
+                          y={getACWRY(acwrYMax)}
+                          width={width - paddingLeft - paddingRight}
+                          height={getACWRY(1.5) - getACWRY(acwrYMax)}
+                          fill="rgba(231, 76, 60, 0.08)"
+                        />
+
+                        {/* Zone Boundary Dotted Line Anchors */}
+                        <line
+                          x1={paddingLeft}
+                          y1={getACWRY(0.8)}
+                          x2={width - paddingRight}
+                          y2={getACWRY(0.8)}
+                          stroke="rgba(241, 196, 15, 0.3)"
+                          strokeWidth="1"
+                          strokeDasharray="2 2"
+                        />
+                        <text
+                          x={width - paddingRight - 5}
+                          y={getACWRY(0.8) - 4}
+                          fill="rgba(241, 196, 15, 0.6)"
+                          fontSize="9"
+                          fontWeight="bold"
+                          textAnchor="end"
+                        >
+                          UNDER-TRAINING THRESHOLD (0.8)
+                        </text>
+
+                        <line
+                          x1={paddingLeft}
+                          y1={getACWRY(1.3)}
+                          x2={width - paddingRight}
+                          y2={getACWRY(1.3)}
+                          stroke="rgba(46, 204, 113, 0.3)"
+                          strokeWidth="1"
+                          strokeDasharray="2 2"
+                        />
+                        <text
+                          x={width - paddingRight - 5}
+                          y={getACWRY(1.3) - 4}
+                          fill="rgba(46, 204, 113, 0.6)"
+                          fontSize="9"
+                          fontWeight="bold"
+                          textAnchor="end"
+                        >
+                          OPTIMAL LIMIT (1.3)
+                        </text>
+
+                        <line
+                          x1={paddingLeft}
+                          y1={getACWRY(1.5)}
+                          x2={width - paddingRight}
+                          y2={getACWRY(1.5)}
+                          stroke="rgba(231, 76, 60, 0.3)"
+                          strokeWidth="1"
+                          strokeDasharray="2 2"
+                        />
+                        <text
+                          x={width - paddingRight - 5}
+                          y={getACWRY(1.5) - 4}
+                          fill="rgba(231, 76, 60, 0.6)"
+                          fontSize="9"
+                          fontWeight="bold"
+                          textAnchor="end"
+                        >
+                          DANGER ZONE (1.5)
+                        </text>
+
+                        {/* ACWR Vector Line */}
+                        {acwrCoords.length > 1 && (
+                          <path
+                            d={getBezierPath(acwrCoords)}
+                            fill="none"
+                            stroke="#007AFF"
+                            strokeWidth="3.5"
+                            strokeLinecap="round"
+                            filter="url(#glow-blue)"
+                          />
+                        )}
+
+                        {/* ACWR Dots */}
+                        {acwrCoords.map((c, i) => (
+                          <circle
+                            key={`acwr-${i}`}
+                            cx={c.x}
+                            cy={c.y}
+                            r="5"
+                            fill="#0E0E0E"
+                            stroke={
+                              c.data.zone === 'OPTIMAL_ZONE' ? '#2ECC71' :
+                              c.data.zone === 'ELEVATED_FATIGUE' ? '#E67E22' :
+                              c.data.zone === 'DANGER_ZONE' ? '#E74C3C' :
+                              '#F1C40F'
+                            }
+                            strokeWidth="3"
+                          />
+                        ))}
+
+                        {/* Interactive Crosshair & Hover marker point */}
+                        {hoveredPoint && hoveredPoint.type === 'acwr' && (
+                          <g>
+                            <line
+                              x1={hoveredPoint.x}
+                              y1={paddingTop}
+                              x2={hoveredPoint.x}
+                              y2={height - paddingBottom}
+                              stroke="rgba(255, 255, 255, 0.25)"
+                              strokeWidth="1.5"
+                              strokeDasharray="3 3"
+                            />
+                            <circle
+                              cx={hoveredPoint.x}
+                              cy={hoveredPoint.y}
+                              r="7"
+                              fill="#007AFF"
+                              stroke="#FFFFFF"
+                              strokeWidth="2.5"
+                              className="animate-ping"
+                              style={{ transformOrigin: `${hoveredPoint.x}px ${hoveredPoint.y}px` }}
+                            />
+                            <circle
+                              cx={hoveredPoint.x}
+                              cy={hoveredPoint.y}
+                              r="7"
+                              fill="#007AFF"
+                              stroke="#FFFFFF"
+                              strokeWidth="2.5"
+                            />
+                          </g>
+                        )}
+                      </>
+                    )}
                   </svg>
                 )}
 
@@ -863,6 +1122,13 @@ export function InsightsView() {
                             hoveredPoint.exercise.toLowerCase().includes('squat') ? 'bg-mac-blue' :
                             hoveredPoint.exercise.toLowerCase().includes('bench') ? 'bg-mac-green' :
                             'bg-amber-500'
+                          }`} />
+                        ) : hoveredPoint.type === 'acwr' ? (
+                          <span className={`w-2.5 h-2.5 rounded-full ${
+                            hoveredPoint.zone === 'OPTIMAL_ZONE' ? 'bg-[#2ECC71]' :
+                            hoveredPoint.zone === 'ELEVATED_FATIGUE' ? 'bg-[#E67E22]' :
+                            hoveredPoint.zone === 'DANGER_ZONE' ? 'bg-[#E74C3C]' :
+                            'bg-[#F1C40F]'
                           }`} />
                         ) : (
                           <span className="w-2.5 h-2.5 rounded-full bg-mac-blue" />
@@ -893,6 +1159,48 @@ export function InsightsView() {
                                 {Math.round(hoveredPoint.e1rm)}kg e1RM
                               </span>
                             </div>
+                          </div>
+                        </>
+                      ) : hoveredPoint.type === 'acwr' ? (
+                        <>
+                          <div className="space-y-0.5">
+                            <h5 className="text-[14px] font-black text-white font-sans">
+                              Stress Analytics
+                            </h5>
+                            <span className={`text-[10px] font-black uppercase tracking-widest block font-sans ${
+                              hoveredPoint.zone === 'OPTIMAL_ZONE' ? 'text-[#2ECC71]' :
+                              hoveredPoint.zone === 'ELEVATED_FATIGUE' ? 'text-[#E67E22]' :
+                              hoveredPoint.zone === 'DANGER_ZONE' ? 'text-[#E74C3C]' :
+                              'text-[#F1C40F]'
+                            }`}>
+                              {hoveredPoint.zone.replace('_', ' ')}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-1.5 pt-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400 font-bold">Daily Tonnage:</span>
+                              <span className="text-white font-mono font-bold">{hoveredPoint.daily_tonnage.toLocaleString()}kg</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400 font-bold">Acute (7d):</span>
+                              <span className="text-white font-mono font-bold">{hoveredPoint.acute_workload.toLocaleString()}kg</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400 font-bold">Chronic (28d):</span>
+                              <span className="text-white font-mono font-bold">{hoveredPoint.chronic_workload.toLocaleString()}kg</span>
+                            </div>
+                            <div className="flex justify-between border-t border-white/5 pt-1">
+                              <span className="text-gray-400 font-bold">ACWR Ratio:</span>
+                              <span className="text-mac-blue font-mono font-black text-sm">{hoveredPoint.acwr}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="border-t border-white/5 pt-1.5 text-[10px] text-gray-300 font-medium leading-relaxed font-sans">
+                            {hoveredPoint.zone === 'UNDER_TRAINING' ? 'Stimulus is low. Esc. tonnage target by +10%.' :
+                             hoveredPoint.zone === 'OPTIMAL_ZONE' ? 'Optimal training. Maintain planned layout.' :
+                             hoveredPoint.zone === 'ELEVATED_FATIGUE' ? 'System fatigue elevated. Apply -5% load drop.' :
+                             'WARNING: High injury risk! Cap top singles at RPE 8.0 & deload by -20%.'}
                           </div>
                         </>
                       ) : (
@@ -947,6 +1255,26 @@ export function InsightsView() {
                       <span className="text-gray-300">Deadlift e1RM Tracker</span>
                     </div>
                   )}
+                </div>
+              )}
+              {activeChart === 'acwr' && (
+                <div className="mt-6 border-t border-white/5 pt-4 flex flex-wrap gap-6 items-center justify-center font-sans text-xs font-bold">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded bg-[#2ECC71]/20 border border-[#2ECC71]/30" />
+                    <span className="text-gray-300">Optimal Zone (0.8 - 1.3)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded bg-[#E67E22]/20 border border-[#E67E22]/30" />
+                    <span className="text-gray-300">Caution Zone (1.3 - 1.5)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded bg-[#E74C3C]/20 border border-[#E74C3C]/30" />
+                    <span className="text-gray-300">Danger Zone (&gt; 1.5)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded bg-[#F1C40F]/20 border border-[#F1C40F]/30" />
+                    <span className="text-gray-300">Under-Training (&lt; 0.8)</span>
+                  </div>
                 </div>
               )}
             </div>

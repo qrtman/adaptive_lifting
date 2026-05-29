@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -13,7 +13,7 @@ import jwt
 from datetime import datetime, timedelta
 import uuid
 
-from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots, calculate_attempt_jumps
+from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
 
 from sqlalchemy import text
 # Make sure SQLite tables exist on launch
@@ -64,6 +64,17 @@ migrate_db()
 
 app = FastAPI(title="Iron Box Terminal Backend", version="1.0.0")
 
+from .sse_broadcaster import router as sse_router
+from .integrations import router as integrations_router
+app.include_router(sse_router)
+app.include_router(integrations_router)
+
+@app.on_event("startup")
+def on_startup():
+    from .integrations import start_background_worker
+    start_background_worker()
+
+
 # CORS setup for frontend development
 app.add_middleware(
     CORSMiddleware,
@@ -101,12 +112,22 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(request: Request, db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    token = request.cookies.get("session_id")
+    if not token:
+        auth = request.headers.get("Authorization")
+        if auth and auth.startswith("Bearer "):
+            token = auth.split(" ")[1]
+            
+    if not token:
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -126,6 +147,111 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     role: str
+
+class GoogleLoginRequest(BaseModel):
+    token: str
+    role: Optional[str] = "ATHLETE"
+
+@app.post("/api/auth/login")
+def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    session_id = str(uuid.uuid4())
+    from .database import Session as DBSession
+    db_session = DBSession(
+        id=session_id,
+        user_id=user.id,
+        jwt_id=session_id,
+        expires_at=datetime.utcnow() + access_token_expires
+    )
+    db.add(db_session)
+    db.commit()
+    
+    access_token = create_access_token(
+        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
+    )
+    
+    response.set_cookie(
+        key="session_id",
+        value=access_token,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=False  # Set to True in production
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+
+@app.post("/api/auth/google")
+def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
+    # Mocking Google Token Verification
+    # In production, use google.oauth2.id_token.verify_oauth2_token
+    if not req.token.startswith("mock_google_token_"):
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+    
+    email = req.token.replace("mock_google_token_", "") + "@gmail.com"
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
+        # Auto-register
+        user = User(
+            id=str(uuid.uuid4()),
+            email=email,
+            hashed_password=get_password_hash(str(uuid.uuid4())), # random password
+            role=req.role
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    session_id = str(uuid.uuid4())
+    from .database import Session as DBSession
+    db_session = DBSession(
+        id=session_id,
+        user_id=user.id,
+        jwt_id=session_id,
+        expires_at=datetime.utcnow() + access_token_expires
+    )
+    db.add(db_session)
+    db.commit()
+    
+    access_token = create_access_token(
+        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
+    )
+    
+    response.set_cookie(
+        key="session_id",
+        value=access_token,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=False
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+
+@app.post("/api/auth/logout")
+def logout(response: Response, request: Request, db: Session = Depends(get_db)):
+    token = request.cookies.get("session_id")
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            session_id = payload.get("session_id")
+            if session_id:
+                from .database import Session as DBSession
+                sess = db.query(DBSession).filter(DBSession.id == session_id).first()
+                if sess:
+                    sess.revoked_at = datetime.utcnow()
+                    db.commit()
+        except Exception:
+            pass
+    response.delete_cookie(key="session_id")
+    return {"status": "success"}
+
 
 class LinkCodeRequest(BaseModel):
     code: str
@@ -538,9 +664,10 @@ def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
             db.commit()
 
 # --- REST Endpoints ---
+from .sync_service import SyncPayload, resolve_sync_payload
 
 @app.post("/api/auth/register")
-def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
+def register_user(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
         
@@ -553,16 +680,31 @@ def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     
-    access_token = create_access_token(data={"sub": user.id}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role, "email": user.email}
-
-@app.post("/api/auth/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect email or password")
-        
-    access_token = create_access_token(data={"sub": user.id}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    session_id = str(uuid.uuid4())
+    from .database import Session as DBSession
+    db_session = DBSession(
+        id=session_id,
+        user_id=user.id,
+        jwt_id=session_id,
+        expires_at=datetime.utcnow() + access_token_expires
+    )
+    db.add(db_session)
+    db.commit()
+    
+    access_token = create_access_token(
+        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
+    )
+    
+    response.set_cookie(
+        key="session_id",
+        value=access_token,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=False
+    )
+    
     return {"access_token": access_token, "token_type": "bearer", "role": user.role, "email": user.email}
 
 @app.post("/api/auth/link-athlete")
@@ -762,10 +904,15 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
     ari = round(total_intensity / total_qualifying_sets, 2) if total_qualifying_sets > 0 else 0.0
     dots = calculate_dots("MALE", latest_bw, squat_max + bench_max + deadlift_max)
     
-    total_nl = comp_nl + var_nl + acc_nl
-    acute = total_nl
-    chronic = total_nl / 4.0 if total_nl > 0 else 1.0
-    acwr = round(acute / chronic, 2)
+    # Calculate true rolling daily ACWR series with gap filling
+    acwr_series = calculate_acwr_series(workouts)
+    if acwr_series:
+        acwr = acwr_series[-1]["acwr"]
+    else:
+        total_nl = comp_nl + var_nl + acc_nl
+        acute = total_nl
+        chronic = total_nl / 4.0 if total_nl > 0 else 1.0
+        acwr = round(acute / chronic, 2)
     
     payload = {
         "athlete_id": target_id,
@@ -782,13 +929,112 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
             "weekly_inol_deadlift": round(deadlift_inol, 2),
             "acute_chronic_ratio": acwr,
             "average_relative_intensity_pct": ari,
-            "series": fatigue_series
+            "series": fatigue_series,
+            "acwr_series": acwr_series
         },
         "attempt_planner_defaults": calculate_attempt_jumps(squat_max, "squat_dl", "MALE")
     }
     
     analytics_cache[target_id] = payload
     return payload
+
+@app.post("/api/workouts/{id}/sync")
+def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return resolve_sync_payload(db, payload, current_user.id)
+
+@app.get("/api/security/devices")
+def get_devices(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from .database import ClientDevice
+    devices = db.query(ClientDevice).filter(ClientDevice.user_id == current_user.id).all()
+    if not devices:
+        default_device = ClientDevice(
+            id="dev-default-" + str(uuid.uuid4())[:8],
+            user_id=current_user.id,
+            device_label="Primary Mobile PWA Terminal",
+            last_seen_at=datetime.utcnow()
+        )
+        db.add(default_device)
+        db.commit()
+        devices = [default_device]
+    return [{
+        "id": d.id,
+        "device_label": d.device_label or "PWA Web App",
+        "last_seen_at": d.last_seen_at.isoformat() if d.last_seen_at else None,
+        "revoked_at": d.revoked_at.isoformat() if d.revoked_at else None
+    } for d in devices]
+
+@app.delete("/api/security/devices/{id}")
+def revoke_device(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from .database import ClientDevice
+    d = db.query(ClientDevice).filter(ClientDevice.id == id, ClientDevice.user_id == current_user.id).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Device not found")
+    d.revoked_at = datetime.utcnow()
+    db.commit()
+    return {"status": "success"}
+
+@app.get("/api/security/sessions")
+def get_sessions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from .database import Session as DBSession
+    sessions = db.query(DBSession).filter(DBSession.user_id == current_user.id).order_by(DBSession.expires_at.desc()).all()
+    return [{
+        "id": s.id,
+        "expires_at": s.expires_at.isoformat(),
+        "revoked_at": s.revoked_at.isoformat() if s.revoked_at else None
+    } for s in sessions]
+
+@app.delete("/api/security/sessions/{id}")
+def revoke_session(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from .database import Session as DBSession
+    s = db.query(DBSession).filter(DBSession.id == id, DBSession.user_id == current_user.id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    s.revoked_at = datetime.utcnow()
+    db.commit()
+    return {"status": "success"}
+
+@app.get("/api/security/audit-events")
+def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import json
+    from .database import AuditEvent, CoachingRelationship
+    if current_user.role == "COACH":
+        relationships = db.query(CoachingRelationship).filter(
+            CoachingRelationship.coach_id == current_user.id,
+            CoachingRelationship.ended_at.is_(None)
+        ).all()
+        athlete_ids = [r.athlete_id for r in relationships]
+        allowed_ids = athlete_ids + [current_user.id]
+        events = db.query(AuditEvent).filter(
+            (AuditEvent.actor_user_id.in_(allowed_ids)) | (AuditEvent.actor_user_id.is_(None))
+        ).order_by(AuditEvent.created_at.desc()).limit(100).all()
+    else:
+        events = db.query(AuditEvent).filter(
+            AuditEvent.actor_user_id == current_user.id
+        ).order_by(AuditEvent.created_at.desc()).limit(100).all()
+        
+    if not events:
+        dummy_event = AuditEvent(
+            id=str(uuid.uuid4()),
+            actor_user_id=current_user.id,
+            event_type="SYNC_INIT",
+            resource_type="WorkoutTree",
+            resource_id="root",
+            created_at=datetime.utcnow() - timedelta(minutes=5),
+            metadata_json=json.dumps({"info": "Secured client session initialized", "client_ip": "127.0.0.1"})
+        )
+        db.add(dummy_event)
+        db.commit()
+        events = [dummy_event]
+        
+    return [{
+        "id": e.id,
+        "actor_email": db.query(User).filter(User.id == e.actor_user_id).first().email if e.actor_user_id else "system",
+        "event_type": e.event_type,
+        "resource_type": e.resource_type,
+        "resource_id": e.resource_id,
+        "created_at": e.created_at.isoformat(),
+        "metadata_json": e.metadata_json
+    } for e in events]
 
 @app.post("/api/reset")
 def reset_database(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

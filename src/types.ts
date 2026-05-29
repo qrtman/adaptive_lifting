@@ -1,20 +1,24 @@
 export interface SetData {
   id: string;
   label: string;
-  planned: string;
-  plannedWeight: string;
-  plannedReps: string;
-  plannedRpe: string;
+  plannedWeight: number | null;
+  plannedReps: number | null;
+  plannedRpe: number | null;
   dropPercent?: number;
   isAuto?: boolean;
-  actual?: string;
-  reps?: string;
-  executedRpe?: string;
+  actual?: number | null;
+  reps?: number | null;
+  executedRpe?: number | null;
   isTop?: boolean;
   note?: string;
-  velocity?: string;
-  readiness?: string;
-  hrv?: string;
+  velocity?: number | null;
+  readiness?: number | null;
+  hrv?: number | null;
+
+  intensity_type?: 'RPE' | 'PERCENT';
+  target_value?: number;
+  adjustment_pct?: number;
+  baseline_e1rm?: number;
 }
 
 export interface ExerciseData {
@@ -119,9 +123,9 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '150kg x 1',
             vol: '8,600kg',
             sets: [
-              { id: 's-1-1-1a', label: 'Top Single', planned: '150kg x 1', plannedWeight: '150', plannedReps: '1', plannedRpe: '5', isTop: true, actual: '150', reps: '1', executedRpe: '5' },
-              { id: 's-1-1-1b', label: 'Main Set', planned: '137.5kg x 4', plannedWeight: '137.5', plannedReps: '4', plannedRpe: '6', actual: '137.5', reps: '4', executedRpe: '6' },
-              { id: 's-1-1-1c', label: 'Backdown', planned: '127.5kg x 4', plannedWeight: '127.5', plannedReps: '4', plannedRpe: '5', note: '-5% Drop', actual: '127.5', reps: '4', executedRpe: '5' }
+              { id: 's-1-1-1a', label: 'Top Single', plannedWeight: 150.0, plannedReps: 1.0, plannedRpe: 5.0, isTop: true, actual: 150.0, reps: 1.0, executedRpe: 5.0 },
+              { id: 's-1-1-1b', label: 'Main Set', plannedWeight: 137.5, plannedReps: 4.0, plannedRpe: 6.0, actual: 137.5, reps: 4.0, executedRpe: 6.0 },
+              { id: 's-1-1-1c', label: 'Backdown', plannedWeight: 127.5, plannedReps: 4.0, plannedRpe: 5.0, note: '-5% Drop', actual: 127.5, reps: 4.0, executedRpe: 5.0 }
             ]
           },
           {
@@ -132,12 +136,12 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '90kg x 3',
             vol: '3,800kg',
             sets: [
-              { id: 's-1-1-2a', label: 'Top Single', planned: '90kg x 3', plannedWeight: '90', plannedReps: '3', plannedRpe: '6', isTop: true, actual: '90', reps: '3', executedRpe: '6' }
+              { id: 's-1-1-2a', label: 'Top Single', plannedWeight: 90.0, plannedReps: 3.0, plannedRpe: 6.0, isTop: true, actual: 90.0, reps: 3.0, executedRpe: 6.0 }
             ]
           }
         ],
         accessories: [
-          { id: 'a-1-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: '12', executedRpe: '7', status: 'Done' }
+          { id: 'a-1-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: 12.0, executedRpe: 7.0, status: 'Done' }
         ]
       },
       {
@@ -158,7 +162,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '180kg x 3',
             vol: '4,700kg',
             sets: [
-              { id: 's-1-2-1a', label: 'Top Set', planned: '180kg x 3', plannedWeight: '180', plannedReps: '3', plannedRpe: '6', isTop: true, actual: '180', reps: '3', executedRpe: '6' }
+              { id: 's-1-2-1a', label: 'Top Set', plannedWeight: 180.0, plannedReps: 3.0, plannedRpe: 6.0, isTop: true, actual: 180.0, reps: 3.0, executedRpe: 6.0 }
             ]
           },
           {
@@ -169,7 +173,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '85kg x 5',
             vol: '4,200kg',
             sets: [
-              { id: 's-1-2-2a', label: 'Top Set', planned: '85kg x 5', plannedWeight: '85', plannedReps: '5', plannedRpe: '7', isTop: true, actual: '85', reps: '5', executedRpe: '7' }
+              { id: 's-1-2-2a', label: 'Top Set', plannedWeight: 85.0, plannedReps: 5.0, plannedRpe: 7.0, isTop: true, actual: 85.0, reps: 5.0, executedRpe: 7.0 }
             ]
           }
         ]
@@ -192,7 +196,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '120kg x 5',
             vol: '5,200kg',
             sets: [
-              { id: 's-1-3-1a', label: 'Main Set', planned: '120kg x 5', plannedWeight: '120', plannedReps: '5', plannedRpe: '6', isTop: true, actual: '120', reps: '5', executedRpe: '6' }
+              { id: 's-1-3-1a', label: 'Main Set', plannedWeight: 120.0, plannedReps: 5.0, plannedRpe: 6.0, isTop: true, actual: 120.0, reps: 5.0, executedRpe: 6.0 }
             ]
           },
           {
@@ -203,7 +207,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '80kg x 6',
             vol: '6,000kg',
             sets: [
-              { id: 's-1-3-2a', label: 'Main Set', planned: '80kg x 6', plannedWeight: '80', plannedReps: '6', plannedRpe: '6', isTop: true, actual: '80', reps: '6', executedRpe: '6' }
+              { id: 's-1-3-2a', label: 'Main Set', plannedWeight: 80.0, plannedReps: 6.0, plannedRpe: 6.0, isTop: true, actual: 80.0, reps: 6.0, executedRpe: 6.0 }
             ]
           }
         ]
@@ -234,7 +238,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '155kg x 1',
             vol: '9,200kg',
             sets: [
-              { id: 's-2-1-1a', label: 'Top Single', planned: '155kg x 1', plannedWeight: '155', plannedReps: '1', plannedRpe: '5.5', isTop: true, actual: '155', reps: '1', executedRpe: '5.5' }
+              { id: 's-2-1-1a', label: 'Top Single', plannedWeight: 155.0, plannedReps: 1.0, plannedRpe: 5.5, isTop: true, actual: 155.0, reps: 1.0, executedRpe: 5.5 }
             ]
           },
           {
@@ -245,7 +249,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '92.5kg x 3',
             vol: '4,000kg',
             sets: [
-              { id: 's-2-1-2a', label: 'Top Set', planned: '92.5kg x 3', plannedWeight: '92.5', plannedReps: '3', plannedRpe: '6', isTop: true, actual: '92.5', reps: '3', executedRpe: '6' }
+              { id: 's-2-1-2a', label: 'Top Set', plannedWeight: 92.5, plannedReps: 3.0, plannedRpe: 6.0, isTop: true, actual: 92.5, reps: 3.0, executedRpe: 6.0 }
             ]
           }
         ]
@@ -268,7 +272,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '185kg x 3',
             vol: '4,900kg',
             sets: [
-              { id: 's-2-2-1a', label: 'Top Set', planned: '185kg x 3', plannedWeight: '185', plannedReps: '3', plannedRpe: '6', isTop: true, actual: '185', reps: '3', executedRpe: '6' }
+              { id: 's-2-2-1a', label: 'Top Set', plannedWeight: 185.0, plannedReps: 3.0, plannedRpe: 6.0, isTop: true, actual: 185.0, reps: 3.0, executedRpe: 6.0 }
             ]
           },
           {
@@ -279,7 +283,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '87.5kg x 5',
             vol: '4,500kg',
             sets: [
-              { id: 's-2-2-2a', label: 'Top Set', planned: '87.5kg x 5', plannedWeight: '87.5', plannedReps: '5', plannedRpe: '7', isTop: true, actual: '87.5', reps: '5', executedRpe: '7' }
+              { id: 's-2-2-2a', label: 'Top Set', plannedWeight: 87.5, plannedReps: 5.0, plannedRpe: 7.0, isTop: true, actual: 87.5, reps: 5.0, executedRpe: 7.0 }
             ]
           }
         ]
@@ -302,7 +306,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '122.5kg x 5',
             vol: '5,500kg',
             sets: [
-              { id: 's-2-3-1a', label: 'Main Set', planned: '122.5kg x 5', plannedWeight: '122.5', plannedReps: '5', plannedRpe: '6.5', isTop: true, actual: '122.5', reps: '5', executedRpe: '6.5' }
+              { id: 's-2-3-1a', label: 'Main Set', plannedWeight: 122.5, plannedReps: 5.0, plannedRpe: 6.5, isTop: true, actual: 122.5, reps: 5.0, executedRpe: 6.5 }
             ]
           },
           {
@@ -313,7 +317,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '82.5kg x 6',
             vol: '6,300kg',
             sets: [
-              { id: 's-2-3-2a', label: 'Main Set', planned: '82.5kg x 6', plannedWeight: '82.5', plannedReps: '6', plannedRpe: '6.5', isTop: true, actual: '82.5', reps: '6', executedRpe: '6.5' }
+              { id: 's-2-3-2a', label: 'Main Set', plannedWeight: 82.5, plannedReps: 6.0, plannedRpe: 6.5, isTop: true, actual: 82.5, reps: 6.0, executedRpe: 6.5 }
             ]
           }
         ]
@@ -345,9 +349,9 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '160kg x 1',
             vol: '9,800kg',
             sets: [
-              { id: 's-3-1-1a', label: 'Top Single', planned: '160kg x 1', plannedWeight: '160', plannedReps: '1', plannedRpe: '5', isTop: true, actual: '160', reps: '1', executedRpe: '8.5' },
-              { id: 's-3-1-1b', label: 'Main Set', planned: '152.5kg x 3', plannedWeight: '152.5', plannedReps: '3', plannedRpe: '6.5', actual: '152.5', reps: '3', executedRpe: '7.5' },
-              { id: 's-3-1-1c', label: 'Backdown', planned: '152.5kg x 3', plannedWeight: '152.5', plannedReps: '3', plannedRpe: '5.5', note: '-5% Drop', actual: '152.5', reps: '3', executedRpe: '8' }
+              { id: 's-3-1-1a', label: 'Top Single', plannedWeight: 160.0, plannedReps: 1.0, plannedRpe: 5.0, isTop: true, actual: 160.0, reps: 1.0, executedRpe: 8.5 },
+              { id: 's-3-1-1b', label: 'Main Set', plannedWeight: 152.5, plannedReps: 3.0, plannedRpe: 6.5, actual: 152.5, reps: 3.0, executedRpe: 7.5 },
+              { id: 's-3-1-1c', label: 'Backdown', plannedWeight: 152.5, plannedReps: 3.0, plannedRpe: 5.5, note: '-5% Drop', actual: 152.5, reps: 3.0, executedRpe: 8.0 }
             ]
           },
           {
@@ -358,15 +362,15 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '95kg x 3',
             vol: '4,300kg',
             sets: [
-              { id: 's-3-1-2a', label: 'Top Single', planned: '95kg x 3', plannedWeight: '95', plannedReps: '3', plannedRpe: '5', isTop: true, actual: '95', reps: '3', executedRpe: '8' },
-              { id: 's-3-1-2b', label: 'Main Set', planned: '90kg x 5', plannedWeight: '90', plannedReps: '5', plannedRpe: '6', actual: '90', reps: '5', executedRpe: '7' }
+              { id: 's-3-1-2a', label: 'Top Single', plannedWeight: 95.0, plannedReps: 3.0, plannedRpe: 5.0, isTop: true, actual: 95.0, reps: 3.0, executedRpe: 8.0 },
+              { id: 's-3-1-2b', label: 'Main Set', plannedWeight: 90.0, plannedReps: 5.0, plannedRpe: 6.0, actual: 90.0, reps: 5.0, executedRpe: 7.0 }
             ]
           }
         ],
         accessories: [
-          { id: 'a-3-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: '12', executedRpe: '7', status: 'Done' },
-          { id: 'a-3-1-2', name: 'Triceps Extension', prescribedSets: '3', targetReps: '12', targetRpe: '9', weight: '', reps: '', executedRpe: '', status: 'Pending' },
-          { id: 'a-3-1-3', name: 'Lateral Raises', prescribedSets: '3', targetReps: '15', targetRpe: '10', weight: '', reps: '', executedRpe: '', status: 'Pending' }
+          { id: 'a-3-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: 12.0, executedRpe: 7.0, status: 'Done' },
+          { id: 'a-3-1-2', name: 'Triceps Extension', prescribedSets: '3', targetReps: '12', targetRpe: '9', weight: '', reps: null, executedRpe: null, status: 'Pending' },
+          { id: 'a-3-1-3', name: 'Lateral Raises', prescribedSets: '3', targetReps: '15', targetRpe: '10', weight: '', reps: null, executedRpe: null, status: 'Pending' }
         ]
       },
       {
@@ -387,7 +391,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '190kg x 3',
             vol: '5,100kg',
             sets: [
-              { id: 's-3-2-1a', label: 'Top Set', planned: '190kg x 3', plannedWeight: '190', plannedReps: '3', plannedRpe: '7', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-3-2-1a', label: 'Top Set', plannedWeight: 190.0, plannedReps: 3.0, plannedRpe: 7.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -398,7 +402,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '90kg x 5',
             vol: '4,800kg',
             sets: [
-              { id: 's-3-2-2a', label: 'Main Set', planned: '90kg x 5', plannedWeight: '90', plannedReps: '5', plannedRpe: '7', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-3-2-2a', label: 'Main Set', plannedWeight: 90.0, plannedReps: 5.0, plannedRpe: 7.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -421,7 +425,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '125kg x 5',
             vol: '5,900kg',
             sets: [
-              { id: 's-3-3-1a', label: 'Main Set', planned: '125kg x 5', plannedWeight: '125', plannedReps: '5', plannedRpe: '7', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-3-3-1a', label: 'Main Set', plannedWeight: 125.0, plannedReps: 5.0, plannedRpe: 7.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -432,7 +436,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '85kg x 6',
             vol: '6,600kg',
             sets: [
-              { id: 's-3-3-2a', label: 'Main Set', planned: '85kg x 6', plannedWeight: '85', plannedReps: '6', plannedRpe: '7', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-3-3-2a', label: 'Main Set', plannedWeight: 85.0, plannedReps: 6.0, plannedRpe: 7.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -463,7 +467,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '162.5kg x 1',
             vol: '10,200kg',
             sets: [
-              { id: 's-4-1-1a', label: 'Top Single', planned: '162.5kg x 1', plannedWeight: '162.5', plannedReps: '1', plannedRpe: '6', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-4-1-1a', label: 'Top Single', plannedWeight: 162.5, plannedReps: 1.0, plannedRpe: 6.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -474,7 +478,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '97.5kg x 3',
             vol: '4,600kg',
             sets: [
-              { id: 's-4-1-2a', label: 'Top Set', planned: '97.5kg x 3', plannedWeight: '97.5', plannedReps: '3', plannedRpe: '7', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-4-1-2a', label: 'Top Set', plannedWeight: 97.5, plannedReps: 3.0, plannedRpe: 7.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -497,7 +501,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '195kg x 3',
             vol: '5,300kg',
             sets: [
-              { id: 's-4-2-1a', label: 'Top Set', planned: '195kg x 3', plannedWeight: '195', plannedReps: '3', plannedRpe: '7.5', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-4-2-1a', label: 'Top Set', plannedWeight: 195.0, plannedReps: 3.0, plannedRpe: 7.5, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -508,7 +512,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '92.5kg x 5',
             vol: '5,100kg',
             sets: [
-              { id: 's-4-2-2a', label: 'Main Set', planned: '92.5kg x 5', plannedWeight: '92.5', plannedReps: '5', plannedRpe: '7.5', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-4-2-2a', label: 'Main Set', plannedWeight: 92.5, plannedReps: 5.0, plannedRpe: 7.5, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -531,7 +535,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '130kg x 5',
             vol: '6,200kg',
             sets: [
-              { id: 's-4-3-1a', label: 'Main Set', planned: '130kg x 5', plannedWeight: '130', plannedReps: '5', plannedRpe: '7.5', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-4-3-1a', label: 'Main Set', plannedWeight: 130.0, plannedReps: 5.0, plannedRpe: 7.5, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -542,7 +546,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '87.5kg x 6',
             vol: '6,900kg',
             sets: [
-              { id: 's-4-3-2a', label: 'Main Set', planned: '87.5kg x 6', plannedWeight: '87.5', plannedReps: '6', plannedRpe: '7.5', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-4-3-2a', label: 'Main Set', plannedWeight: 87.5, plannedReps: 6.0, plannedRpe: 7.5, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -573,7 +577,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '165kg x 1',
             vol: '5,000kg',
             sets: [
-              { id: 's-5-1-1a', label: 'Top Single', planned: '165kg x 1', plannedWeight: '165', plannedReps: '1', plannedRpe: '8', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-5-1-1a', label: 'Top Single', plannedWeight: 165.0, plannedReps: 1.0, plannedRpe: 8.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -584,7 +588,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '100kg x 1',
             vol: '3,000kg',
             sets: [
-              { id: 's-5-1-2a', label: 'Top Single', planned: '100kg x 1', plannedWeight: '100', plannedReps: '1', plannedRpe: '8', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-5-1-2a', label: 'Top Single', plannedWeight: 100.0, plannedReps: 1.0, plannedRpe: 8.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -607,7 +611,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '200kg x 1',
             vol: '5,500kg',
             sets: [
-              { id: 's-5-2-1a', label: 'Top Single', planned: '200kg x 1', plannedWeight: '200', plannedReps: '1', plannedRpe: '8.5', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-5-2-1a', label: 'Top Single', plannedWeight: 200.0, plannedReps: 1.0, plannedRpe: 8.5, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -618,7 +622,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '95kg x 3',
             vol: '4,000kg',
             sets: [
-              { id: 's-5-2-2a', label: 'Top Set', planned: '95kg x 3', plannedWeight: '95', plannedReps: '3', plannedRpe: '8', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-5-2-2a', label: 'Top Set', plannedWeight: 95.0, plannedReps: 3.0, plannedRpe: 8.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]
@@ -641,7 +645,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '135kg x 3',
             vol: '6,100kg',
             sets: [
-              { id: 's-5-3-1a', label: 'Top Set', planned: '135kg x 3', plannedWeight: '135', plannedReps: '3', plannedRpe: '8', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-5-3-1a', label: 'Top Set', plannedWeight: 135.0, plannedReps: 3.0, plannedRpe: 8.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           },
           {
@@ -652,7 +656,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             top: '90kg x 5',
             vol: '6,000kg',
             sets: [
-              { id: 's-5-3-2a', label: 'Top Set', planned: '90kg x 5', plannedWeight: '90', plannedReps: '5', plannedRpe: '8', isTop: true, actual: '', reps: '', executedRpe: '' }
+              { id: 's-5-3-2a', label: 'Top Set', plannedWeight: 90.0, plannedReps: 5.0, plannedRpe: 8.0, isTop: true, actual: null, reps: null, executedRpe: null }
             ]
           }
         ]

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, MoreHorizontal, Plus, Trash2, Zap, Copy } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
+import { PrescriptionEditor } from './PrescriptionEditor';
 import { 
   calculateCapacityScaledWeight, 
   calculateE1RM, 
@@ -303,84 +304,29 @@ export const ExerciseCard = ({
                     {roleMode === 'coach' ? (
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-4">
-                          {/* Reps */}
-                          <EditablePerformanceCell
-                            value={set.plannedReps || ""}
-                            onChange={(val) => updateSet(i, { plannedReps: val })}
-                            placeholder="—"
-                            fieldKey="plannedReps"
-                            label="Reps"
-                            widthClass="w-12"
-                            step={1}
+                          <PrescriptionEditor
+                            reps={set.plannedReps}
+                            intensityType={set.intensity_type || "RPE"}
+                            targetValue={set.target_value}
+                            weight={set.plannedWeight}
+                            onChange={(updates) => updateSet(i, {
+                              plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
+                              intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
+                              target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
+                              plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
+                            })}
                           />
-
-                          {/* Intensity Target & Type Stacked and Combined */}
-                          <div className="flex flex-col items-center gap-1.5 w-20">
-                            <EditablePerformanceCell
-                              value={set.target_value !== undefined ? set.target_value.toString() : ""}
-                              onChange={(val) => updateSet(i, { target_value: parseFloat(val) || 0 })}
-                              placeholder={set.intensity_type === "PERCENT" ? "80" : "8"}
-                              fieldKey="target_value"
-                              label={set.intensity_type === "PERCENT" ? "Target %" : "Target RPE"}
-                              widthClass="w-20"
-                              step={set.intensity_type === "PERCENT" ? 1 : 0.5}
-                            />
-                            
-                            <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 select-none h-6 items-center w-20 justify-between">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextVal = set.intensity_type === "RPE" ? set.target_value : 8;
-                                  updateSet(i, { intensity_type: "RPE", target_value: nextVal });
-                                }}
-                                className={`flex-1 text-center py-0.5 text-[8.5px] font-black uppercase tracking-widest rounded transition-all cursor-pointer leading-none select-none ${
-                                  set.intensity_type === "RPE"
-                                    ? "bg-mac-blue text-white shadow-sm font-black"
-                                    : "text-gray-400 hover:text-white"
-                                }`}
-                              >
-                                RPE
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextVal = set.intensity_type === "PERCENT" ? set.target_value : 80;
-                                  updateSet(i, { intensity_type: "PERCENT", target_value: nextVal });
-                                }}
-                                className={`flex-1 text-center py-0.5 text-[8.5px] font-black uppercase tracking-widest rounded transition-all cursor-pointer leading-none select-none ${
-                                  set.intensity_type === "PERCENT"
-                                    ? "bg-mac-blue text-white shadow-sm font-black"
-                                    : "text-gray-400 hover:text-white"
-                                }`}
-                              >
-                                %
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Prescribed Weight calculated */}
-                          <div className="flex flex-col items-center">
-                            <EditablePerformanceCell
-                              value={set.plannedWeight || ""}
-                              onChange={(val) => updateSet(i, { plannedWeight: val })}
-                              placeholder="—"
-                              fieldKey="plannedWeight"
-                              label="Weight"
-                              widthClass="w-20"
-                              step={2.5}
-                            />
-                            {suggestedPrescribedWeight && parseFloat(suggestedPrescribedWeight) !== parseFloat(set.plannedWeight || "0") && (
-                              <button
-                                type="button"
-                                onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
-                                className="mt-1.5 text-[9px] font-black bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 border border-amber-400/20 hover:border-amber-400/40 rounded px-1.5 py-0.5 tracking-wider uppercase flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap active:scale-95"
-                                title="Update prescription weight using the recent logged E1RM"
-                              >
-                                <Zap size={10} className="fill-amber-400 stroke-none animate-pulse" />
-                                Sug: {suggestedPrescribedWeight}
-                              </button>
-                            )}
-                          </div>
+                          {suggestedPrescribedWeight && parseFloat(suggestedPrescribedWeight) !== parseFloat(set.plannedWeight?.toString() || "0") && (
+                            <button
+                              type="button"
+                              onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
+                              className="mt-1.5 text-[9px] font-black bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 border border-amber-400/20 hover:border-amber-400/40 rounded px-1.5 py-0.5 tracking-wider uppercase flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap active:scale-95"
+                              title="Update prescription weight using the recent logged E1RM"
+                            >
+                              <Zap size={10} className="fill-amber-400 stroke-none animate-pulse" />
+                              Sug: {suggestedPrescribedWeight}
+                            </button>
+                          )}
 
                           {/* Fatigue/Modifier (adjustment_pct) */}
                           <EditablePerformanceCell

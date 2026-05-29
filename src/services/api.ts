@@ -114,10 +114,8 @@ function saveLocalData(data: MicrocycleData[]) {
 }
 
 function getHeaders() {
-  const token = localStorage.getItem('iron_box_token');
   return {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    'Content-Type': 'application/json'
   };
 }
 
@@ -130,7 +128,7 @@ export const apiService = {
   async fetchMicrocycles(): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/microcycles`, { headers: getHeaders() });
+        const response = await fetch(`${BACKEND_URL}/api/microcycles`, { headers: getHeaders(), credentials: 'include' });
         if (!response.ok) throw new Error('API server returned error status');
         return await response.json();
       } catch (err) {
@@ -161,6 +159,7 @@ export const apiService = {
         const response = await fetch(`${BACKEND_URL}/api/sets/log`, {
           method: 'POST',
           headers: getHeaders(),
+          credentials: 'include',
           body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv })
         });
         if (!response.ok) throw new Error('API set log request failed');
@@ -234,7 +233,8 @@ export const apiService = {
       try {
         const response = await fetch(`${BACKEND_URL}/api/accessories/log`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getHeaders(),
+          credentials: 'include',
           body: JSON.stringify({ workoutId, accessoryId, weight, reps, rpe, status })
         });
         if (!response.ok) throw new Error('API accessory log request failed');
@@ -282,7 +282,7 @@ export const apiService = {
   async resetMicrocycles(): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/reset`, { method: 'POST' });
+        const response = await fetch(`${BACKEND_URL}/api/reset`, { method: 'POST', credentials: 'include' });
         if (!response.ok) throw new Error('API server reset failed');
         return await response.json();
       } catch (err) {
@@ -300,7 +300,7 @@ export const apiService = {
     if (BACKEND_URL) {
       try {
         const url = athleteId ? `${BACKEND_URL}/api/analytics/trends?athlete_id=${athleteId}` : `${BACKEND_URL}/api/analytics/trends`;
-        const response = await fetch(url, { headers: getHeaders() });
+        const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
         if (!response.ok) throw new Error('API server trends request failed');
         return await response.json();
       } catch (err) {
@@ -372,20 +372,21 @@ export const apiService = {
     const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
       method: 'POST',
       body: formData,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'include'
     });
     if (!response.ok) throw new Error('Login failed');
     const data = await response.json();
-    localStorage.setItem('iron_box_token', data.access_token);
-    localStorage.setItem('iron_box_role', data.role);
-    localStorage.setItem('iron_box_email', data.email);
+    localStorage.setItem('iron_box_role', data.user.role);
+    localStorage.setItem('iron_box_email', data.user.email);
     return data;
   },
 
   async register(email: string, password: string, role: string) {
     const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ email, password, role })
     });
     if (!response.ok) {
@@ -393,7 +394,6 @@ export const apiService = {
       throw new Error(errData.detail || 'Registration failed');
     }
     const data = await response.json();
-    localStorage.setItem('iron_box_token', data.access_token);
     localStorage.setItem('iron_box_role', data.role);
     localStorage.setItem('iron_box_email', data.email);
     return data;
@@ -403,6 +403,7 @@ export const apiService = {
     const response = await fetch(`${BACKEND_URL}/api/coach/push-program`, {
       method: 'POST',
       headers: getHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ athleteId, template })
     });
     if (!response.ok) {
@@ -413,14 +414,17 @@ export const apiService = {
   },
 
   async fetchRoster() {
-    const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders() });
+    const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('Failed to fetch roster');
     return await response.json();
   },
 
-  logout() {
-    localStorage.removeItem('iron_box_token');
+  async logout() {
+    try {
+      await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch (err) {}
     localStorage.removeItem('iron_box_role');
     localStorage.removeItem('iron_box_email');
+    localStorage.removeItem('obsidian_role_mode');
   }
 };

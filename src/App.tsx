@@ -8,12 +8,17 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
+import { AppShell } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
 import { AccessoryLedger } from './components/AccessoryLedger';
 import TelegramSessionTerminal from './components/mobile/TelegramSessionTerminal';
+import { LoginView } from './components/LoginView';
+import { TelegramLinkPanel } from './components/TelegramLinkPanel';
+import { SheetsPublishPanel } from './components/SheetsPublishPanel';
+import { InsightsView } from './components/InsightsView';
+import { SecurityView } from './components/SecurityView';
 import { apiService } from './services/api';
+import { saveSnapshot, getSnapshot, evictOldSyncedData } from './services/db';
 import { 
   INITIAL_MICROCYCLES, 
   INITIAL_MESOCYCLE, 
@@ -46,6 +51,27 @@ export default function App() {
     return saved === 'session' ? 'session' : 'dashboard';
   });
 
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const role = localStorage.getItem('obsidian_role_mode');
+    if (role) {
+      setUser({ role: role.toUpperCase() });
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleSessionRevoked = () => {
+      alert("Your session has been terminated or revoked remotely. Please sign in again.");
+      localStorage.removeItem('obsidian_role_mode');
+      localStorage.removeItem('iron_box_email');
+      setUser(null);
+      window.location.reload();
+    };
+    window.addEventListener('auth-session-revoked', handleSessionRevoked);
+    return () => window.removeEventListener('auth-session-revoked', handleSessionRevoked);
+  }, []);
+
   const [roleMode, setRoleMode] = useState<'coach' | 'athlete'>(() => {
     return (localStorage.getItem('obsidian_role_mode') as 'coach' | 'athlete') || 'coach';
   });
@@ -54,41 +80,47 @@ export default function App() {
     localStorage.setItem('obsidian_role_mode', roleMode);
   }, [roleMode]);
 
-  const [dashboardMode, setDashboardMode] = useState<'calendar' | 'sessions'>(() => {
-    return (localStorage.getItem('obsidian_dashboard_mode') as 'calendar' | 'sessions') || 'sessions';
+  const [dashboardMode, setDashboardMode] = useState<'calendar' | 'sessions' | 'integrations' | 'insights'>(() => {
+    return (localStorage.getItem('obsidian_dashboard_mode') as 'calendar' | 'sessions' | 'integrations' | 'insights') || 'sessions';
   });
 
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
 
-  // Master Periodization State
-  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>(() => {
-    try {
-      const saved = localStorage.getItem('obsidian_microcycles');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].workouts) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error("Corrupted state found in localStorage, resetting to defaults:", e);
-    }
-    return INITIAL_MICROCYCLES;
-  });
+  // Master Periodization State (Default to INITIAL_MICROCYCLES first, then hydrate asynchronously from IndexedDB snapshots)
+  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>(INITIAL_MICROCYCLES);
 
-  // Fetch from API
+  // Hydrate from IndexedDB snapshots and evict old synced mutations on mount
   useEffect(() => {
-    const fetchMeso = async () => {
+    const hydrateAndEvict = async () => {
+      // 1. Run 28-day data eviction engine
+      try {
+        await evictOldSyncedData();
+      } catch (err) {
+        console.warn("Failed to evict old synced mutations on launch:", err);
+      }
+
+      // 2. Hydrate from IndexedDB snapshots
+      try {
+        const cached = await getSnapshot('microcycles');
+        if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].workouts) {
+          setMicrocycles(cached);
+        }
+      } catch (err) {
+        console.error("Failed to hydrate workout data from IndexedDB:", err);
+      }
+
+      // 3. Query backend for canonical mesocycle and refresh snapshots
       try {
         const meso = await apiService.getMesocycle();
         if (meso && meso.microcycles) {
           setMicrocycles(meso.microcycles);
+          await saveSnapshot('microcycles', meso.microcycles);
         }
       } catch (err) {
-        console.error("Failed to load mesocycle from backend:", err);
+        console.warn("Failed to refresh mesocycle from backend (offline fallback active):", err);
       }
     };
-    fetchMeso();
+    hydrateAndEvict();
   }, []);
 
   // Track active logging session
@@ -109,7 +141,8 @@ export default function App() {
   }, [dashboardMode]);
 
   useEffect(() => {
-    localStorage.setItem('obsidian_microcycles', JSON.stringify(microcycles));
+    saveSnapshot('microcycles', microcycles)
+      .catch(err => console.error("Failed to write IndexedDB microcycles snapshot:", err));
   }, [microcycles]);
 
   useEffect(() => {
@@ -241,22 +274,12 @@ export default function App() {
     }
   };
 
+  if (!user) {
+    return <LoginView onLoginSuccess={(u) => setUser(u)} />;
+  }
+
   return (
-    <div className="flex min-h-screen relative overflow-hidden bg-[#0A0A0A] font-sans text-gray-200">
-      
-      {/* Background radial glow */}
-      <div className="absolute top-[-25%] left-[-20%] w-[90vw] h-[90vh] rounded-full bg-mac-blue/2 opacity-[0.06] blur-[150px] pointer-events-none" />
-      <div className="absolute bottom-[-25%] right-[-10%] w-[90vw] h-[90vh] rounded-full bg-mac-green/2 opacity-[0.04] blur-[150px] pointer-events-none" />
-
-      {/* Persistent App Sidebar */}
-      <Sidebar />
-
-      {/* Main Container Workspace */}
-      <main className="ml-64 flex-1 flex flex-col h-screen overflow-hidden">
-        
-        {/* Dynamic Header */}
-        <Header />
-
+    <AppShell>
         <AnimatePresence mode="wait">
           {currentView === 'dashboard' ? (
             <motion.div
@@ -308,13 +331,43 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => setDashboardMode('calendar')}
-                      className={`px-6 py-3 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${
+                      className={`px-5 py-2.5 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${
                         dashboardMode === 'calendar' 
-                          ? 'bg-mac-blue text-white shadow-lg font-sans' 
-                          : 'text-gray-300 hover:text-white font-sans'
+                          ? 'bg-white/10 text-white shadow-sm' 
+                          : 'text-gray-400 hover:text-white'
                       }`}
                     >
                       Calendar Grid
+                    </button>
+                    <button
+                      onClick={() => setDashboardMode('integrations')}
+                      className={`px-5 py-2.5 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${
+                        dashboardMode === 'integrations' 
+                          ? 'bg-white/10 text-white shadow-sm' 
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Integrations
+                    </button>
+                    <button
+                      onClick={() => setDashboardMode('insights')}
+                      className={`px-5 py-2.5 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${
+                        dashboardMode === 'insights' 
+                          ? 'bg-mac-blue text-white shadow-sm' 
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Insights
+                    </button>
+                    <button
+                      onClick={() => setDashboardMode('security')}
+                      className={`px-5 py-2.5 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${
+                        dashboardMode === 'security' 
+                          ? 'bg-white/10 text-white shadow-sm' 
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Security & Audit
                     </button>
                   </div>
 
@@ -344,7 +397,7 @@ export default function App() {
                     onViewSession={handleViewSession}
                     filter={filter}
                   />
-                ) : (
+                ) : dashboardMode === 'sessions' ? (
                   <SessionsView 
                     microcycles={microcycles}
                     onViewSession={handleViewSession}
@@ -354,6 +407,18 @@ export default function App() {
                     activeWorkoutId={activeWorkoutId}
                     setActiveWorkoutId={setActiveWorkoutId}
                   />
+                ) : dashboardMode === 'insights' ? (
+                  <InsightsView />
+                ) : dashboardMode === 'security' ? (
+                  <SecurityView />
+                ) : (
+                  <div className="flex flex-col gap-6 p-10 w-full overflow-y-auto">
+                    <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-4">External Integrations</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <TelegramLinkPanel />
+                      <SheetsPublishPanel />
+                    </div>
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -523,7 +588,6 @@ export default function App() {
             )}
           </div>
         </footer>
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -98,3 +98,103 @@ def calculate_attempt_jumps(first_attempt: float, profile: str, gender: str = "M
         "suggested_second": f"{min_second}kg - {max_second}kg",
         "third_ceiling": f"{ceiling}kg"
     }
+
+def calculate_acwr_series(workouts) -> list:
+    """
+    Computes daily tonnage, 7-day acute workload sum, 28-day chronic workload sum,
+    and resulting ACWR ratio (acute / (chronic_avg * 7)) for every consecutive
+    calendar date between the first and last workout dates.
+    Gaps are filled with 0.0 tonnage to correctly model biological decay.
+    """
+    import datetime
+    
+    daily_tonnages = {}
+    for w in workouts:
+        try:
+            # support both object attributes and dict get
+            w_date_str = w.date if hasattr(w, "date") else w.get("date")
+            w_tonnage_attr = w.tonnage if hasattr(w, "tonnage") else w.get("tonnage", 0.0)
+            
+            d = datetime.date.fromisoformat(w_date_str)
+        except (ValueError, TypeError):
+            continue
+            
+        w_tonnage = 0.0
+        exercises = w.exercises if hasattr(w, "exercises") else w.get("exercises", [])
+        for e in exercises:
+            sets = e.sets if hasattr(e, "sets") else e.get("sets", [])
+            for s in sets:
+                try:
+                    wt_val = s.actual if hasattr(s, "actual") else s.get("actual")
+                    rp_val = s.reps if hasattr(s, "reps") else s.get("reps")
+                    
+                    wt = float(wt_val or 0.0)
+                    rp = int(rp_val or 0)
+                    if wt > 0.0 and rp > 0:
+                        w_tonnage += wt * rp
+                except (ValueError, TypeError):
+                    continue
+        
+        final_t = max(w_tonnage, w_tonnage_attr or 0.0)
+        daily_tonnages[d] = daily_tonnages.get(d, 0.0) + final_t
+
+    dates = sorted(list(daily_tonnages.keys()))
+    if not dates:
+        return []
+
+    start_date = dates[0]
+    end_date = dates[-1]
+
+    # Pre-pad 27 days prior to start_date with 0.0 to have complete 28-day history
+    full_start_date = start_date - datetime.timedelta(days=27)
+    current_d = full_start_date
+    all_daily_tonnages = {}
+    while current_d <= end_date:
+        all_daily_tonnages[current_d] = daily_tonnages.get(current_d, 0.0)
+        current_d += datetime.timedelta(days=1)
+
+    series = []
+    current_d = start_date
+    while current_d <= end_date:
+        # 7-day acute sum
+        acute_sum = 0.0
+        for i in range(7):
+            target_day = current_d - datetime.timedelta(days=i)
+            acute_sum += all_daily_tonnages.get(target_day, 0.0)
+            
+        # 28-day chronic sum
+        chronic_sum = 0.0
+        for i in range(28):
+            target_day = current_d - datetime.timedelta(days=i)
+            chronic_sum += all_daily_tonnages.get(target_day, 0.0)
+            
+        chronic_avg = chronic_sum / 28.0
+        
+        if chronic_avg > 0:
+            acwr = round(acute_sum / (chronic_avg * 7), 2)
+        else:
+            acwr = 1.0 if acute_sum == 0 else 0.0
+            
+        # Classify zone
+        if acwr < 0.8:
+            zone = "UNDER_TRAINING"
+        elif acwr <= 1.3:
+            zone = "OPTIMAL_ZONE"
+        elif acwr <= 1.5:
+            zone = "ELEVATED_FATIGUE"
+        else:
+            zone = "DANGER_ZONE"
+            
+        series.append({
+            "date": current_d.isoformat(),
+            "daily_tonnage": round(daily_tonnages.get(current_d, 0.0), 2),
+            "acute_workload": round(acute_sum, 2),
+            "chronic_workload": round(chronic_sum, 2),
+            "acwr": acwr,
+            "zone": zone
+        })
+        
+        current_d += datetime.timedelta(days=1)
+        
+    return series
+
