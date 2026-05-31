@@ -1,0 +1,734 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Periodized Progression Plane - Sequence Execution Feed</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "error-container": "#93000a",
+                      "tertiary-container": "#00a741",
+                      "surface-dim": "#131313",
+                      "obsidian-coal": "#131313",
+                      "tertiary-fixed": "#72fe88",
+                      "on-secondary-fixed-variant": "#005226",
+                      "surface-container-highest": "#353534",
+                      "on-primary": "#002e69",
+                      "on-secondary-container": "#003717",
+                      "cns-critical": "#E74C3C",
+                      "surface-container": "#201f1f",
+                      "on-secondary-fixed": "#00210c",
+                      "inverse-on-surface": "#313030",
+                      "on-background": "#e5e2e1",
+                      "error": "#ffb4ab",
+                      "surface-bright": "#3a3939",
+                      "on-error": "#690005",
+                      "secondary-container": "#00ad57",
+                      "surface": "#131313",
+                      "outline-variant": "#414755",
+                      "on-tertiary-fixed-variant": "#00531c",
+                      "inverse-surface": "#e5e2e1",
+                      "on-tertiary": "#003911",
+                      "outline": "#8b90a0",
+                      "on-primary-fixed": "#001a41",
+                      "surface-container-high": "#2a2a2a",
+                      "on-error-container": "#ffdad6",
+                      "surface-container-lowest": "#0e0e0e",
+                      "primary": "#adc6ff",
+                      "secondary-fixed-dim": "#54e083",
+                      "tertiary": "#53e16f",
+                      "surface-container-low": "#1c1b1b",
+                      "on-primary-container": "#00285c",
+                      "secondary": "#54e083",
+                      "background": "#131313",
+                      "surface-variant": "#353534",
+                      "primary-fixed-dim": "#adc6ff",
+                      "secondary-fixed": "#73fd9c",
+                      "on-tertiary-fixed": "#002107",
+                      "wireframe-border": "#20201F",
+                      "on-primary-fixed-variant": "#004493",
+                      "primary-fixed": "#d8e2ff",
+                      "tertiary-fixed-dim": "#53e16f",
+                      "cns-warning": "#F5A623",
+                      "inverse-primary": "#005bc1",
+                      "surface-tint": "#adc6ff",
+                      "primary-container": "#4b8eff",
+                      "on-surface": "#e5e2e1",
+                      "on-surface-variant": "#c1c6d7",
+                      "obsidian-glass": "#161616",
+                      "on-tertiary-container": "#00320e",
+                      "on-secondary": "#003918"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "container-max": "1440px",
+                      "margin-mobile": "16px",
+                      "margin-desktop": "32px",
+                      "unit": "4px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "data-lg": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "data-md": [
+                              "JetBrains Mono"
+                      ]
+              },
+              "fontSize": {
+                      "data-lg": [
+                              "20px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-sm": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "800"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "1",
+                                      "letterSpacing": "0.1em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "data-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(28, 27, 27, 0.7);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+        }
+        
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #131313;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #353534;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #414755;
+        }
+
+        /* Hide scrollbar for horizontal scroll areas */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md h-screen overflow-hidden flex selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar -->
+<aside class="fixed bg-obsidian-glass dark:bg-obsidian-glass h-full w-[280px] left-0 border-r border-wireframe-border z-40 flex flex-col py-6">
+<div class="px-6 mb-8 flex flex-col gap-1">
+<h1 class="text-headline-sm font-headline-sm font-bold text-on-surface">Elite Performance</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant tracking-wider">MACROCYCLE: HYPERTROPHY</p>
+</div>
+<nav class="flex-1 overflow-y-auto w-full px-2">
+<ul class="space-y-1">
+<li class="">
+<a class="bg-surface-container-highest text-secondary border-l-2 border-secondary px-4 py-3 flex items-center gap-3 w-full hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 0;">dashboard</span>
+<span class="font-label-caps text-label-caps">Current Mesocycle</span>
+</a>
+</li>
+<li class="">
+<a class="text-on-surface-variant hover:text-on-surface px-4 py-3 flex items-center gap-3 w-full hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 0;">analytics</span>
+<span class="font-label-caps text-label-caps">Performance Insights</span>
+</a>
+</li>
+<li class="">
+<a class="text-on-surface-variant hover:text-on-surface px-4 py-3 flex items-center gap-3 w-full hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 0;">fitness_center</span>
+<span class="font-label-caps text-label-caps">Training Library</span>
+</a>
+</li>
+<li class="">
+<a class="text-on-surface-variant hover:text-on-surface px-4 py-3 flex items-center gap-3 w-full hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 0;">forum</span>
+<span class="font-label-caps text-label-caps">Coach Connect</span>
+</a>
+</li>
+<li class="">
+<a class="text-on-surface-variant hover:text-on-surface px-4 py-3 flex items-center gap-3 w-full hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 0;">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</li>
+</ul>
+</nav>
+<div class="px-6 mt-auto flex flex-col gap-4">
+<div class="flex items-center gap-3 pt-4 border-t border-wireframe-border text-on-surface-variant cursor-pointer hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[24px]">account_circle</span>
+<span class="font-label-caps text-label-caps">Alex Mercer</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="flex-1 ml-[280px] flex flex-col h-screen overflow-hidden bg-background">
+<!-- TopAppBar -->
+<header class="bg-obsidian-glass dark:bg-obsidian-glass full-width top-0 sticky border-b border-wireframe-border z-30">
+<div class="flex justify-between items-center w-full px-margin-desktop py-gutter">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline-md text-headline-md font-black tracking-tight text-on-surface">Periodized Progression Plane</h2>
+<span class="font-label-caps text-label-caps text-cns-warning">REVENUE AND LOAD RECOVERY DUAL SWITCHBOARD</span>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden lg:flex items-center gap-4 bg-surface-container-low p-1 rounded border border-wireframe-border">
+<a class="px-4 py-1.5 font-label-caps text-label-caps text-primary bg-surface-container-highest rounded transition-all border border-primary/20" href="#">ALL</a>
+<a class="px-4 py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-on-surface transition-all" href="#">SQUAT</a>
+<a class="px-4 py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-on-surface transition-all" href="#">BENCH</a><a class="px-4 py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-on-surface transition-all" href="#">DEADLIFT</a>
+</nav>
+<div class="flex items-center gap-3">
+<button class="font-label-caps text-label-caps bg-primary text-on-primary px-4 py-2 rounded hover:opacity-80 transition-opacity">
+                            SESSIONS FEED
+                        </button>
+<button class="font-label-caps text-label-caps border border-wireframe-border text-on-surface px-4 py-2 rounded hover:bg-surface-container transition-colors">
+                            CALENDAR GRID
+                        </button>
+<button class="p-2 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+</div>
+</div>
+</header>
+<!-- Canvas Area -->
+<main class="flex-1 overflow-y-auto px-margin-desktop py-8 pb-32">
+<div class="max-w-none mx-auto flex flex-col gap-12">
+<!-- Feed Header -->
+<div class="flex flex-col gap-2 max-w-5xl">
+<h3 class="font-headline-md text-headline-md text-on-surface">Sequence Execution Feed</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant">AUTOREGULATED PROGRESSION • REAL-TIME CYCLIC SCROLL TIMELINE</p>
+</div>
+<!-- Microcycles Container -->
+<div class="flex flex-col gap-10 border-l-2 border-surface-container-highest pl-8 relative">
+<!-- Microcycle 01 -->
+<div class="flex flex-col gap-6 relative">
+<!-- Timeline Node -->
+<div class="absolute -left-[35px] top-1 w-3 h-3 rounded-full bg-surface-container-highest border-2 border-background"></div>
+<div class="flex justify-between items-end w-full max-w-5xl bg-surface-container-lowest p-4 rounded-lg border border-wireframe-border">
+<div class="flex items-center gap-4">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Microcycle 01</h4>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex flex-col items-end">
+<span class="font-label-caps text-label-caps text-on-surface-variant">EST TONNAGE</span>
+<span class="font-data-md text-data-md text-on-surface">32,500kg</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-caps text-label-caps text-on-surface-variant">e1RM SQUAT</span>
+<span class="font-data-md text-data-md text-on-surface">210kg</span>
+</div>
+<div class="px-3 py-1 bg-secondary-container text-on-secondary-container font-label-caps text-label-caps font-bold rounded">
+                                    VERIFIED
+                                </div>
+</div>
+</div>
+<!-- Workout Cards Grid (Horizontal Scroll) -->
+<div class="relative w-full">
+<div class="flex gap-6 overflow-x-auto hide-scrollbar pb-4" style="mask-image: linear-gradient(to right, black 85%, transparent 100%);">
+<!-- Card 1 (D1) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D1] • 2026-09-02</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY SQUAT [LOW BAR]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">150kg x 1 @ RPE 8.0 / 150kg x 1 @ RPE 8.0</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">90kg x 3 @ RPE 7.0 / 90kg x 3 @ RPE 7.5</span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY BENCH [COMP]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">90kg x 3 @ RPE 7.0 / 90kg x 3 @ RPE 7.5</span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1 opacity-60">
+<span class="text-on-surface-variant">ACCESSORIES</span>
+<span class="text-on-surface">[ 0 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 12.4k / 12.5k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 5%</span>
+</div></div>
+</div>
+<!-- Card 2 (D2) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D2] • 2026-09-04</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY SQUAT [LOW BAR]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">150kg x 1 @ RPE 8.0 / 150kg x 1 @ RPE 8.0</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">90kg x 3 @ RPE 7.0 / 90kg x 3 @ RPE 7.5</span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1">
+<span class="text-on-surface-variant/60">ACCESSORIES</span>
+<span class="text-on-surface-variant">[ 4 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 8.9k / 9.2k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 2%</span>
+</div></div>
+</div>
+<!-- Card 3 (D3) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D3] • 2026-09-06</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY SQUAT [LOW BAR]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">150kg x 1 @ RPE 8.0 / 150kg x 1 @ RPE 8.0</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">90kg x 3 @ RPE 7.0 / 90kg x 3 @ RPE 7.5</span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1">
+<span class="text-on-surface-variant/60">ACCESSORIES</span>
+<span class="text-on-surface-variant">[ 4 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 11.2k / 11.2k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 0%</span>
+</div></div>
+</div>
+<!-- Card 4 (D4) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D4] • 2026-09-08</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">ACTIVE RECOVERY / CARDIO</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">Zone 2 Cycle / 45 mins</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1">
+<span class="text-on-surface-variant/60">ACCESSORIES / MOBILITY</span>
+<span class="text-on-surface-variant">[ 5 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: N/A</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 10%</span>
+</div></div>
+</div>
+<!-- Card 5 (D5) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D5] • 2026-09-09</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY DEADLIFT [COMP]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">180kg x 1 @ RPE 8.0 / 180kg x 1 @ RPE 8.0</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">120kg x 4 @ RPE 7.0 / 120kg x 4 @ RPE 7.5</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1">
+<span class="text-on-surface-variant/60">ACCESSORIES</span>
+<span class="text-on-surface-variant">[ 3 / 3 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 14.1k / 14.0k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: -2%</span>
+</div></div>
+</div>
+<!-- Card 6 (D6) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D6] • 2026-09-11</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">REST DAY</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full text-on-surface-variant italic">
+<span class="font-data-md">Complete rest and recovery</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 0</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 15%</span>
+</div></div>
+</div>
+<!-- Card 7 (D7) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W1 • D7] • 2026-09-12</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">HEAVY SINGLES</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">Squat 160kg x 1 @ RPE 9.0 / 160kg x 1 @ RPE 9.0</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md">Bench 100kg x 1 @ RPE 9.0 / 100kg x 1 @ RPE 9.0</span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 3.2k / 3.2k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: -5%</span>
+</div></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Microcycle 02 (Active) -->
+<div class="flex flex-col gap-6 relative">
+<!-- Active Timeline Node -->
+<div class="absolute -left-[35px] top-1 w-3 h-3 rounded-full bg-primary border-2 border-background shadow-[0_0_10px_rgba(173,198,255,0.5)]"></div>
+<div class="absolute -left-[32px] top-4 bottom-0 w-[2px] bg-gradient-to-b from-primary to-transparent opacity-50 h-24"></div>
+<div class="flex justify-between items-end w-full max-w-5xl bg-surface-container-low p-4 rounded-lg border border-primary/30 shadow-[0_0_15px_rgba(75,142,255,0.05)]">
+<div class="flex items-center gap-4">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Microcycle 02</h4>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex flex-col items-end">
+<span class="font-label-caps text-label-caps text-on-surface-variant">EST TONNAGE</span>
+<span class="font-data-md text-data-md text-on-surface">34,400kg</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-caps text-label-caps text-on-surface-variant">e1RM SQUAT</span>
+<span class="font-data-md text-data-md text-on-surface">215kg</span>
+</div>
+<div class="px-3 py-1 border border-primary/50 bg-primary/20 text-primary font-label-caps text-label-caps rounded shadow-[0_0_10px_rgba(173,198,255,0.3)]">
+                                    IN PROGRESS
+                                </div>
+</div>
+</div>
+<!-- Workout Cards Grid -->
+<div class="relative w-full">
+<div class="flex gap-6 overflow-x-auto hide-scrollbar pb-4" style="mask-image: linear-gradient(to right, black 85%, transparent 100%);">
+<!-- Card 1 (D1) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W2 • D1] • 2026-09-09</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY SQUAT [LOW BAR]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">150kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">1</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">8.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">150kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">1</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">8.0</span></span>
+<span class="text-[10px] text-secondary font-bold">✓</span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.5</span></span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY BENCH [COMP]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.5</span></span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1 opacity-60">
+<span class="text-on-surface-variant">ACCESSORIES</span>
+<span class="text-on-surface">[ 0 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 12.4k / 12.5k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 5%</span>
+</div></div>
+</div>
+<!-- Card 2 (D2) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W2 • D2] • 2026-09-11</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2.5 h-2.5 rounded-full border-2 border-outline-variant"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY SQUAT [LOW BAR]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">150kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">1</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">8.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">150kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">1</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">8.0</span></span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.5</span></span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1">
+<span class="text-on-surface-variant/60">ACCESSORIES</span>
+<span class="text-on-surface-variant">[ 4 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 8.9k / 9.2k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 2%</span>
+</div></div>
+</div>
+<!-- Card 3 (D3) -->
+<div class="bg-obsidian-glass border border-wireframe-border rounded-lg p-5 flex flex-col gap-4 min-w-[340px] w-[340px] min-h-[360px] hover:border-surface-container-highest transition-colors cursor-pointer group flex-shrink-0">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-0.5">
+<span class="font-data-md text-[10px] text-on-surface-variant">[W2 • D3] • 2026-09-13</span>
+<div class="flex flex-col">
+</div>
+</div>
+<div class="w-2.5 h-2.5 rounded-full border-2 border-outline-variant"></div>
+</div>
+<div class="flex-1 flex flex-col gap-2 bg-surface-container-lowest p-2 rounded border border-wireframe-border font-data-md">
+<div class="flex flex-col pt-1 gap-4">
+<div class="flex flex-col gap-1.5">
+<span class="text-[10px] font-label-caps text-on-surface-variant uppercase">PRIMARY SQUAT [LOW BAR]</span>
+<div class="flex flex-col gap-1 pl-2 border-l border-wireframe-border/30 flex-1">
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">150kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">1</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">8.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">150kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">1</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">8.0</span></span>
+</div>
+<div class="flex justify-between items-center text-xs text-on-surface whitespace-nowrap w-full">
+<span class="font-data-md"><span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.0</span> / <span class="border-b border-dotted border-on-surface/40 pb-0.5">90kg</span> x <span class="border-b border-dotted border-on-surface/40 pb-0.5">3</span> @ RPE <span class="border-b border-dotted border-on-surface/40 pb-0.5">7.5</span></span>
+<span class="px-1.5 py-0.5 rounded-full bg-cns-warning/20 text-cns-warning text-[9px]">↑ 0.5</span>
+</div>
+</div>
+</div><div class="h-px bg-[#2A2A2A]"></div>
+<div class="h-px bg-[#2A2A2A]"></div><div class="flex justify-between items-center text-[9px] font-label-caps px-1">
+<span class="text-on-surface-variant/60">ACCESSORIES</span>
+<span class="text-on-surface-variant">[ 4 / 5 COMPLETED ]</span>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 flex justify-between items-center border-t border-wireframe-border font-data-md text-[11px]"><div class="flex flex-col">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">SESSION VOL: 11.2k / 11.2k</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-on-surface-variant uppercase text-[9px] font-label-caps">FATIGUE DROP: 0%</span>
+</div></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Action Bar (Fixed) -->
+<div class="fixed bottom-0 left-[280px] right-0 bg-surface/90 backdrop-blur-md border-t border-wireframe-border px-margin-desktop py-4 flex justify-between items-center z-30">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[18px]">bolt</span>
+<span class="font-label-caps text-label-caps">PRO ENGINE LOCK : ACTIVE</span>
+</div>
+<div class="flex items-center gap-2 text-secondary">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="font-label-caps text-label-caps">SECURE OFFLINE BUFFER</span>
+</div>
+</div>
+<button class="hover:bg-surface-container-highest font-label-caps text-label-caps px-6 py-3 rounded border border-wireframe-border transition-colors shadow-lg bg-on-surface text-surface">PUBLISH MESOCYCLE UPDATES</button>
+</div>
+</div>
+</body></html>

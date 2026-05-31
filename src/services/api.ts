@@ -1,4 +1,4 @@
-import { MicrocycleData, INITIAL_MICROCYCLES } from '../types';
+import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse } from '../types';
 
 const STORAGE_KEY = 'iron_box_microcycles';
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
@@ -307,8 +307,20 @@ export const apiService = {
         console.warn('Backend server trends unavailable.', err);
         return null;
       }
+  },
+
+  /**
+   * Fetches the secure AI-driven auto-regulation coaching prescriptions.
+   */
+  async fetchAICoachPrescription(athleteId?: string): Promise<AICoachResponse> {
+    const baseUrl = BACKEND_URL || '';
+    const url = athleteId ? `${baseUrl}/api/analytics/ai-advisor?athlete_id=${athleteId}` : `${baseUrl}/api/analytics/ai-advisor`;
+    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      throw new Error(errorPayload?.detail || 'Failed to generate AI recommendations.');
     }
-    return null;
+    return await response.json();
   },
 
   /**
@@ -417,6 +429,33 @@ export const apiService = {
     const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('Failed to fetch roster');
     return await response.json();
+  },
+
+  /**
+   * Triggers a fetch call to download the CSV export blob.
+   */
+  async downloadExportCSV(liftCategory?: string, tier?: string): Promise<Blob> {
+    const baseUrl = BACKEND_URL || 'http://localhost:8000';
+    let url = `${baseUrl}/api/export/csv`;
+    const params = [];
+    if (liftCategory) params.push(`lift_category=${encodeURIComponent(liftCategory)}`);
+    if (tier) params.push(`tier=${encodeURIComponent(tier)}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+
+    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) throw new Error('CSV export download failed');
+    return await response.blob();
+  },
+
+  /**
+   * Triggers a fetch call to download the JSON export blob.
+   */
+  async downloadExportJSON(): Promise<Blob> {
+    const baseUrl = BACKEND_URL || 'http://localhost:8000';
+    const url = `${baseUrl}/api/export/json`;
+    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) throw new Error('JSON export download failed');
+    return await response.blob();
   },
 
   async logout() {

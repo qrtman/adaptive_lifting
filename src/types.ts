@@ -664,3 +664,26 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
     ]
   }
 ];
+
+export interface AICoachResponse {
+  cns_readiness: {
+    status: 'Functional Adaptation' | 'Neural Fatigue Suppression' | 'Detraining';
+    score: number; // 0-100 neural score
+    analysis: string; // Exactly two sentences explaining the ACWR ratio
+  };
+  movement_diagnostics: {
+    squat_fatigue: { status: 'Optimal' | 'Caution' | 'Danger'; inol: number; warning: string };
+    bench_fatigue: { status: 'Optimal' | 'Caution' | 'Danger'; inol: number; warning: string };
+    deadlift_fatigue: { status: 'Optimal' | 'Caution' | 'Danger'; inol: number; warning: string };
+  };
+  microcycle_prescription: {
+    loading_strategy: 'Maintain Baseline' | 'Escalate Tonnage (+10%)' | 'Load Drop Downsets (-5%)' | 'Deload Decompression (-20%)';
+    tactical_guidance: string; // Actionable RTS periodization guidelines
+    suggested_rpe_cap: number; // e.g. 8.0, 8.5, 9.0
+  };
+  attempt_feedback: {
+    opener_feasibility: 'Conservative' | 'Optimal' | 'High-Risk';
+    coaching_notes: string; // Analysis of attempt jumps
+  };
+}
+

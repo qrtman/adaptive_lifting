@@ -17,6 +17,7 @@ import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
+import { CoachDashboardView } from './components/CoachDashboardView';
 import { apiService } from './services/api';
 import { saveSnapshot, getSnapshot, evictOldSyncedData } from './services/db';
 import { 
@@ -80,8 +81,8 @@ export default function App() {
     localStorage.setItem('obsidian_role_mode', roleMode);
   }, [roleMode]);
 
-  const [dashboardMode, setDashboardMode] = useState<'calendar' | 'sessions' | 'integrations' | 'insights'>(() => {
-    return (localStorage.getItem('obsidian_dashboard_mode') as 'calendar' | 'sessions' | 'integrations' | 'insights') || 'sessions';
+  const [dashboardMode, setDashboardMode] = useState<'calendar' | 'sessions' | 'integrations' | 'insights' | 'security' | 'roster'>(() => {
+    return (localStorage.getItem('obsidian_dashboard_mode') as 'calendar' | 'sessions' | 'integrations' | 'insights' | 'security' | 'roster') || 'sessions';
   });
 
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
@@ -340,6 +341,17 @@ export default function App() {
                       Calendar Grid
                     </button>
                     <button
+                      onClick={() => setDashboardMode('roster')}
+                      className={`px-5 py-2.5 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        dashboardMode === 'roster' 
+                          ? 'bg-mac-blue text-white shadow-sm font-sans' 
+                          : 'text-gray-400 hover:text-white font-sans'
+                      }`}
+                    >
+                      Athletes Roster
+                      <span className="px-1.5 py-0.5 text-[11px] bg-amber-500/20 text-amber-400 rounded-md border border-amber-500/30">3 Alerts</span>
+                    </button>
+                    <button
                       onClick={() => setDashboardMode('integrations')}
                       className={`px-5 py-2.5 text-[15px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${
                         dashboardMode === 'integrations' 
@@ -411,6 +423,8 @@ export default function App() {
                   <InsightsView />
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
+                ) : dashboardMode === 'roster' ? (
+                  <CoachDashboardView />
                 ) : (
                   <div className="flex flex-col gap-6 p-10 w-full overflow-y-auto">
                     <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-4">External Integrations</h2>

@@ -336,10 +336,11 @@ export const ExerciseCard = ({
                               updateSet(i, { adjustment_pct: rawPct / 100, dropPercent: rawPct });
                             }}
                             placeholder="0"
-                            fieldKey="adjustment_pct"
+                            fieldKey={`${id}-adjustment_pct`}
                             label="Fatigue / Modifier"
                             widthClass="w-16"
                             step={1}
+                            rowIndex={i}
                           />
 
                           {/* Live Action Copy/Sync to Log */}
@@ -400,11 +401,12 @@ export const ExerciseCard = ({
                             value={set.baseline_e1rm !== undefined ? Math.round(set.baseline_e1rm).toString() : "150"}
                             onChange={(val) => updateSet(i, { baseline_e1rm: parseFloat(val) || 150 })}
                             placeholder="150"
-                            fieldKey="baseline_e1rm"
+                            fieldKey={`${id}-baseline_e1rm`}
                             label="Baseline e1RM"
                             step={5}
                             variant="transparent"
                             widthClass="w-24"
+                            rowIndex={i}
                           />
                         </div>
                       ) : (
@@ -461,33 +463,36 @@ export const ExerciseCard = ({
                         value={set.reps || ""}
                         onChange={(val) => updateSet(i, { reps: val })}
                         placeholder="—"
-                        fieldKey="reps"
+                        fieldKey={`${id}-reps`}
                         label="Log Reps"
                         widthClass="w-16"
                         isLogged={true}
                         step={1}
+                        rowIndex={i}
                       />
                       <EditablePerformanceCell
                         value={set.executedRpe || ""}
                         onChange={(val) => updateSet(i, { executedRpe: val })}
                         placeholder="—"
-                        fieldKey="executedRpe"
+                        fieldKey={`${id}-executedRpe`}
                         label="Log RPE"
                         widthClass="w-16"
                         isLogged={true}
                         step={0.5}
+                        rowIndex={i}
                       />
                       <EditablePerformanceCell
                         value={set.actual || ""}
                         onChange={(val) => updateSet(i, { actual: val, isAuto: !val })}
                         placeholder="—"
-                        fieldKey="actual"
+                        fieldKey={`${id}-actual-weight`}
                         label="Log Weight"
                         widthClass="w-24"
                         isLogged={true}
                         isAuto={set.isAuto}
                         suggestedValue={set.suggestedWeight ? (Math.round(set.suggestedWeight * 4) / 4).toString() : "0"}
                         step={2.5}
+                        rowIndex={i}
                       />
                     </div>
                   </td>

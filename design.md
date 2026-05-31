@@ -1,37 +1,37 @@
 # Obsidian Kinetic - Product Design System
 
-> **Document Status:** Design Reference  
-> **System:** Obsidian Kinetic Periodization Dashboard  
+> **Document Status:** Canonical Design Reference  
+> **System:** Obsidian Kinetic Periodization Dashboard & Active Logging Console  
 > **Companion Document:** `architecture.md`  
-> **Design Scope:** React PWA, coach desktop dashboard, athlete mobile console, Telegram Mini App + bot entry points, Google Sheets publishing flow
+> **Design Scope:** React PWA, coach desktop dashboard, athlete mobile console, Telegram Mini App + bot entry points, Google Sheets publishing flow, and session security panels.
 
 ---
 
 ## Table of Contents
 
 0. [Implementation Directives](#0-implementation-directives)
-1. [Design Intent](#1-design-intent)
-2. [Product Surfaces](#2-product-surfaces)
-3. [Visual System](#3-visual-system)
-4. [Typography & Data Formatting](#4-typography--data-formatting)
-5. [Layout System](#5-layout-system)
-6. [Coach Desktop Experience](#6-coach-desktop-experience)
-7. [Athlete Mobile PWA Experience](#7-athlete-mobile-pwa-experience)
-8. [Telegram Mini App Experience](#8-telegram-mini-app-experience)
-9. [Google Sheets Publishing Experience](#9-google-sheets-publishing-experience)
-10. [State, Sync & Resilience UI](#10-state-sync--resilience-ui)
-11. [Interaction Patterns](#11-interaction-patterns)
-12. [Accessibility & Ergonomics](#12-accessibility--ergonomics)
-13. [Component Inventory](#13-component-inventory)
-14. [Motion & Feedback](#14-motion--feedback)
-15. [Design Decisions](#15-design-decisions)
+1. [Design Intent & Principles](#1-design-intent--principles)
+2. [Product Surfaces & Scale](#2-product-surfaces--scale)
+3. [Visual System & Obsidian Tokens](#3-visual-system--obsidian-tokens)
+4. [Typography & Strict Data Formatting](#4-typography--strict-data-formatting)
+5. [Multi-Device Layout & Responsive Matrix](#5-multi-device-layout--responsive-matrix)
+6. [Coach Desktop Console Experience](#6-coach-desktop-console-experience)
+7. [Athlete Mobile Gym Logging Experience](#7-athlete-mobile-gym-logging-experience)
+8. [Telegram Mini App WebView Companion](#8-telegram-mini-app-webview-companion)
+9. [Google Sheets One-Way Publishing Flow](#9-google-sheets-one-way-publishing-flow)
+10. [State, Sync & Extreme Resilience UI](#10-state-sync--extreme-resilience-ui)
+11. [Interaction Patterns & Gym Physical Constraints](#11-interaction-patterns--gym-physical-constraints)
+12. [Accessibility, Contrast & Ergonomics](#12-accessibility-contrast--ergonomics)
+13. [Component Inventory & API Contracts](#13-component-inventory--api-contracts)
+14. [Motion, Telemetries & Haptic Feedback](#14-motion-telemetries--haptic-feedback)
+15. [Visual Design Decisions](#15-visual-design-decisions)
 16. [Implementation Acceptance Checklist](#16-implementation-acceptance-checklist)
 
 ---
 
 ## 0. Implementation Directives
 
-This section is intentionally prescriptive. When generating UI, follow these rules before making any local design choice.
+This section is strictly prescriptive. When generating UI, follow these rules before making any local design choice.
 
 ### 0.1 Build Order
 
@@ -50,16 +50,16 @@ Implement screens in this order unless the user explicitly requests a different 
 
 Do not build:
 
-- A marketing landing page as the first screen.
-- A decorative hero section.
-- Nested cards inside cards.
-- Gradient orb, bokeh, or abstract decorative backgrounds.
-- Freeform text parsing for prescriptions, set logging, or Sheets import.
-- Google Sheets bidirectional editing.
-- Telegram chat commands as the primary mobile UI.
-- UI that hides sync state, lock state, or rejected mutations.
-- Charts or dashboards without empty/loading/error states.
-- Any numeric training input stored or handled as a string.
+- **No marketing landing page** as the first screen.
+- **No decorative hero section** or generic SaaS filler banners.
+- **No nested cards inside cards** (causes optical fatigue).
+- **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark obsidian aesthetic).
+- **No freeform text parsing** for prescriptions, set logging, or Sheets import.
+- **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).
+- **No Telegram chat commands** as the primary mobile UI (Mini App WebView is canonical).
+- **No UI that hides sync state**, lock state, or rejected mutations.
+- **No charts or dashboards without empty/loading/error states**.
+- **No numeric training input stored or handled as a string** (must stay numeric end-to-end).
 
 ### 0.3 Required Global UI
 
@@ -89,9 +89,9 @@ If implementation context is missing, assume:
 
 ---
 
-## 1. Design Intent
+## 1. Design Intent & Principles
 
-Obsidian Kinetic is work software for powerlifting coaches and athletes. It must feel fast, precise, and calm under fatigue. The interface prioritizes reliable logging, clean comparison, and immediate workload visibility over decorative presentation.
+Obsidian Kinetic is work software for powerlifting coaches and athletes. It must feel fast, precise, and calm under physical fatigue. The interface prioritizes reliable logging, clean comparison, and immediate workload visibility over decorative presentation.
 
 The design system follows three product principles:
 
@@ -101,7 +101,7 @@ The design system follows three product principles:
 
 ---
 
-## 2. Product Surfaces
+## 2. Product Surfaces & Scale
 
 | Surface | Primary User | Purpose | Design Constraint |
 | :--- | :--- | :--- | :--- |
@@ -113,372 +113,1224 @@ The design system follows three product principles:
 
 ---
 
-## 3. Visual System
+### 3. Visual System & Obsidian Tokens
 
-### 3.1 Color Tokens
+### 3.1 Color Tokens (Mathematical HSL Color Space)
 
-The palette is dark, restrained, and functional. Avoid decorative gradients, blur-heavy panels, and one-note neon surfaces.
+The visual palette is strictly dark, restrained, and functional, optimized mathematically to eliminate backlight glare in dark lifting environments. Avoid neon gradients, heavy overlay blur layers, and decorative filler surfaces.
 
-| Token | Hex | Usage |
-| :--- | :--- | :--- |
-| `--ok-bg` | `#0A0A0A` | App root background |
-| `--ok-surface-1` | `#121212` | Page sections, sidebars |
-| `--ok-surface-2` | `#181818` | Cards, tables, mobile set panels |
-| `--ok-surface-3` | `#202020` | Inputs, selected rows, toolbar surfaces |
-| `--ok-border` | `#2A2A2A` | Dividers, card borders, table grid lines |
-| `--ok-text` | `#F4F4F5` | Primary text |
-| `--ok-text-muted` | `#A1A1AA` | Secondary labels |
-| `--ok-text-faint` | `#71717A` | Metadata and disabled text |
-| `--ok-blue` | `#3B82F6` | Primary actions, links, selected navigation |
-| `--ok-green` | `#22C55E` | Accepted sync, completed sets, optimal ACWR |
-| `--ok-amber` | `#F59E0B` | Pending sync, warnings, productive overreach |
-| `--ok-red` | `#EF4444` | Rejected sync, injury risk, auth/security danger |
-| `--ok-cyan` | `#06B6D4` | Integrations and live telemetry |
-| `--ok-violet` | `#8B5CF6` | DOTS and meet-planner accents |
+```css
+:root {
+  /* Core App Grayscale (Obsidian Black Scheme) */
+  --ok-bg: hsl(0, 0%, 4%);             /* Deepest base workspace background */
+  --ok-surface-1: hsl(0, 0%, 7%);     /* Structural headers, left side navigation panel */
+  --ok-surface-2: hsl(0, 0%, 9%);     /* Primary workout grid cards, table outlines */
+  --ok-surface-3: hsl(0, 0%, 12%);    /* Active form fields, cell dropdown values, toolbars */
+  --ok-border: hsl(0, 0%, 16%);       /* Grid cell dividers, interactive element borders */
+  
+  /* Text Contrast System */
+  --ok-text: hsl(240, 5%, 96%);        /* Primary data, numeric stats, active text fields */
+  --ok-text-muted: hsl(240, 5%, 67%);  /* Secondary helper copy, description subheaders */
+  --ok-text-faint: hsl(240, 4%, 46%);  /* Disabled values, inactive tab navigation selectors */
+  
+  /* Semantic Core (Borg-Scale Fatigue Alerts) */
+  --ok-blue: hsl(217, 91%, 60%);       /* Focused interactive state, stopwatch timers, SSE live pulses */
+  --ok-green: hsl(142, 70%, 45%);      /* Sync accepted state, logged work, optimal ACWR (0.8-1.3) */
+  --ok-amber: hsl(38, 92%, 50%);       /* Sync pending offline queues, caution zones, high INOL */
+  --ok-red: hsl(0, 84%, 60%);          /* Auth session revoked, sync errors, danger zones (ACWR > 1.3) */
+  --ok-cyan: hsl(188, 86%, 53%);       /* External Telegram integrations, live SSE telemetry state */
+  --ok-violet: hsl(263, 90%, 65%);     /* High-coefficient DOTS score, meet planners attempts indicators */
+}
+```
 
 ### 3.2 Semantic Status Colors
 
-| State | Color | UI Treatment |
-| :--- | :--- | :--- |
-| `PENDING` / queued | Amber | Small badge, clock icon, no alarm styling |
-| `IN_FLIGHT` / syncing | Blue | Spinner or pulse dot, never blocking input |
-| `ACKED` / accepted | Green | Check icon, temporary confirmation |
-| `REJECTED` | Red | Inline error row with recovery action |
-| `CONFLICTED` | Amber + red outline | Review required banner |
-| `LOCKED` | Faint text + lock icon | Inputs disabled with reason |
-| `TOMBSTONED` | Hidden from normal views | Shown only in conflict/audit review |
+Every component visualizes execution states using HSL alerts combined with dedicated iconography to maintain WCAG AAA compliance without relying solely on color indicators.
+
+| State | CSS Variable | Visual Treatment | Icon |
+| :--- | :--- | :--- | :--- |
+| `PENDING` / Local | `--ok-amber` | Clean amber text with 10% solid surface fill | Quiet Clock |
+| `IN_FLIGHT` / Sync | `--ok-blue` | Interactive blue border with animated background pulse | Rotating Loader |
+| `ACKED` / Accepted | `--ok-green` | Fades to solid green border, dismisses after 1200ms | Check Mark |
+| `REJECTED` | `--ok-red` | Strong red left-border accent row, inline troubleshooting button | Exclamation Circle |
+| `CONFLICTED` | `--ok-amber` | Solid 1px amber border with contrasting red side-by-side alert panel | Alert Shield |
+| `LOCKED` | `--ok-text-faint` | Gray background, input disabled, cursor-not-allowed | Solid Lock |
+| `TOMBSTONED` | None | Entire row height transitions to 0px, elements hidden | Trash / Bin |
 
 ### 3.3 Shape, Spacing, and Density
 
-| Token | Value | Usage |
-| :--- | :--- | :--- |
-| `--radius-sm` | `4px` | Inputs, badges, compact controls |
-| `--radius-md` | `6px` | Buttons, table rows, mobile controls |
-| `--radius-lg` | `8px` | Cards and panels |
-| `--space-1` | `4px` | Icon gaps, dense labels |
-| `--space-2` | `8px` | Table cell padding, compact stacks |
-| `--space-3` | `12px` | Form groups |
-| `--space-4` | `16px` | Default panel padding |
-| `--space-6` | `24px` | Section spacing |
+Obsidian Kinetic enforces sharp, high-density structural grids. Page cards and sections must not use nested margins.
 
-Cards use 8px radius or less. Page sections are not nested cards; they are full-width work areas with contained content.
+| Token | Value | Applied Element Target |
+| :--- | :--- | :--- |
+| `--radius-sm` | `4px` | Table check fields, navigation indicators, small alert tags |
+| `--radius-md` | `6px` | Interactive grid buttons, active text field inputs, tab lists |
+| `--radius-lg` | `8px` | Outer boundaries of main exercise tables and dashboard panels (Maximum limit) |
+| `--space-1` | `4px` | Metric badge borders, icon gaps |
+| `--space-2` | `8px` | Cell internal borders, compact grid rows |
+| `--space-3` | `12px` | Horizontal form fields, input margins |
+| `--space-4` | `16px` | Inner boundaries of dashboard grids and mobile sheets |
+| `--space-6` | `24px` | Section gaps, calendar grid columns |
+
+Page layouts must use full-width operational workspaces, never rounded floating cards inside panels.
 
 ---
 
-## 4. Typography & Data Formatting
+## 4. Typography & Strict Data Formatting
 
 ### 4.1 Font Stack
 
-| Role | Stack | Usage |
+Typography is optimized strictly to prevent visual reading skew during heavy physical lifting.
+
+| Role | CSS Font Stack | Primary Design Constraint |
 | :--- | :--- | :--- |
-| UI sans | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif` | Navigation, labels, headings |
-| Data mono | `JetBrains Mono`, `ui-monospace`, `SFMono-Regular`, `monospace` | Weight, reps, RPE, e1RM, INOL, ACWR, timestamps |
+| **UI sans** | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif` | Clean, geometric geometry for labels, subheads, menus |
+| **Data mono** | `JetBrains Mono`, `ui-monospace`, `SFMono-Regular`, `monospace` | Monospaced numeric characters to ensure strict column visual alignment |
 
 ### 4.2 Type Scale
 
-| Token | Size / Line | Usage |
+Font sizes are strictly locked to standard responsive tokens. Avoid fluid text resizing.
+
+| Token | CSS Font Size / Line Height | Targeted UI Element |
 | :--- | :--- | :--- |
-| `text-xs` | 12 / 16 | Badges, metadata, table helper text |
-| `text-sm` | 14 / 20 | Default UI copy, table cells |
-| `text-base` | 16 / 24 | Mobile form inputs |
-| `text-lg` | 18 / 28 | Panel titles |
-| `text-2xl` | 24 / 32 | Dashboard metric values |
-| `text-4xl` | 36 / 40 | Mobile active weight/reps display |
+| `text-xs` | `12px / 16px` | Technical metadata tags, sync badges, lower error tags |
+| `text-sm` | `14px / 20px` | Main grid values, column headings, calendar list items |
+| `text-base` | `16px / 24px` | Mobile inputs, navigation link labels |
+| `text-lg` | `18px / 28px` | Exercise card titles, planner section headers |
+| `text-2xl` | `24px / 32px` | Peak metrics totals, main dashboard digits |
+| `text-4xl` | `36px / 40px` | Active mobile logger digits, set-entry display inputs |
 
-Do not scale font size with viewport width. Use responsive layout changes, not fluid typography.
+### 4.3 Numeric Formatting Specs
 
-### 4.3 Numeric Formatting
+Monospaced numbers must maintain a **9:1 contrast ratio** using JetBrains Mono against deep background slots (`--ok-bg`).
 
-| Value | Canonical Unit | Display |
-| :--- | :--- | :--- |
-| Weight | kg | `180 kg` or `397 lb`; unit visible |
-| RPE | unitless | `8`, `8.5`, not `8.0` unless needed |
-| e1RM | kg | Rounded at render/export only |
-| INOL | unitless | 2 decimals |
-| ACWR | ratio | 2 decimals + risk label |
-| DOTS | coefficient | 1 decimal |
-| Velocity | m/s | 2 decimals |
-
-All tables that can show different units must include units in column headers.
+| Metric | Storage Type | Canonical Precision | Export Display Format |
+| :--- | :--- | :--- | :--- |
+| **Weight** | Decimal float | Kilograms (kg) canonical | `180.0 kg` (unit label always visible) |
+| **RPE** | Decimal float | Borg CR-10 scale | `8.5 RPE` or `8 RPE` (omit .0 decimals when integer) |
+| **e1RM** | Decimal float | Projected max | Rounded to nearest 0.5kg at display boundaries |
+| **INOL** | Decimal float | Accumulation ratio | Capped at 2 decimal points: e.g., `1.42 INOL` |
+| **ACWR** | Decimal float | Trailing CNS ratio | Capped at 2 decimal points: e.g., `1.15 ACWR` (Optimal) |
+| **DOTS** | Decimal float | Lifter coefficient | Capped at 1 decimal point: e.g., `425.4 DOTS` |
+| **Velocity** | Decimal float | Meters/second (m/s) | Capped at 2 decimal points: e.g., `0.38 m/s` |
 
 ---
 
-## 5. Layout System
+## 5. Multi-Device Layout & Responsive Matrix
 
-### 5.1 Responsive Breakpoints
+### 5.1 Responsive Breakpoint Grid Specifications
 
-| Breakpoint | Layout |
-| :--- | :--- |
-| `< 480px` | Athlete mobile console, single-column, bottom action rail |
-| `480-767px` | Wide mobile / small tablet, persistent exercise tabs |
-| `768-1199px` | Tablet coach review, condensed sidebar |
-| `>= 1200px` | Full coach desktop dashboard |
+The layout scales systematically, adapting touch target sizing and information density to match the physical device form factor in real-time.
 
-### 5.1.1 Responsive Layout Rules
-
-| Rule | Requirement |
-| :--- | :--- |
-| Mobile width | No horizontal scrolling except inside intentionally scrollable data tables. |
-| Desktop work area | Main content uses `minmax(0, 1fr)` so tables/charts do not force overflow. |
-| Sidebars | Desktop sidebar width is 240px; collapsed tablet sidebar is 64px. |
-| Bottom rail | Mobile primary actions use fixed bottom rail with safe-area padding. |
-| Tables | Desktop tables can scroll vertically inside their region; headers remain sticky. |
-| Charts | Charts must have fixed-height containers and empty states before data loads. |
-| Touch controls | Mobile inputs and buttons must not shift layout when values change. |
-
-### 5.2 Navigation Model
-
-| Area | Coach | Athlete |
-| :--- | :--- | :--- |
-| Primary nav | Dashboard, Calendar, Athletes, Analytics, Exports, Integrations, Settings | Today, History, Metrics, Settings |
-| Session nav | Microcycle timeline + workout list | Exercise tabs + active set focus |
-| Persistent status | Sync, live telemetry, lock holder, deployment env | Offline/sync queue, current workout status |
-
-### 5.3 Route Map
-
-Use these routes unless implementation context requires a framework-specific equivalent:
-
-| Route | Surface | Notes |
-| :--- | :--- | :--- |
-| `/` | Role-aware redirect | Coach -> `/dashboard`; athlete -> `/today` |
-| `/dashboard` | Coach dashboard | KPI strip, alerts, live status |
-| `/calendar` | Coach calendar | Microcycle-aware workout planning |
-| `/workouts/:id` | Shared workout detail | Coach edits prescriptions; athlete logs execution |
-| `/athletes/:id` | Coach athlete detail | Trends, compliance, readiness, recent logs |
-| `/analytics` | Analytics | e1RM, INOL, ACWR, DOTS |
-| `/exports` | Exports | CSV/JSON and Sheets publish entry |
-| `/integrations` | Integrations | Telegram, Google Sheets, health sources |
-| `/settings` | Account/settings | Sessions, units, devices, security |
-| `/today` | Athlete active workout | Mobile-first logging |
+| Breakpoint | Targeted Form Factor | Column Strategy | Interaction & Padding Specifications |
+| :--- | :--- | :--- | :--- |
+| **`< 360px`** | Ultra-Compact Mobile (e.g. iPhone SE) | 1-Column strict vertical stack. Sidebar collapses into bottom drawer sheets. | Logger digits set to `text-3xl`. Gaps locked to `--space-1`. **Tap targets set to 48px min height**. Steppers expand to full column width. |
+| **`360px - 479px`** | Standard Mobile / Telegram WebView | Tabbed exercise scrolling track. Active set builder on top; log history below. | Dynamic bottom navigation bar. Touch zones min 44px with `--space-2` gaps. swipe tabs use visual friction dampeners. |
+| **`480px - 767px`** | Landscape Mobile / Large Handsets | 2-Column horizontal split grid. Left: Stepper controller. Right: Set list. | Gaps set to `--space-3`. Scroll paths contained within target columns. |
+| **`768px - 1199px`** | Tablet / Laptop Screens | 3-Column structural microcycle calendar cards. Floating side drawer toggle. | Sidebar collapses into visual icons strip. Mouse targets min 32px. Grid padding locked to `--space-2`. |
+| **`>= 1200px`** | High-Density Coach Dashboard | Master 240px persistent left sidebar, sticky headers, right logs feed panel. | Hover borders active. Pointer targets min 28px. High-density data grid padding set to `--space-2`. |
 
 ---
 
-## 6. Coach Desktop Experience
+---
 
-The desktop experience is an operational console, not a landing page. It should support repeated use, comparison, and rapid edits.
+## 6. Coach Desktop Console Experience
 
-### 6.1 Dashboard Layout
+The desktop console is a high-density, keyboard-efficient workspace designed for multi-athlete program authoring, analytics diagnostics, and live session monitoring.
+
+### 6.1 Console Layout Diagram
 
 ```
-+--------------------------------------------------------------------------------+
-| Top Bar: Athlete Switcher | Active Mesocycle | Sync/Live | Integrations | User |
-+------------------+-------------------------------------------------------------+
-| Sidebar          | KPI Strip: Squat e1RM | Bench e1RM | Deadlift e1RM | ACWR |
-| Dashboard        |-------------------------------------------------------------|
-| Calendar         | Work Area: Calendar / Analytics / Athlete Detail           |
-| Athletes         |                                                             |
-| Analytics        | Right Rail: Locks, conflicts, outbox, recent alerts         |
-| Exports          |                                                             |
-| Integrations     |                                                             |
-+------------------+-------------------------------------------------------------+
++--------------------------------------------------------------------------------------------------+
+| Top Navigation: Athlete Switcher Dropdown | Mesocycle Manager Tab | SSE Telemetry Pulse | User   |
++-------------------+------------------------------------------------------------------------------+
+| Persistent Sidebar| Top KPI Strip: Squat Max (kg) | Bench Max (kg) | Deadlift Max (kg) | ACWR    |
+| [240px width]     |------------------------------------------------------------------------------|
+| - Calendar Grid   | Primary Work Area:                                                           |
+| - Athletes Roster |                                                                              |
+| - Analytics Engine|   [Structured Builder Card | Meet Day Planner Table | Telemetry Streams]     |
+| - Exports/Outbox  |                                                                              |
+| - Integrations    |                                                                              |
+| - Security Center | Right Drawer Rail: Writer Locks status | Tombstone Conflict Review Panel     |
++-------------------+------------------------------------------------------------------------------+
 ```
 
-### 6.2 Key Desktop Views
-
-| View | Required UI |
-| :--- | :--- |
-| Dashboard | KPI strip, ACWR risk zones, INOL by lift, recent PR/e1RM changes, live athlete alerts |
-| Calendar | Microcycle boundary visualization, drag-and-drop within week only, rejected cross-week feedback |
-| Workout Builder | Structured prescription editor, LexoRank-based reorder handles, previewed tonnage/fatigue |
-| Athlete Detail | Readiness, bodyweight, HRV, compliance, recent logs |
-| Analytics | e1RM trend, tonnage, INOL, ACWR, DOTS, export filters |
-| Integrations | Telegram connection, Google Sheets OAuth, publish profiles, outbox status |
-| Audit/Conflicts | Rejected mutations, tombstone conflicts, session/device history |
-
-### 6.3 Calendar and Builder Rules
-
-- Drag handles are visible icons, not text buttons.
-- Cross-microcycle drag attempts snap back and show `MICROCYCLE_BOUNDARY_VIOLATION`.
-- `LOCKED` workouts show a lock icon, holder, and expiry when available.
-- Completed workouts are readable but not editable until reopened.
-- Deleted/tombstoned items disappear from normal views but can appear in conflict review.
-
-### 6.4 Desktop Table Rules
-
-| Table | Required Columns |
-| :--- | :--- |
-| Workout sets | Exercise, Set, Planned, Actual, Reps, RPE, e1RM, INOL, Status |
-| Athlete list | Athlete, Active mesocycle, Last session, Sync status, ACWR, Alerts |
-| Outbox | Provider, Job, Status, Attempts, Next retry, Last error, Action |
-| Audit events | Time, Actor, Event, Resource, Result, Details |
-| Sheets publications | Profile, Spreadsheet, Last published, Schedule, Status, Action |
-
-Tables must use sticky headers, row hover, compact density, and a visible empty state. Destructive actions belong in row menus with confirmation.
-
-### 6.5 Structured Prescription Editor
-
-The editor must render controls from the prescription mode:
-
-| Mode | Required Controls |
-| :--- | :--- |
-| `RPE_TARGET` | sets, reps, target RPE |
-| `PERCENTAGE` | sets, reps, percentage, source max |
-| `AMRAP` | sets, percentage/load, cap RPE, optional rep cap |
-| `TOP_SET_BACKDOWN` | top-set reps/RPE, backdown sets/reps, fatigue drop percent |
-| `HYBRID` | ordered sections, each using one of the supported modes |
-
-Show the generated display string as a readonly preview. Do not make the preview the source of truth.
-
----
-
-## 7. Athlete Mobile PWA Experience
-
-The standalone mobile PWA is the most capable logging surface because it owns the full offline IndexedDB experience. The Telegram Mini App is a Telegram-native companion that should reuse the same logging UI patterns when launched from Telegram.
-
-### 7.1 Active Session Layout
+#### 6.1.1 Persistent left Sidebar Layout Detail (240px Width)
 
 ```
-+--------------------------------------+
-| Today | Workout Status | Sync Badge   |
-| Squat 3x3 @ RPE 8                    |
-+--------------------------------------+
-| Exercise Tabs: Squat | Bench | Row    |
-+--------------------------------------+
-| Active Set Panel                     |
-| 180 kg                               |
-| 3 reps   RPE 8                       |
-| e1RM 205 kg | INOL 0.42              |
-| [ - ] [ + ] controls                 |
-| [ Log Set ]                          |
-+--------------------------------------+
-| Set History                          |
-| ✓ 170 x 3 @ 7.5    accepted          |
-| ~ 180 x 3 @ 8      syncing           |
-+--------------------------------------+
-| Bottom Rail: Previous | Notes | Done  |
-+--------------------------------------+
++====================================+
+| [K] OBSIDIAN KINETIC               |
++====================================+
+| Current Monitored Athlete:         |
+| +--------------------------------+ |
+| | (o) Athlete: John Doe          | |
+| | [✓] Live SSE Connected         | |
+| +--------------------------------+ |
++====================================+
+| Primary Workspaces:                |
+|                                    |
+| [ ] Calendar Grid                  |
+|     (Mesocycle planning cards)     |
+|                                    |
+| [✓] Athletes Roster  [ 3 Alerts ]  |
+|     *active highlight*             |
+|                                    |
+| [ ] Analytics Engine               |
+|     (e1RM, INOL, ACWR curves)      |
++====================================+
+| Operations & Integrations:         |
+|                                    |
+| [ ] Google Sheets Publisher        |
+|     (One-way outbox setup)         |
+|                                    |
+| [ ] Telegram Mini App WebView      |
+|     (Account link managers)        |
+|                                    |
+| [ ] Security & Session Audit       |
+|     (Device revocation panels)     |
++====================================+
+| System Metrics & Status:           |
+|                                    |
+| Env:    [ STAGING ] (Amber warning)|
+| Local:  [✓] IndexedDB hydrated     |
+| Version: App Core v1.4.2           |
+|                                    |
+|         [ FORCE FULL SYNC ]        |
++====================================+
 ```
 
-### 7.2 Mobile Interaction Rules
+* **Brand Header:** Sleek geometric symbol alongside all-caps title `"OBSIDIAN KINETIC"` utilizing `Inter` font, mapped strictly with a `9:1 contrast ratio` against the background.
+* **Monitored Athlete Scope Panel:** High-contrast widget showing:
+  * Athlete's thumbnail circle.
+  * Active name and real-time SSE stream status: Mapped in `--ok-green` if connection is streaming, or pulsing `--ok-amber` if syncing offline mutations queue.
+* **Workspace Links Navigation Group:** Navigation items highlighted in `--ok-blue` border tags when active:
+  * **Calendar Grid:** Maps the mesocycle schedules blocks.
+  * **Athletes Roster:** Displays athlete list, incorporating a compact badge showing pending active alerts (e.g. `3 Alerts` in `--ok-amber` under acute workloads spikes).
+  * **Analytics Engine:** Visualizes trending performance diagnostics charts.
+* **Operations & Integrations Navigation Group:**
+  * **Sheets Publisher:** Controls one-way spreadsheet target mappings.
+  * **Telegram Mini App:** Links Telegram adapter connections.
+  * **Security & Session Audit:** Exposes active device logs and session revocation actions.
+* **System status footer:**
+  * **Environment Tag:** Displays `[ STAGING ]` in `--ok-amber` if not production to prevent operational mistakes.
+  * **Local Database Status:** Verification badge displaying IndexedDB hydration status: `[✓] IndexedDB hydrated`.
+  * **Force Sync Trigger:** High-contrast, borders-only button `[ FORCE FULL SYNC ]` allowing immediate manual sync overrides if browser sandbox limits automatic timing loops.
 
-- Numeric entry uses large steppers and numeric keypad controls.
-- Reps are integer-only.
-- RPE increments by 0.5.
-- Weight increments follow configured plate jumps, defaulting to 2.5 kg.
-- The first unlogged set auto-focuses after hydration completes.
-- Logging remains available offline; sync state is shown per set row.
-- Advanced fields (velocity, readiness, HRV) are collapsed behind a disclosure control.
+#### 6.1.2 Desktop Calendar Grid & Mesocycle Planning Cards Layout Spec
 
-### 7.3 Mobile Offline and Hydration States
+##### 6.1.2.1 Microcycle View Layout Spec
 
-| State | UI |
-| :--- | :--- |
-| Booting offline | Shell loads with cached workout snapshot and offline banner |
-| Hydrating | Skeleton rows plus "Loading latest saved workout" |
-| Pending mutations | Queue badge with count; rows show amber pending icon |
-| Sync success | Green check fades after acknowledgement |
-| Sync conflict | Inline red/amber review card with "Use server value" / "Keep local as new edit" when permitted |
-| Session revoked | Full-screen re-auth prompt; local unsynced mutations preserved |
+```
++=====================================================================================================================================================+
+| Calendar Header: [ Month: OCTOBER 2023 ] [ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]      View Mode: [ MONTH ] [ MICRO ]* [x] Expand All Sets    |
++=====================================================================================================================================================+
+| DAY 01 (Expanded Column)*     | DAY 02 (Oct 3)    | DAY 03 (Oct 4)    | DAY 04 (Oct 5)    | DAY 05 (Oct 6)    | DAY 06 (Active)*  | DAY 07 (Oct 8)  |
++-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
+| [✓] D1: SQUAT DOMINANT        | [✓] D2: H. PUSH   | [ ] REST DAY      | [✓] D3: HINGE     | [ ] REST DAY      | [~] D4: ACC FLOW  | [ ] UNPLANNED   |
+|                               |                   |                   |                   |                   |                   |                 |
+|  :: High Bar Squat [v]        |  :: Bench Press[>]| (Rest Interval:   |  :: Deadlift [>]  | (Rest Interval:   |  :: Leg Press [v] | (No workouts    |
+|     [✓] rx: 140.0kg x 5 @ 7.5 |     3x5 @ 100.0kg |  Passive recovery |     3x3 @ 180.0kg |  Passive recovery |     [✓] rx: 120kg |  scheduled)     |
+|         140.0kg x 5 @ 7.5 RPE |  :: OHP [>]       |  and tissue       |  :: RDL [>]       |  and tissue       |         120kg x 10|                 |
+|     [✓] rx: 140.0kg x 5 @ 8.0 |     3x8 @ 50.0kg  |  reconstitution)  |     3x8 @ 100.0kg |  reconstitution)  |     [ ] rx: 120kg |                 |
+|         142.5kg x 5 @ 8.0 RPE |                   |                   |                   |                   |         - pending -                 |
+|     [ ] rx: 140.0kg x 5 @ 8.0 |                   |                   |                   |                   |                   |                 |
+|         - pending execution - |                   |                   |                   |                   |                   |                 |
+|                               |                   |                   |                   |                   |                   |                 |
+| Vol: 12,450.0 kg              | Vol: 5,400.0 kg   |                   | Vol: 8,820.0 kg   |                   | [ LIVE TELEMETRY ]|                 |
+|  (Δ: +1,200.0kg / +10.6%)*    |                   |                   |                   |                   | Progress: [=====>]|                 |
+| INOL: 0.85 (Optimal)          | INOL: 0.62 (Opt)  |                   | INOL: 1.12 (Caut) |                   | Status: In Progress|                 |
+| Peak e1RM: 161.5 kg           |                   |                   |                   |                   |                   |                 |
+|  (Δ: +2.5kg / +1.6%)*         |                   |                   |                   |                   |                   |                 |
+| Status: Completed             | Status: Completed |                   | Status: Completed |                   | Status: In Progress|                 |
+| [✓] Lock Engaged              | [✓] Lock Engaged  |                   | [✓] Lock Engaged  |                   | [ RE-OPEN ]       |                 |
++-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
+| <======= Drag Constraint Boundaries: Workout Card Drag-and-Drop Operations Allowed Only Within This Active Microcycle Zone ========> |
++=====================================================================================================================================================+
+```
 
-### 7.4 Exact Mobile Control Specs
+* **Interactive Calendar Grid Controls:**
+  * **Unified Sub-Header Navigation Panel:** Renders current active Month, Microcycle sequence progression metrics (`[ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]` matching rolling CNS fatigue schedules), responsive View Mode toggle keys (`[ MONTH ]` and `[ MICRO ]`), and a prominent manual `[ SYNC LOGS ]` trigger button.
+  * **Expand All Sets (All Days) Global Toggle:** A visual checkbox option `[x] Expand All Sets` located in the header. Checking this toggle transitions **every** daily card and exercise block across the entire microcycle into their expanded planned-vs-executed set stack at once, allowing complete high-density session review without clicking individual tabs.
+  * **Active Day Highlight Overlay:** The active calendar column (DAY 06) is framed in a high-contrast `--ok-blue` border (`hsl(217, 91%, 60%)`) to instantly establish cognitive anchoring for the viewer.
+  * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
+* **Workout Cards Sizing & Functional States:**
+  * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
+  * **Completed Workout State (State Machine Lock Active):** Shaded background `--ok-surface-1` with a prominent green check badge `[✓] Lock Engaged` (`hsl(142, 70%, 45%)`). Clicking this locked state prevents any accidental drag-and-drop or set editing modifications. The coach or athlete must explicitly trigger the `[ RE-OPEN SESSION ]` option to revert the session status to `IN_PROGRESS` and resume editing.
+  * **Missed Workout State:** Renders with a distinct red boundary treatment `--ok-red` (`hsl(0, 84%, 60%)`) and bold warning metadata text `"Missed Session"` if a planned training day passes the hydration window without any recorded sets.
+  * **In-Progress Workout State:** Displays an active, pulsing telemetry label (`[ LIVE TELEMETRY ]`), a dense horizontal completion progress bar tracking logged sets against planned sets, and direct hover options to sync or pause the telemetry feed.
+* **Vertical Stack Planned vs. Executed (Actual) Set Styling Rules:**
+  * **Top line (Prescription):** Displayed using a dimmed status text color (`hsl(0, 0%, 50%)`) and a smaller font size (`text-xs` / `12px`), prefixed with `rx:` to represent the programmed target:
+    `[✓] rx: 140.0 kg x 5 @ 8.0`
+  * **Bottom line (Executed Actual):** Rendered in a bold, high-contrast style (`text-sm` / `14px`) using the standard foreground color directly below it, aligned with the status checkbox:
+    `    142.5 kg x 5 @ 8.0 RPE`
+  * **Pending sets:** If a set has not been logged yet, it renders only the top prescription line followed by a light pending indicator:
+    `    - pending execution -`
+* **Interactive Microcycle Difference Indicators (Deltas):**
+  * When a coach or athlete taps/presses the `Vol (Tonnage)` or `Peak e1RM` metrics within a day card, the card expands its layout to reveal high-contrast progressive overload difference badges (`Δ` delta lines) displaying absolute and percentage changes compared to the previous microcycle:
+    * **Tonnage Delta:** Tapping `Vol` reveals a secondary metrics row displaying the absolute (kg) and percentage (%) change relative to the same session in the previous microcycle:
+      `Vol: 12,450.0 kg`
+      ` (Δ: +1,200.0 kg / +10.6%)`
+    * **e1RM Peak Delta:** Displays the absolute and percentage peak e1RM delta compared to the previous microcycle:
+      `Peak e1RM: 161.5 kg`
+      ` (Δ: +2.5 kg / +1.6%)`
+    * **Color Badging Rules:** Delta rows are styled using highly readable HSL green (`hsl(142, 70%, 45%)`) for positive progressions, or HSL amber (`hsl(38, 92%, 50%)`) for intentional deload drops.
+* **LexoRank & Drag-and-Drop Operations Rules:**
+  * **Fractional Indexing drag Handles:** Each scheduled exercise row within a planning card displays a vertical monospaced drag grip (`::`). Dragging an exercise vertically within the card recomputes its specific `lexo_rank` property on the client, preserving order sequence during offline synchronization conflicts without rewriting neighboring row records.
+  * **Microcycle drag Boundary constraint Lock:** Drag-and-drop actions on full workout cards are permitted strictly within the horizontal bounds of the active microcycle zone. Dragging cards across microcycle boundaries is blocked visually and programmatically to protect fatigue curves (ACWR, INOL) from logical corruption. Attempting an out-of-bounds drag triggers an immediate red border flash, and the card optimistically returns to its origin block upon release.
+  * **Keyboard Reorder Hotkeys:** Power users can highlight any card or exercise handle and press `Ctrl+Up` / `Ctrl+Down` (vertical reordering) or `Ctrl+Left` / `Ctrl+Right` (horizontal daily shifting) as a high-velocity alternative to mouse dragging.
 
-| Control | Spec |
-| :--- | :--- |
-| Active weight display | `text-4xl`, mono, minimum height fixed to prevent layout shift |
-| Weight stepper | `-2.5 kg` and `+2.5 kg` default; allow configured increment |
-| Reps stepper | `-1` and `+1`; minimum `0`; no decimals |
-| RPE stepper | `-0.5` and `+0.5`; clamp `1-10` |
-| Log button | Full-width, 48px high minimum, disabled only for invalid/locked state |
-| Exercise tabs | Horizontal scroll with active tab fixed-width enough for longest lift label |
-| Notes | Bottom sheet; save as explicit action, not auto-submit while typing |
-| Done action | Requires confirmation if pending mutations exist |
+##### 6.1.2.2 Month View Layout Spec
 
-### 7.5 Mobile Copy
+The Month View provides a high-density macrocycle calendar grid representing rolled-up training microcycles stacked vertically to review program adherence and cumulative progressive overload indices at a glance. It integrates a dedicated **Horizontal Microcycle Capsule Banner** layer, positioning the microcycle as an interactive, first-class planning object that dynamically spans across calendar days, preserving the standard 7-day Monday-to-Sunday calendar grid layout without column distortion.
 
-Use short labels:
+Additionally, it incorporates the **Asymmetric Adaptive Track Lane** and **Flow Connector Ribbon** model horizontally to seamlessly handle split and wrapping microcycles (such as 8-day cycles) that span across standard calendar week boundaries.
 
-| Context | Copy |
-| :--- | :--- |
-| Pending local save | `Saved offline` |
-| Syncing | `Syncing` |
-| Accepted | `Accepted` |
-| Rejected | `Needs review` |
-| Locked | `Locked` |
-| No workout today | `Rest day` |
-| Complete workout | `Finish session` |
+```
++=====================================================================================================================================================+
+| Calendar Header: [ Month: OCTOBER 2023 ] [ Mesocycle: MESO_02 ]                             View Mode: [ MONTH ]* [ MICRO ]         [ SYNC LOGS ]    |
++=====================================================================================================================================================+
+| MON                 | TUE                 | WED                 | THU                 | FRI                 | SAT                 | SUN                 |
++=====================================================================================================================================================+
+| [✓] MICRO 04 (ACC) Tonnage: 29,890 kg [⚙][⇡]                | [ ] MICRO 05 (TRN) - 8d Cycle [Part 1] Tonnage: 32,500 kg ===>                       |
++---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+
+| 02 Oct              | 03 Oct              | 04 Oct              | 05 Oct              | 06 Oct              | 07 Oct (Today)*     | 08 Oct              |
+|  [✓] D1: SQUAT DOM  |  [✓] D2: H. PUSH    |  [ ] REST DAY       |  [ ] D1: SQUAT DOM  |  [ ] D2: H. PUSH    |  [ ] REST DAY       |  [ ] D3: HINGE/PULL |
+|  Vol: 12,450 kg     |  Vol: 5,400 kg      |                     |  tVol: 12,450 kg    |  tVol: 5,400 kg     |                     |  tVol: 8,800 kg     |
+|  INOL: 0.85 (Opt)   |  INOL: 0.65 (Low)   |                     |  tINOL: 0.85 (Opt)  |  tINOL: 0.70 (Low)  |                     |  tINOL: 0.90 (High) |
+|  SQ: 210 kg e1RM    |  BP: 145 kg e1RM    |                     |  SQ: 215 kg Target  |  BP: 150 kg Target  |                     |  DL: 245 kg Target  |
++---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+
+| ===> [ ] MICRO 05 (TRN) - [Part 2] (Cont. from 05 Oct) [⚙][⇡] [v]   | [ ] MICRO 06 (PEAKING / DELOAD) Tonnage: 14,200 kg [⚙][⇡] [v]                       |
++---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+
+| 09 Oct              | 10 Oct              | 11 Oct              | 12 Oct              | 13 Oct              | 14 Oct              | 15 Oct              |
+|  [ ] REST DAY       |  [ ] D4: ACC FLOW   |  [ ] REST DAY       |  [ ] D5: ACC FLOW*  |  [ ] D1: DELOAD SQ  |  [ ] D2: DELOAD PU  |  [ ] REST DAY       |
+|                     |  tVol: 9,200 kg     |                     |  tVol: 10,500 kg    |  tVol: 4,500 kg     |  tVol: 3,200 kg     |                     |
+|                     |  tINOL: 0.75 (Mod)  |                     |  tINOL: 0.80 (Mod)  |  tINOL: 0.40 (Low)  |  tINOL: 0.35 (Low)  |                     |
+|                     |  BP: 135 kg Target  |                     |  SQ: 195 kg Target  |  SQ: 140 kg Target  |  BP: 95 kg Target   |                     |
++=====================+=====================+=====================+=====================+=====================+=====================+=====================+
+| <======= Drag Constraint Boundaries: Workout Card Drag-and-Drop Operations Allowed Only Within the Same Asymmetric Microcycle Track Lane ========> |
++=====================================================================================================================================================+
+```
+
+* **High-Density Month View Grid Alignment & Horizontal Banners:**
+  * Displays a 7-column calendar grid mapping calendar days Monday to Sunday. 
+  * Training blocks are stacked vertically as horizontal rows, using **Horizontal Microcycle Capsule Banners** injected directly above day card groups inside each row.
+  * Shaded backgrounds are applied to days belonging to completed blocks or rest days to enhance visual parsing.
+* **Microcycle Capsule First-Class Controls:**
+  * **Row-Level Collapse Toggle (`[v] Collapse` / `[^] Expand`)**: Click in a banner to collapse all day cards grouped by that specific microcycle, saving vertical workspace.
+  * **Tuning Settings Trigger (`[⚙]`)**: Opens a modal dialog to apply week-specific relative volume adjustments, fatigue limitations, or custom coaching notes.
+  * **Publish Target Trigger (`[⇡]`)**: Flushes and publishes this specific microcycle's logged set details directly to the linked Google Sheets target.
+* **Flow Connector Ribbons (Wrapping Microcycle Support):**
+  * Spans and links microcycles seamlessly across standard week boundaries (e.g. `MICRO 05` wrapping from Thursday of Week 1 to Thursday of Week 2) using standard flow connector arrows (`==>`) at the edges of the banners.
+* **Linked Hover Highlighting:**
+  * Hovering or focusing on any day or banner segment of a split microcycle triggers a synchronized outline focus highlight on **both wrapped segments** across the calendar rows simultaneously, consolidating tonnage and stress indicators.
+* **High-Density Compact Session Diagnostics:**
+  * Workout days display compact, high-density S&C indicators detailing workout name, state (`[✓]` completed, `[ ]` planned, `[~]` in progress, or `REST DAY`).
+  * Completed sessions showcase actual tonnage (`Vol`), actual stress (`INOL`), and primary estimated 1RM benchmark updates (e.g. `SQ: 210 kg e1RM`).
+  * Planned/future sessions showcase target stress profiles, including target tonnage (`tVol`), target stress (`tINOL`), and target movement intensities (e.g. `BP: 150 kg Target`), giving coaches immediate visual feedback across microcycles.
+* **Row-Level Horizontal Drag Boundary Lock (Architecture Section 7.6):**
+  * Tapping and dragging a workout card is permitted horizontal and vertically **only within the same colored microcycle track lane**, wrapping across week rows if necessary. Dragging across track lanes to another microcycle is blocked client-side, triggering a red warning card flash and optimistic snapback on release.
+* **Microcycle Performance Deltas Tooltip:**
+  * Clicking or hovering over any completed day block reveals a high-contrast floating modal showing rolling **Tonnage** and **e1RM deltas** relative to the same session in the previous microcycle (e.g. `Vol Delta: +1,200.0 kg / +10.6%`), using HSL green for progression and amber for load decreases.
+
+##### 6.1.2.3 Periodization Readiness Wave & Training Spacing Layout Spec
+
+To visualize the immediate biological fatigue impact of scheduled workouts and optimize load timing, the calendar features an integrated, continuous **Periodization Readiness Wave Rail** spanning directly underneath the daily microcycle columns. 
+
+Because fatigue is highly localized (e.g. your lower body may be fatigued from squats while your chest is fully recovered and ready for bench press), the readiness timeline is divided into **three distinct horizontal track lanes** representing Squat (SQ), Bench Press (BP), and Deadlift (DL) readiness channels. 
+
+Coaches can toggle checkboxes in the header strip (`Channels Visibility: [x] SQ | [x] BP | [x] DL`) to show the tracks together or selectively collapse inactive lanes to reclaim vertical workspace:
+
+```
++=====================================================================================================================================================+
+| Microcycle 04 Calendar Grid                                                                                                                         |
++-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
+| DAY 01: SQUAT DOMINANT        | DAY 02: H. PUSH   | DAY 03: REST DAY  | DAY 04: HINGE/PULL| DAY 05: REST DAY  | DAY 06: ACC FLOW  | DAY 07: UNPLANNED|
+| Tonnage: 12,450.0 kg (High)   | Tonnage: 5,400.0kg| Recovery Interval | Tonnage: 8,820.0kg| Recovery Interval | Tonnage: 3,200.0kg| Rest day         |
+| Status:  Completed [✓]        | Status: Completed | Passive Rest Day  | Status: Completed | Passive Rest Day  | Status: In Prog   |                  |
++-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
+| Systemic & Movement-Specific Readiness Lanes (Fitness vs. Fatigue decay channels):                                                                 |
+|                                                                                                                                                     |
+| Channels Visibility: [x] Squat (SQ)  [x] Bench Press (BP)  [x] Deadlift (DL)                                                                      |
+|                                                                                                                                                     |
+| [SQ] SQUAT CHANNEL:                                                                                                                                 |
+|   Readiness Wave:  Base _/~\_ fatigued \_____ recovered ____/~\_ [PEAK]* ___ fatigued \_____ recovered ____/~\_ [PEAK]*                             |
+|   State & Timing:  [ FATIGUED ] (Red)  | [ RECOVERED ]     | [ PEAK SQUAT READINESS ]* (Green) | [ FATIGUED ]      | [ RECOVERED ]                  |
+|                                                                                                                                                     |
+| [BP] BENCH PRESS CHANNEL:                                                                                                                           |
+|   Readiness Wave:  Base _________ recovered ________/~\_ [PEAK]* ___ fatigued \_____ recovered _________ recovered _________                            |
+|   State & Timing:  [ RECOVERED ]       | [ PEAK BENCH READINESS ]* (Green)     | [ FATIGUED ]      | [ RECOVERED ]     | [ RECOVERED ]                  |
+|                                                                                                                                                     |
+| [DL] DEADLIFT CHANNEL:                                                                                                                              |
+|   Readiness Wave:  Base _/~\_ fatigued \_______________________ recovered ________/~\_ [PEAK]* ___ fatigued \_____ recovered ____                   |
+|   State & Timing:  [ FATIGUED ]        | [ RECOVERING ]    | [ RECOVERED ]                     | [ PEAK DEADLIFT READINESS ]* (Green)               |
++=====================================================================================================================================================+
+```
+
+##### 6.1.2.4 Collapsed Readiness Lanes Layout Spec
+
+When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to focus exclusively on upper-body planning), the calendar dynamically collapses the inactive track lanes to `0px` height. This reclaims substantial vertical workspace, displaying only the selected active channel timeline:
+
+```
++=====================================================================================================================================================+
+| Microcycle 04 Calendar Grid                                                                                                                         |
++-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
+| DAY 01: SQUAT DOMINANT        | DAY 02: H. PUSH   | DAY 03: REST DAY  | DAY 04: HINGE/PULL| DAY 05: REST DAY  | DAY 06: ACC FLOW  | DAY 07: UNPLANNED|
+| Tonnage: 12,450.0 kg (High)   | Tonnage: 5,400.0kg| Recovery Interval | Tonnage: 8,820.0kg| Recovery Interval | Tonnage: 3,200.0kg| Rest day         |
+| Status:  Completed [✓]        | Status: Completed | Passive Rest Day  | Status: Completed | Passive Rest Day  | Status: In Prog   |                  |
++-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
+| Systemic & Movement-Specific Readiness Lanes (Fitness vs. Fatigue decay channels):                                                                 |
+|                                                                                                                                                     |
+| Channels Visibility: [ ] Squat (SQ)  [x] Bench Press (BP)  [ ] Deadlift (DL)                                                                      |
+|                                                                                                                                                     |
+| [BP] BENCH PRESS CHANNEL:                                                                                                                           |
+|   Readiness Wave:  Base _________ recovered ________/~\_ [PEAK]* ___ fatigued \_____ recovered _________ recovered _________                            |
+|   State & Timing:  [ RECOVERED ]       | [ PEAK BENCH READINESS ]* (Green)     | [ FATIGUED ]      | [ RECOVERED ]     | [ RECOVERED ]                  |
++=====================================================================================================================================================+
+```
+
+* **Training Timing Spacing Rules & Order of Workouts:**
+  * **The 48-Hour Recovery Window**: Heavy compound lifts (Competition Squat and Competition Deadlift) must be spaced by a minimum of 48 hours of recovery (passive rest or accessory flow) to prevent fatigue sum accumulation (redline overlap).
+  * **Optimal Sequence Placement**: High-tonnage sessions are followed strictly by Rest Days or low-intensity Acceleration Flow accessory sessions to allow the Readiness curve to rebound cleanly into the supercompensation zone before the next progressive overload shock cycle.
+  * **Readiness Wave Diagnostics (Movement-Specific Tapering)**:
+    * **Local Muscular Supercompensation Peak (Green Highlight / `[PEAK]*`)**: Movement-specific readiness rises above baseline. Characterized by high local motor unit recruitment thresholds and minimal local muscle soreness. Ideal timing to schedule heavy singles or e1RM peak tests for that specific movement category.
+    * **Local Nervous System Fatigue Valley (`fatigued`)**: Movement-specific readiness deeply depressed below baseline due to recent heavy spinal or upper-body loading cycles. Cap top sets at RPE 8.0, reduce backdown sets by -10% for that exercise to allow targeted localized recovery.
+
+#### 6.1.3 Coach Athletes Roster Workspace Layout Spec
+
+The Athletes Roster workspace functions as the primary operational console for coaches to audit real-time athlete telemetry, evaluate systemic training stress profiles, and deploy autoregulated powerlifting programming. The dual-pane layout integrates inbound athlete connection states, roster metadata, and high-density performance diagnostics (DOTS coefficients, Relative Intensity curves, Acute-to-Chronic Workload Ratios, and Attempt Selection projections).
+
+##### 6.1.3.1 Active Roster & Onboarding View
+
+```
++======================================================================================================================+
+| [K] OBSIDIAN KINETIC | [ Calendar Grid ]  [✓] Athletes Roster [ 3 Alerts ]*  [ Analytics Engine ]       [ COACH ROLE ]|
++======================+===============================================================================================+
+|                      |                                                                                               |
+| Monitored Athlete:   |  COACH ATHLETES ROSTER WORKSPACE                                                              |
+| +------------------+ |  Manage linked athletes, review active programs, and deploy training microcycles.            |
+| | (o) John Doe     | |                                                                                               |
+| | [✓] SSE Active   | |  +-----------------------------------------------------------------------------------------+  |
+| +------------------+ |  | ACTIVE ROSTER OVERVIEW                                                            [ 3 ] |  |
+|                      |  +-----------------------------------------------------------------------------------------+  |
+| Primary Workspaces:  |  | [o] athlete1@obsidian.com   [2 Active Blocks]                           [ VIEW OVERVIEW ]|  |
+| [ ] Calendar Grid    |  | [o] athlete2@obsidian.com   [4 Active Blocks] - (High Fatigue Alert ⚠️)          [ VIEW OVERVIEW ]|  |
+| [✓] Athletes Roster  |  | [o] athlete3@obsidian.com   [1 Active Block]                            [ VIEW OVERVIEW ]|  |
+| [ ] Analytics        |  +-----------------------------------------------------------------------------------------+  |
+|                      |                                                                                               |
+| Operations:          |  +-----------------------------------------------------------------------------------------+  |
+| [ ] Sheets Publisher |  | ONBOARDING TOOLKIT                                                                      |  |
+| [ ] Telegram Link    |  +-----------------------------------------------------------------------------------------+  |
+| [ ] Security Audit   |  | Your Coach Link Code: [ coach_doe_secure_2026                 ]            [ COPY LINK ]|  |
+|                      |  +-----------------------------------------------------------------------------------------+  |
+| System Metrics:      |                                                                                               |
+| Env: [ STAGING ]     |                                                                                               |
++======================+===============================================================================================+
+```
+
+##### 6.1.3.2 Athlete Detailed Analytics & Attempt Selection View
+
+```
++======================================================================================================================+
+| Monitored Athlete:   |  ATHLETE OVERVIEW: [ athlete2@obsidian.com ]                                                  |
+| +------------------+ |  Current Phase: Hypertrophy Block (4 Weeks)                             [ DEPLOY / PUSH LIFT ]|
+| | (o) John Doe     | |                                                                                               |
+| | [✓] SSE Active   | |  +--------------------------+  +--------------------------+  +------------------------------+ |
+| +------------------+ |  | QUADRANT 1: DOTS COEFFICIENT|  | QUADRANT 2: WEEKLY ARI   |  | QUADRANT 3: ACWR WORKLOAD    | |
+|                      |  |   512.45 Points          |  |   78.6% Relative Int.    |  |   ACWR: 1.25                 | |
+| Primary Workspaces:  |  |   (Elite Standard)       |  |   (Optimal Progression)  |  |   [ OPTIMAL ZONE - GREEN ]   | |
+| [ ] Calendar Grid    |  +--------------------------+  +--------------------------+  +------------------------------+ |
+| [✓] Athletes Roster  |                                                                                               |
+| [ ] Analytics        |  +------------------------------------------+  +--------------------------------------------+ |
+|                      |  | QUADRANT 4: WEEKLY NL DISTRIBUTION       |  | QUADRANT 5: FATIGUE ENGINE (INOL VS e1RM)  | |
+| Operations:          |  |   Comp [████████████████████░░] 70%      |  |  INOL (L)                  e1RM (R)        | |
+| [ ] Sheets Publisher |  |   Vari [████████░░░░░░░░░░░░░░] 30%      |  |   2.0 +     \        /     + 280 kg        | |
+| [ ] Telegram Link    |  |   Acce [████░░░░░░░░░░░░░░░░░░] 15%      |  |   1.0 +      \      /      + 260 kg        | |
+| [ ] Security Audit   |  +------------------------------------------+  +--------------------------------------------+ |
+|                      |                                                                                               |
+| System Metrics:      |  +-----------------------------------------------------------------------------------------+  |
+| Env: [ STAGING ]     |  | QUADRANT 6: INTERACTIVE COMPETITIVE ATTEMPT PLANNER                                     |  |
+|                      |  +-----------------------------------------------------------------------------------------+  |
+|                      |  | 1st Attempt Opener: [ 220 kg ]  Lift Profile: [ Squat / Deadlift ]                       |  |
+|                      |  | Suggested 2nd Attempt Range: 236.5 kg - 242.0 kg  | 3rd Attempt Stat Ceiling: 266.2 kg      |  |
+|                      |  +-----------------------------------------------------------------------------------------+  |
++======================+===============================================================================================+
+```
+
+* **Interactive Roster Controls & High-Density Diagnostic Quadrants:**
+  * **Unified Navigation Header:** Switches active dashboard routes between the macrocycle Calendar Grid, the Athletes Roster workspace (with real-time pending alert badging), and the Analytics Engine.
+  * **Onboarding Link Clipboard Copier:** Secure token generator `[ COPY LINK ]` that copies the coach's routing identifier for one-click athlete association.
+  * **Drill-down Athlete Performance Console:** Clicking any athlete row hydrates a high-density, six-quadrant diagnostic dashboard:
+    * **DOTS Coefficient Card:** Dynamically computes and displays the athlete's bodyweight-to-strength index (replacing outdated Wilks or IPF points) using verified platform maximums.
+    * **Weekly ARI (Average Relative Intensity):** Evaluates the true intensity footprint of the programmed microcycle relative to current 1RM profiles (rather than absolute raw weights), monitoring CNS load alignment.
+    * **ACWR (Acute-to-Chronic Workload Ratio):** Real-time fatigue pacing engine calculating rolling 7-day tonnage (acute) against the 28-day rolling baseline (chronic). Flags training zones: Under-training (<0.8), Sweet Spot (0.8–1.3), High Fatigue (1.3–1.5), or Injury Redline (>1.5).
+    * **Weekly NL (Number of Lifts) Distribution:** Visualizes volume allocation across the three structural tiers: Competition Lifts (Comp), Variations (Vari), and Accessories (Acce) to check specificity targets.
+    * **Fatigue Engine Co-plot (INOL vs. e1RM):** Renders dynamic dual-axis graphs mapping cumulative weekly INOL stress indexes against Brzycki/RPE-compensated estimated 1RM trajectories to catch overtraining plateaus.
+    * **Interactive Competitive Attempt Planner:** A standard platform strategy tool. Coaches input a targeted 1st attempt (opener) at ~90–92% of projected max; the planner dynamically generates statistically optimal second attempt increments (~96–98%) and projects absolute third attempt platform ceilings (~100–102%) using customized squat/deadlift and bench press coefficient curves.
+
+### 6.2 Workout Builder & Structured Prescription Editor
+
+The desktop Workout Builder uses a **two-pane split dialog layout** to allow coaches to search the canonical exercise database, customize movement modifications (Tempo, ROM, Gear), and write structured set prescriptions in a single, high-velocity workflow.
+
+#### 6.2.1 Desktop Exercise Selector & Custom Builder Split Dialog Layout
+
+```
++==================================================================================================+
+| Add Exercise / Custom Creator Split Console (Desktop Dialog Panel)                               |
++-----------------------------------------------------------------+--------------------------------+
+| Search & Database Panel (Left Pane)                             | Parameter Configurator (Right) |
+| Search: [ Squat Variation A                                 [x] ] | Base Name: [ Squat           ] |
+| +-------------------------------------------------------------+ | Category:  [Squat]* [Bench]... |
+| | [Comp Lifts] | [Variations]* | [Accessories] | [Custom Lifts] | | Tier:      [Comp] [Var]* [Acc] |
+| +-------------------------------------------------------------+ |                                |
+|                                                                 | Tempo Mod:                     |
+| Mapped Results list (dense, click to select):                   | [Standard] [Paused]* [Slow Ecc]|
+| +-------------------------------------------------------------+ | ROM Setup:                     |
+| | [ Squat ] Competition Squat                     (Tier: Comp)| | [Full ROM]* [Deficit] [Pin]    |
+| +-------------------------------------------------------------+ |                                |
+| | [ Squat ] Pause Squat                           (Var)       | | Accommodating & Support Gear:  |
+| +-------------------------------------------------------------+ | [✓] Beltless *active*          |
+|                                                                 | [ ] Bands                      |
+| Custom Creator Button:                                          | [ ] Chains                     |
+| +-------------------------------------------------------------+ |                                |
+| | | [+] Create Custom "Squat Variation A"                       | | Compiled:                      |
+| +-------------------------------------------------------------+ | "[Beltless] Pause Squat (320)" |
++-----------------------------------------------------------------+--------------------------------+
+| Structured Prescription Injector Footer:                                                         |
+| Mode: [TOP_SET_BACKDOWN]*  Top: 1 x 3 @ 8.0 RPE  Backdown: 3 x 3 @ 5% load drop                  |
+|                                                                                                  |
+| Keyboard: [Esc] Cancel                                           [Ctrl+Enter] Commit and Inject  |
++==================================================================================================+
+```
+
+#### 6.2.2 Form and Keyboard Specifications
+* **Unified Database & Custom Parameter Mapping:** The desktop right configurator pane mirrors the exact custom parameters of the mobile client, utilizing identical HSL tag selectors for:
+  * **Lift Category:** `Squat`, `Bench`, `Deadlift`, `Other` (to ensure 100% mathematical parity in INOL and ACWR models).
+  * **Tiering:** `Comp`, `Variation`, `Accessory`.
+  * **Tempo Toggles:** `Standard (1-0-1)`, `Paused (3-2-0)`, `Slow Eccentric (3-0-0)`, `Isometric (1-3-1)`, and custom string inputs.
+  * **ROM Setup:** `Full ROM`, `Deficit`, `Pin/Board Blocked`, `Partial`.
+  * **Accommodating Resistance & Support Equipment Checklist:** Multi-select checkbox grid categorizing:
+    * **Accommodating Resistance (Strength Curve Modifiers)**: `Bands` (elastic resistance), `Chains` (variable link weight).
+    * **Support Equipment & Gear Extras (Leverage Modifiers)**: `Beltless` (abdominal wall tracking), `Wraps/Sleeves` (heavy joint supports), `SlingShot` (overload bench assistance).
+* **Structured Prescription Injector (Footer):** Integrates the prescription builder directly into the adding drawer:
+  * The coach selects the loading mode (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN` (featuring auto-computed Load Drop / Fatigue Limits), `HYBRID`) and sets target reps, sets, and intensities *before* injection.
+  * Displays the read-only preview string compiled live. Tapping `[Ctrl+Enter]` saves the custom movement parameters, templates the planned set structure, and injects the exercise block directly into the microcycle calendar day in a single action, saving the coach from multi-screen hopping.
+* **Keyboard Bindings:**
+  * `Esc`: Immediately cancels, closes the overlay, and returns focus to the active calendar grid block.
+  * `Tab` / `Shift-Tab`: Cyclically rotates focus across inputs, segmented toggles, and checklists.
+  * `Ctrl+Enter`: Submits form, validates parameters, and injects the new exercise block.
+* **Database Micro-Previews:** Hovering over any item in the Left results list displays a floating micro-panel containing the selected athlete's trailing e1RM peak trend line and most recent logged sets history, allowing the coach to make precise programming decisions based on real-time fatigue curves.
+
+### 6.3 Meet Day Planner & Attempt Selector Table
+
+Coaches and athletes collaborate on competition day selections using the highly interactive **Meet Day Planner Grid**:
+
+| Lift Category | Opener Target (Editable) | 2nd Attempt Projection (Read-only) | 2nd Target (Editable Override) | 3rd Attempt Projection (Read-only) | 3rd Target (Editable Override) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Squat** | `[ 180.0 ] kg` | `190.0 - 194.0 kg` (95-97% 1RM) | `[ 192.5 ] kg` | `198.0 - 203.0 kg` (99-101.5% 1RM) | `[ 200.0 ] kg` |
+| **Bench Press** | `[ 120.0 ] kg` | `128.0 - 131.0 kg` (95-97% 1RM) | `[ 130.0 ] kg` | `133.5 - 137.0 kg` (99-101.5% 1RM) | `[ 135.0 ] kg` |
+| **Deadlift** | `[ 225.0 ] kg` | `237.5 - 242.5 kg` (95-97% 1RM) | `[ 240.0 ] kg` | `247.5 - 253.5 kg` (99-101.5% 1RM) | `[ 250.0 ] kg` |
+
+* **Projections Calculation Logic (Peak e1RM Bracketed Percentages):**
+  * All attempt projections are anchored to the athlete's **Competition Peak e1RM** (the highest calculated e1RM achieved during peak training cycles), protecting selections from arbitrary opener bias.
+  * **1st Attempt (Opener)**: Set at `90.0% - 92.0%` of Peak e1RM. A secure weight the athlete can confidently triple on their worst recovery day.
+  * **2nd Attempt Projection**: Calculated as `95.0% - 97.0%` of Peak e1RM. Typically a 5% to 6% increment from the opener, securing a sub-maximal competitive total contribution.
+  * **3rd Attempt Projection**: Calculated as `99.0% - 101.5%` of Peak e1RM, representing a maximal, optimal performance ceiling.
+  * Dynamic rounding forces all output projections to the nearest standard `2.5 kg` plate combination.
+* **Manual Override Capability:** The ranges serve strictly as mathematical guidance. Lifters and coaches can directly type specific values in the "Target" columns to override projections, ensuring real-time response to dynamic game-day variables (referee decisions, warming-up bar speed, competitor adjustments).
+
+#### 6.3.1 Meet Day Planner Grid Layout Spec
+
+```
++==================================================================================================+
+| Meet Day Planner: Opener Target and Attempt Selectors                                            |
++--------------------------------------------------------------------------------------------------+
+| Athlete Profile: [ John Doe ]     Weight Class: [ 93 kg ]     Gender: [ Male ]     DOTS: 425.4   |
++==================================================================================================+
+| Lift Category | Opener (Edit) | 2nd Attempt Projection   | 2nd Target (Edit) | 3rd Attempt Projection   | 3rd Target (Edit) |
++---------------+---------------+--------------------------+-------------------+--------------------------+-------------------+
+| Squat         | [ 180.0 ] kg  | 190.0 - 194.0 kg (95-97%)| [ 192.5 ] kg      | 198.0 - 203.0 kg (99-101%)| [ 200.0 ] kg      |
+| Bench Press   | [ 120.0 ] kg  | 128.0 - 131.0 kg (95-97%)| [ 130.0 ] kg      | 133.5 - 137.0 kg (99-101%)| [ 135.0 ] kg      |
+| Deadlift      | [ 225.0 ] kg  | 237.5 - 242.5 kg (95-97%)| [ 240.0 ] kg      | 247.5 - 253.5 kg (99-101%)| [ 250.0 ] kg      |
++---------------+---------------+--------------------------+-------------------+--------------------------+-------------------+
+| Summary Info: Total Projected Meet Total: 585.0 kg  | Projected DOTS: 423.6 | Status: [ ] Out of Sync  |
++==================================================================================================+
+```
+
+### 6.4 SSE Live Telemetry Stream Panel
+
+When athletes log their gym execution sets in real-time, details are pushed instantly to the coach's desktop console via a Server-Sent Events stream:
+
+* **Live Status Heartbeat Pulse:** A 10px circular telemetry dot located in the header:
+  * Breathing green heartbeat pulse (`hsl(142, 70%, 45%)` scaling between 0.6 and 1.0 opacity every 2s) indicates an active SSE session.
+  * Rapid red pulse (`hsl(0, 84%, 60%)` flashing at 0.5s intervals) indicates connection drop, actively executing automatic reconnect retries.
+* **Execution Telemetry Feed Log:** A chronological tabular stream of athlete performance rows:
+  * Newly received sets enter the top of the feed, triggering an **80ms fade-out blue highlight** (`hsl(217, 91%, 60%, 0.15)`) to immediately draw the coach's eye to incoming data.
+  * Columns: Time, Athlete name, Movement title, Set details (weight x reps @ RPE), Calculated e1RM, INOL warning delta.
+
+#### 6.4.1 SSE Live Telemetry Stream Panel Layout Spec
+
+```
++==================================================================================================+
+| Live Telemetry: [ ● LIVE ] (Breathing green pulse, 142, 70%, 45%)   Active SSE Session Count: [ 4 ] |
++--------------------------------------------------------------------------------------------------+
+| Chronological Tabular Feed (newest on top, triggers 80ms blue fade highlight hsl(217, 91%, 60%)):  |
++---------+-----------------+---------------------------+-----------------------+--------+---------+
+| Time    | Athlete Name    | Movement Title            | Set Details           | e1RM   | INOL Δ  |
++---------+-----------------+---------------------------+-----------------------+--------+---------+
+| 16:45   | John Doe        | Competition Squat         | 180.0kg x 3 @ 8.5 RPE | 200.5kg| 0.42 Opt|
+| 16:42   | Alice Smith     | Pause Bench Press (3-2-0) | 90.0kg x 5 @ 9.0 RPE  | 104.5kg| 0.50 Caut|
+| 16:38   | Bob Johnson     | Competition Deadlift      | 240.0kg x 2 @ 8.0 RPE | 260.0kg| 0.32 Opt|
+| 16:30   | John Doe        | Competition Squat         | 170.0kg x 3 @ 7.5 RPE | 188.5kg| 0.28 Opt|
++---------+-----------------+---------------------------+-----------------------+--------+---------+
+| [ ] Pause Stream Feed      [ ] Clear Feed History      [ ] Export Stream Log (CSV/JSON)          |
++==================================================================================================+
+```
+
+### 6.5 Analytics Diagnostics Engine & Performance Curves Layout Spec
+
+The Analytics Diagnostics Engine provides coaches with a high-density, mathematical workspace to assess training stress, rolling strength peaks, and cumulative microcycle fatigue metrics.
+
+```
++==================================================================================================+
+| Analytics Engine: [ Monitored Athlete: John Doe ]            Time Range: [ 1M ] [ 3M ]* [ 6M ]   |
++--------------------------------------------------------------------------------------------------+
+| Diagnostic Performance Diagnostics (e1RM, INOL, ACWR curves)                                     |
++-----------------------------------------------------------------+--------------------------------+
+| Rolling ACWR CNS Fatigue Stress Chart (Right Side Plot)         | Diagnostic benchmarks          |
+|                                                                 | Rolling 7d Vol: 28,450.0 kg    |
+| Ratio                                                           | Rolling 28d Vol: 98,200.0 kg   |
+|  2.0 +---------------------------------------------------------+ | Current ACWR:  1.12 (Optimal)  |
+|      |                                                         | | ACWR Status:   [ OPTIMAL ]*   |
+|  1.5 | - - - - - - - - - - - - - - - - - - [ Amber Caution ] - | |                                |
+|      |                                   _/\_                  | | e1RM Peaks:                    |
+|  1.3 | ................................./....\..... [ Green ]  | | - Squat:      185.0 kg         |
+|      |               _/\               /      \                | | - Bench:      132.5 kg         |
+|  1.0 | _____________/___\_____________/________\______________ | | - Deadlift:   235.0 kg         |
+|      |  _/\_       /     \           /                         | |                                |
+|  0.8 | ./...\...../.......\........./......................... | | Rolling INOL:                  |
+|      | /     \___/         \_______/                           | | - Squat:      0.82 (Optimal)   |
+|  0.5 +---------------------------------------------------------+ | - Bench:      1.14 (Caution)   |
+|        Wk 01   Wk 02   Wk 03   Wk 04   Wk 05   Wk 06   Wk 07     | - Deadlift:   0.65 (Optimal)   |
++-----------------------------------------------------------------+--------------------------------+
+| Historical Rolling Peak e1RM Curve Plot (Weekly maximum snapshots)                               |
+| Weight                                                                                           |
+|  240kg +----------------------------------------------------------------------------------- [DL] |
+|        |                                                                 _.-'                    |
+|  180kg | --------------------------------------------------------__..--''------------- [SQ]      |
+|        |                                              _..---'''-'                                |
+|  120kg | --------------------------------_..---'''''''--------------------------------- [BP]      |
+|        |                  _..---'''''''''                                                        |
+|   60kg +-----------------------------------------------------------------------------------------+
+|        Wk 01      Wk 02      Wk 03      Wk 04      Wk 05      Wk 06      Wk 07      Wk 08          |
++==================================================================================================+
+```
+
+* **ACWR (Acute-to-Chronic Workload Ratio) Chart:**
+  * Visualizes rolling physical adaptation stress using a monospaced line curve.
+  * Dashed horizontal markers represent the RTS-derived stress thresholds:
+    * **Optimal Training Zone `[0.8 - 1.3]`:** Plotted in a clean HSL green (`hsl(142, 70%, 45%)`). Indicates that chronic work capacity is safely ahead of acute fatigue.
+    * **Caution Training Zone `[1.3 - 1.5]`:** Plotted in HSL amber (`hsl(38, 92%, 50%)`). Serves as a buffer warning representing overreaching thresholds.
+    * **Danger Spikes Zone `[> 1.5]`:** Plotted in HSL red (`hsl(0, 84%, 60%)`). Indicates acute workload spikes with high injury probability.
+* **Rolling Peak e1RM Curve Plot:**
+  * Tracks calculated rolling maximum e1RM strength trends for Squat (SQ), Bench Press (BP), and Deadlift (DL) over weekly snapshots.
+  * All plotting metrics calculate peak estimations strictly using the RTS-compensated Brzycki formula.
+* **Diagnostic KPI Deck (Right Panel):**
+  * Displays high-density text summaries: rolling 7-day and 28-day tonnage aggregates, current ACWR ratio status, movement-specific rolling peak estimates, and rolling INOL accumulation thresholds (underlining movement spikes).
+* **Interactive Tooltips & Hover States:**
+  * **Coordinate Tracing:** Hovering over any week node on the ACWR or e1RM plots displays a small floating monospaced overlay showing absolute values and percentage deltas relative to the baseline start: e.g. `Wk 05: ACWR 1.42 (+8.5% Overreach)`.
+  * **Export Action Controls:** Standard buttons to export raw data streams as clean CSV or structured JSON formats for analytical auditing.
+
+#### 6.5.1 Volume & Intensity Profile Tab Layout Spec
+
+The Volume & Intensity Profile tab provides a specialized visual breakdown of session workloads, tracking progressive overload stress and mapping relative volume and perceived exertion (RPE) distributions across specific lifting categories:
+
+```
++==================================================================================================+
+| Analytics Engine: [ Monitored Athlete: John Doe ]            Time Range: [ 1M ] [ 3M ]* [ 6M ]   |
++--------------------------------------------------------------------------------------------------+
+| Diagnostic Tabs: [ CNS Stress ] [ Strength Peaks ] [ Volume & Intensity ]* [ AI Coach ]           |
++-----------------------------------------------------------------+--------------------------------+
+| Tonnage & RPE Zone Volume Distribution Chart                    | Load Distribution (% e1RM):    |
+|                                                                 |                                |
+| Volume (kg)                                                     | Reps by Absolute Intensity:    |
+|  8,000 +-----------------------------------------------------+  |  - High Intensity (>= 85% e1RM)|
+|        |                  _/_                                |  |    [====>                 ] 15%|
+|  6,000 |                 /   \                  _/_          |  |  - Mod. Intensity (70-85% e1RM) |
+|        |   _/_          /     \                /   \         |  |    [=================>   ] 65%*|
+|  4,000 |  /   \        /       \   _/_        /     \        |  |  - Low Intensity (< 70% e1RM)   |
+|        | /     \______/         \_/   \______/       \______ |  |    [=====>               ] 20%|
+|  2,000 +-----------------------------------------------------+  |                                |
+|        Wk 01   Wk 02   Wk 03   Wk 04   Wk 05   Wk 06   Wk 07     | Movement Volume Split:         |
+|                                                                 |  - Squats:   42,800.0 kg (45%) |
+| Workload Distribution by RPE (Effort Split):                    |  - Bench:    32,450.0 kg (33%) |
+| [ RPE < 7 ] 15% | [ RPE 7-8.5 ] 45%* | [ RPE >= 8.5 ] 40%        |  - Deadlifts:22,950.0 kg (22%) |
++==================================================================================================+
+```
+
+#### 6.5.2 Movement Variation Drill-Down Sub-Page Spec
+
+To prevent high-density strength data from cluttering the main console, coaches can click on any specific movement variation (e.g. Pause Squats) within the analytics ledger to open this dedicated, full-screen variation monitoring sub-page:
+
+```
++==================================================================================================+
+| [<-] Back to Dashboard   Performance Deep-Dive: [ pause squat (3-2-0) ]      Variation: [ Beltless] |
++--------------------------------------------------------------------------------------------------+
+| Variation Fitness & Fatigue Metrics:                                                             |
+| Peak e1RM: [ 162.5 kg ]      Active Weeks Logged: [ 8 Weeks ]     RPE Fatigue Index: [ Optimal ] |
++-----------------------------------------------------------------+--------------------------------+
+| Variation e1RM Progressive Overload Curve Plot                  | Set-by-Set Historical Log      |
+| Weight                                                          |                                |
+|  180kg +-----------------------------------------------------+  | Date       | Set  | Executed   |
+|        |                                                     |  +------------+------+------------+
+|  160kg | ------------------------------------------_.-'----- |  | 2026-05-31 | 1    | 145kg x 3  |
+|        |                                  __..--''           |  | 2026-05-31 | 2    | 145kg x 3  |
+|  140kg | --------------------__..--'''''-------------------- |  | 2026-05-24 | 1    | 140kg x 3  |
+|        |        __..--'''''                                  |  | 2026-05-24 | 2    | 142.5kg x 3|
+|  120kg +-----------------------------------------------------+  | 2026-05-17 | 1    | 137.5kg x 5|
+|        Wk 01   Wk 02   Wk 03   Wk 04   Wk 05   Wk 06   Wk 07     | [ Page 1 of 4 ]  [Next Page]   |
++==================================================================================================+
+```
+
+### 6.6 Security & Session Audit Panel Layout Spec
+
+```
++==================================================================================================+
+| Security & Session Audit: Active Credentials & Terminal Access Revocation Panel                  |
++--------------------------------------------------------------------------------------------------+
+| Connected Devices & Active Terminals (Dense Tabular View):                                       |
++-------------------------+--------------------+---------------------+-----------------------------+
+| Device Type / OS        | IP Address / City  | Last Active Time    | Session Action              |
++-------------------------+--------------------+---------------------+-----------------------------+
+| Windows 11 Chrome (Current) 192.168.1.45 (Local) Active Now        | [ CURRENT ACTIVE TERMINAL ] |
+| Apple iPhone 15 Mobile  | 203.0.113.12 (SEO) | 2026-05-31 16:32:00 | [ REVOKE ACCESS TOKEN ]     |
+| Linux Admin CLI Terminal| 198.51.100.5 (NYC) | 2026-05-30 08:14:15 | [ REVOKE ACCESS TOKEN ]*    |
++-------------------------+--------------------+---------------------+-----------------------------+
+| Audit Event Logs Stream (Idempotent Logs):                                                       |
+| [16:45:10] Session initiated successfully from terminal IP 192.168.1.45                          |
+| [16:32:00] IndexedDB sync outbox flushed 4 sets to database. Status: 200 OK                     |
+| [16:15:22] Token rotation executed. Previous session revoked safely.                            |
++==================================================================================================+
+```
+
+### 6.7 AI Coach Analysis Panel Layout Spec
+
+```
++==================================================================================================+
+| AI Coach Diagnostics: Neural Autoregulation Engine                                                |
++--------------------------------------------------------------------------------------------------+
+| Current Monitored Athlete: John Doe                                                             |
+| Performance Analysis Trigger:                                                                    |
+| [ DECOMPRESSING NEURAL CORE... ] (Pulsing blue text loader, hsl(217, 91%, 60%))                  |
++--------------------------------------------------------------------------------------------------+
+| AI Diagnostic Summary Response:                                                                  |
+| * Squat e1RM has stabilized at 185.0 kg over the last 14 days, demonstrating fatigue-resistant    |
+|   adaptation curves.                                                                             |
+| * Bench Press INOL is currently at 1.14 (Caution zone), indicating high cumulative fatigue.      |
+|                                                                                                  |
+| AI Autoregulation Prescription Recommendation:                                                   |
+| > "Decrease Bench Press target volume by 5% in the next microcycle to recover optimal INOL."      |
+|                                                                                                  |
+| [ APPLY PRESCRIPTION ADJUSTMENT ]                   [ RE-EVALUATE ATHLETE PROFILE ]              |
++==================================================================================================+
+```
 
 ---
 
-## 8. Telegram Mini App Experience
+## 7. Athlete Mobile Gym Logging Experience
 
-Telegram is a **Telegram Mini App launched from the bot**. The Mini App may reuse the mobile logging UI, while bot messages provide launch links, reminders, alerts, and compact command fallbacks. Telegram must not become a separate source of truth.
+The mobile logging console is structured as a unified, chronological, top-down workout feed. This completely eliminates multi-tab swiping, presenting the athlete's entire training session as a continuous physical timeline.
 
-### 8.1 Mini App Rules
+### 7.1 Viewport Chronological Timeline Layout
 
-- The first Telegram Mini App screen is today's active workout or a clear rest-day state.
-- Verify/link state must be visible before showing training data.
-- If the user is not linked, show one primary action: `Connect account`.
-- If Telegram WebView storage is unavailable or unreliable, show `Online only in Telegram. Use the PWA for full offline logging.`
-- Use the same set logging controls, lock banners, sync states, and conflict UI as the mobile PWA where possible.
-- Do not expose full coach programming tools inside Telegram unless explicitly scoped later.
+```
++--------------------------------------------------------------------------+
+| Sticky Session Header: [Date] | Status Badge | Sync Queue [n] | Timer    |
++--------------------------------------------------------------------------+
+| Scrollable Timeline Workout Feed:                                       |
+|                                                                          |
+| === [Block 1]: SQUAT (Comp Lift) ======================================= |
+|  [✓] Set 1: 170.0 kg x 3 @ 7.5 RPE  --  Accepted  (Compact Row)          |
+|                                                                          |
+|  [~] Set 2: Active Set Expanded Row (Inline Controller Panel)            |
+|             +----------------------------------------------+             |
+|             |              [  180.0 kg  ]                  |             |
+|             |            [ -2.5 ]  [ +2.5 ]                |             |
+|             |                                              |             |
+|             |          [ 3 Reps ]   [ 8.0 RPE ]            |             |
+|             |          [ - ]  [ + ]   [ - ]  [ + ]          |             |
+|             |                                              |             |
+|             |        e1RM Projection: 205.5 kg             |             |
+|             |        INOL Volume Stress: 0.42              |             |
+|             |                                              |             |
+|             |                 [ LOG SET ]                  |             |
+|             +----------------------------------------------+             |
+|                                                                          |
+|  [ ] Set 3: 180.0 kg x 3 @ 8.0 RPE  --  Planned   (Compact Row)          |
+|  [ ] Set 4: 180.0 kg x 3 @ 8.0 RPE  --  Planned   (Compact Row)          |
+|                                                                          |
+| === [Block 2]: BENCH PRESS (Comp Lift) ================================= |
+|  [ ] Set 1: 120.0 kg x 4 @ 8.0 RPE  --  Planned                          |
+|  [ ] Set 2: 120.0 kg x 4 @ 8.0 RPE  --  Planned                          |
+|                                                                          |
++--------------------------------------------------------------------------+
+| Mobile Action Bottom Bar: [ Add Exercise ] | [ Notes ] | [ Done ]       |
++--------------------------------------------------------------------------+
+```
 
-### 8.2 Bot Voice
+### 7.2 Gym-Safe Chronological Feed Interaction Rules
+* **Inline Card Expansion:** Selecting any set in the timeline (or the system programmatically auto-focusing the next unlogged set) expands that specific row inline to reveal its active stepper panel. All other sets in the timeline remain collapsed as compact, space-efficient rows to maintain complete visual context of the session.
+* **Auto-Scroll Centering:** When a set row expands, the viewport automatically executes a smooth, hardware-accelerated scroll transition (200ms ease-out) to center the active logging inputs in the middle of the screen, ensuring that high-fatigue steppers are always perfectly positioned for the thumb.
+* **Top-Down Sequential Progression:** Once the athlete clicks `LOG SET`, the active row collapses into a compact logged state showing `✓ Set Details -- Accepted`, and focus programmatically transitions down to the very next unlogged set row in the feed (even if it resides in the subsequent exercise block), expanding it automatically. This allows logging the entire gym session top-down with zero manual page/tab navigation.
+* **Frictionless Superset Support:** Alternating between Squats and Bench Press (supersets) is completely native. The athlete simply taps any set row in any exercise block in the feed to immediately expand it inline and type or step values, without losing tracking history or resetting other active inputs.
+* **Touch Bounding & Plate Steps:** Active buttons (`+`, `-`, `LOG SET`) are locked to a minimum touch target size of **48px x 48px**, with a strict `12px` padding buffer between elements to prevent fat-finger double entries. Standard weight adjustments default to dynamic plate steps: `2.5 kg` or `5 lbs` for primary jumps, with full support for microloading/fractional increments (`1.25 kg`, `0.5 kg`, or `1 lb` adjustments) configured via athlete profile preferences to allow precise upper-body progression.
+* **Direct Numeric Input Override (Tap-to-Type):** Tapping directly on the main weight display `[ 180.0 kg ]`, rep display `[ 3 Reps ]`, or RPE display `[ 8.0 RPE ]` instantly focuses the field and brings up the device's native numeric keypad (decimal-supported) as a modal overlay. This allows the athlete to directly type specific values (e.g. typing `142.5` or `6` reps) in a single action instead of repeatedly pressing stepper buttons, bypassing high-repetition tapping fatigue.
+* **Keyboard Viewport Adaptability & Easing Animations (Visibility Specs):**
+  - **Dynamic Viewport Centering**: When the virtual software keyboard slides up (occupying ~45% of the mobile screen height), the timeline container immediately triggers a hardware-accelerated scroll transition (`250ms cubic-bezier(0.1, 0.76, 0.55, 0.94)` matching native OS keyboard easing). It auto-centers the active card in the exact middle of the *reduced* visible viewport, ensuring the input fields are never covered or obscured.
+  - **Focus Isolation Scrim**: A dark, semi-transparent backdrop scrim (`rgba(0, 0, 0, 0.5)`) smoothly fades in (`150ms ease-in-out`) over all other background elements in the chronological feed. This isolates the active logging card visually and maximizes contrast under harsh gym lighting.
+  - **Dismissal Transitions**: Tapping `[ LOG SET ]`, pressing keyboard `Done`/`Enter`, or executing a downward drag gesture on the background dismisses the keyboard. This immediately fades out the background scrim and returns the timeline viewport to its normal scroll state via a smooth `200ms ease-out` transition.
+  - **Virtual Keyboard Animation Scenarios & Spacing Safeguards (Zero-Clipping Rules)**:
+    - **Scenario A: Keyboard Slide-Up (Viewport Resize)**: Viewport height must dynamically adapt using `dvh` (Dynamic Viewport Height) rather than static percentage bounds. During the standard `250ms` OS entrance transition, the logging card must animate upwards concurrently to prevent the active input boundary from being clipped by the incoming virtual numpad, maintaining a strict `16px` structural clearance above the keyboard.
+    - **Scenario B: Cross-Field Focus Hop (e.g. Weight -> Reps -> RPE)**: When the athlete switches focus between numeric inputs on the same card, the software keyboard remains locked in the active position. To prevent the layout from collapsing and re-snapping (causing optical jitter), the scroll container must remain vertically anchored. Only the horizontal highlight ring transitions (`150ms ease-out`), ensuring completely stable card placement.
+    - **Scenario C: Viewport Rebound (Keyboard Dismissal)**: Upon input blur, standard viewport bounds snap back to 100%. The scroll offsets must return to baseline using a matching deceleration curve (`200ms cubic-bezier(0.1, 0.76, 0.55, 0.94)`). This prevents visual jumping or leaving unhydrated empty space at the bottom of the container.
+    - **Scenario D: Collision with Action Bars (Bottom Bar Clearance)**: To prevent the sticky action bottom bar (`Add Exercise`, `Done`) from being pushed up by the incoming keyboard and overlapping the focused input card, the bottom bar is programmatically hidden on focus (`translateY(100%)` over `100ms ease-in`), sliding back up only after the virtual keyboard has fully retracted.
 
-- Short, direct, numeric.
-- No motivational copy.
-- Always show enough context to prevent logging against the wrong workout.
-- Never expose coach-only data to athletes.
 
-### 8.3 Command Messages
+### 7.3 Mobile Exercise Adding, Picking & Creation Flow
 
-| Command | Response Design |
-| :--- | :--- |
-| `/today` | Workout title, exercises, next active set, sync status, Mini App launch button |
-| `/log` | Opens Mini App focused on active set; fallback is guided prompt sequence: exercise -> set -> weight -> reps -> RPE -> confirmation |
-| `/done` | Confirms completion or explains why the workout cannot be completed |
-| `/status` | Coach-only athlete completion summary |
+When an athlete or coach needs to modify the workout on the fly, tapping `[ Add Exercise ]` on the sticky action bottom bar triggers the multi-step exercise integration flow:
 
-### 8.4 Telegram Error Copy
+```mermaid
+graph TD
+    Trigger["Tap [ Add Exercise ]"] --> Drawer["Open Picker Bottom Sheet"]
+    Drawer --> Search["Type in Search Input (Autofocus)"]
+    Search --> Filter{"Match Found?"}
+    Filter -- Yes --> Select["Select Exercise from DB List"]
+    Filter -- No --> Custom["Select [ [+] Create Custom '...' ]"]
+    Custom --> Builder["Slide-in Custom Builder Pane"]
+    Builder --> Define["Define: Category & Tier Class"]
+    Select --> Vol["Set Quick Sets & Reps Volume"]
+    Define --> Vol
+    Vol --> Confirm["Click [ Confirm Add ]"]
+    Confirm --> Inject["Inject at End of Timeline (LexoRank)"]
+    Inject --> AutoScroll["Auto-Scroll & Focus New Set 1"]
+```
 
-| Condition | Message Pattern |
-| :--- | :--- |
-| No linked account | "This Telegram account is not linked. Open the Mini App to connect." |
-| Mini App auth failed | "Telegram verification failed. Close and reopen the Mini App." |
-| Locked workout | "This workout is locked by {name}. Logging is paused." |
-| Tombstoned set | "That set was removed by your coach. Open the app to refresh." |
-| Ambiguous input | "Use numbers only: weight, reps, RPE." |
-| Offline backend/provider retry | "Received. I will confirm after the server accepts it." |
+#### 7.3.1 Step 1: The Exercise Picker (Bottom Drawer Sheet)
+
+```
++--------------------------------------------------------------------------+
+| Today's Session | Workout Status Badge | Local Sync Queue Count Badge    |
++--------------------------------------------------------------------------+
+| Scrollable Timeline Workout Feed:                                       |
+|  [✓] Set 1: 170.0 kg x 3 @ 7.5 RPE  --  Accepted                         |
+|  [ ] Set 2: 180.0 kg x 3 @ 8.0 RPE  --  Planned                          |
+|                                                                          |
+| +======================================================================+ |
+| | [===] Bottom Sheet Drag Handle Indicator                             | |
+| |                                                                      | |
+| | Search: [ Squat Variation A                                     [x] ]| |
+| |                                                                      | |
+| | +------------------------------------------------------------------+ | |
+| | | [Comp Lifts] | [Variations] *active* | [Accessories] | [Custom]  | | |
+| | +------------------------------------------------------------------+ | |
+| |                                                                      | |
+| | Mapped Database Lifts:                                               | |
+| | +------------------------------------------------------------------+ | |
+| | | [ Squat ] Competition Squat                     (Tier: Comp)     | | |
+| | +------------------------------------------------------------------+ | |
+| | | [ Squat ] Pause Squat                           (Tier: Variation)| | |
+| | +------------------------------------------------------------------+ | |
+| |                                                                      | |
+| | Custom Creator Trigger Option:                                       | |
+| | +------------------------------------------------------------------+ | |
+| | | [+] Create Custom "Squat Variation A"                            | | |
+| | +------------------------------------------------------------------+ | |
+| +======================================================================+ |
++--------------------------------------------------------------------------+
+```
+
+* **Visual Structure:** Slides up as a full-width bottom sheet (`--radius-lg` border-radius, background `--ok-surface-1`).
+* **Autofocus Search Input:** A prominent text field with a 1px border highlighted in `--ok-blue` on focus, holding placeholder: `"Search canonical lifts..."`. Keyboard triggers immediately upon slide completion.
+* **Segmented Filter Tabs:** Horizontal selectors below the search input:
+  * `Comp Lifts` (Filters strictly tier-comp, e.g. Competition Squat)
+  * `Variations` (Filters close derivatives, e.g. Pause Bench)
+  * `Accessories` (Filters isolation movements, e.g. Dumbbell Lateral Raise)
+  * `Custom Lifts` (Filters previously defined user movements)
+* **Database Results List:** Fast-filtering list displaying match items with HSL tags:
+  * Mapped with category tag (e.g. `Squat` tag in `--ok-green` or `Bench` tag in `--ok-violet`).
+  * If no matches exist in the DB, typing "Squat Variation A" reveals a primary actionable item: `[+] Create Custom "Squat Variation A"`.
+
+#### 7.3.2 Step 2: Custom Exercise Builder (Slide-in Sub-Pane)
+
+Selecting `"Create Custom"` slides in a secondary nested sub-pane from the right boundary to define the physiological execution parameters of the new movement:
+
+```
+| +======================================================================+ |
+| | [<-] Back   Custom Exercise Builder (Step 2 of 4)                     | |
+| |                                                                      | |
+| | Base Name:  [ Squat                                             [x] ]| |
+| |                                                                      | |
+| | Category:   [ Squat ]*   [ Bench ]     [ Deadlift ]   [ Other ]      | |
+| | Tier Class: [ Comp ]     [ Variation ]*  [ Accessory ]               | |
+| |                                                                      | |
+| | Tempo Mod:  [ Std (101) ] [ Paused (320) ]* [ Slow Ecc (3-0-0) ] [C] | |
+| | ROM Setup:  [ Full ROM ]* [ Deficit (2") ]  [ Pin / Block ]   [Part] | |
+| | Accommodating Resistance & Equipment Toggles (Multi-select tags):    | |
+| |  [✓] Beltless *active*  [ ] Bands (Choked)  [ ] Chains (40kg)        | |
+| |                                                                      | |
+| | Generated Name Preview:                                              | |
+| | +------------------------------------------------------------------+ | |
+| | | "[Beltless] Pause Squat (3-2-0)"                                 | | |
+| | +------------------------------------------------------------------+ | |
+| |                                                                      | |
+| |                               [ CONTINUE ]                           | |
+| +======================================================================+ |
+```
+
+* **Interactive Form Attributes:**
+  * **Base Exercise Name:** An editable text field initialized with the search string, carrying a simple clear button `[x]`.
+  * **Physiological Category Selector:** Segmented control button sets (`Squat`, `Bench`, `Deadlift`, `Other`). Selecting a category binds the movement to its canonical fatigue engine equations.
+  * **Tier Classification Selector:** Segmented button sets (`Comp`, `Variation`, `Accessory`) mapping directly to intensity limits.
+  * **Tempo Modifier Selector:** Horizontal toggle options:
+    * `Standard (1-0-1)`: Default lifting tempo.
+    * `Paused (3-2-0)`: 3s eccentric, 2s pause, explosive concentric.
+    * `Slow Eccentric (3-0-0)`: 3s lowering phase, no pauses.
+    * `Isometric (1-3-1)`: Highlighted pause in static transition zone.
+    * `Custom string`: Reveals text input for custom tempo notations (e.g. `5-3-0`).
+  * **Range of Motion (ROM) Selector:** Segmented buttons:
+    * `Full ROM`: Default joint articulation.
+    * `Deficit / Extended`: Deficit pulls or deep deficit squats.
+    * `Pin / Board Blocked`: Partial ROM blocks (board benching, pin presses).
+    * `Partial / High Box`: Restricted articulation bounds.
+  * **Accommodating Resistance & Equipment Extras (Multi-select list):** Interactive checkbox tags that dynamically adjust structural attributes:
+    * `Beltless` (Increases trunk stabilization demand notation).
+    * `Bands (Choked)` (Accommodating resistance).
+    * `Chains` (Accommodating loading curves).
+    * `Wraps / Sleeves` (Knee wraps / heavy elbow sleeves).
+    * `SlingShot` (Bench overload modifier).
+* **Dynamic Compiler Name Preview:** Renders in a dedicated read-only block (`--ok-surface-3` with 1px border highlighted in `--ok-blue`). The UI engine dynamically combines the selected parameters to display the compiled canonical name string (e.g. `"[Beltless] [Deficit] Pause Squat (3-2-0)"`) so the user can verify the formatting before proceeding.
+* **Navigation Stepper:** The `"Continue"` button (touch boundary `48px x 48px`, background `--ok-blue`) advances the drawer to Step 3 (Quick sets/reps volume set).
+
+#### 7.3.3 Step 3: Quick Sets & Reps Volume Set
+After choosing or creating a movement, the picker transitions to a quick volume definition card which builds the prescription set-by-set (with no sliders allowed):
+* **Set-by-Set Editor Table**: Lists each set individually. The athlete/coach specifies target reps and RPE/Weight intensity for each individual set row.
+* **Row Deletion (`[x]` trigger)**: Each set row features a high-contrast delete trigger `[x]` at the right edge. Tapping `[x]` triggers a confirmation popup modal before deletion, ensuring no accidental loss.
+* **Sets Manager controls**: An inline button `[ (+) Add Set ]` adds a new set row to the bottom of the table.
+* **Direct adjustments**: Uses `+` / `-` buttons for fine-tuning reps and target intensities directly on a set-by-set basis without slider interfaces.
+
+##### 7.3.3.1 Step 3 Layout Diagram: Quick Sets & Reps Volume Set
+
+```
+| +======================================================================+ |
+| | [<-] Back   Prescription Builder (Step 3 of 4)                       | |
+| |                                                                      | |
+| | Prescribed Sets (Set-by-Set Configuration - No Sliders):             | |
+| | +------------------------------------------------------------------+ | |
+| | | SET 1:  [  5 Reps ] [-] [+]   [ 8.0 RPE ] [-] [+]   [x] Delete   | | |
+| | +------------------------------------------------------------------+ | |
+| | | SET 2:  [  5 Reps ] [-] [+]   [ 8.0 RPE ] [-] [+]   [x] Delete   | | |
+| | | SET 3:  [  5 Reps ] [-] [+]   [ 8.5 RPE ] [-] [+]   [x] Delete   | | |
+| | +------------------------------------------------------------------+ | |
+| |                                                                      | |
+| | [ (+) Add Set ]                                                      | |
+| |                                                                      | |
+| |                               [ CONTINUE ]                           | |
+| +======================================================================+ |
+```
+
+##### 7.3.3.2 Set Deletion Confirmation Dialog Spec
+
+When a user taps `[x] Delete` on any set row, a focused modal dialog is displayed to prevent accidental deletion:
+
+```
++==========================================================================+
+| Delete Set Confirmation                                                  |
++--------------------------------------------------------------------------+
+| Are you sure you want to delete SET 3?                                   |
+| This action will permanently remove this set from the prescription.      |
+|                                                                          |
+|         [ CONFIRM DELETE ]                [ CANCEL ]                     |
++==========================================================================+
+```
+
+#### 7.3.4 Step 4: Append & Scroll Anchor
+Tapping `[ Confirm Add ]` (minimum target size `48px x 48px`, background `--ok-blue` active) executes the following sequence:
+1. **Optimistic Rank Calculation:** Generates an optimistic fractional sort rank string (`lexo_rank` positioned chronologically at the end of the existing exercise list).
+2. **Timeline Injection:** Closes the bottom sheet, generates the new exercise block containing the targeted planned sets, and appends it to the bottom of the scrollable timeline workout feed.
+3. **Viewport Focus Sync:** Viewport programmatically triggers a smooth ease-out scroll to the bottom of the timeline feed and expands the first planned set row inline, immediately placing the weight stepper input in active focus.
 
 ---
 
-## 9. Google Sheets Publishing Experience
+## 8. Telegram Mini App WebView Companion
 
-Sheets publishing is coach-facing and one-way. The UI must make that explicit.
+The Telegram Mini App WebView companion functions as a native extension of the athlete logging experience, sharing the exact mobile PWA database queue patterns under custom Telegram verification constraints.
 
-### 9.1 Integration Setup
+### 8.1 Mini App Account Verification Screen Specs
 
-1. Coach opens Integrations -> Google Sheets.
-2. UI explains: "Publish reports to Sheets. Sheet edits do not update training data."
-3. Coach connects Google account via OAuth.
-4. Coach selects create-new spreadsheet or existing publication target.
-5. Coach chooses export profile and publish schedule.
+```
++==========================================================================+
+| [tg] Telegram Chat Shell: @IronBoxBot                                    |
++==========================================================================+
+| [Bot Message]:                                                           |
+| "Coach Mike Tuchscherer has invited you to link your active logging      |
+| console. Click the link below to verify your device credentials."        |
+| [ Launch Mini App ] (Inline App Link Webview trigger)                     |
+|                                                                          |
+| +======================================================================+ |
+| | Telegram Mini App WebView Overlay: Connection Wizard                 | |
+| | [x] Close App                                                    (i) | |
+| | +------------------------------------------------------------------+ | |
+| | |                                                                  | | |
+| | |                    [tg] Mini App Connector                       | | |
+| | |                                                                  | | |
+| | |   Verify Athlete Account:                                        | | |
+| | |   +------------------------------------------------------------+ | | |
+| | |   | Telegram Username: @johndoe                                | | | |
+| | |   | Auth Status:       [✓] Cryptographically Verified          | | | |
+| | |   +------------------------------------------------------------+ | | |
+| | |                                                                  | | |
+| | |   Associated Athlete Profile:                                    | | |
+| | |   +------------------------------------------------------------+ | | |
+| | |   | Name:   John Doe                                           | | | |
+| | |   | Coach:  Mike Tuchscherer                                   | | | |
+| | |   +------------------------------------------------------------+ | | |
+| | |                                                                  | | |
+| | |                  [ CONNECT ATHLETE ACCOUNT ]                     | | |
+| | |                                                                  | | |
+| | +------------------------------------------------------------------+ | |
+| +======================================================================+ |
++==========================================================================+
+```
 
-### 9.2 Publish Profile UI
+* **Verify Connection Loader:**
+  * Displays a rotating blue spinner ring (`hsl(217, 91%, 60%)`) on a deep obsidian black background.
+  * Copy: `"Verifying Telegram security keys..."`
+  * Action: Server-side validation of the raw `initData` query signature against the app's secret keys.
+* **Linked Account Success Panel:**
+  * Renders a circular profile badge (`--radius-lg` image wrapper), the linked Athlete Name, and a large `"Access Log Console"` button.
+  * Copy: `"Account linked successfully. Start today's lifting."`
+* **Auth Boundary Exception Panel:**
+  * Displays if validation fails or token decays. Shows a prominent red alert exclamation icon (`hsl(0, 84%, 60%)`).
+  * Copy: `"Telegram signature authentication failed. Close and reopen the Mini App to refresh."`
+  * Button Action: `"Retry Verification"` (re-reads active WebApp properties).
+* **Blocked Storage Overlay Strip:**
+  * Displays at the top of the interface if the browser client sandbox blocks local IndexedDB operations inside Telegram:
+  * Copy: `"Online Mode Only: Sandboxed storage detected. Use the standalone PWA to preserve offline logs."`
 
-| Control | Component |
-| :--- | :--- |
-| Athletes | Searchable multi-select |
-| Date range | Segmented control: Active mesocycle, last 28 days, custom |
-| Tabs | Checkbox group: Sets, Workouts, INOL, ACWR, e1RM |
-| Schedule | Menu: Manual only, daily, weekly |
-| Units | Segmented control: kg, lb |
+### 8.2 Telegram Bot Chat Interface & Notification Layout Spec
 
-### 9.3 Publish Status
-
-| State | UI |
-| :--- | :--- |
-| Not connected | Connect Google button |
-| Connected | Account label, scopes, revoke button |
-| Publishing | Progress row in integration outbox |
-| Published | Timestamp, spreadsheet link, row count |
-| Failed | Error detail, retry action, audit link |
-| Revoked | Disabled schedule with reconnect action |
+```
++==========================================================================+
+| [tg] Telegram Chat Shell: @IronBoxBot                                    |
++==========================================================================+
+| [✓] Today's Workout Summary:                                             |
+| Athlete: John Doe                                                        |
+| Mesocycle: MESO_02 | Day: Day 1 (Squat Dominant)                         |
+|                                                                          |
+| * Competition Squat:                                                     |
+|   - Set 1: 170.0 kg x 3 @ 7.5 RPE (e1RM: 188.5 kg)                       |
+|   - Set 2: 180.0 kg x 3 @ 8.5 RPE (e1RM: 200.5 kg)                       |
+| * Tonnage Lifted: 12,450.0 kg (Optimal)                                  |
+| * Current INOL:   0.85 (Optimal)                                         |
+|                                                                          |
+| [ Launch Mini App ]    [ View Full Analytics ]    [ Mute Notifications ] |
++--------------------------------------------------------------------------+
+| [!] SYSTEM WARNING: CNS Overreaching Detected                            |
+| "John Doe's current 7d rolling ACWR has spiked to 1.48 (Caution Zone).    |
+| Recommend reducing next microcycle squat intensity by 5%."               |
+|                                                                          |
+|         [ Acknowledge Warning ]       [ Message Coach ]                  |
++==========================================================================+
+```
 
 ---
 
-## 10. State, Sync & Resilience UI
+## 9. Google Sheets One-Way Publishing Flow
 
-### 10.1 Global Status Strip
+Sheets integrations are strictly one-way publishing targets, never bidirectional editors. The UI must explicitly communicate this data ownership model to the coach.
+
+### 9.1 Publish Target Selector & Outbox Panel
+
+```
++==================================================================================================+
+| Settings -> Google Sheets One-Way Publisher Panel                                               |
++--------------------------------------------------------------------------------------------------+
+| [!] CAUTION: One-Way Publishing Target                                                           |
+| "Sheets integration is strictly ONE-WAY export. Edits made inside your Google spreadsheets       |
+| do not sync back to Obsidian Kinetic canonical training data."                                   |
++-----------------------------------------------------------------+--------------------------------+
+| Target Configurations (Left Pane)                               | Outbox Sync Queue (Right Pane) |
+| Active Account:  [ google_coach@example.com          [Revoke] ] | Status: [✓] Connected & Scoped |
+| Spreadsheet URL: [ https://docs.google.com/spreadsheets/d/... ] | Outbox Stepper Logs:           |
+|                                                                 | [✓] mesocycle_peak_e1rm        |
+| Tabs to Publish (Checklist):                                    | [✓] weekly_inol_squats         |
+| [✓] Sets Log     [✓] INOL Summaries                             | [~] acute_chronic_workloads    |
+| [✓] ACWR Ratios  [✓] Meet Attempts                              | [ ] audit_event_records        |
+|                                                                 |                                |
+| Schedule Type:   ( ) Manual  (*) Daily  ( ) Weekly              | Progress Indicator:            |
+| Data Units:      (*) Kilograms (kg)  ( ) Pounds (lb)            | +----------------------------+ |
+|                                                                 | | Writing rows (150/420)...  | |
+|                                                                 | +----------------------------+ |
+|                     [ PUBLISH NOW ]                             | Next Sync: Today 11:30 PM      |
++=================================================================+================================+
+```
+
+* **Publisher Dashboard Configuration:**
+  * Coach opens Settings -> Google Sheets Integration.
+  * Header Banner (Caution visual outline): `"Sheets integration is strictly ONE-WAY export. Edits made inside your Google spreadsheets do not sync back to Obsidian Kinetic canonical training data."`
+  * Target Selector dropdown menu: Displays active authorized Google Account, sheet name metadata, and a checkbox list of sheets to create/update (`Sets Log`, `INOL Summaries`, `ACWR Ratios`, `Meet Attempts`).
+* **Integration Outbox Progress Stepper:**
+  * Renders inside the side drawer panel when a publish operation is triggered:
+  * Spinnng blue loader alongside live copy: `"Compiling historical datasets..."` -> `"Injecting tab headers..."` -> `"Writing row values (150/420 entries)..."` -> `"Sync completed."`
+  * Displays credentials rotation alerts: If OAuth tokens are nearing their 7-day decay boundaries, the connection card displays an active alert: `"Google auth key expires in [Time]. Re-authenticate now to protect automated schedules."`
+
+### 9.2 Google Sheets Canonical Export Layout Spec
+
+```
++==================================================================================================+
+| Google Sheets: John_Doe_Workout_Log_Export_2026                                                  |
++--------------------------------------------------------------------------------------------------+
+| A          | B          | C       | D                  | E          | F          | G      | H    |
++------------+------------+---------+--------------------+------------+------------+--------+------+
+| Date       | Movement   | Set No  | Prescribed Target  | Weight     | Reps       | RPE    | e1RM |
++------------+------------+---------+--------------------+------------+------------+--------+------+
+| 2026-05-31 | Squat (C)  | 1       | 180.0 kg x 3 @ 8.0 | 180.0      | 3          | 8.5    | 200.5|
+| 2026-05-31 | Squat (C)  | 2       | 180.0 kg x 3 @ 8.0 | 180.0      | 3          | 8.0    | 198.0|
+| 2026-05-31 | Squat (C)  | 3       | 180.0 kg x 3 @ 8.0 | 170.0      | 3          | 7.5    | 188.5|
+| 2026-05-31 | Bench (C)  | 1       | 120.0 kg x 5 @ 8.0 | 120.0      | 5          | 8.0    | 140.0|
+| 2026-05-30 | Deadlift(C)| 1       | 240.0 kg x 3 @ 8.0 | 240.0      | 3          | 8.0    | 260.0|
++------------+------------+---------+--------------------+------------+------------+--------+------+
+| [✓] Auto-export configuration: Strictly one-way sync. Row edits here do not write to database.   |
++==================================================================================================+
+```
+
+---
+
+## 10. State, Sync & Extreme Resilience UI
+
+To support absolute offline trust on the gym floor, the application maps database queues and FastAPI HTTP status boundaries to explicit interactive views.
+
+### 10.1 IndexedDB Sync Queue Visual States
+
+Each set row in the athlete session log must clearly show its current sync mutation phase:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : Set saved to IndexedDB
+    PENDING --> IN_FLIGHT : Sync mutation triggered
+    IN_FLIGHT --> ACKED : HTTP 200 OK
+    ACKED --> [*] : Visual fade-out (1200ms)
+    IN_FLIGHT --> REJECTED : HTTP 400/422 Error
+    REJECTED --> PENDING : Click "Retry" button
+    IN_FLIGHT --> CONFLICTED : HTTP 409 Conflict
+```
+
+* **`PENDING` (Local Offline Save):**
+  * Color: `hsl(38, 92%, 50%)` text with a 10% solid surface fill.
+  * Icon: Amber clock (`--ok-amber`).
+  * Copy: `"Saved locally (offline)"`
+  * Interaction: Active, editable, does not block user input.
+* **`IN_FLIGHT` (Syncing in progress):**
+  * Color: `hsl(217, 91%, 60%)` border accent.
+  * Icon: Rotating blue spinner.
+  * Copy: `"Syncing set logs..."`
+  * Interaction: Active, remains editable to prevent blocking the queue.
+* **`ACKED` (Sync Accepted):**
+  * Color: `hsl(142, 70%, 45%)` check mark.
+  * Icon: Green check circle.
+  * Copy: `"Accepted"` (Fades smoothly out of view after 1200ms).
+* **`REJECTED` (Validation Failure):**
+  * Color: `hsl(0, 84%, 60%)` red left accent border.
+  * Icon: Red exclamation badge.
+  * Copy: `"Needs review: Invalid numeric limits."`
+  * Action: Renders an inline `"Retry"` button alongside a brief explanation of the failure.
+* **`CONFLICTED` (Tombstone / Collision Clashing):**
+  * Displays a side-by-side **Conflict Resolution Drawer** comparing the local cached set details vs. the server's canonical state:
+  
+```
++==================================================================================================+
+| Tombstone Conflict Resolution Drawer: Exercise Set Mutation Clashed (HTTP 409 Conflict)          |
++---------------------------------------------------------------+----------------------------------+
+| Local Cache Changes (Your Device)                             | Server Canonical State (Database)|
+| Set index:   Set 2                                            | Set index:   Set 2               |
+| Logged Time: 2026-05-31 03:15:10                              | Saved Time:  2026-05-31 03:10:45 |
+| Set values:  180.0 kg x 3 @ 8.5 RPE                           | Set values:  175.0 kg x 3 @ 8.0  |
+| calculated:  200.5 kg e1RM                                    | calculated:  192.5 kg e1RM       |
+| status:      [~] Syncing (Tombstone Conflict 409)             | status:      [✓] Accepted        |
++---------------------------------------------------------------+----------------------------------+
+| Conflict Option 1:                                            | Conflict Option 2:               |
+| [ FORCE LOCAL CHANGES ]                                       | [ DISCARD AND KEEP SERVER ]      |
+| "Forces your device values, overwriting the server's version." | "Overwrites your local cache."   |
++==================================================================================================+
+```
+
+  * Displays a high-contrast clashing lock overlay (`WorkoutLockBanner`) if editing locked sessions:
+
+```
++--------------------------------------------------------------------------------------------------+
+| [!] WORKOUT SESSION LOCKED BY ANOTHER WRITER (Clashing Lock State)                               |
+| "Coach Mike Tuchscherer is currently designing your program (Lock expires in 12m 45s)."          |
+| [!] ALL INPUTS LOCKED. You can view workouts, but edits are paused to prevent merge collisions.  |
+|                                         [ Request Unlock ]                                       |
++--------------------------------------------------------------------------------------------------+
+```
+
+### 10.2 HTTP Error Envelope Boundary Mappings
+
+The application UI handles API errors with prescriptive user feedback and structured recovery routes:
+
+- **`401 Unauthorized / 403 Forbidden` (RBAC Violation):** Immediately triggers the `AUTH_SESSION_REVOKED` overlay. Unsynced local mutations in IndexedDB are strictly preserved in local storage. User is prompted to re-authenticate.
+- **`409 Conflict / WORKOUT_LOCKED`:** Displays the persistent `WorkoutLockBanner` in the workout details pane, explaining that edit rights currently reside with another writer. Inputs transition to read-only until the lock expires or is released.
+- **`503 Service Unavailable`:** Standard API gateway key missing or server error. Displays a dark red-bordered alert container: `"AI Autoregulation gateway temporarily unconfigured. Please define GEMINI_API_KEY on the server."`
+- **`502 Bad Gateway`:** Model gateway timeout. Displays a non-intrusive alert strip with a prominent **Retry** button to re-trigger the AI calculation.
+
+#### 10.2.1 HTTP Error Overlay Panels Layout Specs
+
+##### 10.2.1.1 AUTH_SESSION_REVOKED Error Overlay
+
+```
++==================================================================================================+
+| [!] AUTHENTICATION SESSION REVOKED (HTTP 401/403)                                                 |
++--------------------------------------------------------------------------------------------------+
+| Warning: Your active credentials have expired or were revoked from another admin terminal.       |
+|                                                                                                  |
+| [!] CRITICAL SECURITY ACTION REQUIRED:                                                           |
+| 1. Unsynced local mutations queue in IndexedDB has been safely frozen & locked.                  |
+| 2. Re-authentication is required to flush the pending outbox and resume online synchronization.  |
+|                                                                                                  |
+| Current Unsynced Set count: [ 3 sets pending local queue ]                                       |
+|                                                                                                  |
+|                   [ RE-AUTHENTICATE / LOGIN NOW ]                                                 |
++==================================================================================================+
+```
+
+##### 10.2.1.2 503 Service Unavailable / Gateway Error Panel
+
+```
++==================================================================================================+
+| [!] SERVICE GATEWAY UNCONFIGURED (HTTP 503 Service Unavailable)                                  |
++--------------------------------------------------------------------------------------------------+
+| Warning: AI Autoregulation gateway is temporarily unconfigured or unreachable.                   |
+|                                                                                                  |
+| Error details: "GEMINI_API_KEY environment variable is missing on the host server."             |
+|                                                                                                  |
+|                   [ RETRY GATEWAY CONNECTION ]        [ DISMISS ALERT ]                          |
++==================================================================================================+
+```
+
+##### 10.2.1.3 502 Bad Gateway Alert Strip Spec
+
+```
++==================================================================================================+
+| [!] MODEL AUTOREGULATION GATEWAY TIMEOUT (HTTP 502 Bad Gateway)                                  |
++--------------------------------------------------------------------------------------------------+
+| Warning: AI calculations timed out. Standby or retry gateway connection.                         |
+|                                                                                                  |
+|                   [ RETRY CALCULATION ]          [ CLOSE ALERT ]                                 |
++==================================================================================================+
+```
+
+### 10.3 Global Status Strip
 
 All authenticated app surfaces include compact status:
 
@@ -490,60 +1342,53 @@ All authenticated app surfaces include compact status:
 | Locked | Current workout has an active writer lock |
 | Staging | Environment label when not production |
 
-### 10.2 Conflict Review
+#### 10.3.1 Global Status Strip Layout Detail
 
-Conflict cards must show:
-
-- Entity type and exercise/set context.
-- Local value, server value, and timestamps.
-- Rejection reason, such as `WORKOUT_LOCKED`, `TOMBSTONE_CONFLICT`, or `CLIENT_CLOCK_SKEW`.
-- Allowed recovery action based on RBAC.
-
-### 10.3 Empty, Error, and Loading States
-
-| State | UX Rule |
-| :--- | :--- |
-| Empty athlete list | Show create/invite coach workflow |
-| Empty workout day | Coach can create workout; athlete sees rest day |
-| API error | Use stable error envelope code in copy/debug details |
-| Provider error | Do not block core app; show integration-specific retry |
-| Migration required | Block app start with operator-facing message |
-
-### 10.4 Error Copy Patterns
-
-| Error Code | User-Facing Copy | Action |
-| :--- | :--- | :--- |
-| `MICROCYCLE_BOUNDARY_VIOLATION` | `Workout must stay inside this microcycle.` | Move within week |
-| `WORKOUT_LOCKED` | `This workout is locked right now.` | Show holder/reopen/release if allowed |
-| `TOMBSTONE_CONFLICT` | `This item was removed elsewhere.` | Refresh or review conflict |
-| `CLIENT_CLOCK_SKEW` | `Device time looks wrong.` | Prompt user to fix device clock |
-| `CLIENT_SCHEMA_UNSUPPORTED` | `App update required.` | Refresh/update app |
-| `AUTH_SESSION_REVOKED` | `Session ended. Sign in again.` | Re-authenticate |
-| Provider OAuth failure | `Connection failed.` | Retry connect |
-| Sheets publish failure | `Publish failed.` | Retry or open details |
-
-Do not expose raw stack traces. Put technical request IDs and backend error codes in expandable details.
+```
++--------------------------------------------------------------------------------------------------+
+| [Offline Mode] [Sync: 3 Pending] [● Live SSE Stream] [Workout Locked] [Env: STAGING] [User: Coach] |
++--------------------------------------------------------------------------------------------------+
+```
 
 ---
 
-## 11. Interaction Patterns
+## 11. Interaction Patterns & Gym Physical Constraintsts
 
-- Use icon buttons for common actions: save, export, reconnect, lock, unlock, retry, publish, delete.
-- Use tooltips for icon-only controls on desktop.
-- Use bottom sheets on mobile for numeric input, notes, and advanced fields.
-- Use menus for option sets and segmented controls for mode switches.
-- Use toggles only for persistent binary settings.
-- Use checkboxes for export tab selection and publish profile fields.
-- Avoid modal stacks. A modal may open a sheet, but a modal must not open another modal.
+Gym environments introduce specific physical challenges: sweat, dust, low dungeon lighting, and poor cellular networks.
+
+### 11.1 Sweat-Safe / Friction-Tolerant Interaction
+- **Sweaty Hands / Shake skews:** Sweaty fingers make precise drag-and-drop actions highly prone to misfires. **Strict prohibition: Do not use drag-and-drop as the primary or only route for logging sets, weight, or reps.** 
+- Drag-and-drop is reserved strictly for coach-facing calendar re-organizations. Athletes log sets via direct click steppers (`+` / `-` icons) or large native keyboard pads.
+- **Touch target padding:** Steppers and buttons have a minimum interactive bounding box of **48px x 48px** to guarantee accurate execution under high physical fatigue. Gaps between controls must be at least 12px to prevent accidental double-tap offsets.
+- **Gesture protection:** Swiping exercise tabs must feature a visual dampening resistance to prevent rapid tab jumping when screen moisture is high.
+
+### 11.2 Environment Glare & Heavy Gym Shadows
+- **Contrast limits:** Heavy shadows in powerlifting gyms or direct sunlight in outdoor spaces degrade readability. Small UI text targets must maintain a strict WCAG AAA contrast ratio (`7:1` minimum).
+- Data mono figures (weight, reps, RPE) must maintain a **`9:1` contrast ratio** against deep dark background tones.
+- **Obsidian background utility:** The app base background is locked to `#0A0A0A` to eliminate backlight glare and preserve high visual contrast.
+
+### 11.3 Device Telemetries & Gym Interruptions
+- **Timers:** Gym timers must preserve ticking state when the application moves to background loops. Local storage locks hold timestamps to calculate elapsed time on return.
+- **Focus Shifts:** Background app suspensions (like telephone calls or battery warnings) trigger automatic storage hydration. Active unsaved state must be persisted to IndexedDB snapshots within **200ms** of focus loss to guarantee zero data loss.
+
+### 11.4 Power-User Spreadsheet Keyboard Navigation (Desktop Console)
+Coaches designing programs or logging data require high-velocity data-entry models that match standard spreadsheet platforms.
+- **Trigger Mechanic:** Selecting any editable set cell (Reps, RPE, Weight, Baseline, fatigue) opens the inline text input field with programmatically triggered autofocus.
+- **Keyboard Mappings:**
+  - **`Enter` or `ArrowDown`:** Commits the current value, blurs active cell (triggering IndexedDB queueing), and simulates a programmatic `.click()` on the next row's cell in the same column (`rowIndex + 1`).
+  - **`ArrowUp`:** Commits the current value, blurs active cell, and simulates a programmatic `.click()` on the previous row's cell in the same column (`rowIndex - 1`), capped at `rowIndex >= 0`.
+  - **`Escape`:** Cancels the active editing focus state immediately without committing changes.
+- **Visual Smoothness:** Transition clicks must execute under a **50ms** setTimeout buffer. This prevents race conditions during state commit cycles, ensuring focus shifts cleanly without causing layout shifts or scroll jumping.
+- **Mobile Guard:** This spreadsheet pattern is restricted to desktop screen sizes. On touch-screen mobile devices, cell tap triggers invoke the large touch-safe quick adjuster bottom sheet.
 
 ---
 
-## 12. Accessibility & Ergonomics
+## 12. Accessibility, Contrast & Ergonomics
 
 | Area | Requirement |
 | :--- | :--- |
 | Contrast | WCAG AA minimum for all text; numeric logging controls target AAA where possible |
-| Touch targets | Minimum 44x44 px on mobile |
+| Touch targets | Minimum 44x44 px on mobile; compact SE devices scale to 48px stepper regions |
 | Keyboard | Desktop tables and builder controls support keyboard navigation |
 | Focus | Visible focus ring using `--ok-blue`; never remove outline without replacement |
 | Reduced motion | Respect `prefers-reduced-motion`; disable slide/scale animations |
@@ -552,28 +1397,11 @@ Do not expose raw stack traces. Put technical request IDs and backend error code
 
 ---
 
-## 13. Component Inventory
-
-| Component | Purpose |
-| :--- | :--- |
-| `AppShell` | Authenticated layout, nav, global status strip |
-| `MetricCard` | e1RM, INOL, ACWR, DOTS, tonnage summaries |
-| `RiskBadge` | ACWR/INOL/status labels with icons |
-| `WorkoutCalendar` | Microcycle-aware scheduling and drag constraints |
-| `WorkoutLockBanner` | Shows lock holder, expiry, reopen/release actions |
-| `PrescriptionEditor` | Structured prescription JSON editor with safe display strings |
-| `ExerciseReorderList` | LexoRank reorder surface |
-| `SetLogPanel` | Mobile active set logging |
-| `SyncQueueBadge` | Pending/in-flight/failed mutation indicator |
-| `ConflictReviewCard` | Mutation rejection and recovery |
-| `TelegramLinkPanel` | Mini App/bot connection and link-token flow |
-| `SheetsPublishPanel` | Google OAuth, profiles, publish status |
-| `OutboxTable` | Integration retries and provider failures |
-| `AuditEventTable` | Security/export/conflict event review |
+## 13. Component Inventory & API Contracts
 
 ### 13.1 Component Contracts
 
-Each component must satisfy the contract below before being considered complete.
+Every React component must strictly satisfy these data parameters and lifecycle state matrices.
 
 | Component | Required Props/Data | Required States | Required Actions |
 | :--- | :--- | :--- | :--- |
@@ -591,6 +1419,8 @@ Each component must satisfy the contract below before being considered complete.
 | `SheetsPublishPanel` | OAuth state, profiles, selected spreadsheet | disconnected, connected, publishing, failed, revoked | connect, publish, retry, revoke |
 | `OutboxTable` | provider jobs, attempts, next retry | empty, queued, retrying, failed, complete | retry, cancel when safe, inspect error |
 | `AuditEventTable` | events, filters, pagination cursor | loading, empty, populated, error | filter, paginate, open event detail |
+| `AICoachPanel` | `aiResponse`, `aiLoading`, `aiError`, `currentAthleteId` | idle, loading ("Decompressing neural core..."), error, rendered | triggerAICoachAnalysis |
+| `SecurityView` | `devices`, `sessions`, `isLoading` | loading, empty, active, revoking | fetchDevices, fetchSessions, revokeDevice, revokeSession |
 
 ### 13.2 Naming and Copy Rules
 
@@ -603,8 +1433,6 @@ Each component must satisfy the contract below before being considered complete.
 
 ### 13.3 Required Icons
 
-Use lucide icons or the existing local icon library if available.
-
 | Action/State | Icon Intent |
 | :--- | :--- |
 | Syncing | rotating refresh |
@@ -613,14 +1441,14 @@ Use lucide icons or the existing local icon library if available.
 | Locked | lock |
 | Reopen | unlock |
 | Export/publish | upload/share |
-| Google Sheets | table/spreadsheet icon; do not use unofficial Google logo unless licensed |
-| Telegram | message/send icon; do not use unofficial Telegram logo unless licensed |
+| Google Sheets | table/spreadsheet icon; do not use Google logo unless licensed |
+| Telegram | message/send icon; do not use Telegram logo unless licensed |
 | Offline | wifi off |
 | Live telemetry | activity/pulse |
 
 ---
 
-## 14. Motion & Feedback
+## 14. Motion, Telemetries & Haptic Feedback
 
 Motion is functional and brief.
 
@@ -637,7 +1465,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 
 ---
 
-## 15. Design Decisions
+## 15. Visual Design Decisions
 
 | Decision | Status | Rationale |
 | :--- | :--- | :--- |
@@ -651,8 +1479,6 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 ---
 
 ## 16. Implementation Acceptance Checklist
-
-Use this checklist after every generated screen or feature. A feature is incomplete if any required item fails.
 
 ### 16.1 Global Acceptance
 

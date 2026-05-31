@@ -879,7 +879,7 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
                     elif e.tier == "Accessory": acc_nl += rp
                     
                     if e.tier != "Accessory":
-                        e1rm = calculate_e1rm_linear_decay(wt, rp, rpe)
+                        e1rm = calculate_e1rm(wt, rp, rpe)
                         if e1rm > 0:
                             if e.lift_category == "Squat" and e1rm > squat_max: squat_max = e1rm
                             if e.lift_category == "Bench" and e1rm > bench_max: bench_max = e1rm
@@ -937,6 +937,285 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
     
     analytics_cache[target_id] = payload
     return payload
+
+@app.get("/api/export/csv")
+def export_csv(
+    lift_category: Optional[str] = None,
+    tier: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    import csv
+    import io
+    
+    if current_user.role == "COACH":
+        relationships = db.query(CoachingRelationship).filter(
+            CoachingRelationship.coach_id == current_user.id
+        ).all()
+        athlete_ids = [rel.athlete_id for rel in relationships]
+        allowed_ids = athlete_ids + [current_user.id]
+    else:
+        allowed_ids = [current_user.id]
+
+    query = db.query(ExerciseSet).join(Exercise).join(Workout).join(Microcycle).filter(
+        Microcycle.owner_id.in_(allowed_ids)
+    )
+
+    if lift_category and lift_category != "All":
+        query = query.filter(Exercise.lift_category == lift_category)
+    if tier:
+        query = query.filter(Exercise.tier == tier)
+
+    sets = query.order_by(Workout.date, Exercise.id, ExerciseSet.id).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow([
+        "Date", "Lift Category", "Tier", "Exercise Title", 
+        "Planned Weight (kg)", "Actual Weight (kg)", "Reps", "RPE", 
+        "e1RM (kg)", "INOL", "Tonnage (kg)"
+    ])
+
+    for s in sets:
+        ex = s.exercise
+        w = ex.workout
+        
+        try:
+            planned_wt = float(s.plannedWeight or 0.0)
+            actual_wt = float(s.actual or 0.0)
+            reps_val = int(s.reps or s.plannedReps or 0)
+            rpe_val = float(s.executedRpe or s.plannedRpe or 0.0)
+        except (ValueError, TypeError):
+            planned_wt, actual_wt, reps_val, rpe_val = 0.0, 0.0, 0, 0.0
+
+        e1rm = calculate_e1rm(actual_wt, reps_val, rpe_val)
+        intensity_pct = (actual_wt / e1rm) * 100.0 if e1rm > 0 else 0.0
+        inol = calculate_inol(reps_val, intensity_pct)
+        tonnage = actual_wt * reps_val
+
+        writer.writerow([
+            w.date,
+            ex.lift_category or "Squat",
+            ex.tier or "Comp",
+            ex.title,
+            planned_wt if planned_wt > 0 else s.plannedWeight or "—",
+            actual_wt if actual_wt > 0 else s.actual or "—",
+            reps_val if reps_val > 0 else "—",
+            rpe_val if rpe_val > 0 else "—",
+            round(e1rm, 1) if e1rm > 0 else "—",
+            round(inol, 2) if inol > 0 else "—",
+            round(tonnage, 1) if tonnage > 0 else "—"
+        ])
+
+    csv_data = output.getvalue()
+    output.close()
+
+    from .database import AuditEvent
+    import json
+    db.add(AuditEvent(
+        id=str(uuid.uuid4()),
+        actor_user_id=current_user.id,
+        event_type="EXPORT_CSV",
+        resource_type="WorkoutTree",
+        resource_id="all",
+        created_at=datetime.utcnow(),
+        metadata_json=json.dumps({
+            "row_count": len(sets),
+            "lift_category": lift_category,
+            "tier": tier
+        })
+    ))
+    db.commit()
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=obsidian_kinetic_export.csv"}
+    )
+
+@app.get("/api/export/json")
+def export_json(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    import json
+    mcs = get_visible_microcycles(db, current_user)
+    formatted = [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
+    
+    from .database import AuditEvent
+    db.add(AuditEvent(
+        id=str(uuid.uuid4()),
+        actor_user_id=current_user.id,
+        event_type="EXPORT_JSON",
+        resource_type="WorkoutTree",
+        resource_id="all",
+        created_at=datetime.utcnow(),
+        metadata_json=json.dumps({"microcycle_count": len(formatted)})
+    ))
+    db.commit()
+
+    return Response(
+        content=json.dumps(formatted, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=obsidian_kinetic_export.json"}
+    )
+
+@app.get("/api/analytics/ai-advisor")
+def get_ai_advisor(
+    athlete_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    import requests
+    import json
+    import re
+    
+    # 4.1 RBAC Enforcement
+    target_id = athlete_id if athlete_id else current_user.id
+    if current_user.role == "COACH":
+        rel = db.query(CoachingRelationship).filter(
+            CoachingRelationship.coach_id == current_user.id,
+            CoachingRelationship.athlete_id == target_id
+        ).first()
+        if not rel:
+            raise HTTPException(status_code=403, detail="Unauthorized coach request.")
+    elif current_user.role == "ATHLETE" and target_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Unauthorized athlete request.")
+
+    # 4.2 Secure Environment Key Validation
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="AI Autoregulation gateway temporarily unconfigured. Please define GEMINI_API_KEY on the server."
+        )
+
+    # 4.3 Pre-Aggregation Engine (Reducing Token Footprint)
+    mcs = db.query(Microcycle).filter(Microcycle.owner_id == target_id).all()
+    mc_ids = [mc.id for mc in mcs]
+    workouts = db.query(Workout).filter(Workout.microcycle_id.in_(mc_ids)).all()
+    
+    # Compile performance peaks and stats
+    squat_max = 0.0
+    bench_max = 0.0
+    deadlift_max = 0.0
+    latest_bw = 100.0
+    
+    # Gather trailing workout trends
+    scraped_trends = []
+    for w in sorted(workouts, key=lambda x: x.date)[-5:]: # Limit to last 5 workouts to minimize token footprint
+        workout_sets = []
+        for e in w.exercises:
+            for s in e.sets:
+                try:
+                    wt = float(s.actual or 0.0)
+                    rp = int(s.reps or 0)
+                    rpe = float(s.executedRpe or 0.0)
+                except (ValueError, TypeError):
+                    continue
+                if wt > 0.0 and rp > 0:
+                    e1rm = calculate_e1rm(wt, rp, rpe)
+                    if e.lift_category == "Squat" and e1rm > squat_max: squat_max = e1rm
+                    if e.lift_category == "Bench" and e1rm > bench_max: bench_max = e1rm
+                    if e.lift_category == "Deadlift" and e1rm > deadlift_max: deadlift_max = e1rm
+                    workout_sets.append({
+                        "exercise": e.title,
+                        "weight": wt,
+                        "reps": rp,
+                        "rpe": rpe,
+                        "e1rm": round(e1rm, 1)
+                    })
+        scraped_trends.append({"date": w.date, "tonnage": w.tonnage, "logged": workout_sets})
+
+    # Pull precalculated ACWR & INOL splits from standard trends endpoint logic
+    trends_payload = get_trends(athlete_id=target_id, db=db, current_user=current_user)
+    fatigue = trends_payload["fatigue_metrics"]
+    
+    scraped_payload = {
+        "athlete": {
+            "gender": "MALE",
+            "bodyweight": trends_payload["current_bw"],
+            "dots_score": trends_payload["dots_score"]
+        },
+        "fatigue_metrics": {
+            "weekly_inol_squat": fatigue["weekly_inol_squat"],
+            "weekly_inol_bench": fatigue["weekly_inol_bench"],
+            "weekly_inol_deadlift": fatigue["weekly_inol_deadlift"],
+            "acute_chronic_ratio": fatigue["acute_chronic_ratio"],
+            "average_relative_intensity_pct": fatigue["average_relative_intensity_pct"]
+        },
+        "recent_history": scraped_trends
+    }
+
+    # 4.4 Target System Prompt Construction
+    system_prompt = f"""
+You are an Elite Powerlifting Coach acting strictly under Mike Tuchscherer's Reactive Training Systems (RTS) autoregulation principles.
+Your task is to analyze the athlete's training metrics and rolling fatigue ratios, and output a highly personalized periodization diagnostic.
+
+You MUST respond strictly in raw JSON matching the following schema. Do NOT include markdown tags, explanation headers, or raw text wraps. Only output valid, parseable JSON.
+
+Athlete Profile:
+{json.dumps(scraped_payload)}
+
+Schema:
+{{
+  "cns_readiness": {{
+    "status": "Functional Adaptation" | "Neural Fatigue Suppression" | "Detraining",
+    "score": number (0-100),
+    "analysis": "Exactly two sentences explaining the acute chronic workload ratio."
+  }},
+  "movement_diagnostics": {{
+    "squat_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }},
+    "bench_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }},
+    "deadlift_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }}
+  }},
+  "microcycle_prescription": {{
+    "loading_strategy": "Maintain Baseline" | "Escalate Tonnage (+10%)" | "Load Drop Downsets (-5%)" | "Deload Decompression (-20%)",
+    "tactical_guidance": "Actionable RTS periodization pacing adjustments",
+    "suggested_rpe_cap": number
+  }},
+  "attempt_feedback": {{
+    "opener_feasibility": "Conservative" | "Optimal" | "High-Risk",
+    "coaching_notes": "Expert analysis of opener relative to peak strength curves"
+  }}
+}}
+"""
+
+    # 4.5 Execute Model Gateway Query
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        res = requests.post(url, json={
+            "contents": [{"parts": [{"text": system_prompt}]}]
+        }, timeout=12)
+
+        if res.status_code != 200:
+            raise HTTPException(status_code=502, detail="Failed to communicate with Google model gateway.")
+            
+        raw_result = res.json()
+        raw_text = raw_result['candidates'][0]['content']['parts'][0]['text']
+        
+        # 4.6 Strict Sanitization
+        cleaned_text = raw_text.strip()
+        if cleaned_text.startswith("```"):
+            cleaned_text = re.sub(r"^```(json)?\n", "", cleaned_text)
+            cleaned_text = re.sub(r"\n```$", "", cleaned_text)
+        cleaned_text = cleaned_text.strip()
+        
+        # Validate JSON structure
+        parsed_data = json.loads(cleaned_text)
+        if "cns_readiness" not in parsed_data or "microcycle_prescription" not in parsed_data:
+            raise ValueError("Schema structure failed validation.")
+            
+        return parsed_data
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Neural processing exception: {str(e)}"
+        )
+
+
 
 @app.post("/api/workouts/{id}/sync")
 def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

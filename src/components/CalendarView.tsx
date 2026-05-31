@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WorkoutData, MicrocycleData, MesocycleData } from '../types';
+import { apiService } from '../services/api';
 
 const getMondayOfDate = (dateStr: string) => {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -859,11 +860,46 @@ export function CalendarView({
                 LAUNCH SESSION LOGGER
               </button>
               <button 
-                onClick={() => alert('Session data successfully exported in JSON format.')}
+                onClick={async () => {
+                  try {
+                    const blob = await apiService.downloadExportCSV(filter);
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `obsidian_kinetic_export_${filter.toLowerCase()}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert('Failed to download CSV export. Please check server connection.');
+                  }
+                }}
                 onMouseDown={triggerHaptic}
-                className="px-4 py-3 border border-white/10 hover:border-white/20 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
+                className="px-3 py-3 border border-white/10 hover:border-[#54e083] hover:bg-[#54e083]/5 text-[#54e083] text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
               >
-                EXPORT
+                CSV
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    const blob = await apiService.downloadExportJSON();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'obsidian_kinetic_export.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert('Failed to download JSON export. Please check server connection.');
+                  }
+                }}
+                onMouseDown={triggerHaptic}
+                className="px-3 py-3 border border-white/10 hover:border-mac-blue hover:bg-mac-blue/5 text-mac-blue text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
+              >
+                JSON
               </button>
             </div>
           </motion.aside>

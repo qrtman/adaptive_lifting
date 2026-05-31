@@ -20,12 +20,23 @@ export const Sidebar = () => (
       <p className="text-[15px] font-bold text-gray-200 font-sans">Macrocycle Phase: Hypertrophy</p>
     </div>
     
-    <nav className="flex-1 space-y-1">
-      <NavItem icon={<LayoutDashboard size={20} />} label="Current Mesocycle" active />
-      <NavItem icon={<BarChart3 size={20} />} label="Performance Insights" />
-      <NavItem icon={<Dumbbell size={20} />} label="Training Library" />
-      <NavItem icon={<MessageSquare size={20} />} label="Coach Connect" />
-      <NavItem icon={<Settings size={20} />} label="Settings" />
+    <nav className="flex-1 space-y-3">
+      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-3">Primary Workspaces</div>
+      
+      <NavItem icon={<LayoutDashboard size={20} />} label="Calendar Grid" />
+      
+      <div className="relative">
+        <NavItem icon={<Dumbbell size={20} />} label="Athletes Roster" active />
+        <span className="absolute right-3 top-2 px-1.5 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 font-bold rounded border border-amber-500/30">
+          3 Alerts
+        </span>
+      </div>
+      
+      <NavItem icon={<BarChart3 size={20} />} label="Analytics Engine" />
+
+      <div className="pt-2 text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-3">Operations & Links</div>
+      <NavItem icon={<MessageSquare size={20} />} label="Sheets Publisher" />
+      <NavItem icon={<Settings size={20} />} label="Security & Audit" />
     </nav>
     
     <div className="pt-4 border-t border-white/10 flex items-center gap-3 px-3">

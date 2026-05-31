@@ -71,31 +71,34 @@ export const AccessoryLedger = ({
                     value={acc.reps || ""}
                     onChange={(val) => updateAccessory(i, { reps: val })}
                     placeholder="—"
-                    fieldKey="reps"
+                    fieldKey="accessory-reps"
                     label="Log Reps"
                     widthClass="w-16"
                     isLogged={true}
                     step={1}
+                    rowIndex={i}
                   />
                   <EditablePerformanceCell
                     value={acc.executedRpe || ""}
                     onChange={(val) => updateAccessory(i, { executedRpe: val })}
                     placeholder="—"
-                    fieldKey="executedRpe"
+                    fieldKey="accessory-executedRpe"
                     label="Log RPE"
                     widthClass="w-16"
                     isLogged={true}
                     step={0.5}
+                    rowIndex={i}
                   />
                   <EditablePerformanceCell
                     value={acc.weight || ""}
                     onChange={(val) => updateAccessory(i, { weight: val })}
                     placeholder="—"
-                    fieldKey="weight"
+                    fieldKey="accessory-weight"
                     label="Log Weight"
                     widthClass="w-24"
                     isLogged={true}
                     step={2.5}
+                    rowIndex={i}
                   />
                 </div>
               </td>

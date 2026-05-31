@@ -193,6 +193,149 @@ def run_integration_tests():
         assert len(coach_visible_events_2) == 1, "Coach sees unrelated athlete audit events! Security breach."
         print("  [OK] Roster data isolation validated.")
         
+        # --- TEST 5: AI Coach Advisor Routing and RBAC Boundaries ---
+        print("Test 5: Testing AI Coach advisor routing, RBAC, and gateway exception handling...")
+        from fastapi import HTTPException
+        from backend.main import get_ai_advisor
+        
+        # Setup: Unrelated athlete for RBAC check
+        unrelated_athlete = User(
+            id="athlete-unrelated",
+            email="unrelated@obsidian.com",
+            hashed_password=get_password_hash("password123"),
+            role="ATHLETE"
+        )
+        db.add(unrelated_athlete)
+        db.commit()
+        
+        # 1. Athlete requests unrelated athlete's data -> MUST raise 403
+        try:
+            get_ai_advisor(athlete_id="athlete-unrelated", db=db, current_user=athlete)
+            assert False, "Should raise 403 for unauthorized athlete access"
+        except HTTPException as exc:
+            assert exc.status_code == 403, f"Expected 403, got {exc.status_code}"
+            assert "Unauthorized athlete request" in exc.detail
+            
+        # 2. Coach requests unrelated athlete's data (no CoachingRelationship link) -> MUST raise 403
+        try:
+            get_ai_advisor(athlete_id="athlete-unrelated", db=db, current_user=coach)
+            assert False, "Should raise 403 for unauthorized coach access"
+        except HTTPException as exc:
+            assert exc.status_code == 403, f"Expected 403, got {exc.status_code}"
+            assert "Unauthorized coach request" in exc.detail
+            
+        # 3. Unconfigured Key: Remove environment variable if it exists and assert 503 is cleanly raised
+        old_api_key = os.environ.get("GEMINI_API_KEY")
+        if "GEMINI_API_KEY" in os.environ:
+            del os.environ["GEMINI_API_KEY"]
+            
+        try:
+            get_ai_advisor(athlete_id=athlete.id, db=db, current_user=athlete)
+            assert False, "Should raise 503 for unconfigured key"
+        except HTTPException as exc:
+            assert exc.status_code == 503, f"Expected 503, got {exc.status_code}"
+            assert "AI Autoregulation gateway temporarily unconfigured" in exc.detail
+            
+        # Restore key if existed
+        if old_api_key:
+            os.environ["GEMINI_API_KEY"] = old_api_key
+        else:
+            os.environ["GEMINI_API_KEY"] = "mock_key_active"
+            
+        # 4. Mock Gemini API Gateway Call
+        import requests
+        class MockResponse:
+            status_code = 200
+            def json(self):
+                return {
+                    "candidates": [{
+                        "content": {
+                            "parts": [{
+                                "text": '{\n  "cns_readiness": {\n    "status": "Neural Fatigue Suppression",\n    "score": 35,\n    "analysis": "Acute load spikes indicate high fatigue accumulation. CNS metrics require immediate decompression."\n  },\n  "movement_diagnostics": {\n    "squat_fatigue": { "status": "Danger", "inol": 2.2, "warning": "Strict volume cap required." },\n    "bench_fatigue": { "status": "Optimal", "inol": 0.8, "warning": "Proceed." },\n    "deadlift_fatigue": { "status": "Optimal", "inol": 0.6, "warning": "Proceed." }\n  },\n  "microcycle_prescription": {\n    "loading_strategy": "Deload Decompression (-20%)",\n    "tactical_guidance": "Force immediately -20% volume drop on working squat sets.",\n    "suggested_rpe_cap": 8.0\n  },\n  "attempt_feedback": {\n    "opener_feasibility": "High-Risk",\n    "coaching_notes": "Reduce opener target weight by 10kg."\n  }\n}'
+                            }]
+                        }
+                    }]
+                }
+                
+        # Patch requests.post
+        original_post = requests.post
+        requests.post = lambda *args, **kwargs: MockResponse()
+        
+        try:
+            # Let's seed at least one microcycle & workout for athlete so get_trends doesn't crash on empty
+            from backend.database import Microcycle, Workout, Exercise, ExerciseSet
+            mc = Microcycle(
+                id="mc-test-1",
+                weekName="Microcycle 01",
+                focus="Technical Proficiency",
+                status="Verified",
+                active=False,
+                owner_id=athlete.id
+            )
+            db.add(mc)
+            db.commit()
+            
+            w = Workout(
+                id="w-test-1",
+                date="2026-09-02",
+                dayLabel="D1",
+                title="Primary Squat",
+                tonnage=12400.0,
+                delta=0.0,
+                color="mac-green",
+                status="Completed",
+                microcycle_id=mc.id
+            )
+            db.add(w)
+            db.commit()
+            
+            ex = Exercise(
+                id="ex-test-1",
+                title="Primary Squat",
+                variation="Low Bar Competition",
+                tier="Comp",
+                lift_category="Squat",
+                tags_raw="Comp Spec",
+                top="150kg x 1",
+                vol="8600kg",
+                workout_id=w.id
+            )
+            db.add(ex)
+            db.commit()
+            
+            s = ExerciseSet(
+                id="s-test-1",
+                label="Top Single",
+                plannedWeight=150.0,
+                plannedReps=1,
+                plannedRpe=5.0,
+                actual=150.0,
+                reps=1,
+                executedRpe=5.0,
+                isTop=True,
+                exercise_id=ex.id
+            )
+            db.add(s)
+            db.commit()
+            
+            # Now call the AI advisor!
+            res_data = get_ai_advisor(athlete_id=athlete.id, db=db, current_user=athlete)
+            assert res_data is not None
+            assert res_data["cns_readiness"]["status"] == "Neural Fatigue Suppression"
+            assert res_data["cns_readiness"]["score"] == 35
+            assert res_data["movement_diagnostics"]["squat_fatigue"]["status"] == "Danger"
+            assert res_data["microcycle_prescription"]["loading_strategy"] == "Deload Decompression (-20%)"
+            assert res_data["microcycle_prescription"]["suggested_rpe_cap"] == 8.0
+            assert res_data["attempt_feedback"]["opener_feasibility"] == "High-Risk"
+            print("  [OK] AI advisor routing, RBAC, and gateway validation passed successfully.")
+        finally:
+            # Restore requests.post and environment key
+            requests.post = original_post
+            if not old_api_key and "GEMINI_API_KEY" in os.environ:
+                del os.environ["GEMINI_API_KEY"]
+            elif old_api_key:
+                os.environ["GEMINI_API_KEY"] = old_api_key
+
     finally:
         # Cleanup
         db.close()

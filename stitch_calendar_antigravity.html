@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VLT_Power | Training Calendar</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#848484",
+                        "tertiary-fixed-dim": "#c6c6c6",
+                        "on-tertiary": "#ffffff",
+                        "inverse-on-surface": "#f1f1f1",
+                        "surface-bright": "#f9f9f9",
+                        "primary": "#000000",
+                        "on-secondary-fixed-variant": "#464747",
+                        "on-tertiary-fixed": "#1b1b1b",
+                        "primary-fixed-dim": "#c6c6c6",
+                        "surface-tint": "#5e5e5e",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#e1dfdf",
+                        "inverse-primary": "#c6c6c6",
+                        "on-tertiary-container": "#848484",
+                        "surface-container-high": "#e8e8e8",
+                        "secondary-fixed-dim": "#c7c6c6",
+                        "on-background": "#1a1c1c",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "surface-container": "#eeeeee",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#1a1c1c",
+                        "background": "#f9f9f9",
+                        "on-surface-variant": "#4c4546",
+                        "on-secondary-container": "#626262",
+                        "surface-container-low": "#f3f3f3",
+                        "surface-dim": "#dadada",
+                        "on-tertiary-fixed-variant": "#474747",
+                        "on-primary": "#ffffff",
+                        "secondary": "#5e5e5e",
+                        "surface": "#f9f9f9",
+                        "primary-container": "#1b1b1b",
+                        "tertiary-container": "#1b1b1b",
+                        "secondary-fixed": "#e4e2e2",
+                        "surface-variant": "#e2e2e2",
+                        "primary-fixed": "#e2e2e2",
+                        "on-primary-fixed-variant": "#474747",
+                        "on-primary-fixed": "#1b1b1b",
+                        "tertiary": "#000000",
+                        "tertiary-fixed": "#e2e2e2",
+                        "outline-variant": "#cfc4c5",
+                        "inverse-surface": "#2f3131",
+                        "error-container": "#ffdad6",
+                        "outline": "#7e7576",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "12px",
+                        "container-padding": "16px",
+                        "space-xl": "24px",
+                        "space-lg": "16px",
+                        "space-md": "12px",
+                        "unit": "4px",
+                        "space-xs": "4px",
+                        "space-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "mono-data": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "h3": ["Inter"],
+                        "h1": ["Inter"],
+                        "body-base": ["Inter"],
+                        "label-caps": ["Inter"]
+                    },
+                    "fontSize": {
+                        "mono-data": ["12px", {"lineHeight": "16px", "letterSpacing": "-0.01em", "fontWeight": "400"}],
+                        "h2": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "h3": ["14px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-base": ["13px", {"lineHeight": "18px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 18px;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        .calendar-day {
+            aspect-ratio: 1 / 1;
+            border-right: 1px solid #e2e2e2;
+            border-bottom: 1px solid #e2e2e2;
+        }
+        .calendar-day:nth-child(7n) { border-right: none; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e2e2; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-base overflow-hidden flex h-screen">
+<!-- Sidebar Navigation (SideNavBar) -->
+<nav class="flex flex-col w-64 h-screen py-space-md border-r border-surface-container-highest bg-surface z-50">
+<div class="px-space-lg mb-space-xl">
+<h1 class="font-h2 text-h2 tracking-tighter text-primary">VLT_Power</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Elite Coaching</p>
+</div>
+<div class="flex-1 space-y-1">
+<div class="px-space-sm">
+<a class="flex items-center gap-space-sm px-space-md py-space-sm text-on-secondary-fixed-variant font-body-sm hover:text-on-surface hover:bg-surface-container-low transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Active Tab: Training Blocks (Calendar) -->
+<a class="flex items-center gap-space-sm px-space-md py-space-sm bg-surface-container-low text-primary font-h3 border-l-2 border-primary transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="event_note">event_note</span>
+<span>Training Blocks</span>
+</a>
+<a class="flex items-center gap-space-sm px-space-md py-space-sm text-on-secondary-fixed-variant font-body-sm hover:text-on-surface hover:bg-surface-container-low transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="fitness_center">fitness_center</span>
+<span>Exercise Library</span>
+</a>
+<a class="flex items-center gap-space-sm px-space-md py-space-sm text-on-secondary-fixed-variant font-body-sm hover:text-on-surface hover:bg-surface-container-low transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span>Analytics</span>
+</a>
+</div>
+</div>
+<div class="px-space-sm pt-space-md border-t border-surface-container-highest">
+<a class="flex items-center gap-space-sm px-space-md py-space-sm text-on-secondary-fixed-variant font-body-sm hover:text-on-surface transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span>Support</span>
+</a>
+<a class="flex items-center gap-space-sm px-space-md py-space-sm text-on-secondary-fixed-variant font-body-sm hover:text-on-surface transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="tune">tune</span>
+<span>Settings</span>
+</a>
+<div class="mt-space-md flex items-center gap-space-sm px-space-md py-space-sm border border-surface-container-highest rounded-lg bg-surface-container-lowest">
+<img alt="Coach Profile" class="w-8 h-8 rounded-full border border-outline-variant" src="https://lh3.googleusercontent.com/aida/ADBb0uifFM7aV9Z-u9ndrRNC-dU7-5fFZFqowi-ZhFcY95S3yELOE4aINLb-WY3Yf4kqxKpDAbH6LSxVTpEEFyz-oTMmqEcYSQrC36c_Z4NqNkvY6kD1PBG2npAsZ-1pYKS6Z8SZB6zRQncvn9DetqmgGrtBXey9_tXI0vgN0kw8VaDpA1TN7WYMk6M_vHFOyX6Q1sEEoWkPizxNA-xhqlF2p7NzYH6jX3-2vHcAUstu94n-I3RuwPJ-rAyGM5u1"/>
+<div class="overflow-hidden">
+<p class="font-h3 text-h3 truncate text-primary">Alex Thorne</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase">Head Coach</p>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col min-w-0 bg-background h-screen">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center h-12 px-space-lg w-full z-40 bg-background border-b border-surface-container-highest">
+<div class="flex items-center gap-space-lg">
+<div class="flex items-center gap-space-sm">
+<span class="font-h3 text-h3 font-bold text-primary">CALENDAR</span>
+<span class="text-on-surface-variant">/</span>
+<span class="font-body-base text-body-base text-on-surface-variant">MESO_02: HYPERTROPHY_PHASE</span>
+</div>
+</div>
+<div class="flex items-center gap-space-md">
+<div class="flex border border-surface-container-highest rounded bg-surface-container-lowest">
+<button class="px-space-md py-1 font-label-caps text-label-caps border-r border-surface-container-highest bg-primary text-on-primary">MONTH</button>
+<button class="px-space-md py-1 font-label-caps text-label-caps hover:bg-surface-container">WEEK</button>
+</div>
+<button class="flex items-center gap-1 bg-primary text-on-primary px-space-md py-1 font-label-caps text-label-caps rounded transition-opacity active:opacity-80">
+<span class="material-symbols-outlined !text-[14px]" data-icon="sync">sync</span>
+                    SYNC LOGS
+                </button>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer" data-icon="settings">settings</span>
+</div>
+</header>
+<!-- Calendar Sub-Header (Controls) -->
+<div class="flex justify-between items-center px-space-lg py-space-sm border-b border-surface-container-highest bg-surface-bright">
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-sm">
+<button class="material-symbols-outlined text-on-surface-variant" data-icon="chevron_left">chevron_left</button>
+<span class="font-h2 text-h2 text-primary">OCTOBER 2023</span>
+<button class="material-symbols-outlined text-on-surface-variant" data-icon="chevron_right">chevron_right</button>
+</div>
+<div class="h-4 w-[1px] bg-outline-variant"></div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Microcycle 04 / 06</span>
+</div>
+<div class="flex items-center gap-space-lg text-body-sm font-label-caps">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span>COMPLETED</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full border border-outline bg-white"></span>
+<span>PLANNED</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span>MISSED</span>
+</div>
+</div>
+</div>
+<!-- Main Content Area: Calendar Grid + Side Panel -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Calendar Grid -->
+<div class="flex-1 overflow-y-auto bg-surface-container-lowest">
+<div class="calendar-grid bg-surface-container-highest border-l border-surface-container-highest">
+<!-- Day Labels -->
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-r border-b border-surface-container-highest bg-surface">MON</div>
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-r border-b border-surface-container-highest bg-surface">TUE</div>
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-r border-b border-surface-container-highest bg-surface">WED</div>
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-r border-b border-surface-container-highest bg-surface">THU</div>
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-r border-b border-surface-container-highest bg-surface">FRI</div>
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-r border-b border-surface-container-highest bg-surface">SAT</div>
+<div class="py-2 text-center font-label-caps text-on-surface-variant border-b border-surface-container-highest bg-surface">SUN</div>
+<!-- Week 1 -->
+<div class="calendar-day bg-surface-container-low p-2 opacity-50">
+<span class="font-mono-data text-on-surface-variant">25</span>
+</div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50">
+<span class="font-mono-data text-on-surface-variant">26</span>
+</div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50">
+<span class="font-mono-data text-on-surface-variant">27</span>
+</div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50">
+<span class="font-mono-data text-on-surface-variant">28</span>
+</div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50">
+<span class="font-mono-data text-on-surface-variant">29</span>
+</div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50">
+<span class="font-mono-data text-on-surface-variant">30</span>
+</div>
+<div class="calendar-day p-2">
+<span class="font-mono-data text-primary">01</span>
+<div class="mt-2 p-1 bg-surface-container text-on-surface-variant rounded text-[10px] font-label-caps border border-outline-variant">ACTIVE REST</div>
+</div>
+<!-- Week 2 -->
+<div class="calendar-day p-2 cursor-pointer hover:bg-surface-container-low">
+<span class="font-mono-data text-primary">02</span>
+<div class="mt-2 p-1.5 bg-primary text-on-primary rounded-sm text-[10px] font-bold tracking-tight">D1: SQUAT DOMINANT</div>
+<div class="mt-1 flex gap-1 items-center px-1">
+<span class="material-symbols-outlined !text-[12px] text-primary" data-icon="check_circle" data-weight="fill">check_circle</span>
+<span class="text-[9px] font-mono-data">94.2% ADHERENCE</span>
+</div>
+</div>
+<div class="calendar-day p-2 cursor-pointer hover:bg-surface-container-low">
+<span class="font-mono-data text-primary">03</span>
+<div class="mt-2 p-1.5 border border-primary text-primary rounded-sm text-[10px] font-bold tracking-tight bg-white">D2: HORIZ PUSH</div>
+</div>
+<div class="calendar-day p-2 bg-surface-bright">
+<span class="font-mono-data text-primary">04</span>
+<div class="mt-2 p-1 text-center border-t border-b border-surface-container-highest text-[10px] font-label-caps text-on-surface-variant italic">REST DAY</div>
+</div>
+<div class="calendar-day p-2 cursor-pointer hover:bg-surface-container-low">
+<span class="font-mono-data text-primary">05</span>
+<div class="mt-2 p-1.5 border border-primary text-primary rounded-sm text-[10px] font-bold tracking-tight bg-white">D3: HINGE / PULL</div>
+</div>
+<div class="calendar-day p-2 bg-surface-bright">
+<span class="font-mono-data text-primary">06</span>
+<div class="mt-2 p-1 text-center border-t border-b border-surface-container-highest text-[10px] font-label-caps text-on-surface-variant italic">REST DAY</div>
+</div>
+<div class="calendar-day p-2 cursor-pointer bg-primary-fixed/30 border-2 border-primary">
+<span class="font-mono-data text-primary font-bold">07</span>
+<div class="mt-2 p-1.5 bg-primary text-on-primary rounded-sm text-[10px] font-bold tracking-tight">D4: ACCESSORY FLOW</div>
+<div class="mt-1 flex justify-between items-center">
+<span class="text-[9px] font-mono-data text-primary">IN PROGRESS</span>
+<div class="w-8 h-1 bg-surface-container rounded-full overflow-hidden">
+<div class="bg-primary h-full w-2/3"></div>
+</div>
+</div>
+</div>
+<div class="calendar-day p-2">
+<span class="font-mono-data text-primary">08</span>
+</div>
+<!-- Remaining Grid Rows placeholder -->
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">09</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">10</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">11</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">12</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">13</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">14</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">15</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">16</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">17</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">18</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">19</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">20</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">21</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">22</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">23</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">24</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">25</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">26</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">27</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">28</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">29</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">30</span></div>
+<div class="calendar-day p-2"><span class="font-mono-data text-primary">31</span></div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50"><span class="font-mono-data text-on-surface-variant">01</span></div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50"><span class="font-mono-data text-on-surface-variant">02</span></div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50"><span class="font-mono-data text-on-surface-variant">03</span></div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50"><span class="font-mono-data text-on-surface-variant">04</span></div>
+<div class="calendar-day bg-surface-container-low p-2 opacity-50"><span class="font-mono-data text-on-surface-variant">05</span></div>
+</div>
+</div>
+<!-- Side Detail Panel (Screen_8 Spreadsheet Hybrid) -->
+<aside class="w-[450px] border-l border-surface-container-highest bg-white flex flex-col">
+<div class="p-space-lg border-b border-surface-container-highest flex justify-between items-start">
+<div>
+<span class="font-label-caps text-label-caps text-on-surface-variant">SESSION ANALYSIS</span>
+<h2 class="font-h1 text-h1 text-primary">D1: SQUAT DOMINANT</h2>
+<div class="flex gap-space-sm mt-1">
+<span class="font-mono-data text-body-sm text-on-surface-variant">OCT 02, 2023</span>
+<span class="text-on-surface-variant">•</span>
+<span class="font-mono-data text-body-sm text-primary font-bold">COMPLETED</span>
+</div>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant" data-icon="close">close</button>
+</div>
+<div class="flex-1 overflow-y-auto">
+<!-- High Density Stats -->
+<div class="grid grid-cols-3 border-b border-surface-container-highest">
+<div class="p-space-md border-r border-surface-container-highest">
+<p class="font-label-caps text-[10px] text-on-surface-variant">TOTAL VOL</p>
+<p class="font-mono-data text-h3">12,450 KG</p>
+</div>
+<div class="p-space-md border-r border-surface-container-highest">
+<p class="font-label-caps text-[10px] text-on-surface-variant">TIME</p>
+<p class="font-mono-data text-h3">74 MIN</p>
+</div>
+<div class="p-space-md">
+<p class="font-label-caps text-[10px] text-on-surface-variant">RPE AVG</p>
+<p class="font-mono-data text-h3">8.2</p>
+</div>
+</div>
+<!-- Spreadsheet Hybrid Grid -->
+<div class="p-space-lg">
+<p class="font-h3 text-h3 mb-space-md">EXERCISE LOG: PLANNED VS EXECUTED</p>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container border-b border-outline">
+<th class="px-2 py-1.5 font-label-caps text-[10px] text-on-surface-variant">EXERCISE</th>
+<th class="px-2 py-1.5 font-label-caps text-[10px] text-on-surface-variant">TARGET</th>
+<th class="px-2 py-1.5 font-label-caps text-[10px] text-on-surface-variant text-right">ACTUAL</th>
+</tr>
+</thead>
+<tbody class="font-mono-data text-body-sm">
+<tr class="border-b border-surface-container-highest hover:bg-surface-container-low">
+<td class="px-2 py-2 font-bold text-primary">High Bar Squat</td>
+<td class="px-2 py-2 text-on-surface-variant">3 x 5 @ 140kg</td>
+<td class="px-2 py-2 text-right text-primary font-bold">140 / 140 / 142.5</td>
+</tr>
+<tr class="border-b border-surface-container-highest hover:bg-surface-container-low">
+<td class="px-2 py-2 font-bold text-primary">Bulgarian SS</td>
+<td class="px-2 py-2 text-on-surface-variant">3 x 10 @ 60kg</td>
+<td class="px-2 py-2 text-right text-primary font-bold">60 / 60 / 60</td>
+</tr>
+<tr class="border-b border-surface-container-highest hover:bg-surface-container-low">
+<td class="px-2 py-2 font-bold text-primary">Leg Extensions</td>
+<td class="px-2 py-2 text-on-surface-variant">4 x 15 @ RPE 9</td>
+<td class="px-2 py-2 text-right text-primary font-bold">4 x 15 @ 9</td>
+</tr>
+<tr class="border-b border-surface-container-highest hover:bg-surface-container-low">
+<td class="px-2 py-2 font-bold text-primary">Calf Raises</td>
+<td class="px-2 py-2 text-on-surface-variant">5 x 20 @ 80kg</td>
+<td class="px-2 py-2 text-right text-primary font-bold">5 x 20 @ 80</td>
+</tr>
+</tbody>
+</table>
+<!-- Session Notes -->
+<div class="mt-space-xl p-space-md bg-surface-container-lowest border border-surface-container-highest rounded-lg">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined !text-[16px]" data-icon="notes">notes</span>
+<span class="font-label-caps text-label-caps">COACH'S NOTES</span>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                                Excellent depth on the final squat set. The progression to 142.5kg was handled well. Peripheral fatigue seems managed. Maintain RPE for next microcycle.
+                            </p>
+</div>
+<!-- Technical Visualization -->
+<div class="mt-space-lg">
+<img alt="Technical Lift Analysis" class="w-full h-32 object-cover border border-outline-variant grayscale brightness-90" src="https://lh3.googleusercontent.com/aida/ADBb0ui2lojafZ9GRdnDmpHoXW9vNskj2VYZXkR_-_i4YSCaoTEW4VfcaGh7dIavNSIisdjUEK6O5n8XCkiD2HfCqC6cJLp6z67bZ6b9Z2RZMgb6KGCdT4u3o_i2G-TYmB4m7XcQOGCtq_2UGzD5tWCH_bOuKb0OROWLryedcEmRMRqaSHp3G25V2VRyDU0JGJny5YJcVmzwZDfQ790zpYMLrVvpa5Zlg11yfanIybbjHhmJp-rikcfUcZ06icFOAvfYejfDTorsrNWRLOE"/>
+<p class="mt-1 font-mono-data text-[10px] text-on-surface-variant italic">BIOMECHANICAL TRACE: SQUAT SET 03 RECAP</p>
+</div>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="p-space-lg border-t border-surface-container-highest bg-surface-bright flex gap-space-md">
+<button class="flex-1 bg-primary text-on-primary py-2 font-label-caps text-label-caps rounded">DOWNLOAD PDF</button>
+<button class="flex-1 border border-outline py-2 font-label-caps text-label-caps rounded hover:bg-surface-container transition-colors">EXPORT DATA</button>
+</div>
+</aside>
+</div>
+</main>
+<!-- FAB (Suppressed based on relevance check, but keeping structure for shell logic if needed on Home) -->
+<!-- Not rendered per Relevance Check: "Details/Calendar screens should suppress FAB" -->
+</body></html>

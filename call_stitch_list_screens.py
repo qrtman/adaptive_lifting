@@ -1,0 +1,59 @@
+import urllib.request
+import json
+import ssl
+
+import os
+
+url = "https://stitch.googleapis.com/mcp"
+api_key = os.environ.get("STITCH_API_KEY", "")
+
+headers = {
+    "X-Goog-Api-Key": api_key,
+    "Content-Type": "application/json"
+}
+
+body = {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+        "name": "list_screens",
+        "arguments": {
+            "projectId": "11990855264885106352"
+        }
+    },
+    "id": 1
+}
+
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+req = urllib.request.Request(
+    url, 
+    data=json.dumps(body).encode('utf-8'), 
+    headers=headers,
+    method="POST"
+)
+
+try:
+    with urllib.request.urlopen(req, context=ctx) as response:
+        content = response.read().decode('utf-8')
+        parsed = json.loads(content)
+        
+        result = parsed.get("result", {})
+        if "content" in result:
+            text = result["content"][0].get("text", "")
+            try:
+                data = json.loads(text)
+                screens = data if isinstance(data, list) else data.get("screens", [])
+                print(f"Found {len(screens)} screens in Design System Framework:")
+                for s in screens:
+                    print(f"- Screen: {s.get('displayName')} (ID: {s.get('name')})")
+            except Exception:
+                print("Text content:")
+                print(text[:1500])
+        else:
+            print("Raw Result Keys:", result.keys())
+            print(json.dumps(result, indent=2)[:1500])
+except Exception as e:
+    print(f"Error: {e}")

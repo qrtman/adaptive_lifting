@@ -282,88 +282,140 @@ Indexes should be declared with migrations, not created opportunistically at run
 
 ## 6. Mathematical Core & Physiological Models
 
-All formulas are computed identically on both frontend (for instant UI feedback) and backend (for canonical persistence). The backend is the source of truth.
+All formulas must be computed identically on both the client (for zero-latency UI reactivity) and the backend (for canonical data persistence). The backend remains the final arbiter of truth.
 
 ### 6.1 Math Engine Contract
 
-The math engine is implemented as pure functions with explicit input and output units. Shared test vectors must be maintained for frontend and backend implementations.
+The math engine is implemented as pure, stateless functions with explicit input and output units. Shared JSON test vectors are maintained to enforce complete calculation parity across the TypeScript/React frontend and the Python/FastAPI backend.
 
-| Function | Required Inputs | Output | Rounding Rule |
+| Function | Required Inputs | Output | Precision & Rounding Rules |
 | :--- | :--- | :--- | :--- |
-| `calculateE1RM` | `weight`, `reps`, `rpe` | Numeric e1RM | Round for display only; persist full precision |
-| `calculateINOL` | `reps`, `weight`, `e1rm` | Numeric INOL | Persist full precision; display to 2 decimals |
-| `calculateACWR` | Chronological tonnage series | Numeric ratio | Persist full precision; display to 2 decimals |
-| `calculateDOTS` | `total`, `bodyweight`, `sex` | Numeric DOTS | Persist full precision; display to 1 decimal |
+| `calculateE1RM` | `weight: float`, `reps: int`, `rpe: float` | Numeric e1RM | Persisted at full precision; rounded to 2 decimals for display/DB storage. |
+| `calculateINOL` | `reps: int`, `intensity_pct: float` | Numeric INOL | Persisted at full precision; rounded to 2 decimals. |
+| `calculateACWR` | Array of workout structures | Array of day records | Trailing tonnage series filled daily; ratios rounded to 2 decimals. |
+| `calculateDOTS` | `gender: str`, `bodyweight: float`, `total: float` | Numeric DOTS | Denominator absolute-valued; output rounded to 2 decimals. |
 
-### 6.2 Estimated 1RM (e1RM) - RPE-Compensated Brzycki
+### 6.2 Estimated 1RM (e1RM) - RPE-Compensated Linear Decay
 
-The standard Brzycki equation estimates maximal strength from submaximal performance. RTS extends this by incorporating RPE as "reps left in the tank":
+To align system behavior with the actual codebase, the estimated one-rep maximum (e1RM) is computed using an **RPE-Compensated Linear Decay** formula rather than the classic Brzycki equation. This model assumes a linear 3% performance reduction for each effective rep away from a true 1RM:
 
 $$\text{Effective Reps} = \text{Reps} + (10 - \text{RPE})$$
 
-$$\text{e1RM} = \frac{\text{Weight}}{1.0278 - 0.0278 \times \text{Effective Reps}}$$
+$$\text{Effective Drop \%} = 0.03 \times (\text{Effective Reps} - 1) = 0.03 \times (\text{Reps} + 10 - \text{RPE} - 1)$$
 
-**Constraints:**
-- If `Effective Reps >= 37` -> return raw weight (denominator becomes negative)
-- Cap the metabolic drop-off at 25% for sets exceeding 6 reps to prevent absurd projections on high-rep backoff work
-- If `RPE < 6.0` or `Reps > 12` -> e1RM is not reliable; return raw weight as fallback
+$$\text{e1RM} = \frac{\text{Weight}}{1.0 - \text{Effective Drop \%}}$$
+
+#### 6.2.1 Boundary Constraints & Guards
+- **Null Inputs**: If `weight <= 0` or `reps <= 0`, return `0.0`.
+- **Reliability Fallback**: If `RPE < 6.0` or `reps > 12`, e1RM calculations are physiologically unreliable. The calculator must bypass linear decay and return the raw `weight` as a safe fallback.
+- **Metabolic Drop-off Cap**: For high-rep sets (e.g., backoffs), the linear decay is capped to prevent absurdly inflated 1RM projections. If `Effective Drop % > 0.25`, the value is constrained to `0.25` (representing a maximum 25% drop).
+- **Zero-Division Guard**: If `denominator <= 0.1` (where `denominator = 1.0 - Effective Drop %`), the calculation is aborted, and the raw `weight` is returned.
 
 ### 6.3 INOL - Intensity Number of Lifts
 
-Quantifies the fatigue footprint of a single lift category across a time window. Critical for preventing overtraining on competition movements:
+Intensity Number of Lifts (INOL) quantifies the cumulative training stress of a single lift category across a given time frame. It prevents overtraining on competition lifts:
 
-$$\text{INOL} = \frac{\text{Reps}}{100 \times (1 - \text{Intensity \%})}$$
+$$\text{Intensity \%} = \frac{\text{Weight}}{\text{e1RM}} \times 100$$
 
-Where $\text{Intensity \%} = \frac{\text{Weight}}{\text{e1RM}}$.
+$$\text{INOL} = \frac{\text{Reps}}{100.0 - \text{Intensity \%}}$$
 
-**Interpretation thresholds** (per lift, per week):
-- `< 1.0` - Recovery-compatible
-- `1.0 - 2.0` - Productive overreach
-- `> 2.0` - High injury/overtraining risk
+#### 6.3.1 Boundary Constraints & Guards
+- **Intensity Cap**: If `Intensity % >= 100.0` (lifting at or above e1RM), the calculation is capped at `reps * 1.0` to avoid division-by-zero or negative fatigue scores.
+- **Zero Work Guard**: If `Intensity % <= 0.0` or raw inputs are negative, return `0.0`.
+- **Display Interpretation Thresholds** (per lift category, per week):
+  - `< 1.0`: Recovery-compatible (optimal for deloads and general accumulation)
+  - `1.0 - 2.0`: Productive overreach (normal training stimulus zone)
+  - `> 2.0`: High injury / CNS overtraining risk (requires immediate load or volume review)
 
 ### 6.4 ACWR - Acute-Chronic Workload Ratio
 
-A rolling window diagnostic bound to chronological dates:
+The Acute-Chronic Workload Ratio (ACWR) monitors the relationship between short-term fatigue (acute workload) and long-term fitness/readiness (chronic workload). It is bound to chronological calendar dates (`YYYY-MM-DD`):
 
-$$\text{ACWR} = \frac{\text{Acute Workload (7-day tonnage)}}{\text{Chronic Daily Average} \times 7}$$
+$$\text{ACWR} = \frac{\text{Acute Workload (7-day Tonnage Sum)}}{\text{Chronic Daily Average} \times 7}$$
 
-Where chronic workload is calculated from the trailing 28 calendar days ending on the workout date. This keeps the numerator and denominator on the same 7-day scale.
+Where $\text{Chronic Daily Average} = \frac{\text{Chronic Workload (28-day Tonnage Sum)}}{28}$. This simplifies the equation to a direct ratio:
 
-**Risk zones:**
-- `< 0.8` - Detraining / insufficient stimulus
-- `0.8 - 1.3` - **Optimal training zone**
-- `> 1.3` - Spike risk / injury danger zone
+$$\text{ACWR} = \frac{\text{Acute Tonnage Sum}}{\text{Chronic Tonnage Sum} / 4.0}$$
+
+#### 6.4.1 Chronological Gap-Filling & Sparse History (Cold Start)
+- **Tonnage Summation**: Daily tonnage is calculated as $\sum (\text{Actual Weight} \times \text{Reps})$ across all completed exercise sets.
+- **Gap-Filling**: The time-series engine automatically generates all consecutive calendar dates between the first and last recorded workouts. Dates without workouts are explicitly filled with `0.0` tonnage to properly model biological fitness decay.
+- **Pre-Padding (Cold Start Solution)**: To prevent mathematical "cold starts" and chart rendering crashes for athletes with less than 28 days of history, the engine automatically **pre-pads the timeline with 27 days of 0.0 tonnage** prior to the first workout date. This guarantees that every actual workout date has a valid, 28-day trailing window.
+- **Zero-Division Guard**: If `Chronic Daily Average == 0.0`, the system returns `1.0` if `Acute Workload == 0.0`, and `0.0` otherwise (to handle theoretical floating point bounds safely).
+
+#### 6.4.2 Workload Risk Zones
+The ACWR outputs are categorized into discrete zones to guide auto-regulatory adjustments:
+- `acwr < 0.8`: **UNDER_TRAINING** (detraining risk / insufficient physiological stimulus)
+- `0.8 <= acwr <= 1.3`: **OPTIMAL_ZONE** (optimal progression / the "sweet spot" for adaptation)
+- `1.3 < acwr <= 1.5`: **ELEVATED_FATIGUE** (elevated fatigue / caution advised for loading)
+- `acwr > 1.5`: **DANGER_ZONE** (danger zone / critical spike in workload, high injury risk)
 
 ### 6.5 DOTS Lifter Coefficient
 
-Normalizes powerlifting totals across bodyweight classes for fair comparison:
+The DOTS coefficient normalizes powerlifting totals across bodyweight classes and sexes. The system utilizes high-precision, absolute-valued fifth-order polynomials:
 
-$$\text{DOTS} = \frac{\text{Total} \times 500}{A + B \cdot \text{BW} + C \cdot \text{BW}^2 + D \cdot \text{BW}^3 + E \cdot \text{BW}^4 + F \cdot \text{BW}^5}$$
+$$\text{DOTS} = \frac{\text{Total} \times 500}{|A + B \cdot \text{BW} + C \cdot \text{BW}^2 + D \cdot \text{BW}^3 + E \cdot \text{BW}^4 + F \cdot \text{BW}^5|}$$
 
-Coefficients differ by sex. Typical output range: 300-600 for competitive lifters.
+Where $\text{BW}$ is the athlete's bodyweight in kilograms and $\text{Total}$ is the sum of their squat, bench, and deadlift maximums in kilograms.
+
+#### 6.5.1 Coefficient Values Table
+The polynomial variables are strictly segregated by sex to maintain administrative domain accuracy:
+
+| Coefficient | MALE | FEMALE |
+| :--- | :--- | :--- |
+| **A** | `-301.121601` | `-57.9628886` |
+| **B** (linear) | `7.36780443` | `4.25433917` |
+| **C** (quadratic) | `-0.0558457223` | `-0.0384807498` |
+| **D** (cubic) | `0.000188177439` | `0.000177727402` |
+| **E** (quartic) | `-0.000000282121544` | `-0.000000412850389` |
+| **F** (quintic) | `0.000000000171720513` | `0.000000000416960297` |
+
+#### 6.5.2 Boundary Guards
+- If `bodyweight <= 0` or `total <= 0`, return `0.0`.
+- The absolute value gate is applied to the denominator to prevent negative coefficient outcomes. If the denominator evaluates to `0`, return `0.0`.
 
 ### 6.6 Attempt Selection Calculator (Meet Day Planner)
 
-For competition day planning, the system projects 2nd and 3rd attempts from a selected opener. These mathematical projections are surfaced in an interactive **Meet Day Planner Table**.
+To assist with competition day logistics, the system projects subsequent attempts from a designated 1st attempt (opener). Projections are strictly rounded to standard **2.5kg competition plate increments** to remain compatible with physical bar loading.
 
-- **2nd Attempt Range:** `Opener * 1.075` to `Opener * 1.10`, rounded to nearest 2.5kg plate increment
-- **3rd Attempt Ceiling:** `Max 2nd * 1.10` (Squat/Deadlift) or `Max 2nd + 10kg` (Bench, male) / `+ 4kg` (Bench, female)
+- **Opener (1st Attempt)**: Entered manually by the coach/athlete.
+- **2nd Attempt Suggested Range**: Projected as `Opener * 1.075` (minimum) to `Opener * 1.10` (maximum), rounded to the nearest 2.5kg.
+  - *Non-Overlapping Guard*: If `min_second >= max_second` after rounding, force `max_second = min_second + 2.5`.
+- **3rd Attempt Suggested Ceiling**: Calculated based on lift type (profile) and sex:
+  - **Squat and Deadlift**: `max_second * 1.10`, rounded to the nearest 2.5kg.
+  - **Bench Press (Male)**: `max_second + 10.0` kg.
+  - **Bench Press (Female)**: `max_second + 4.0` kg.
 
-**Human-in-the-Loop Override:** The algorithm provides ranges as *suggestions*, but the final decision falls entirely to the coach and athlete. They can select specific weights within or outside the projected ranges directly in the planner table, accommodating game-day variables (e.g., fatigue, judging strictness, competitor attempts).
+#### 6.6.1 Missed Attempt Transition Rules
+Meet day attempt selection is highly volatile. If a lifter misses an attempt:
+1. **Missed Opener/2nd due to Technicality**: Suggest repeating the target weight to secure a successful lift.
+2. **Missed Opener/2nd due to Strength Failure**: Re-calculate subsequent ceilings, capping them at the failed weight, and prompt the coach to manually adjust downward.
+3. **Human-in-the-Loop Override**: The calculator provides structured suggestions, but the UI must always allow the coach to input manual overrides to account for real-time tactical changes.
 
-### 6.7 Units, Precision, and Display
+### 6.7 Velocity-Based Training (VBT) & Fatigue Percents
 
-Canonical storage uses metric units and full numeric precision. Display preferences are presentation-only.
+#### 6.7.1 Velocity-RPE Profiling
+Mean Concentric Velocity (MCV) measured in meters per second (m/s) provides an objective measure of daily neuromuscular readiness. The system maps MCV to RPE for major compound lifts (Squat, Bench, Deadlift):
 
-| Value | Canonical Unit | Storage Rule | Display Rule |
-| :--- | :--- | :--- | :--- |
-| Bar weight | kilograms | Decimal number, no string parsing | Show kg or lb based on user preference |
-| Bodyweight | kilograms | Decimal number | Show kg or lb based on user preference |
-| RPE | Unitless 1.0-10.0 scale | Decimal number, increments of 0.5 in UI | Show one decimal only when needed |
-| Velocity | meters/second | Decimal number | Show to 2 decimals |
-| e1RM, INOL, ACWR, DOTS | Derived values | Persist full precision from backend calculation | Round only at render/export boundary |
+$$\text{RPE} = 10.0 - \frac{\text{MCV}_{\text{measured}} - \text{MCV}_{\text{limit}}}{\text{MCV}_{\text{step}}}$$
 
-All export formats must include the unit in the column name when values can be displayed in more than one unit, for example `Actual Weight (kg)`.
+Where:
+- $\text{MCV}_{\text{limit}}$ is the velocity at absolute failure (RPE 10), typically established as `0.15` m/s for Squat/Deadlift and `0.10` m/s for Bench.
+- $\text{MCV}_{\text{step}}$ is the typical drop in velocity per rep remaining in reserve (usually `0.07` to `0.09` m/s per RPE unit).
+
+#### 6.7.2 Fatigue Percent Backdown Calculations
+Coaches prescribe backdown sets using a target **Fatigue Percent** (e.g., 5% fatigue drop). This represents the target drop in performance from the daily peak (the "top set"):
+
+$$\text{Target Backdown Weight} = \text{Top Set Weight} \times (1.0 - \text{Fatigue \%})$$
+
+When the athlete holds the weight constant, the 5% fatigue threshold is hit when the execution RPE rises by exactly one full RPE unit (representing a 5% drop in e1RM due to fatigue buildup) or when the execution velocity drops by a corresponding margin.
+
+### 6.8 Units, Precision, and Display Rules
+
+- **Canonical Weight Unit**: All weight data is persisted and processed in **kilograms (kg)**. Metric representation ensures consistency across physiological models.
+- **Unit Conversions (kg / lbs)**: Conversions for display are strictly visual. Pounds are calculated as $\text{lbs} = \text{kg} \times 2.20462$, and rounded to the nearest standard plate increment (typically 0.5 lbs or 1 lb) for user comfort.
+- **RPE Inputs**: RPE must be entered in increments of `0.5` units on the Borg CR-10 scale.
+- **Data Serialization**: Numeric training values must never be stored as strings. Raw values are kept as decimals in persistence, and visual rounding is isolated entirely to the rendering layer. Export headers must clearly indicate the canonical unit when outputting numeric fields (e.g., `planned_weight_kg`).
 
 ---
 

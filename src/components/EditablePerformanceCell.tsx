@@ -13,7 +13,8 @@ export const EditablePerformanceCell = ({
   isAuto = false,
   suggestedValue = null,
   step = 1,
-  variant = "default"
+  variant = "default",
+  rowIndex
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -26,6 +27,7 @@ export const EditablePerformanceCell = ({
   suggestedValue?: string | null;
   step?: number;
   variant?: "default" | "transparent";
+  rowIndex?: number;
 }) => {
   const value = rawValue === "---" ? "" : rawValue;
   const [activeCell, setActiveCell] = useState(false);
@@ -89,6 +91,30 @@ export const EditablePerformanceCell = ({
             if (e.key === 'Enter') {
               onChange((e.target as HTMLInputElement).value);
               setIsEditing(false);
+              if (rowIndex !== undefined) {
+                setTimeout(() => {
+                  const nextCell = document.getElementById(`cell-${fieldKey}-${rowIndex + 1}`);
+                  if (nextCell) nextCell.click();
+                }, 50);
+              }
+            } else if (e.key === 'ArrowDown') {
+              onChange((e.target as HTMLInputElement).value);
+              setIsEditing(false);
+              if (rowIndex !== undefined) {
+                setTimeout(() => {
+                  const nextCell = document.getElementById(`cell-${fieldKey}-${rowIndex + 1}`);
+                  if (nextCell) nextCell.click();
+                }, 50);
+              }
+            } else if (e.key === 'ArrowUp') {
+              onChange((e.target as HTMLInputElement).value);
+              setIsEditing(false);
+              if (rowIndex !== undefined && rowIndex > 0) {
+                setTimeout(() => {
+                  const nextCell = document.getElementById(`cell-${fieldKey}-${rowIndex - 1}`);
+                  if (nextCell) nextCell.click();
+                }, 50);
+              }
             } else if (e.key === 'Escape') {
               setIsEditing(false);
             }
@@ -100,6 +126,7 @@ export const EditablePerformanceCell = ({
       ) : variant === "transparent" ? (
         <div 
           onClick={handleCellClick}
+          id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
           className={`${widthClass} py-1 flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 select-none relative group/cell`}
         >
           <span className={`text-[24px] font-black font-sans tabular-nums tracking-tighter leading-none ${value ? 'text-white' : 'text-gray-600'}`}>
@@ -112,6 +139,7 @@ export const EditablePerformanceCell = ({
       ) : (
         <div 
           onClick={handleCellClick}
+          id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
           className={`${widthClass} py-3 rounded-xl text-center text-xl transition-all cursor-pointer font-sans tabular-nums select-none active:scale-95 border relative group/cell ${
             isLogged 
               ? value 
@@ -131,7 +159,8 @@ export const EditablePerformanceCell = ({
               : placeholder}
           
           {isAuto && suggestedValue && !value && (
-            <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-mac-blue/90 border border-mac-blue text-[10px] font-black uppercase text-white px-1.5 py-0.5 rounded opacity-0 group-hover/cell:opacity-100 transition-opacity whitespace-nowrap z-20 shadow">
+            <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-mac-blue/90 border border-mac-blue text-[10px] font-black uppercase text-white px-1.5 py-0.5 rounded opacity-0 group-hover/cell:opacity-100 transition-opacity whitespace-nowrap z-20 shadow"
+            >
               Auto Suggest
             </span>
           )}

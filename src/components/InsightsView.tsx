@@ -42,6 +42,24 @@ export function InsightsView() {
   const [attemptPlannerInput, setAttemptPlannerInput] = useState<number>(200);
   const [attemptPlannerProfile, setAttemptPlannerProfile] = useState<'squat_dl'|'bench'>('squat_dl');
 
+  // Gemini AI Auto-Regulation Coach states
+  const [aiResponse, setAiResponse] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const triggerAICoachAnalysis = async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const response = await apiService.fetchAICoachPrescription();
+      setAiResponse(response);
+    } catch (err: any) {
+      setAiError(err.message || 'An unexpected neural processing exception occurred.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   useEffect(() => {
     async function loadTrends() {
       try {
@@ -675,6 +693,186 @@ export function InsightsView() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Gemini AI Auto-Regulation Coach Panel */}
+            <div className="glass-card rounded-[28px] border border-white/5 p-6 bg-white/[0.005] relative overflow-hidden flex flex-col font-sans">
+              <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2 mb-2">
+                <Activity className="text-amber-400" size={20} />
+                Gemini AI Auto-Regulation Coach
+              </h3>
+              <p className="text-xs text-zinc-500 mb-6">
+                Real-time biological fatigue modeling, periodization adjustments, and competition attempt validation.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/5 pb-6 mb-6">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
+                  Evaluate current training microcycle stress curves:
+                </span>
+                <button
+                  onClick={triggerAICoachAnalysis}
+                  disabled={aiLoading}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer ${
+                    aiLoading
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      : 'bg-amber-400 text-black font-extrabold hover:bg-amber-500 shadow-lg shadow-amber-400/10 active:scale-98'
+                  }`}
+                >
+                  {aiLoading ? 'Decompressing Core...' : 'Generate AI Prescription'}
+                </button>
+              </div>
+
+              {aiLoading && (
+                <div className="p-8 border border-white/5 bg-black/20 rounded-2xl flex flex-col items-center justify-center space-y-4">
+                  <Activity className="text-amber-400 animate-spin" size={28} />
+                  <span className="text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                    Decompressing neural core...
+                  </span>
+                </div>
+              )}
+
+              {aiError && (
+                <div className="p-4 border border-red-500/20 bg-red-500/5 rounded-2xl text-red-400 text-xs font-medium leading-relaxed font-sans">
+                  {aiError}
+                </div>
+              )}
+
+              {aiResponse && !aiLoading && (
+                <div className="space-y-6">
+                  {/* Row 1: CNS Readiness & Microcycle Prescription */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* CNS Readiness */}
+                    <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.01] space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">CNS Readiness</span>
+                        <span className="text-xs font-black px-2 py-1 rounded bg-white/5 text-zinc-300 font-mono">
+                          {aiResponse.cns_readiness.score}/100
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          aiResponse.cns_readiness.status === 'Functional Adaptation' ? 'bg-[#34C759]' :
+                          aiResponse.cns_readiness.status === 'Neural Fatigue Suppression' ? 'bg-orange-500 animate-pulse' :
+                          'bg-amber-400'
+                        }`} />
+                        <h4 className="text-sm font-black text-white">{aiResponse.cns_readiness.status}</h4>
+                      </div>
+                      <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+                        {aiResponse.cns_readiness.analysis}
+                      </p>
+                    </div>
+
+                    {/* Microcycle Prescription */}
+                    <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.01] space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Microcycle Prescription</span>
+                        <span className="text-[10px] font-black px-2.5 py-1 rounded bg-amber-400/10 text-amber-400 uppercase tracking-wider">
+                          RPE CAP: @{aiResponse.microcycle_prescription.suggested_rpe_cap}
+                        </span>
+                      </div>
+                      <div>
+                        <span className={`inline-block text-xs font-black px-2.5 py-1 rounded-lg ${
+                          aiResponse.microcycle_prescription.loading_strategy.includes('Deload') ? 'bg-red-500/10 text-red-500' :
+                          aiResponse.microcycle_prescription.loading_strategy.includes('Drop') ? 'bg-orange-500/10 text-orange-500' :
+                          aiResponse.microcycle_prescription.loading_strategy.includes('Escalate') ? 'bg-green-500/10 text-green-500' :
+                          'bg-zinc-800 text-zinc-300'
+                        }`}>
+                          {aiResponse.microcycle_prescription.loading_strategy}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+                        {aiResponse.microcycle_prescription.tactical_guidance}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Movement Diagnostics */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.01] space-y-4">
+                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">Movement Diagnostics (INOL Fatigue Limits)</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Squat */}
+                      <div className="p-4 rounded-xl border border-white/5 bg-black/20 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black text-white">Squat</span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                            aiResponse.movement_diagnostics.squat_fatigue.status === 'Danger' ? 'bg-red-500/10 text-red-500' :
+                            aiResponse.movement_diagnostics.squat_fatigue.status === 'Caution' ? 'bg-orange-500/10 text-orange-500' :
+                            'bg-[#34C759]/10 text-[#34C759]'
+                          }`}>
+                            {aiResponse.movement_diagnostics.squat_fatigue.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono">
+                          INOL: <span className="text-white font-bold">{aiResponse.movement_diagnostics.squat_fatigue.inol}</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
+                          {aiResponse.movement_diagnostics.squat_fatigue.warning}
+                        </p>
+                      </div>
+
+                      {/* Bench */}
+                      <div className="p-4 rounded-xl border border-white/5 bg-black/20 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black text-white">Bench Press</span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                            aiResponse.movement_diagnostics.bench_fatigue.status === 'Danger' ? 'bg-red-500/10 text-red-500' :
+                            aiResponse.movement_diagnostics.bench_fatigue.status === 'Caution' ? 'bg-orange-500/10 text-orange-500' :
+                            'bg-[#34C759]/10 text-[#34C759]'
+                          }`}>
+                            {aiResponse.movement_diagnostics.bench_fatigue.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono">
+                          INOL: <span className="text-white font-bold">{aiResponse.movement_diagnostics.bench_fatigue.inol}</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
+                          {aiResponse.movement_diagnostics.bench_fatigue.warning}
+                        </p>
+                      </div>
+
+                      {/* Deadlift */}
+                      <div className="p-4 rounded-xl border border-white/5 bg-black/20 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black text-white">Deadlift</span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                            aiResponse.movement_diagnostics.deadlift_fatigue.status === 'Danger' ? 'bg-red-500/10 text-red-500' :
+                            aiResponse.movement_diagnostics.deadlift_fatigue.status === 'Caution' ? 'bg-orange-500/10 text-orange-500' :
+                            'bg-[#34C759]/10 text-[#34C759]'
+                          }`}>
+                            {aiResponse.movement_diagnostics.deadlift_fatigue.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono">
+                          INOL: <span className="text-white font-bold">{aiResponse.movement_diagnostics.deadlift_fatigue.inol}</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
+                          {aiResponse.movement_diagnostics.deadlift_fatigue.warning}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Competition Attempts Validation */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.01] space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Meet Opener Feasibility</span>
+                      <span className={`text-xs font-black px-2.5 py-1 rounded-lg ${
+                        aiResponse.attempt_feedback.opener_feasibility === 'High-Risk' ? 'bg-red-500/10 text-red-500' :
+                        aiResponse.attempt_feedback.opener_feasibility === 'Conservative' ? 'bg-amber-400/10 text-amber-400' :
+                        'bg-[#34C759]/10 text-[#34C759]'
+                      }`}>
+                        {aiResponse.attempt_feedback.opener_feasibility}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-300 leading-relaxed font-sans font-bold">
+                      Coaching Notes:
+                    </p>
+                    <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+                      {aiResponse.attempt_feedback.coaching_notes}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Central Graph Workspace */}

@@ -36,7 +36,7 @@ This system is strictly designed around a premium "Obsidian & HSL" visual schema
 ## 🛡️ Safety Mechanisms & Data Integrity
 
 > [!WARNING]  
-> **Startup Guard Active**: The `App.tsx` contains a robust Error Boundary Startup Guard. Upon application boot, it sanitizes state and isolates corrupted JSON structures in local caches, resetting to safe default states automatically to eliminate startup failures.
+> **Startup Guard Active**: The `App.tsx` contains a robust Error Boundary Startup Guard. Upon application boot, it sanitizes local storage and isolates corrupted UI preferences, resetting them to safe default states automatically to eliminate blank-screen failures.
 
 > [!IMPORTANT]  
 > **Data Integrity**: All prescriptions are strictly columnar (`planned_weight`, `planned_reps`) and tracked against actual chronological dates (`YYYY-MM-DD`). See [architecture.md](architecture.md) for detailed boundaries.
@@ -44,10 +44,10 @@ This system is strictly designed around a premium "Obsidian & HSL" visual schema
 ---
 
 ## 📁 Key Active Folders
-* **`src/components/calendar/CalendarView.tsx`**: The core periodization planning grid featuring week-long microcycle visual capsules and auto-regulated bounds.
-* **`src/components/mobile/TelegramSessionTerminal.tsx`**: High-performance mobile workout logging interface.
-* **`src/App.tsx`**: Main component managing periodization data, viewport checks, and localStorage sanitizers.
-* **`backend/`**: FastAPI database routers and calculation models for volume/e1RM analytics.
+* **`src/components/CalendarView.tsx`**: The core periodization planning grid featuring week-long microcycle visual capsules and auto-regulated bounds.
+* **`src/components/mobile/TelegramSessionTerminal.tsx`**: High-performance mobile workout logging interface simulating the Telegram Mini App.
+* **`src/App.tsx`**: Main component managing periodization data, viewport checks, IndexedDB state synchronization, and startup state validation.
+* **`backend/`**: FastAPI database models, sync services, calculation models, and integrations (Telegram Mini App, Google Sheets).
 
 ---
 
