@@ -410,12 +410,84 @@ $$\text{Target Backdown Weight} = \text{Top Set Weight} \times (1.0 - \text{Fati
 
 When the athlete holds the weight constant, the 5% fatigue threshold is hit when the execution RPE rises by exactly one full RPE unit (representing a 5% drop in e1RM due to fatigue buildup) or when the execution velocity drops by a corresponding margin.
 
+#### 6.7.3 VBT MCV Storage, Indexing, and Querying Engine Schema
+To track daily neuromuscular velocity and fatigue progression, the database defines a specialized time-series telemetry table:
+
+```sql
+CREATE TABLE vbt_telemetry (
+    id TEXT PRIMARY KEY,                       -- UUID v4
+    set_id TEXT NOT NULL,                      -- References exercise_sets(id)
+    athlete_id TEXT NOT NULL,                  -- References users(id)
+    exercise_id TEXT NOT NULL,                 -- References exercises(id)
+    rep_number INTEGER NOT NULL,               -- 1-based index of the rep within the set
+    mcv_mps REAL NOT NULL,                     -- Mean Concentric Velocity (float32, in m/s)
+    peak_velocity_mps REAL NOT NULL,           -- Peak Concentric Velocity (float32, in m/s)
+    loss_percent REAL NOT NULL,                -- Percentage loss relative to first rep of the set
+    measured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(set_id) REFERENCES exercise_sets(id) ON DELETE CASCADE,
+    FOREIGN KEY(athlete_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
+);
+
+-- Indexing structure for rapid dashboard plotting and time-series querying
+CREATE INDEX idx_vbt_athlete_exercise ON vbt_telemetry(athlete_id, exercise_id, measured_at DESC);
+CREATE UNIQUE INDEX idx_vbt_set_rep ON vbt_telemetry(set_id, rep_number);
+```
+
+For daily readiness assessments, the query aggregation engine evaluates the athlete's peak mean concentric velocity on submaximal sets compared against their rolling 28-day historical baseline:
+
+$$\text{Readiness Index} = \frac{\text{MCV}_{\text{session\_opener}}}{\text{MCV}_{\text{baseline\_rolling\_28d}}}$$
+
 ### 6.8 Units, Precision, and Display Rules
 
 - **Canonical Weight Unit**: All weight data is persisted and processed in **kilograms (kg)**. Metric representation ensures consistency across physiological models.
 - **Unit Conversions (kg / lbs)**: Conversions for display are strictly visual. Pounds are calculated as $\text{lbs} = \text{kg} \times 2.20462$, and rounded to the nearest standard plate increment (typically 0.5 lbs or 1 lb) for user comfort.
 - **RPE Inputs**: RPE must be entered in increments of `0.5` units on the Borg CR-10 scale.
 - **Data Serialization**: Numeric training values must never be stored as strings. Raw values are kept as decimals in persistence, and visual rounding is isolated entirely to the rendering layer. Export headers must clearly indicate the canonical unit when outputting numeric fields (e.g., `planned_weight_kg`).
+
+### 6.9 Systemic Central Nervous System (CNS) Fatigue Curve Equation
+To model cumulative physical fatigue in the Readiness Wave, the engine uses a deterministic multi-factor exponential decay algorithm. CNS fatigue decays chronologically over a 7-day rolling window:
+
+$$\text{CNS Fatigue}(t) = \sum_{d=0}^{6} \left( \sum_{s \in S_d} (\text{INOL}_s \cdot w_{\text{tier}(s)}) \cdot e^{-\lambda (t - d)} \right)$$
+
+Where:
+- $\text{INOL}_s$: The Intensity Number of Lifts fatigue score calculated for a single completed set $s$.
+- $w_{\text{tier}(s)}$: Weighting multiplier based on exercise tier specificity:
+  - **Competition Lift (`Comp`)**: `1.2`
+  - **Variation Lift (`Variation`)**: `1.0`
+  - **Accessory Lift (`Accessory`)**: `0.5`
+- $\lambda$: Central nervous system fatigue exponential decay rate constant. It is strictly configured as $\lambda = 0.231$ per day, which represents a biological fatigue half-life $t_{1/2}$ of exactly 3.0 days ($e^{-0.231 \times 3} \approx 0.50$).
+- $t$: Current chronological day index (0 to 6 within the microcycle).
+- $d$: Historical day index (0 to 6) representing when the set was executed.
+- $S_d$: The collection of completed exercise sets logged on day $d$.
+
+The deterministic execution algorithm is run concurrently on both the frontend and backend:
+
+```python
+def calculate_systemic_cns_fatigue(workouts: list, target_date: datetime.date) -> float:
+    total_fatigue = 0.0
+    decay_constant = 0.231
+    tier_weights = {"comp": 1.2, "variation": 1.0, "accessory": 0.5}
+    
+    for day_offset in range(7):
+        eval_date = target_date - timedelta(days=day_offset)
+        workout = find_workout_by_date(workouts, eval_date)
+        if not workout or workout.status != "COMPLETED":
+            continue
+            
+        daily_stress = 0.0
+        for exercise in workout.exercises:
+            w_tier = tier_weights.get(exercise.tier.lower(), 0.5)
+            for set_record in exercise.sets:
+                if set_record.actual_weight and set_record.actual_reps and set_record.executed_rpe:
+                    inol = calculate_inol(set_record.actual_reps, set_record.intensity_pct)
+                    daily_stress += inol * w_tier
+                    
+        # Apply exponential decay
+        total_fatigue += daily_stress * math.exp(-decay_constant * day_offset)
+        
+    return round(total_fatigue, 2)
+```
 
 ---
 
@@ -461,10 +533,69 @@ Mutation queue states are `PENDING`, `IN_FLIGHT`, `ACKED`, `REJECTED`, and `CONF
 
 ### 7.2 Fractional Indexing (LexoRank) for Reordering
 
-To solve the complex problem of offline drag-and-drop, all ordered lists (`Exercises`, `ExerciseSets`) use **Fractional Indexing** (e.g., `a0`, `a1`, `a1b`). 
-- When an item is moved between `a0` and `a1`, the client generates `a0i` and assigns it to the `lexo_rank` field.
-- This entirely eliminates the need to rewrite the order of sibling items, guaranteeing that simultaneous offline reordering by multiple devices resolves cleanly without collisions.
-- If rank strings exceed 32 characters for a sibling list, the backend schedules a rank rebalance and returns the rebalanced canonical list in the next sync response.
+To solve the complex problem of offline drag-and-drop ordering, all ordered lists (`Exercises`, `ExerciseSets`) use a deterministic **Fractional Indexing** (LexoRank) algorithm.
+
+#### 7.2.1 Core Lexical Specifications
+- **Alphabet**: The sorting string relies on standard Base36 ASCII printable characters: `0123456789abcdefghijklmnopqrstuvwxyz`. Ranks are sorted lexically (character by character, left to right).
+- **String Bounds**: Ranks must operate between `0` (inclusive lower bound) and `z` (inclusive upper bound). 
+- **Active Buckets**: To support zero-downtime, conflict-free database rebalancing, the system defines three sequence buckets: `0`, `1`, and `2`. Active reorders by clients are written into the current active bucket (stored in system metadata). During database rebalances, the backend rewrites all elements into the next incremented bucket (e.g., from `0` to `1` or `2` to `0`), and updates the metadata to toggle client active write targets.
+- **Rebalance Threshold**: If a rank string's length exceeds `32` characters, it triggers an asynchronous backend job to perform a linear rebalance across the sibling list.
+- **Collision Override**: If simultaneous offline edits produce duplicate rank strings, the backend sync engine resolves the conflict by appending the smallest lexical character `1` (or incrementing the trailing character) to the lower-timestamp record to ensure index uniqueness.
+
+#### 7.2.2 Precise Midpoint Calculation Logic
+Let $L$ be the string rank to the left and $R$ be the string rank to the right. The client calculates the mid-point rank utilizing high-precision string calculations:
+
+```typescript
+function calculateMidpoint(prev: string | null, next: string | null): string {
+    const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+    const BASE = BigInt(36);
+    
+    const p = prev || "0";
+    const n = next || "z";
+    
+    const maxLen = Math.max(p.length, n.length) + 8; // Buffer space
+    
+    // Helper to parse rank string to BigInt numeric base
+    const rankToBigInt = (str: string): bigint => {
+        let val = 0n;
+        for (let i = 0; i < maxLen; i++) {
+            const char = str[i] || "0";
+            const index = BigInt(ALPHABET.indexOf(char));
+            val = val * BASE + index;
+        }
+        return val;
+    };
+
+    // Helper to stringify BigInt numeric base back to rank
+    const bigIntToRank = (num: bigint): string => {
+        let str = "";
+        let temp = num;
+        for (let i = 0; i < maxLen; i++) {
+            const rem = temp % BASE;
+            str = ALPHABET[Number(rem)] + str;
+            temp = temp / BASE;
+        }
+        return str;
+    };
+    
+    const pVal = rankToBigInt(p.padEnd(maxLen, "0"));
+    const nVal = rankToBigInt(n.padEnd(maxLen, "0"));
+    
+    if (nVal - pVal <= 1n) {
+        // No space remaining in the padded window; append character to left
+        return p + "h"; 
+    }
+    
+    const midVal = pVal + (nVal - pVal) / 2n;
+    const midStr = bigIntToRank(midVal).replace(/0+$/, "");
+    
+    // Strict separation guard
+    if (midStr <= p) {
+        return p + "h";
+    }
+    return midStr;
+}
+```
 
 ### 7.3 Soft Deletes (Tombstones)
 
@@ -475,6 +606,36 @@ When an entity is deleted, it is flagged with `deleted_at = current_timestamp`.
 ### 7.4 State Machine Execution Locks
 
 When an athlete finishes a workout, they mark it as `COMPLETED`. This locks the workout. Any subsequent offline mutations remaining in the queue, or accidental future touches on the screen, are rejected by the sync engine unless the user explicitly clicks "Re-open Session" (transitioning to `IN_PROGRESS`).
+
+#### 7.4.1 Workout Lock Lease & Concurrency Engine
+To enforce the single-writer-per-workout constraint and prevent state desynchronization during rapid multi-device logging or offline merging, the system implements a robust, SQL-backed distributed lease model.
+
+##### A. Workout Locks Schema
+```sql
+CREATE TABLE workout_locks (
+    workout_id TEXT PRIMARY KEY,
+    holder_user_id TEXT NOT NULL,
+    fencing_token BIGINT NOT NULL,           -- Auto-incrementing counter per workout lock cycle
+    expires_at TIMESTAMP NOT NULL,
+    acquired_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(workout_id) REFERENCES workouts(id) ON DELETE CASCADE,
+    FOREIGN KEY(holder_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+##### B. Lease Parameters & Lock Rules
+1. **Lease Time-To-Live (TTL)**: The lock lease is issued with a strict TTL of **10 minutes** (`600` seconds) from `acquired_at` or last renewal.
+2. **Client Heartbeat Interval**: Clients actively holding the edit lock must transmit an asynchronous `/api/workouts/{id}/lock/renew` heartbeat every **2 minutes** (`120` seconds) to extend the lease expiry.
+3. **Fencing Tokens (Split-Brain Prevention)**:
+   - Every lock acquisition triggers a write that increments the `fencing_token` for that `workout_id`.
+   - The client caches this `fencing_token` locally upon successful lock acquisition.
+   - Every mutating request pushed in the sync queue **MUST** contain the client's cached `fencing_token` in its header payload.
+   - On sync, the database validates:
+     $$\text{fencing\_token}_{\text{request}} \geq \text{fencing\_token}_{\text{db}}$$
+   - If the request token is lower than the database record, the backend immediately aborts the transaction, rolls back any partial writes, and responds with a `409 Conflict: Lock Lease Expired`.
+4. **Offline Lock Recovery**: If an athlete logs a session offline, and their local lock lease expires and is subsequently acquired by a coach's device, the client device upon reconnecting will detect the `409 Conflict`. The UI must immediately isolate the conflicting offline set logs and display them side-by-side in the **Tombstone Conflict Review Panel** rather than overwriting the coach's changes.
+
+---
 
 ### 7.5 Field-Level Timestamp Resolution
 
@@ -524,6 +685,44 @@ Supported `mode` values are `RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDO
 Because drag-and-drop is locked to single weeks, writing a full mesocycle (where weeks often share identical layouts) relies on **Microcycle Templating**.
 - **Duplication Flow:** A coach designs Microcycle 1 (the baseline week) using the session creation flow above. They use a "Duplicate to Next Week" function, which copies the entire structure (Workouts, Exercises, Sets) into Microcycle 2.
 - **Progression Editing:** The coach then only needs to adjust the specific progressions in Microcycle 2 (e.g., changing RPE 7 to RPE 8, or adding 5kg), vastly accelerating programming velocity without violating chronological boundary constraints.
+
+### 7.9 Dynamic Volume Overload & Variation Match Resolution Engine
+To display real-time microcycle-to-microcycle training progress, the system dynamically calculates progressive overload volume deltas. 
+
+#### 7.9.1 Relational Matching Join Algorithm
+When comparing a session's volume against the corresponding baseline session in the previous microcycle, the engine must handle on-the-fly exercise substitutions (e.g. replacing a Competition Squat with a Beltless Squat due to physiological feedback). 
+
+To ensure comparison resilience, matching is resolved dynamically:
+1. **Movement Type Matching**: The engine groups and matches exercises by their parent `lift_category` (Squat, Bench, Deadlift, Other) and their S&C hierarchy `tier` (Comp, Variation, Accessory).
+2. **Day and Day-Sequence Alignment**: Baseline targets are resolved by locating the parent `Microcycle` with `week_sequence = current_week_sequence - 1` within the active `Mesocycle`, and aligning workouts by `day_sequence` (1-based chronological day of the week, e.g. Day 1, Day 2).
+
+#### 7.9.2 Mathematical Formula for Volume Delta
+$$\Delta \text{Volume} = \text{Tonnage}_{\text{current}} - \text{Tonnage}_{\text{baseline}}$$
+
+Where $\text{Tonnage} = \sum (\text{Actual Weight} \times \text{Reps})$ across all successfully logged, non-deleted sets.
+
+#### 7.9.3 Reference SQL Overload Query
+```sql
+SELECT 
+    curr.lift_category,
+    curr.tier,
+    SUM(curr_sets.actual_weight * curr_sets.actual_reps) as curr_tonnage,
+    SUM(base_sets.actual_weight * base_sets.actual_reps) as base_tonnage,
+    (SUM(curr_sets.actual_weight * curr_sets.actual_reps) - SUM(base_sets.actual_weight * base_sets.actual_reps)) as volume_delta
+FROM exercises curr
+JOIN exercise_sets curr_sets ON curr_sets.exercise_id = curr.id
+JOIN workouts curr_w ON curr.workout_id = curr_w.id
+JOIN microcycles curr_m ON curr_w.microcycle_id = curr_m.id
+-- Match with the preceding microcycle in the active mesocycle
+JOIN microcycles base_m ON base_m.mesocycle_id = curr_m.mesocycle_id AND base_m.week_sequence = curr_m.week_sequence - 1
+JOIN workouts base_w ON base_w.microcycle_id = base_m.id AND base_w.day_sequence = curr_w.day_sequence
+JOIN exercises base ON base.workout_id = base_w.id AND base.lift_category = curr.lift_category AND base.tier = curr.tier
+JOIN exercise_sets base_sets ON base_sets.exercise_id = base.id
+WHERE curr_w.id = :current_workout_id
+  AND curr_sets.deleted_at IS NULL
+  AND base_sets.deleted_at IS NULL
+GROUP BY curr.lift_category, curr.tier;
+```
 
 ---
 
@@ -814,10 +1013,66 @@ Common domain error codes include `MICROCYCLE_BOUNDARY_VIOLATION`, `CLIENT_CLOCK
 ### 11.1 PWA Boot & Local Data Lifecycle (Hydration Window)
 
 - **PWA Boot:** A Service Worker aggressively caches the HTML shell, Tailwind CSS, and core React bundles. The application is guaranteed to boot in airplane mode.
-- **Hydration Window:** To prevent IndexedDB from ballooning and crashing older mobile devices, local storage enforces a strict eviction policy:
-  1. Retains the current active Mesocycle.
+- **Hydration Window & Eviction Policy:** To prevent IndexedDB from ballooning and crashing older mobile devices, local storage enforces a strict Least Recently Used (LRU) eviction policy:
+  1. Retains the current active Mesocycle in its entirety.
   2. Retains the trailing 28 days of historical data (necessary for ACWR workloads).
   3. Data older than 28 days is aggressively evicted from IndexedDB and only fetched via API when accessing historical analytics graphs.
+
+#### 11.1.1 Local Storage Eviction-Safety Guards
+To ensure absolute resilience against data loss during unexpected browser memory flushing or auto-eviction cycles, the IndexedDB engine operates under strict transaction checkpoint constraints:
+
+##### A. Dirty-Flag Outbox Safeties
+Before executing any eviction sweep or data purging, the hydration engine performs a check on the `mutations` store.
+- Any record (workout, exercise, set) linked to a `SyncMutation` where the status is `PENDING` or `IN_FLIGHT` is flagged as **Dirty**.
+- **The Eviction Guard Rule**: The eviction sweep **MUST** explicitly skip any dirty entity. No local record with unsynced mutations may be evicted, regardless of its age or chronological creation timestamp.
+
+##### B. Eviction Guard Algorithm
+The client-side engine executes the sweep via a transactional check:
+
+```typescript
+async function performSafeEviction(db: IndexedDB): Promise<void> {
+    const activeMesocycleId = await db.metadata.get("active_mesocycle_id");
+    const boundaryDate = new Date();
+    boundaryDate.setDate(boundaryDate.getDate() - 28);
+    
+    // Fetch all pending or in-flight mutations from the local outbox queue
+    const pendingMutations = await db.mutations.getAllUnsynced();
+    const dirtyEntityIds = new Set(
+        pendingMutations.map(m => `${m.entity_type}:${m.entity_id}`)
+    );
+    
+    const cachedWorkouts = await db.snapshots.getAllWorkouts();
+    for (const workout of cachedWorkouts) {
+        const workoutDate = new Date(workout.date);
+        
+        // Exclude active mesocycle and trailing 28-day window from deletion
+        if (workout.mesocycle_id === activeMesocycleId || workoutDate >= boundaryDate) {
+            continue;
+        }
+        
+        // Audit dirty flag state for the workout and all nested child elements
+        const isDirty = 
+            dirtyEntityIds.has(`Workout:${workout.id}`) || 
+            workout.exercises.some(e => 
+                dirtyEntityIds.has(`Exercise:${e.id}`) || 
+                e.sets.some(s => dirtyEntityIds.has(`ExerciseSet:${s.id}`))
+            );
+            
+        // Safe delete from local storage only if all components are clean
+        if (!isDirty) {
+            const tx = db.transaction(["snapshots", "tombstones"], "readwrite");
+            await tx.snapshots.delete(`Workout:${workout.id}`);
+            await tx.commit();
+        }
+    }
+}
+```
+
+##### C. Fallback State-Restoration Hooks
+- **Crash Recovery**: If the application crashes or terminates mid-transaction, on the next boot hook, the Service Worker intercepts lifecycle initialization and queries the `mutations` outbox.
+- **State Reconstitution**: If uncommitted mutations are found, the engine reconstructs the current in-progress workout tree in React state and presents the athlete with a prominent alert banner: `"Session Restored: Uncommitted changes recovered successfully."` This completely prevents visual jumpiness or data corruption.
+
+---
 
 ### 11.2 Frontend Resilience
 

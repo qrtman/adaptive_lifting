@@ -15,6 +15,8 @@
 3. [Visual System & Obsidian Tokens](#3-visual-system--obsidian-tokens)
 4. [Typography & Strict Data Formatting](#4-typography--strict-data-formatting)
 5. [Multi-Device Layout & Responsive Matrix](#5-multi-device-layout--responsive-matrix)
+   * 5.1 [Responsive Breakpoint Grid Specifications](#51-responsive-breakpoint-grid-specifications)
+   * 5.2 [Dynamic Space Reclamation & Viewport Budgeting (The Collapsible Primitive)](#52-dynamic-space-reclamation--viewport-budgeting-the-collapsible-primitive)
 6. [Coach Desktop Console Experience](#6-coach-desktop-console-experience)
 7. [Athlete Mobile Gym Logging Experience](#7-athlete-mobile-gym-logging-experience)
 8. [Telegram Mini App WebView Companion](#8-telegram-mini-app-webview-companion)
@@ -230,6 +232,28 @@ The layout scales systematically, adapting touch target sizing and information d
 | **`768px - 1199px`** | Tablet / Laptop Screens | 3-Column structural microcycle calendar cards. Floating side drawer toggle. | Sidebar collapses into visual icons strip. Mouse targets min 32px. Grid padding locked to `--space-2`. |
 | **`>= 1200px`** | High-Density Coach Dashboard | Master 240px persistent left sidebar, sticky headers, right logs feed panel. | Hover borders active. Pointer targets min 28px. High-density data grid padding set to `--space-2`. |
 
+### 5.2 Dynamic Space Reclamation & Viewport Budgeting (The Collapsible Primitive)
+
+To maintain optimal information density and prevent severe text overlapping under high physical and operational workloads, the design system utilizes a mathematical space-reclaiming model.
+
+#### 5.2.1 Core Space Reclamation Primitive (The Sidebar Rule)
+"Collapsing/hiding the persistent 240px sidebar reclaims horizontal real estate, allowing core workspaces (like the Calendar Grid & Microcycle View) to expand to 100% viewport width and prevent high-density column compression."
+
+#### 5.2.2 Primitive Classifications
+* **Persistent Panels**: Structural containers locked to a specific width at designated breakpoints. (e.g., Left Sidebar is persistent at 240px width on desktop viewports `>= 1200px` by default).
+* **Toggleable/Collapsible Panels**: Structural containers that the user can expand or collapse on-demand to shift visual focus. (e.g., Left Sidebar toggles between `240px` and `0px` or a compact `60px` icon track; Right Drawer Rail collapses from `320px` to `0px`; Periodization Readiness Wave lanes collapse to `0px` height).
+* **Dynamic Space Reclamation**: A programmatic layout behavior where collapsing any Toggleable Panel recalculates available horizontal viewport budgets and reallocates the reclaimed space instantly to the primary core workspace.
+* **Viewport Budget (min-width rules)**: The hard visual boundary below which a container cannot be compressed without triggering column truncation, optical fatigue, or overflow errors.
+
+#### 5.2.3 Repeatable Spatial Blueprint Schema
+Every Web UI component and view within this design reference is organized and audited using the following strict structural schema:
+
+| Schema Section | Technical Requirements |
+| :--- | :--- |
+| **Dimensional Constraints** | Hard CSS `min-width`, `max-width`, heights (`dvh`, `vh`, `px`), border radii, and internal/external padding mappings strictly to spacing tokens (`--space-1` to `--space-6`). |
+| **Spatial Allocation** | Grid templates (`grid-template-columns`), flexbox layouts (`flex-grow`, `flex-shrink`, `flex-basis`), border alignments, and dynamic proportional splits. |
+| **State Transitions (Default vs. Maximized)** | A strict comparison between the **Default State** (layout when neighboring toggleable panels are visible) and the **Maximized State** (layout after Dynamic Space Reclamation is triggered). |
+
 ---
 
 ---
@@ -299,6 +323,24 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 +====================================+
 ```
 
+
+##### Dimensional Constraints
+* **Width**: Default expanded state is locked to `240px` (`min-width: 240px; max-width: 240px`). Collapsed state is `60px` (`min-width: 60px; max-width: 60px`) to display icon-only navigation, or hidden entirely (`0px`).
+* **Height**: Locked to `100dvh` (Dynamic Viewport Height) to eliminate scrollbars on the outer shell wrapper.
+* **Internal Padding**: Mapped strictly to design system tokens: `--space-4` (16px) vertical for headers and footers, and `--space-3` (12px) horizontal for link lists.
+
+##### Spatial Allocation
+* **Layout Model**: Flexbox stack: `display: flex; flex-direction: column; justify-content: space-between; align-items: stretch;`.
+* **Outer Borders**: Vertical structural border: `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`) on the right boundary.
+* **Component Groupings**:
+  * **Top**: Brand Header and Monitored Athlete Scope Panel.
+  * **Middle**: Primary Workspaces navigation items (Calendar, Roster, Analytics).
+  * **Bottom**: Operations & Integrations (Sheets, Telegram, Security) and the System Metrics Footer.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State (Expanded Layout)**: The left sidebar consumes `240px` of horizontal space. The main content workspace operates in a reduced viewport budget of `calc(100vw - 240px)`.
+* **Maximized State (Dynamic Space Reclamation)**: User collapses the left sidebar to icon-only (`60px`) or hides it completely (`0px`). This frees `180px` or `240px` of horizontal space respectively. The AppShell dynamically reallocates this space to the main active view container (e.g. expanding the Calendar Grid to 100% viewport width), preventing high-density column compression.
+
 * **Brand Header:** Sleek geometric symbol alongside all-caps title `"OBSIDIAN KINETIC"` utilizing `Inter` font, mapped strictly with a `9:1 contrast ratio` against the background.
 * **Monitored Athlete Scope Panel:** High-contrast widget showing:
   * Athlete's thumbnail circle.
@@ -319,6 +361,20 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 #### 6.1.2 Desktop Calendar Grid & Mesocycle Planning Cards Layout Spec
 
 ##### 6.1.2.1 Microcycle View Layout Spec
+
+##### Dimensional Constraints
+* **Minimum Workspace Width**: `960px` total horizontal container budget to prevent column compression. Day columns have a hard absolute `min-width: 130px`.
+* **Day Column Width**: Evaluated dynamically as `1fr` across standard viewports.
+* **Padding & Margins**: Calendar grid outer container is locked to `--space-4` (16px) margins. Interior workout cells use `--space-2` (8px) card padding for extreme density visual clarity.
+
+##### Spatial Allocation
+* **Grid Layout Model**: CSS Grid layout: `display: grid; grid-template-columns: repeat(7, 1fr); column-gap: var(--space-3)` (`12px`).
+* **Header Allocation**: Nav header takes a fixed `48px` vertical footprint. Day headers use `24px` height.
+* **Internal Card Structure**: Structured vertical flex stack mapping exercises and set rows, with LexoRank reorder handles absolute-positioned inline.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: With 240px sidebar expanded, day columns operate at their minimum usable width threshold on 1200px viewports (`(1200 - 240) / 7 = 137px`). Day cards show condensed summaries.
+* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Core workspace expands to 100% viewport width (`1200px` or wider). Day columns expand to `170px` each, unlocking deep planned-vs-executed details without visual wrapping.
 
 ```
 +=====================================================================================================================================================+
@@ -381,6 +437,20 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 
 ##### 6.1.2.2 Month View Layout Spec
 
+##### Dimensional Constraints
+* **Minimum Workspace Width**: `1024px` to prevent multi-week overlapping rows. Individual calendar day cards have a hard absolute `min-width: 120px`.
+* **Microcycle Banner Height**: Persistent horizontal strips locked to `32px` height to prevent vertical workspace crowding.
+* **Outer Padding**: Grid tracks locked to `--space-4` (16px). Day cards have a `--space-2` (8px) padding block.
+
+##### Spatial Allocation
+* **Grid Layout Model**: CSS Grid: `display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background-color: var(--ok-border);`.
+* **Horizontal Banners**: Custom Row-Span banner overlay layout that spans dynamically across calendar week boundaries to represent split/wrapping microcycles.
+* **Movement Specificity**: Compact text layout representing categories and estimated maximum metrics.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Standard view with active sidebar layout. Day cards hide trailing historical overlays to fit compact viewport allocations.
+* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Reclaimed width expands day cards, allowing simultaneous visualization of target e1RM, INOL stress scores, actual volumes, and flow connector ribbons without column truncation.
+
 The Month View provides a high-density macrocycle calendar grid representing rolled-up training microcycles stacked vertically to review program adherence and cumulative progressive overload indices at a glance. It integrates a dedicated **Horizontal Microcycle Capsule Banner** layer, positioning the microcycle as an interactive, first-class planning object that dynamically spans across calendar days, preserving the standard 7-day Monday-to-Sunday calendar grid layout without column distortion.
 
 Additionally, it incorporates the **Asymmetric Adaptive Track Lane** and **Flow Connector Ribbon** model horizontally to seamlessly handle split and wrapping microcycles (such as 8-day cycles) that span across standard calendar week boundaries.
@@ -434,57 +504,88 @@ Additionally, it incorporates the **Asymmetric Adaptive Track Lane** and **Flow 
 
 ##### 6.1.2.3 Periodization Readiness Wave & Training Spacing Layout Spec
 
+##### Dimensional Constraints
+* **Minimum Width**: `960px` to match the Day columns grid spacing overhead.
+* **Height**: Default height is `180px` total (`60px` per lane for Squat, Bench Press, and Deadlift channels).
+* **Padding & Margins**: Vertical padding locked to `--space-2` (8px) per lane.
+
+##### Spatial Allocation
+* **Layout Model**: Flex column stack (`display: flex; flex-direction: column; gap: var(--space-1)`).
+* **Track Grid**: Matches the 7-day columns width strictly using absolute matching container offsets (`repeat(7, 1fr)`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: In standard view with sidebar expanded, all three movement channels are visible, taking `180px` vertical footprint.
+* **Maximized State**: Collapsing one or more inactive track lanes (e.g. unchecking SQ and DL filters) collapses their track heights to `0px` instantly, reclaiming `120px` of vertical workspace for the calendar day cards.
+
 To visualize the immediate biological fatigue impact of scheduled workouts and optimize load timing, the calendar features an integrated, continuous **Periodization Readiness Wave Rail** spanning directly underneath the daily microcycle columns. 
 
-Because fatigue is highly localized (e.g. your lower body may be fatigued from squats while your chest is fully recovered and ready for bench press), the readiness timeline is divided into **three distinct horizontal track lanes** representing Squat (SQ), Bench Press (BP), and Deadlift (DL) readiness channels. 
+Because localized fatigue channels (SQ, BP, DL) and systemic CNS fatigue interact dynamically, these tracks are co-plotted onto **a single unified field-like graph** representing both movement-specific supercompensation peaks and the composite systemic fatigue undercurrent. 
 
-Coaches can toggle checkboxes in the header strip (`Channels Visibility: [x] SQ | [x] BP | [x] DL`) to show the tracks together or selectively collapse inactive lanes to reclaim vertical workspace:
+Coaches can toggle checkboxes in the header strip (`Channels Visibility: [x] SQ | [x] BP | [x] DL`) to dynamically overlay or isolate specific movement curves within the unified graph panel, maximizing vertical visual budget:
 
 ```
 +=====================================================================================================================================================+
-| Microcycle 04 Calendar Grid                                                                                                                         |
+| Microcycle 04 Calendar Grid & Unified CNS Readiness Wave                                                                                             |
 +-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
 | DAY 01: SQUAT DOMINANT        | DAY 02: H. PUSH   | DAY 03: REST DAY  | DAY 04: HINGE/PULL| DAY 05: REST DAY  | DAY 06: ACC FLOW  | DAY 07: UNPLANNED|
 | Tonnage: 12,450.0 kg (High)   | Tonnage: 5,400.0kg| Recovery Interval | Tonnage: 8,820.0kg| Recovery Interval | Tonnage: 3,200.0kg| Rest day         |
 | Status:  Completed [✓]        | Status: Completed | Passive Rest Day  | Status: Completed | Passive Rest Day  | Status: In Prog   |                  |
 +-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| Systemic & Movement-Specific Readiness Lanes (Fitness vs. Fatigue decay channels):                                                                 |
+| Unified Systemic & Localized Readiness Wave (Co-plotted CNS Fatigue vs. Movement-Specific Supercompensation curves):                               |
 |                                                                                                                                                     |
-| Channels Visibility: [x] Squat (SQ)  [x] Bench Press (BP)  [x] Deadlift (DL)                                                                      |
+| Curves Legend: [S] Squat (SQ)  [B] Bench Press (BP)  [D] Deadlift (DL)  [=] Systemic CNS Fatigue Floor (Composite limit)                            |
 |                                                                                                                                                     |
-| [SQ] SQUAT CHANNEL:                                                                                                                                 |
-|   Readiness Wave:  Base _/~\_ fatigued \_____ recovered ____/~\_ [PEAK]* ___ fatigued \_____ recovered ____/~\_ [PEAK]*                             |
-|   State & Timing:  [ FATIGUED ] (Red)  | [ RECOVERED ]     | [ PEAK SQUAT READINESS ]* (Green) | [ FATIGUED ]      | [ RECOVERED ]                  |
-|                                                                                                                                                     |
-| [BP] BENCH PRESS CHANNEL:                                                                                                                           |
-|   Readiness Wave:  Base _________ recovered ________/~\_ [PEAK]* ___ fatigued \_____ recovered _________ recovered _________                            |
-|   State & Timing:  [ RECOVERED ]       | [ PEAK BENCH READINESS ]* (Green)     | [ FATIGUED ]      | [ RECOVERED ]     | [ RECOVERED ]                  |
-|                                                                                                                                                     |
-| [DL] DEADLIFT CHANNEL:                                                                                                                              |
-|   Readiness Wave:  Base _/~\_ fatigued \_______________________ recovered ________/~\_ [PEAK]* ___ fatigued \_____ recovered ____                   |
-|   State & Timing:  [ FATIGUED ]        | [ RECOVERING ]    | [ RECOVERED ]                     | [ PEAK DEADLIFT READINESS ]* (Green)               |
+| e1RM % Capacity                                                                                                                                     |
+|  110% |                              [B]*                                [S]*                                                               |
+|       |                               B                                   S                                                                 |
+|  100% |-------[B]--------------------/-\-----------[D]-------------------/-\-----------[S]-------------------------------------------[B]-----------  |
+|       |      /   \                  /   \         /   \                 /   \             /   \                                         /   \           |
+|   90% |     /     \     [S]        /     \       /     \               /     \           /     \                                       /     \          |
+|       |    S       \   /   \      /       \     D       \             /       \         /       \   [D]*                                  /       \         |
+|   80% |===========D=\=/=====S====/=========\===/=========\===========/=========\=======/=========\=/===\=============================D=/=========\=======|
+|       |   [ FATIGUED ]     [ RECOVERED ]      [ FATIGUED ]          [ RECOVERED ]     [ PEAK READINESS ]*            [ RECOVERED ]                  |
+|   70% |   (S & D Redline)                     (D Redline)                             (SQ Peak e1RM attempt)                                        |
 +=====================================================================================================================================================+
 ```
 
 ##### 6.1.2.4 Collapsed Readiness Lanes Layout Spec
 
-When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to focus exclusively on upper-body planning), the calendar dynamically collapses the inactive track lanes to `0px` height. This reclaims substantial vertical workspace, displaying only the selected active channel timeline:
+##### Dimensional Constraints
+* **Minimum Width**: `960px` to match the Day columns grid spacing overhead.
+* **Height**: Unified graph height: `80px` (Expanded with overlays). Collapsed height: `0px` (if all filters are unchecked).
+* **Padding & Margins**: Base container padding locked to `--space-2` (8px).
+
+##### Spatial Allocation
+* **Layout Model**: Single unified SVG or HTML5 Canvas element. Dynamic CSS class selectors control visibility of individual curve overlays (`.curve-sq`, `.curve-bp`, `.curve-dl`).
+* **Track Grid**: Shared horizontal axis maps strictly to the 7-day columns.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Standard view with all three movement-specific readiness curves and the Systemic CNS Fatigue Floor co-plotted together.
+* **Maximized State (Active Series Filtering)**: Unchecking movement filters hides their specific curve elements dynamically from the shared chart grid. This keeps the visual field completely clean (e.g. showing strictly Bench Press and Systemic Floor) while preserving the persistent `80px` height footprint to prevent optical jitter and layout shifts.
+
+When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to focus exclusively on upper-body planning), the active lines are dynamically hidden from the unified field graph, leaving only the focused curve visible:
 
 ```
 +=====================================================================================================================================================+
-| Microcycle 04 Calendar Grid                                                                                                                         |
+| Microcycle 04 Calendar Grid & Unified CNS Readiness Wave                                                                                             |
 +-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
 | DAY 01: SQUAT DOMINANT        | DAY 02: H. PUSH   | DAY 03: REST DAY  | DAY 04: HINGE/PULL| DAY 05: REST DAY  | DAY 06: ACC FLOW  | DAY 07: UNPLANNED|
 | Tonnage: 12,450.0 kg (High)   | Tonnage: 5,400.0kg| Recovery Interval | Tonnage: 8,820.0kg| Recovery Interval | Tonnage: 3,200.0kg| Rest day         |
 | Status:  Completed [✓]        | Status: Completed | Passive Rest Day  | Status: Completed | Passive Rest Day  | Status: In Prog   |                  |
 +-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| Systemic & Movement-Specific Readiness Lanes (Fitness vs. Fatigue decay channels):                                                                 |
+| Unified Systemic & Localized Readiness Wave (Active Series Filtering: SQ & DL hidden):                                                             |
 |                                                                                                                                                     |
-| Channels Visibility: [ ] Squat (SQ)  [x] Bench Press (BP)  [ ] Deadlift (DL)                                                                      |
+| Curves Legend: [ ] Squat (SQ)  [x] Bench Press (BP)  [ ] Deadlift (DL)  [x] Systemic CNS Fatigue Floor (Composite limit)                            |
 |                                                                                                                                                     |
-| [BP] BENCH PRESS CHANNEL:                                                                                                                           |
-|   Readiness Wave:  Base _________ recovered ________/~\_ [PEAK]* ___ fatigued \_____ recovered _________ recovered _________                            |
-|   State & Timing:  [ RECOVERED ]       | [ PEAK BENCH READINESS ]* (Green)     | [ FATIGUED ]      | [ RECOVERED ]     | [ RECOVERED ]                  |
+| e1RM % Capacity                                                                                                                                     |
+|  110% |                              [B]*                                                                                                           |
+|       |                               B                                                                                                             |
+|  100% |-------[B]--------------------/-\--------------------------------------------------------------------------------------------- [B]-----------  |
+|       |      /   \                  /   \                                                                                           /   \           |
+|   90% |     /     \                /     \                                                                                         /     \          |
+|       |    /       \              /       \                                                                                       /       \         |
+|   80% |====================================\=====================================================================================/=================|
+|       |   [ RECOVERED ]    [ PEAK READINESS ]*    [ FATIGUED ]          [ RECOVERED ]     [ RECOVERED ]                  [ RECOVERED ]                  |
 +=====================================================================================================================================================+
 ```
 
@@ -496,6 +597,21 @@ When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to 
     * **Local Nervous System Fatigue Valley (`fatigued`)**: Movement-specific readiness deeply depressed below baseline due to recent heavy spinal or upper-body loading cycles. Cap top sets at RPE 8.0, reduce backdown sets by -10% for that exercise to allow targeted localized recovery.
 
 #### 6.1.3 Coach Athletes Roster Workspace Layout Spec
+
+##### Dimensional Constraints
+* **Minimum Workspace Width**: `1200px` for side-by-side pane rendering.
+* **Left Roster List Pane Width**: Mapped strictly to `320px` (`min-width: 320px; max-width: 320px`).
+* **Detailed Analytics Pane Width**: Dynamic flex width sizing to consume the remaining horizontal workspace.
+* **Padding & Margins**: Container margins locked to `--space-4` (16px). Quadrant diagnostic cards use `--space-3` (12px) padding boundaries.
+
+##### Spatial Allocation
+* **Layout Model**: Flex row layout (`display: flex; flex-direction: row; align-items: stretch;`).
+* **Detailed Analytics Layout**: CSS Grid for 6 distinct diagnostic quadrants: `display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3);` for top rows, and custom split rows for distributions and plots.
+* **Borders**: Split line is mapped to a `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`) color.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Both left sidebar, athlete roster pane, and detailed analytics quadrants are displayed side-by-side. The 6-quadrant container utilizes a restricted `calc(100vw - 560px)` horizontal footprint, placing cards in compressed layouts.
+* **Maximized State (Dynamic Space Reclamation)**: Left sidebar collapses to `60px` or `0px`. This reclaims `180px` or `240px` of horizontal layout budget. The 6-quadrant container expands dynamically to `calc(100vw - 320px)` or more, increasing grid sizes and resolving any text overlapping inside DOTS, ARI, and ACWR panels.
 
 The Athletes Roster workspace functions as the primary operational console for coaches to audit real-time athlete telemetry, evaluate systemic training stress profiles, and deploy autoregulated powerlifting programming. The dual-pane layout integrates inbound athlete connection states, roster metadata, and high-density performance diagnostics (DOTS coefficients, Relative Intensity curves, Acute-to-Chronic Workload Ratios, and Attempt Selection projections).
 
@@ -569,6 +685,22 @@ The Athletes Roster workspace functions as the primary operational console for c
 
 ### 6.2 Workout Builder & Structured Prescription Editor
 
+##### Dimensional Constraints
+* **Width**: Overlay modal locked to `90vw` (Viewport Width), with `min-width: 800px` and `max-width: 1200px` constraints.
+* **Height**: Flex boundary set to `85dvh` (Dynamic Viewport Height).
+* **Padding & Margins**: Modal container utilizes `--space-4` (16px) margins. Outer card border-radius: `--radius-lg` (`8px`).
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns split into side-by-side workspace panels (`display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);`).
+* **Column Divisions**:
+  * **Left Pane (Search & Database)**: Mapped to search database list blocks, with scroll overflow set to `auto` and vertical padding of `--space-3`.
+  * **Right Pane (Parameter Configurator)**: Dynamic form stack managing Category, Tiering, ROM, tempo options, and supportive gear.
+* **Borders**: Interior split vertical border is `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Modal centered in viewport on viewports `>= 1024px`. Background elements are visible but dimmed by an absolute scrim overlay.
+* **Maximized State (Dynamic Space Reclamation)**: On compact screen boundaries or landscape tablet layouts (`< 1024px`), the modal transitions to a full-screen sheet overlay (`100%` viewport width & height, `0px` border-radius), maximizing input form sizing and avoiding vertical list clipping.
+
 The desktop Workout Builder uses a **two-pane split dialog layout** to allow coaches to search the canonical exercise database, customize movement modifications (Tempo, ROM, Gear), and write structured set prescriptions in a single, high-velocity workflow.
 
 #### 6.2.1 Desktop Exercise Selector & Custom Builder Split Dialog Layout
@@ -622,6 +754,20 @@ The desktop Workout Builder uses a **two-pane split dialog layout** to allow coa
 
 ### 6.3 Meet Day Planner & Attempt Selector Table
 
+##### Dimensional Constraints
+* **Minimum Width**: `720px` to fit 6 data columns side-by-side without overlapping headers.
+* **Height**: Auto-adjusts to fit precisely 3 rows (Squat, Bench, Deadlift) and header/summary rows (approx `200px`).
+* **Padding & Margins**: Table cells use strict `--space-2` (8px) padding constraints.
+
+##### Spatial Allocation
+* **Layout Model**: HTML `<table>` or CSS grid (`display: grid; grid-template-columns: 1.5fr repeat(5, 1fr); gap: 1px; background-color: var(--ok-border);`).
+* **Columns split**: Opener Target, 2nd Attempt Projection, 2nd Target override, 3rd Attempt Projection, and 3rd Target override.
+* **Inputs**: Dynamic input fields inside "Target" columns centered and sized dynamically to `--space-6` (24px) vertical footprint.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Displayed embedded inside the primary Roster Workspace Detailed Pane. Columns utilize standard `100px` widths.
+* **Maximized State (Dynamic Space Reclamation)**: Collapsing the Left Sidebar expands the parent pane by `240px`. The Attempt table columns stretch dynamically, allowing font size highlights (`text-base` vs `text-sm`) and larger margins for plate indicators.
+
 Coaches and athletes collaborate on competition day selections using the highly interactive **Meet Day Planner Grid**:
 
 | Lift Category | Opener Target (Editable) | 2nd Attempt Projection (Read-only) | 2nd Target (Editable Override) | 3rd Attempt Projection (Read-only) | 3rd Target (Editable Override) |
@@ -658,6 +804,20 @@ Coaches and athletes collaborate on competition day selections using the highly 
 
 ### 6.4 SSE Live Telemetry Stream Panel
 
+##### Dimensional Constraints
+* **Minimum Width**: `480px` to fit tabular logging structures.
+* **Height**: Flex height to fit container boundaries, standard allocation is `400px` scrollable area.
+* **Padding & Margins**: Spacing locked to `--space-3` (12px) padding surrounding borders.
+
+##### Spatial Allocation
+* **Layout Model**: Vertical flex column stack: `display: flex; flex-direction: column; align-items: stretch;`.
+* **Grid Split**: Header telemetry pulses take `36px` vertical space. Table rows allocate space using `display: grid; grid-template-columns: 1fr 2fr 3fr 3fr 1.5fr 1.5fr;`.
+* **Borders**: Separator border is `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Displayed as a sliding sidebar rail drawer (320px collapsed, or 480px default) on the right side of the main console.
+* **Maximized State (Dynamic Space Reclamation)**: The telemetry container can be expanded or detached to fill `100%` viewport width (`min-width: 960px`). Columns stretch to wider sizes, showing full timestamp details, movement tier indicators, and expanded historical trends inline.
+
 When athletes log their gym execution sets in real-time, details are pushed instantly to the coach's desktop console via a Server-Sent Events stream:
 
 * **Live Status Heartbeat Pulse:** A 10px circular telemetry dot located in the header:
@@ -687,6 +847,22 @@ When athletes log their gym execution sets in real-time, details are pushed inst
 ```
 
 ### 6.5 Analytics Diagnostics Engine & Performance Curves Layout Spec
+
+##### Dimensional Constraints
+* **Minimum Width**: `960px` budget to prevent line graph overlapping.
+* **Height**: Core layout is `500px` vertical footprint.
+* **Padding & Margins**: Spacing locked to `--space-4` (16px) margins. Graph panels use `--space-2` (8px) borders.
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns split into dynamic blocks (`display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-4);`).
+* **Section Divisions**:
+  * **Left Plot Panel**: Renders line charts of ACWR CNS fatigue or rolling e1RM maximum trajectories.
+  * **Right KPI Deck**: Vertical list summarizing volume averages, dot coefficients, e1RM peaks, and INOL stress indicators.
+* **Borders**: Interior borders are standard `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Standard view with active Left Sidebar. Graphic plots are bounded to a `min-width: 580px` width.
+* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Reclaimed horizontal space (`240px`) stretches the line graphs horizontally. Plot resolution scales up to wider layouts, revealing individual week markers and secondary overlay parameters without visual crowdedness.
 
 The Analytics Diagnostics Engine provides coaches with a high-density, mathematical workspace to assess training stress, rolling strength peaks, and cumulative microcycle fatigue metrics.
 
@@ -742,6 +918,19 @@ The Analytics Diagnostics Engine provides coaches with a high-density, mathemati
 
 #### 6.5.1 Volume & Intensity Profile Tab Layout Spec
 
+##### Dimensional Constraints
+* **Minimum Width**: `960px`.
+* **Height**: Centered grid of `420px`.
+* **Padding & Margins**: Interior panels use `--space-3` (12px) padding boundaries.
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns grid split (`display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-4);`).
+* **Divisions**: Left side chart representing Tonnage & RPE zone volume distributions, Right side representing percentage load distributions.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Bounded inside the primary container. Left side graph has a `min-width: 580px` constraint.
+* **Maximized State (Dynamic Space Reclamation)**: Collapsing the Left Sidebar allows charts to stretch to 100% width, boosting vertical grid alignments.
+
 The Volume & Intensity Profile tab provides a specialized visual breakdown of session workloads, tracking progressive overload stress and mapping relative volume and perceived exertion (RPE) distributions across specific lifting categories:
 
 ```
@@ -769,6 +958,19 @@ The Volume & Intensity Profile tab provides a specialized visual breakdown of se
 
 #### 6.5.2 Movement Variation Drill-Down Sub-Page Spec
 
+##### Dimensional Constraints
+* **Minimum Width**: `960px` to prevent table columns from wrapping.
+* **Height**: Flex boundary matching screen depth (`600px` standard target).
+* **Padding & Margins**: Frame padding locked to `--space-4` (16px).
+
+##### Spatial Allocation
+* **Layout Model**: Side-by-side split grid (`display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-4);`).
+* **Pane splits**: Left side shows variation e1RM progressive overload curves, Right side shows historical paging tables of logged attempts.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Displayed in standard dashboard space.
+* **Maximized State (Dynamic Space Reclamation)**: Hiding Left Sidebar expands chart widths, letting coaches review multi-month curves and attempts side-by-side without vertical clipping.
+
 To prevent high-density strength data from cluttering the main console, coaches can click on any specific movement variation (e.g. Pause Squats) within the analytics ledger to open this dedicated, full-screen variation monitoring sub-page:
 
 ```
@@ -793,6 +995,19 @@ To prevent high-density strength data from cluttering the main console, coaches 
 
 ### 6.6 Security & Session Audit Panel Layout Spec
 
+##### Dimensional Constraints
+* **Minimum Width**: `640px` to fit 4 columns of the active terminals table.
+* **Height**: Auto-height bounding box fitting standard operations (approx `400px`).
+* **Padding & Margins**: Inner panels use `--space-3` (12px) padding boundaries.
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns stack (`display: flex; flex-direction: column; gap: var(--space-4);`).
+* **Divisions**: Top table displays connected device lists, Bottom displays idempotent audit event log streams.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Fits within standard workspace padding with 240px sidebar expanded.
+* **Maximized State (Dynamic Space Reclamation)**: Reclaims Left Sidebar. The connected devices table columns expand, preventing truncation of device metadata or IP strings, and audit logs expand to wider rows.
+
 ```
 +==================================================================================================+
 | Security & Session Audit: Active Credentials & Terminal Access Revocation Panel                  |
@@ -813,6 +1028,19 @@ To prevent high-density strength data from cluttering the main console, coaches 
 ```
 
 ### 6.7 AI Coach Analysis Panel Layout Spec
+
+##### Dimensional Constraints
+* **Minimum Width**: `480px`, max-width `800px` to keep readabilities tight.
+* **Height**: Flex bounds matching content height (`360px` standard target).
+* **Padding & Margins**: Container padding set to `--space-4` (16px).
+
+##### Spatial Allocation
+* **Layout Model**: Flex column container with centered content block.
+* **Divisions**: Header (Athlete & Loader), Body (Diagnostic response & recommendations), and Footer actions.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: standard view centered floating card.
+* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Reclaimed width stretches layout boundaries, expanding loading spinners and adjusting inline action button scales.
 
 ```
 +==================================================================================================+
@@ -841,6 +1069,23 @@ To prevent high-density strength data from cluttering the main console, coaches 
 The mobile logging console is structured as a unified, chronological, top-down workout feed. This completely eliminates multi-tab swiping, presenting the athlete's entire training session as a continuous physical timeline.
 
 ### 7.1 Viewport Chronological Timeline Layout
+
+##### Dimensional Constraints
+* **Width**: Fits standard mobile viewports `min-width: 320px` to `max-width: 480px`. Scales to `100%` viewport width.
+* **Height**: Centered layout fits `100dvh` (locked dynamic viewport height budget to prevent double scrollbars).
+* **Padding & Margins**: Base container horizontal spacing is locked to `--space-3` (12px), grid rows use `--space-2` (8px) gaps.
+* **Touch Targets**: Minimum `48px x 48px` boundaries for stepper inputs and confirmation buttons.
+
+##### Spatial Allocation
+* **Layout Model**: 1-Column strict vertical stack (`display: flex; flex-direction: column; align-items: stretch;`).
+* **Header/Footer Allocations**:
+  * Sticky Session Header consumes a static `44px` height.
+  * Mobile Action Bottom Bar consumes a static `56px` height.
+  * Center scrollable timeline feed dynamically claims remaining viewport budget (`flex: 1 1 auto; overflow-y: auto;`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Displayed in standard view mode. Workout set rows are rendered in a compact layout (`40px` height) to present full session overview.
+* **Maximized State (Inline Set Editor Expansion)**: Tapping any set row expands it inline to reveal its active logging steppers (increasing cell height from `40px` to `260px`). Viewport auto-centers the active card (`200ms ease-out`), applying a dark focus backdrop scrim to maximize visual contrast in direct gym lighting, while other rows remain collapsed.
 
 ```
 +--------------------------------------------------------------------------+
@@ -896,6 +1141,23 @@ The mobile logging console is structured as a unified, chronological, top-down w
 
 
 ### 7.3 Mobile Exercise Adding, Picking & Creation Flow
+
+##### Dimensional Constraints
+* **Width**: Fits standard mobile width `min-width: 320px` to `max-width: 480px`. Occupies `100%` viewport width.
+* **Height**: Drawer slides up to occuping `max-height: 90dvh` (Dynamic Viewport Height). Custom builder inner slides consume `100%` width and height of the sheet container.
+* **Padding & Margins**: Base padding is locked to `--space-4` (16px). Stepper adjustment rows use `--space-2` (8px) gaps.
+* **Touch Targets**: Stepper buttons, segment filters, and confirmation buttons have a strict `48px x 48px` min interactive boundary.
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns container (`display: flex; flex-direction: column; align-items: stretch;`).
+* **Section Divisions**:
+  * **Step 1 (Picker)**: Search bar consumes fixed `48px` vertical bounds; result list occupies scrollable list space (`flex: 1 1 auto; overflow-y: auto;`).
+  * **Step 2 (Builder)**: Segmented toggles for categories, tempos, ROM splits, and checkbox equipment matrices.
+  * **Step 3 (Sets Configuration)**: Dense table mapping individual set entries with inline deletion buttons.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Picker drawer is collapsed or hidden. Bottom action bar shows `[ Add Exercise ]` option.
+* **Maximized State (Drawer Entrance)**: Bottom sheet transitions up (`180ms ease-out` sliding from screen bottom). Left/right sliding sub-panes transition horizontally (`150ms ease-in-out` translateX splits) when stepping through Picker -> Custom Builder -> Set Editor, preventing vertical layout resizing.
 
 When an athlete or coach needs to modify the workout on the fly, tapping `[ Add Exercise ]` on the sticky action bottom bar triggers the multi-step exercise integration flow:
 
@@ -1067,6 +1329,19 @@ The Telegram Mini App WebView companion functions as a native extension of the a
 
 ### 8.1 Mini App Account Verification Screen Specs
 
+##### Dimensional Constraints
+* **Width**: Bounded inside native Telegram frame (`min-width: 320px` to `max-width: 480px`).
+* **Height**: Matches client viewport height (`100dvh`).
+* **Padding & Margins**: Base boundary spacing is locked to `--space-4` (16px).
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns container (`display: flex; flex-direction: column; justify-content: center; align-items: stretch;`).
+* **Divisions**: Centered profile verification block, error status strip overlaid absolute at screen top bounds.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Initializing connection loader view showing rotating spinner tags.
+* **Maximized State (Dynamic Space Reclamation)**: After cryptographic validation completes successfully, the wizard transitions into the main active mobile logging view, expanding active viewport margins to reclaim full device layouts.
+
 ```
 +==========================================================================+
 | [tg] Telegram Chat Shell: @IronBoxBot                                    |
@@ -1097,6 +1372,8 @@ The Telegram Mini App WebView companion functions as a native extension of the a
 | | |                                                                  | | |
 | | |                  [ CONNECT ATHLETE ACCOUNT ]                     | | |
 | | |                                                                  | | |
+| | |                  [ CONNECT ATHLETE ACCOUNT ]                     | | |
+| | |                                                                  | | |
 | | +------------------------------------------------------------------+ | |
 | +======================================================================+ |
 +==========================================================================+
@@ -1118,6 +1395,19 @@ The Telegram Mini App WebView companion functions as a native extension of the a
   * Copy: `"Online Mode Only: Sandboxed storage detected. Use the standalone PWA to preserve offline logs."`
 
 ### 8.2 Telegram Bot Chat Interface & Notification Layout Spec
+
+##### Dimensional Constraints
+* **Width**: Fits Telegram native chat bubble boundaries (approx `320px` to `420px`).
+* **Height**: Auto-adjusts to fit textual contents and inline buttons layout.
+* **Padding & Margins**: standard Telegram client bubble margins.
+
+##### Spatial Allocation
+* **Layout Model**: Standard text structure with block quotations and formatted markdown list markers.
+* **Inline Keyboards**: Dynamic row arrays of standard size touch triggers (`44px` height).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Chat logs show compact textual workout summaries.
+* **Maximized State (Launch Mini App transition)**: Tapping `[ Launch Mini App ]` triggers an iframe/webview slide-up transition, loading the full chronological timeline interface in absolute focus.
 
 ```
 +==========================================================================+
@@ -1150,6 +1440,22 @@ The Telegram Mini App WebView companion functions as a native extension of the a
 Sheets integrations are strictly one-way publishing targets, never bidirectional editors. The UI must explicitly communicate this data ownership model to the coach.
 
 ### 9.1 Publish Target Selector & Outbox Panel
+
+##### Dimensional Constraints
+* **Minimum Width**: `768px` for side-by-side pane display.
+* **Height**: Flex bounds matching content layout (approx `480px`).
+* **Padding & Margins**: Container padding locked to `--space-4` (16px).
+* **Divider border**: `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns split side-by-side (`display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);`).
+* **Pane Divisions**:
+  * **Left Pane (Target Configurations)**: Form elements targeting spreadsheets, sheets checklists, and scheduling selectors.
+  * **Right Pane (Outbox Sync Queue)**: Vertical progress stepper tracker showing active compiles and auth rotation keys.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Displayed in standard dashboard pane.
+* **Maximized State (Dynamic Space Reclamation)**: On compact screens (`< 768px`), dynamic wraps transition the panels to a single-pane vertical stack, ensuring full visibility of outbox logs and preventing form element clipping.
 
 ```
 +==================================================================================================+
@@ -1186,6 +1492,19 @@ Sheets integrations are strictly one-way publishing targets, never bidirectional
 
 ### 9.2 Google Sheets Canonical Export Layout Spec
 
+##### Dimensional Constraints
+* **Minimum Width**: `960px` to fit 8 columns of training data without cell text wrapping.
+* **Height**: Auto-scaling to fit injected row metrics.
+* **Padding & Margins**: standard spreadsheet bounds.
+
+##### Spatial Allocation
+* **Layout Model**: Standard tabular grid tracking date, movement category, set indicators, prescription text targets, and actual executed metrics.
+* **Header allocation**: First row locked as static bold label row.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Standard view in spreadsheet app.
+* **Maximized State**: N/A (Google Sheets is external, but matches export layouts strictly).
+
 ```
 +==================================================================================================+
 | Google Sheets: John_Doe_Workout_Log_Export_2026                                                  |
@@ -1211,6 +1530,19 @@ Sheets integrations are strictly one-way publishing targets, never bidirectional
 To support absolute offline trust on the gym floor, the application maps database queues and FastAPI HTTP status boundaries to explicit interactive views.
 
 ### 10.1 IndexedDB Sync Queue Visual States
+
+##### Dimensional Constraints
+* **Width**: Fits inline row columns (`max-width: 120px` per status badge). Side-by-side resolution drawer is `640px` total width (min `320px` per panel side).
+* **Height**: Visual status tag is compact `20px` height. Drawer occupies screen height `100dvh` or floats at `400px` height container bounds.
+* **Padding & Margins**: Badge padding set to `--space-1` (4px). Resolution cards use `--space-3` (12px).
+
+##### Spatial Allocation
+* **Layout Model**: Status tags align horizontally inline within sets list tables. Side-by-side resolution drawer is flex row split (`display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);`).
+* **Borders**: Drawer panel separators use standard `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Badge represents static sync state (PENDING, IN_FLIGHT, ACKED).
+* **Maximized State (Conflict Resolution Drawer)**: Tapping a CONFLICTED tag slides up a side-by-side comparison drawer, expanding the active card margins and dimming background timelines to focus the user on resolving the clashing lock values.
 
 Each set row in the athlete session log must clearly show its current sync mutation phase:
 
@@ -1286,6 +1618,19 @@ The application UI handles API errors with prescriptive user feedback and struct
 
 #### 10.2.1 HTTP Error Overlay Panels Layout Specs
 
+##### Dimensional Constraints
+* **Width**: Overlay modals centered in screen, width set to `90vw` (min `320px`, max `640px`).
+* **Height**: Centered box content height limits (approx `240px` to `320px`).
+* **Padding & Margins**: Container interior padding set to `--space-4` (16px).
+
+##### Spatial Allocation
+* **Layout Model**: Flex columns stack (`display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: var(--space-3);`).
+* **Divisions**: Header status label with HSL border alerts, body message text details, and action retry/login footer buttons.
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Floats on top of active workspaces, locking user inputs.
+* **Maximized State (Resolution exit)**: Tapping re-authenticate or dismiss resolves the gate, collapsing overlay dimensions to `0px` height and returning focus to the PWA timeline.
+
 ##### 10.2.1.1 AUTH_SESSION_REVOKED Error Overlay
 
 ```
@@ -1331,6 +1676,19 @@ The application UI handles API errors with prescriptive user feedback and struct
 ```
 
 ### 10.3 Global Status Strip
+
+##### Dimensional Constraints
+* **Width**: Full horizontal viewport width (`100vw`).
+* **Height**: Fixed static height of `28px` to maintain tight page budget.
+* **Padding & Margins**: Horizontal padding set to `--space-3` (12px).
+
+##### Spatial Allocation
+* **Layout Model**: Flex horizontal row (`display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: var(--space-2);`).
+* **Borders**: Border top bounds set to `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+
+##### State Transitions (Default vs. Maximized)
+* **Default State**: Sticky bottom edge navigation helper always visible.
+* **Maximized State**: N/A (Always persistent to maintain offline sync confidence).
 
 All authenticated app surfaces include compact status:
 
@@ -1401,26 +1759,26 @@ Coaches designing programs or logging data require high-velocity data-entry mode
 
 ### 13.1 Component Contracts
 
-Every React component must strictly satisfy these data parameters and lifecycle state matrices.
+Every React component must strictly satisfy these data parameters and lifecycle state matrices, mapping directly to our standardized spatial layout blueprints.
 
-| Component | Required Props/Data | Required States | Required Actions |
-| :--- | :--- | :--- | :--- |
-| `AppShell` | `user`, `role`, `environment`, `syncStatus`, `route` | loading, authenticated, session revoked, offline | navigate, logout, open settings |
-| `MetricCard` | `label`, `value`, `unit`, `delta`, `riskState` | loading, empty, normal, warning, critical | open detail when clickable |
-| `RiskBadge` | `state`, `label`, `icon`, `description` | neutral, success, warning, danger | tooltip on desktop |
-| `WorkoutCalendar` | `microcycles`, `workouts`, `locks`, `activeAthlete` | loading, empty, dragging, rejected, locked | create workout, move within boundary |
-| `WorkoutLockBanner` | `holder`, `expiresAt`, `mode`, `canRelease`, `canReopen` | locked by me, locked by other, expired, completed | release, reopen |
-| `PrescriptionEditor` | structured prescription JSON, exercise metadata | draft, valid, invalid, readonly | edit mode, validate, save |
-| `ExerciseReorderList` | ordered entities with `lexo_rank` | normal, dragging, syncing, conflict | reorder, undo local reorder |
-| `SetLogPanel` | active set, previous sets, unit preference, sync state | hydrated, offline, pending, accepted, rejected, locked | log set, edit allowed fields, add note |
-| `SyncQueueBadge` | queue counts by state | empty, pending, syncing, failed | open queue detail, retry failed |
-| `ConflictReviewCard` | local value, server value, reason, permissions | reviewable, readonly, resolved | accept server, keep local as new mutation if allowed |
-| `TelegramLinkPanel` | connection status, username/chat label, Mini App launch URL | disconnected, linking, verifying, connected, failed, revoked | generate token, launch Mini App, disconnect, test message |
-| `SheetsPublishPanel` | OAuth state, profiles, selected spreadsheet | disconnected, connected, publishing, failed, revoked | connect, publish, retry, revoke |
-| `OutboxTable` | provider jobs, attempts, next retry | empty, queued, retrying, failed, complete | retry, cancel when safe, inspect error |
-| `AuditEventTable` | events, filters, pagination cursor | loading, empty, populated, error | filter, paginate, open event detail |
-| `AICoachPanel` | `aiResponse`, `aiLoading`, `aiError`, `currentAthleteId` | idle, loading ("Decompressing neural core..."), error, rendered | triggerAICoachAnalysis |
-| `SecurityView` | `devices`, `sessions`, `isLoading` | loading, empty, active, revoking | fetchDevices, fetchSessions, revokeDevice, revokeSession |
+| Component | Required Props/Data | Required States | Required Actions | Spatial Layout Blueprint & Dimensional Budget |
+| :--- | :--- | :--- | :--- | :--- |
+| `AppShell` | `user`, `role`, `environment`, `syncStatus`, `route` | loading, authenticated, session revoked, offline | navigate, logout, open settings | Mapped to **Section 6.1.1**. Persistent left sidebar (`240px` expanded, `60px` collapsed to icon strip, or `0px` hidden). Full-width workspace scaling to reclaim horizontal real estate on collapse. |
+| `MetricCard` | `label`, `value`, `unit`, `delta`, `riskState` | loading, empty, normal, warning, critical | open detail when clickable | Mapped to **Section 6.1.3.2 & 6.5**. Flex columns CSS Grid (`repeat(3, 1fr)`). Spacing padding locked to `--space-3` (12px). |
+| `RiskBadge` | `state`, `label`, `icon`, `description` | neutral, success, warning, danger | tooltip on desktop | Mapped to **Section 6.1.3.2**. Inline label + icon status container. Margin `--space-1` (4px). Color WCAG AA/AAA guidelines. |
+| `WorkoutCalendar` | `microcycles`, `workouts`, `locks`, `activeAthlete` | loading, empty, dragging, rejected, locked | create workout, move within boundary | Mapped to **Section 6.1.2**. 7-Column CSS Grid. Min-width budget: `960px` (Microcycle View), `1024px` (Month View) to prevent card truncation. |
+| `WorkoutLockBanner` | `holder`, `expiresAt`, `mode`, `canRelease`, `canReopen` | locked by me, locked by other, expired, completed | release, reopen | Mapped to **Section 6.1.2.1 & 10.1**. Overlay alert block. Full cell width width block, height dynamic. |
+| `PrescriptionEditor` | structured prescription JSON, exercise metadata | draft, valid, invalid, readonly | edit mode, validate, save | Mapped to **Section 6.2**. Centered overlay modal layout. Width: `90vw` (min `800px`, max `1200px`), height: `85dvh`. Transitions to `100%` viewport on compact screen dimensions. |
+| `ExerciseReorderList` | ordered entities with `lexo_rank` | normal, dragging, syncing, conflict | reorder, undo local reorder | Mapped to **Section 6.1.2.1**. Drag-and-drop vertical list constrained strictly within active microcycle grid columns. |
+| `SetLogPanel` | active set, previous sets, unit preference, sync state | hydrated, offline, pending, accepted, rejected, locked | log set, edit allowed fields, add note | Mapped to **Section 7.1**. Mobile vertical feed chronological card. Height: `40px` collapsed, `260px` expanded inline. Touch targets min `48px x 48px`, gaps `12px` to prevent fat-finger skews. |
+| `SyncQueueBadge` | queue counts by state | empty, pending, syncing, failed | open queue detail, retry failed | Mapped to **Section 7.1 & 10.1**. Header inline badge. Max-width `120px`, height `24px` compact. |
+| `ConflictReviewCard` | local value, server value, reason, permissions | reviewable, readonly, resolved | accept server, keep local as new mutation if allowed | Mapped to **Section 10.1**. Side-by-side comparison resolutions panel layout. Width: `640px` total (min `320px` per clashing lock pane). |
+| `TelegramLinkPanel` | connection status, username/chat label, Mini App launch URL | disconnected, linking, verifying, connected, failed, revoked | generate token, launch Mini App, disconnect, test message | Mapped to **Section 8.1**. Telegram webview account verification overlay wizard, width `100%` viewport, height `100dvh`. |
+| `SheetsPublishPanel` | OAuth state, profiles, selected spreadsheet | disconnected, connected, publishing, failed, revoked | connect, publish, retry, revoke | Mapped to **Section 9.1**. Settings two-pane grid overlay publisher panel. Width `768px` side-by-side, wraps to vertical on tablet sizes. |
+| `OutboxTable` | provider jobs, attempts, next retry | empty, queued, retrying, failed, complete | retry, cancel when safe, inspect error | Mapped to **Section 9.1**. Dynamic outbox sync queue table grid (Right Pane), min-width `380px`. |
+| `AuditEventTable` | events, filters, pagination cursor | loading, empty, populated, error | filter, paginate, open event detail | Mapped to **Section 6.6**. High-density audit event stream rows. Expands dynamically to `100%` viewport width. |
+| `AICoachPanel` | `aiResponse`, `aiLoading`, `aiError`, `currentAthleteId` | idle, loading ("Decompressing neural core..."), error, rendered | triggerAICoachAnalysis | Mapped to **Section 6.7**. Centered diagnostics panel card overlays, min-width `480px`, max-width `800px`. |
+| `SecurityView` | `devices`, `sessions`, `isLoading` | loading, empty, active, revoking | fetchDevices, fetchSessions, revokeDevice, revokeSession | Mapped to **Section 6.6**. High-density active devices tabular view grid, min-width `640px` horizontal bounds. |
 
 ### 13.2 Naming and Copy Rules
 
