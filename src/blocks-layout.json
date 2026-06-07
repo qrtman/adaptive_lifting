@@ -1,0 +1,8 @@
+[
+  { "id": "lock-banner", "x": 0, "y": 0, "w": 12, "h": 1 },
+  { "id": "month-grid", "x": 0, "y": 1, "w": 8, "h": 5 },
+  { "id": "athlete-simulator", "x": 8, "y": 1, "w": 4, "h": 8 },
+  { "id": "sessions-view", "x": 0, "y": 6, "w": 8, "h": 4 },
+  { "id": "accessory-ledger", "x": 8, "y": 9, "w": 4, "h": 4 },
+  { "id": "conflict-review", "x": 0, "y": 10, "w": 8, "h": 3 }
+]

@@ -4,12 +4,19 @@ import App from './App.tsx';
 import './index.css';
 import { SyncProvider } from './contexts/SyncContext';
 
-// Register Service Worker for offline PWA capabilities
-if ('serviceWorker' in navigator) {
+// Register Service Worker for offline PWA capabilities (production only)
+if ('serviceWorker' in navigator && !import.meta.env.DEV) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('PWA ServiceWorker successfully registered:', reg.scope))
       .catch(err => console.error('PWA ServiceWorker registration failed:', err));
+  });
+}
+
+// Dev: unregister any stale SW that cached broken Vite modules
+if ('serviceWorker' in navigator && import.meta.env.DEV) {
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    regs.forEach((reg) => reg.unregister());
   });
 }
 

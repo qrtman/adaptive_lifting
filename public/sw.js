@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obsidian-kinetic-v2';
+const CACHE_NAME = 'obsidian-kinetic-v3';
 
 const CORE_ASSETS = [
   '/',
@@ -32,8 +32,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
   // Bypass non-http protocols (like chrome-extension or local files)
   if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
+  // Never intercept local dev — Vite HMR and TS modules must always be network-fresh
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    return;
+  }
+
+  // Vite client and source modules
+  if (url.pathname.startsWith('/src/') || url.pathname.includes('/@vite/') || url.pathname.includes('/@fs/')) {
     return;
   }
 

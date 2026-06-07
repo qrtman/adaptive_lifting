@@ -88,8 +88,6 @@ export default function App() {
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [activeAthleteId, setActiveAthleteId] = useState<string | null>('ath-1');
   const [prescriptionExercise, setPrescriptionExercise] = useState<ExerciseData | null>(null);
-  const [showToggles, setShowToggles] = useState<boolean>(true);
-
   // Master Periodization State (Default to INITIAL_MICROCYCLES first, then hydrate asynchronously from IndexedDB snapshots)
   const [microcycles, setMicrocycles] = useState<MicrocycleData[]>(INITIAL_MICROCYCLES);
 
@@ -431,23 +429,16 @@ export default function App() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto pb-12">
-                  <div className="flex items-center justify-between mb-4 px-2">
-                    <h3 className="text-[10px] font-mono text-[#AEAEB2] uppercase tracking-widest">
+                  <div className="mb-4 px-2">
+                    <h3 className="text-ok-muted text-[12px] font-semibold uppercase tracking-widest">
                       Session Programming & Execution
                     </h3>
-                    <button 
-                      onClick={() => setShowToggles(!showToggles)}
-                      className="px-3 py-1.5 bg-[#18181A] border border-white/5 hover:border-white/20 text-[#888] hover:text-[#E5E5E5] rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors"
-                    >
-                      {showToggles ? 'Hide Quick Toggles' : 'Show Quick Toggles'}
-                    </button>
                   </div>
                   {activeWorkout.exercises.map(ex => (
                     <ExerciseCard 
                       key={ex.id}
                       exercise={ex}
                       roleMode={roleMode}
-                      showToggles={showToggles}
                       onUpdateSets={(sets) => handleUpdateSets(ex.id, sets)}
                       onOpenPrescription={() => {}}
                     />

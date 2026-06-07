@@ -9,7 +9,6 @@ export interface ExerciseCardProps {
   key?: string;
   exercise: ExerciseData;
   roleMode: 'coach' | 'athlete';
-  showToggles?: boolean;
   onUpdateSets: (sets: SetData[]) => void;
   onOpenPrescription: () => void;
 }
@@ -17,7 +16,6 @@ export interface ExerciseCardProps {
 export function ExerciseCard({
   exercise,
   roleMode: _roleMode,
-  showToggles = true,
   onUpdateSets,
   onOpenPrescription,
 }: ExerciseCardProps) {
@@ -96,7 +94,9 @@ export function ExerciseCard({
     }
     
     const baseE1rm = s.baseline_e1rm || topSetE1RM;
-    const droppedE1RM = s.dropPercent ? baseE1rm * (1 + (s.dropPercent / 100)) : baseE1rm;
+    const droppedE1RM = s.dropPercent !== undefined
+      ? baseE1rm * (1 + (s.dropPercent / 100))
+      : baseE1rm;
     
     if ('baseline_e1rm' in updates || 'dropPercent' in updates || 'target_value' in updates || 'intensity_type' in updates || 'plannedRpe' in updates || 'plannedReps' in updates) {
       if (baseE1rm > 0) {
@@ -136,63 +136,71 @@ export function ExerciseCard({
     activeCell, 
     handleKeyDown, 
     handleFocusSelect, 
-    handleDoubleClickAppend, 
+    handleDoubleClickAppend,
+    handleSubcellMouseDown,
+    handleInputClick,
+    handleSubcellClick,
     handleCellClick 
   } = useSpreadsheetNavigation({ 
     sets: exercise.sets, 
     updatePrescription, 
     rowRefs, 
-    cardRef 
+    cardRef,
+    exerciseScopeId: exercise.id,
   });
 
   return (
-    <div ref={cardRef} className="bg-[#111111] border border-white/5 rounded-[12px] p-6 font-sans relative overflow-hidden mb-6 shadow-2xl">
+    <div ref={cardRef} className="exercise-card ok-tabular p-6 relative mb-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h3 className="text-[22px] font-black text-white uppercase tracking-wider mb-1">{exercise.variation}</h3>
-          <span className="text-[11px] font-mono text-[#AEAEB2] tracking-widest uppercase block">
+          <h3 className="exercise-card__title mb-1">{exercise.variation}</h3>
+          <span className="exercise-card__subtitle block">
             {exercise.title}
           </span>
         </div>
         <button
           onClick={onOpenPrescription}
-          className="p-2 bg-transparent hover:bg-white/5 text-[#666] hover:text-white rounded-md transition-all cursor-pointer"
+          className="p-2 bg-transparent hover:bg-ok-surface-3 text-ok-faint hover:text-ok rounded-md transition-all cursor-pointer"
+          title="Prescription settings"
         >
           <Settings size={16} />
         </button>
       </div>
 
       {/* Table Container */}
-      <div className="overflow-x-auto pb-2">
-        <table className="w-full text-left text-xs font-mono whitespace-nowrap border-spacing-y-3 border-separate" style={{ borderSpacing: '0 12px' }}>
+      <div className="exercise-card__table-scroll pb-2">
+        <table className="exercise-card__grid ok-tabular text-left whitespace-nowrap">
+          <colgroup>
+            <col className="ecard-col-set" />
+            <col className="ecard-col-reps" />
+            <col className="ecard-col-intensity" />
+            <col className="ecard-col-weight" />
+            <col className="ecard-col-e1rm" />
+            <col className="ecard-col-reps" />
+            <col className="ecard-col-rpe" />
+            <col className="ecard-col-weight" />
+            <col className="ecard-col-e1rm-exec" />
+            <col className="ecard-col-actions" />
+          </colgroup>
           <thead>
-            {/* Super Headers */}
-            <tr className="text-[#666] text-[10px] uppercase tracking-widest">
-              <th className="pb-2 font-medium border-b border-white/5 w-8">Set</th>
-              <th className="pb-2 text-center font-medium border-b border-white/5" colSpan={3}>Prescription</th>
-              <th className="pb-2 text-center border-b border-white/5 w-36"></th>
-              <th className="pb-2 text-center font-medium border-b border-white/5" colSpan={4}>Executed (Log)</th>
-              <th className="pb-2 border-b border-white/5" colSpan={3}></th>
-            </tr>
-            {/* Sub Headers */}
-            <tr className="text-[#555] text-[9px] uppercase tracking-widest">
-              <th className="pt-3 pb-1 font-bold"></th>
-              
-              <th className="pt-3 pb-1 text-center font-bold">Reps</th>
-              <th className="pt-3 pb-1 text-center font-bold">Rpe / %</th>
-              <th className="pt-3 pb-1 text-center font-bold">Weight</th>
-              
-              <th className="pt-3 pb-1 text-center font-bold">E1RM</th>
-              
-              <th className="pt-3 pb-1 text-center font-bold">Reps</th>
-              <th className="pt-3 pb-1 text-center font-bold">RPE</th>
-              <th className="pt-3 pb-1 text-center font-bold">Weight</th>
-              <th className="pt-3 pb-1 text-center font-bold">E1RM</th>
-              
-              <th className="pt-3 pb-1 text-center font-bold">Duplicate</th>
-              <th className="pt-3 pb-1 text-center font-bold">Delete</th>
-              <th className="pt-3 pb-1 text-center font-bold">Sync</th>
+            <tr className="exercise-card__th-col">
+              <th className="ecard-th-set">Set</th>
+              <th className="text-center ecard-zone--presc-start ecard-th-reps">
+                <span className="ecard-zone-tag">Presc</span>
+                <span className="ecard-th-label">Reps</span>
+              </th>
+              <th className="text-center ecard-th-intensity">RPE / %</th>
+              <th className="text-center ecard-th-weight">Weight</th>
+              <th className="text-center ecard-zone--split ecard-th-e1rm">E1RM</th>
+              <th className="text-center ecard-zone--exec-start ecard-th-reps">
+                <span className="ecard-zone-tag">Log</span>
+                <span className="ecard-th-label">Reps</span>
+              </th>
+              <th className="text-center ecard-th-rpe">RPE</th>
+              <th className="text-center ecard-th-weight">Weight</th>
+              <th className="text-center ecard-th-e1rm-exec">E1RM</th>
+              <th className="ecard-th-actions" aria-hidden="true" />
             </tr>
           </thead>
           <tbody>
@@ -203,7 +211,6 @@ export function ExerciseCard({
                 s={s}
                 idx={idx}
                 exercise={exercise}
-                showToggles={showToggles}
                 activeCell={activeCell}
                 autoAdjustPopover={autoAdjustPopover}
                 setAutoAdjustPopover={setAutoAdjustPopover}
@@ -212,6 +219,9 @@ export function ExerciseCard({
                 handleKeyDown={handleKeyDown}
                 handleFocusSelect={handleFocusSelect}
                 handleDoubleClickAppend={handleDoubleClickAppend}
+                handleSubcellMouseDown={handleSubcellMouseDown}
+                handleInputClick={handleInputClick}
+                handleSubcellClick={handleSubcellClick}
                 handleCellClick={handleCellClick}
                 onDuplicate={(index, set) => {
                   const newSet = { ...set, id: `set-dup-${Date.now()}` };
@@ -230,7 +240,7 @@ export function ExerciseCard({
       {/* Add Set Button */}
       <button
         onClick={handleAddSet}
-        className="mt-6 w-full py-3 border border-dashed border-[#333] hover:border-[#555] hover:bg-white/5 rounded-[8px] flex items-center justify-center gap-2 text-[#666] hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer"
+        className="mt-6 w-full py-3 border border-dashed border-ok hover:bg-ok-surface-2 rounded-[var(--ok-radius-md)] flex items-center justify-center gap-2 text-ok-muted hover:text-ok font-bold uppercase tracking-widest transition-all cursor-pointer"
       >
         <Plus size={14} /> Add Set Record
       </button>

@@ -1,4 +1,4 @@
-import { useState, useEffect, RefObject, MutableRefObject } from 'react';
+import { useState, useEffect, useRef, RefObject, MutableRefObject } from 'react';
 import type { SetData } from '../types';
 
 export const COLUMNS = ['plannedReps', 'plannedRpe', 'target_value', 'plannedWeight', 'baseline_e1rm', 'dropPercent', 'reps', 'executedRpe', 'actual'];
@@ -11,39 +11,58 @@ interface UseSpreadsheetNavigationProps {
   updatePrescription: (idx: number, updates: Partial<SetData>) => void;
   rowRefs: MutableRefObject<HTMLTableRowElement[]>;
   cardRef: RefObject<HTMLDivElement>;
+  exerciseScopeId: string;
 }
 
-export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, cardRef }: UseSpreadsheetNavigationProps) {
+export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, cardRef, exerciseScopeId }: UseSpreadsheetNavigationProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
+  const navAtPointerDownRef = useRef(false);
 
   // Clickaway listener
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      const isInsideCard = cardRef.current && cardRef.current.contains(target);
-      const isCellOrButton = target.closest('.spreadsheet-cell') !== null || target.closest('button') !== null || target.tagName === 'INPUT';
-      
-      if (!isInsideCard || !isCellOrButton) {
+      const scopedFlyout = document.querySelector(`[data-e1rm-flyout="${exerciseScopeId}"]`);
+      if (scopedFlyout?.contains(target) || target.closest('.exercise-card__e1rm-flyout')) {
+        return;
+      }
+
+      const isInsideCard = cardRef.current?.contains(target);
+      if (!isInsideCard) {
+        setActiveCell(null);
+        return;
+      }
+
+      const isSpreadsheetTarget =
+        target.closest('.spreadsheet-cell') !== null
+        || target.closest('.exercise-card__e1rm-anchor') !== null
+        || target.closest('button') !== null
+        || target.tagName === 'INPUT';
+
+      if (!isSpreadsheetTarget) {
         setActiveCell(null);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [cardRef]);
+  }, [cardRef, exerciseScopeId]);
 
   // Focus effect
   useEffect(() => {
     if (activeCell) {
       const row = rowRefs.current[activeCell.rowIdx];
-      if (row) {
-        const input = row.querySelector(`input[data-field="${activeCell.field}"]`) as HTMLInputElement;
-        if (input && document.activeElement !== input) {
-          input.focus();
-        }
+      let input = row?.querySelector(`input[data-field="${activeCell.field}"]`) as HTMLInputElement | null;
+      if (!input && (activeCell.field === 'baseline_e1rm' || activeCell.field === 'dropPercent')) {
+        input = document.querySelector(
+          `input[data-field="${activeCell.field}"][data-e1rm-scope="${exerciseScopeId}"][data-e1rm-row="${activeCell.rowIdx}"]`
+        ) as HTMLInputElement | null;
+      }
+      if (input && document.activeElement !== input) {
+        input.focus();
       }
     }
-  }, [activeCell, rowRefs]);
+  }, [activeCell, rowRefs, exerciseScopeId]);
 
   const enterEditMode = (target: HTMLInputElement, rIdx: number, f: string) => {
     setActiveCell({ rowIdx: rIdx, field: f, mode: 'EDIT' });
@@ -66,10 +85,59 @@ export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, ca
     enterEditMode(e.target as HTMLInputElement, rowIndex, field);
   };
 
+  const handleSubcellMouseDown = (rowIndex: number, field: string) => {
+    navAtPointerDownRef.current =
+      activeCell?.rowIdx === rowIndex
+      && activeCell?.field === field
+      && activeCell.mode === 'NAV';
+  };
+
+  const tryEnterEdit = (input: HTMLInputElement, rowIndex: number, field: string, detail: number) => {
+    if (detail >= 2 || navAtPointerDownRef.current) {
+      enterEditMode(input, rowIndex, field);
+      return true;
+    }
+    return false;
+  };
+
+  const handleInputClick = (rowIndex: number, field: string, e: React.MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    tryEnterEdit(e.currentTarget, rowIndex, field, e.detail);
+  };
+
+  const handleSubcellClick = (rowIndex: number, field: string, e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if ((e.target as HTMLElement).closest('input[data-field]')) return;
+
+    const input = e.currentTarget.querySelector(`input[data-field="${field}"]`) as HTMLInputElement | null;
+    if (!input) return;
+
+    if (document.activeElement !== input) {
+      input.focus();
+      if (e.detail >= 2) enterEditMode(input, rowIndex, field);
+      return;
+    }
+    tryEnterEdit(input, rowIndex, field, e.detail);
+  };
+
   const handleCellClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).closest('button')) return;
-    const input = e.currentTarget.querySelector('input');
-    if (input) input.focus();
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) return;
+
+    // Direct input click: native focus + onFocus already handle selection.
+    if (target.closest('input[data-field]')) return;
+
+    const inputs = [...e.currentTarget.querySelectorAll('input[data-field]')] as HTMLInputElement[];
+    if (inputs.length === 0) return;
+    if (inputs.length === 1) {
+      inputs[0].focus();
+      return;
+    }
+
+    // Multi-input cells (RPE / %): pick side by click position.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pick = e.clientX >= rect.left + rect.width / 2 ? inputs[inputs.length - 1] : inputs[0];
+    pick.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIndex: number, field: string) => {
@@ -208,6 +276,9 @@ export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, ca
     handleKeyDown,
     handleFocusSelect,
     handleDoubleClickAppend,
+    handleSubcellMouseDown,
+    handleInputClick,
+    handleSubcellClick,
     handleCellClick
   };
 }
