@@ -1,0 +1,68 @@
+﻿# Cursor context guard — keeps UI/UX chats lean.
+# You can still @-mention any ignored file when you need it.
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+.cache/
+coverage/
+package-lock.json
+
+# IDE / local tooling
+.cursor/
+.hyperide/
+.vs/
+.git/
+
+# Secrets
+.env
+.env.*
+
+# Backend & non-frontend runtimes (UI work rarely needs these)
+backend/
+qa/
+prototypes/
+docs/
+
+# Large reference / export HTML
+analysis_terminal.html
+athlete_logger_terminal.html
+command_center.html
+execution_feed.html
+stitch_calendar_antigravity.html
+stitch_calendar_macos_dark.html
+stitch_weekly_enhanced.html
+
+# Images & screenshots
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+screenshots/
+**/screenshot*.png
+current_screen.png
+exercise-card-*.png
+
+# Python / agent orchestration scripts
+__pycache__/
+*.pyc
+simulate_agents.py
+orchestrator.ts
+visual_qa.ts
+test_auth.py
+verify.py
+call_stitch_*.py
+download_*.py
+get_*.py
+query_*.py
+capture-*.mjs
+
+# Heavy docs — @-mention when a task actually needs them
+architecture.md
+temp_architecture.md
+design_positioned.md
+knowledge.md
+AGENTS.md
+references/
