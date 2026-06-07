@@ -12,9 +12,10 @@ interface UseSpreadsheetNavigationProps {
   rowRefs: MutableRefObject<HTMLTableRowElement[]>;
   cardRef: RefObject<HTMLDivElement>;
   exerciseScopeId: string;
+  onMoveRow?: (fromIdx: number, toIdx: number) => void;
 }
 
-export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, cardRef, exerciseScopeId }: UseSpreadsheetNavigationProps) {
+export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, cardRef, exerciseScopeId, onMoveRow }: UseSpreadsheetNavigationProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
   const navAtPointerDownRef = useRef(false);
 
@@ -186,6 +187,16 @@ export function useSpreadsheetNavigation({ sets, updatePrescription, rowRefs, ca
           return;
         }
       }
+    }
+
+    if (e.altKey && isNav && onMoveRow && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      const toIdx = e.key === 'ArrowUp' ? rowIndex - 1 : rowIndex + 1;
+      if (toIdx >= 0 && toIdx < sets.length) {
+        onMoveRow(rowIndex, toIdx);
+        setActiveCell({ rowIdx: toIdx, field, mode: 'NAV' });
+      }
+      return;
     }
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {

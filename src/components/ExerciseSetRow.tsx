@@ -1,6 +1,8 @@
-import React, { forwardRef, useRef, useEffect, useCallback, useState } from 'react';
+import React, { forwardRef, useCallback, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, RefreshCw, Trash2 } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Check, Copy, GripVertical, RefreshCw, Trash2 } from 'lucide-react';
 import type { SetData, ExerciseData } from '../types';
 import { calculateE1RM } from '../utils/mathUtils';
 import { ActiveCell } from './useSpreadsheetNavigation';
@@ -22,6 +24,9 @@ export interface ExerciseSetRowProps {
   handleSubcellClick: (idx: number, field: string, e: React.MouseEvent<HTMLDivElement>) => void;
   handleCellClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   onDuplicate: (idx: number, s: SetData) => void;
+  onApplyPrescBelow: (idx: number) => void;
+  onApplyLogBelow: (idx: number) => void;
+  setCount: number;
   onDelete: (idx: number) => void;
   applyAutoAdjust: (startIdx: number, updateAll: boolean) => void;
 }
@@ -30,8 +35,31 @@ export const ExerciseSetRow = forwardRef<HTMLTableRowElement, ExerciseSetRowProp
   s, idx, exercise, activeCell, autoAdjustPopover, setAutoAdjustPopover,
   updatePrescription, handleLoggedChange, handleKeyDown, handleFocusSelect,
   handleDoubleClickAppend, handleSubcellMouseDown, handleInputClick, handleSubcellClick,
-  handleCellClick, onDuplicate, onDelete, applyAutoAdjust
+  handleCellClick, onDuplicate, onApplyPrescBelow, onApplyLogBelow, setCount,
+  onDelete, applyAutoAdjust
 }, ref) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: s.id });
+
+  const mergeRowRef = useCallback((node: HTMLTableRowElement | null) => {
+    setNodeRef(node);
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  }, [setNodeRef, ref]);
+
+  const rowStyle: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+    position: 'relative',
+    zIndex: isDragging ? 2 : 0,
+  };
   const currentE1RM = calculateE1RM(s.actual || 0, s.reps || 0, s.executedRpe || 0);
   const plannedE1RM = calculateE1RM(s.plannedWeight || 0, s.plannedReps || 0, s.plannedRpe || 0);
 
@@ -185,8 +213,23 @@ export const ExerciseSetRow = forwardRef<HTMLTableRowElement, ExerciseSetRowProp
 
   return (
     <React.Fragment>
-      <tr ref={ref} className="exercise-card__row align-middle">
-        <td className="ecard-td-set text-ok-muted ok-tabular text-[12px] font-semibold text-center">{idx + 1}</td>
+      <tr
+        ref={mergeRowRef}
+        style={rowStyle}
+        className={`exercise-card__row align-middle${isDragging ? ' exercise-card__row--sorting' : ''}`}
+      >
+        <td
+          className="ecard-td-set exercise-card__set-drag-zone"
+          {...attributes}
+          {...listeners}
+          aria-label={`Drag to reorder set ${idx + 1}`}
+          title={`Drag set ${idx + 1} (Alt+↑/↓ when row focused)`}
+        >
+          <div className="exercise-card__set-cell">
+            <GripVertical size={12} className="exercise-card__set-drag-grip" aria-hidden />
+            <span className="exercise-card__set-index ok-tabular text-ok-muted text-[12px] font-semibold">{idx + 1}</span>
+          </div>
+        </td>
 
         {/* PRESCRIPTION */}
         <td className="ecard-zone--presc-start ecard-td-reps">
@@ -310,7 +353,7 @@ export const ExerciseSetRow = forwardRef<HTMLTableRowElement, ExerciseSetRowProp
           </div>
         </td>
 
-        <td className="ecard-zone--split ecard-td-e1rm">
+        <td className="ecard-td-e1rm">
           <div
             className="ecard-td-e1rm__slot"
             onClick={(e) => {
@@ -377,6 +420,19 @@ export const ExerciseSetRow = forwardRef<HTMLTableRowElement, ExerciseSetRowProp
             ) : null}
           </div>
           </div>
+        </td>
+
+        <td className="ecard-td-presc-fill ecard-zone--split">
+          {idx < setCount - 1 ? (
+            <button
+              type="button"
+              onClick={() => onApplyPrescBelow(idx)}
+              className="exercise-card__presc-fill-btn"
+              title="Apply prescription to sets below"
+            >
+              ↓P
+            </button>
+          ) : null}
         </td>
 
         {/* EXECUTED */}
@@ -468,9 +524,19 @@ export const ExerciseSetRow = forwardRef<HTMLTableRowElement, ExerciseSetRowProp
         {/* ACTIONS */}
         <td className="ecard-td-actions">
           <div className="exercise-card__actions">
-            <button type="button" onClick={() => onDuplicate(idx, s)} className="exercise-card__action-btn" title="Duplicate set">
+            <button type="button" onClick={() => onDuplicate(idx, s)} className="exercise-card__action-btn" title="Duplicate prescription (blank log)">
               <Copy size={11} />
             </button>
+            {idx < setCount - 1 ? (
+              <button
+                type="button"
+                onClick={() => onApplyLogBelow(idx)}
+                className="exercise-card__action-btn exercise-card__action-btn--fill"
+                title="Apply log to sets below"
+              >
+                ↓L
+              </button>
+            ) : null}
             <button type="button" onClick={() => onDelete(idx)} className="exercise-card__action-btn exercise-card__action-btn--danger" title="Delete set">
               <Trash2 size={11} />
             </button>
@@ -483,7 +549,7 @@ export const ExerciseSetRow = forwardRef<HTMLTableRowElement, ExerciseSetRowProp
 
       {autoAdjustPopover?.idx === idx && (
         <tr>
-          <td colSpan={10} className="pt-1 pb-4">
+          <td colSpan={11} className="pt-1 pb-4">
             <div className="bg-ok-surface-2 border border-ok-amber rounded-[var(--ok-radius-md)] p-3 flex flex-col md:flex-row md:items-center gap-4 ml-8 relative overflow-hidden">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-ok-amber" />
               <div className="flex flex-col gap-2 pl-2">
