@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Elite Athlete Training Calendar</title>
+<style>
+  :root {
+    --ok-bg: hsl(0, 0%, 4%);
+    --ok-surface-1: hsl(0, 0%, 7%);
+    --ok-surface-2: hsl(0, 0%, 9%);
+    --ok-surface-3: hsl(0, 0%, 12%);
+    --ok-border: hsl(0, 0%, 16%);
+    
+    --ok-text: hsl(240, 5%, 96%);
+    --ok-text-muted: hsl(240, 5%, 67%);
+    --ok-text-faint: hsl(240, 4%, 46%);
+    
+    --ok-blue: hsl(217, 91%, 60%);
+    --ok-green: hsl(142, 70%, 45%);
+    --ok-amber: hsl(38, 92%, 50%);
+    --ok-red: hsl(0, 84%, 60%);
+    --ok-cyan: hsl(188, 86%, 53%);
+    --ok-violet: hsl(263, 90%, 65%);
+    
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+
+    /* Grid layout spacing variables */
+    --grid-gap: 12px;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--ok-bg);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ok-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+  }
+
+  .container {
+    width: 100%;
+    max-width: 1100px;
+    background-color: var(--ok-surface-1);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+    border-bottom: 1px solid var(--ok-border);
+    padding-bottom: var(--space-3);
+  }
+
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  .view-selector {
+    display: flex;
+    gap: var(--space-2);
+    background-color: var(--ok-surface-2);
+    padding: var(--space-1);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--ok-border);
+  }
+
+  .view-btn {
+    background: none;
+    border: none;
+    color: var(--ok-text-muted);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+
+  .view-btn.active {
+    background-color: var(--ok-surface-3);
+    color: var(--ok-text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  /* Grid Layout */
+  .calendar-grid {
+      display: flex;
+      flex-direction: column;
+      gap: var(--grid-gap);
+    }
+    
+    .microview-grid {
+      display: flex;
+      flex-direction: column;
+      gap: var(--grid-gap);
+    }
+
+  .headers-row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--grid-gap);
+  }
+
+  .day-header {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ok-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: var(--space-2);
+  }
+
+  /* Week Row containing days and overlapping banners */
+  .week-row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--grid-gap);
+  }
+
+  /* Day Cell Container */
+  .day-cell {
+    background-color: var(--ok-surface-2);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-md);
+    min-height: 120px;
+    padding: var(--space-2);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    transition: border-color 0.2s ease;
+    grid-row: 1; /* Keep all day cells on the same grid row */
+  }
+
+  .day-cell.inactive {
+    opacity: 0.35;
+  }
+
+  /* Day Cell Column Assignments */
+  .col-1 { grid-column: 1; }
+  .col-2 { grid-column: 2; }
+  .col-3 { grid-column: 3; }
+  .col-4 { grid-column: 4; }
+  .col-5 { grid-column: 5; }
+  .col-6 { grid-column: 6; }
+  .col-7 { grid-column: 7; }
+
+  .day-number {
+    position: absolute;
+    top: 6px;
+    right: var(--space-3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ok-text-muted);
+    z-index: 5;
+  }
+
+  /* Overlapping Microcycle Banners - Fused with session contents */
+  .microcycle-banner {
+    grid-row: 1; /* Occupy same row as day cells to overlap naturally */
+    align-self: start;
+    margin-top: 26px; /* Offset from top to prevent covering day numbers */
+    height: 94px; /* Full remaining height of the day cells */
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    overflow: hidden;
+  }
+
+  .banner-header {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-2);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .banner-content-grid {
+      flex: 1;
+      display: grid;
+      gap: var(--space-2);
+      padding: 4px var(--space-2) var(--space-2) var(--space-2);
+      align-items: stretch;
+    }
+    /* Microview overrides */
+    .microview-grid .banner-content-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+  /* Softer Color treatment for microcycles (2 alternating color grades) */
+  .mc-blue {
+    background-color: hsla(217, 91%, 60%, 0.03);
+    border: 1px solid hsla(217, 91%, 60%, 0.2);
+    color: hsla(217, 91%, 60%, 0.8);
+  }
+  .mc-blue.hovered, .mc-blue:hover {
+    background-color: hsla(217, 91%, 60%, 0.06);
+    border-color: hsla(217, 91%, 60%, 0.4);
+    box-shadow: 0 0 12px hsla(217, 91%, 60%, 0.1);
+  }
+
+  .mc-violet {
+    background-color: hsla(263, 90%, 65%, 0.03);
+    border: 1px solid hsla(263, 90%, 65%, 0.2);
+    color: hsla(263, 90%, 65%, 0.8);
+  }
+  .mc-violet.hovered, .mc-violet:hover {
+    background-color: hsla(263, 90%, 65%, 0.06);
+    border-color: hsla(263, 90%, 65%, 0.4);
+    box-shadow: 0 0 12px hsla(263, 90%, 65%, 0.1);
+  }
+
+  /* Flat open-ended borders for wrapping banners */
+  .banner-start-round {
+    border-top-left-radius: var(--radius-sm);
+    border-bottom-left-radius: var(--radius-md); /* Match day-cell bottom radius */
+  }
+  .banner-end-round {
+    border-top-right-radius: var(--radius-sm);
+    border-bottom-right-radius: var(--radius-md); /* Match day-cell bottom radius */
+  }
+  .banner-start-flat {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: none;
+  }
+  .banner-end-flat {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: none;
+  }
+
+  /* Session Card with themed tints to prevent "holes" */
+  .session-card {
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 4px;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    text-align: left;
+    color: var(--ok-text);
+  }
+
+  .session-card:hover {
+    transform: translateY(-1px);
+  }
+
+  /* Blue microcycle cards & rest days */
+  .mc-blue .session-card {
+    background-color: hsla(217, 91%, 60%, 0.08);
+    border: 1px solid hsla(217, 91%, 60%, 0.2);
+  }
+  .mc-blue .session-card:hover {
+    background-color: hsla(217, 91%, 60%, 0.16);
+    border-color: hsla(217, 91%, 60%, 0.5);
+    box-shadow: 0 0 8px hsla(217, 91%, 60%, 0.15);
+  }
+  .mc-blue .rest-day {
+    border: 1px dashed hsla(217, 91%, 60%, 0.15);
+    color: hsla(217, 91%, 60%, 0.5);
+    background-color: transparent;
+  }
+
+  /* Violet microcycle cards & rest days */
+  .mc-violet .session-card {
+    background-color: hsla(263, 90%, 65%, 0.08);
+    border: 1px solid hsla(263, 90%, 65%, 0.2);
+  }
+  .mc-violet .session-card:hover {
+    background-color: hsla(263, 90%, 65%, 0.16);
+    border-color: hsla(263, 90%, 65%, 0.5);
+    box-shadow: 0 0 8px hsla(263, 90%, 65%, 0.15);
+  }
+  .mc-violet .rest-day {
+    border: 1px dashed hsla(263, 90%, 65%, 0.15);
+    color: hsla(263, 90%, 65%, 0.5);
+    background-color: transparent;
+  }
+
+  .session-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .session-metrics {
+    font-size: 0.7rem;
+    color: var(--ok-text-muted);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Rest Day Card base */
+  .rest-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    user-select: none;
+    text-align: center;
+    padding: var(--space-2);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <h1>October 2029 • Hypertrophy & Peaking Block</h1>
+    </div>
+    <div class="view-selector">
+      <button id="monthViewBtn" class="view-btn active">MONTH VIEW</button>
+      <button id="microviewBtn" class="view-btn" onclick="window.location='microview.html'">MICROVIEW</button>
+    </div>
+  </header>  <div class="calendar-grid">
+    <!-- Rendered dynamically by script below -->
+  </div>
+  <div class="microview-grid" style="display:none;"></div>
+</div>
+
+<script>
+const weeksData = [
+  {
+    weekIndex: 1,
+    banners: [
+      {
+        class: "mc-blue banner-start-round banner-end-flat mc1-group",
+        style: "grid-column: 3 / 8;",
+        title: "MICRO_01: Accumulation Phase",
+        hasChevron: true,
+        cols: 5,
+        items: [
+          { type: "session", title: "D1: SQUAT DOMINANT", vol: "12,450 kg", inol: "0.85", inolClass: "color: var(--ok-green);" },
+          { type: "rest" },
+          { type: "session", title: "D2: HORIZONTAL PUSH", vol: "5,400 kg", inol: "0.62", inolClass: "color: var(--ok-green);" },
+          { type: "rest" },
+          { type: "session", title: "D3: HINGE & ACC PULL", vol: "8,820 kg", inol: "1.12", inolClass: "color: var(--ok-amber);" }
+        ]
+      }
+    ],
+    days: [
+      { num: "01 Oct", inactive: true, colClass: "col-1" },
+      { num: "02 Oct", inactive: true, colClass: "col-2" },
+      { num: "03 Oct", colClass: "col-3" },
+      { num: "04 Oct", colClass: "col-4" },
+      { num: "05 Oct", colClass: "col-5" },
+      { num: "06 Oct", colClass: "col-6" },
+      { num: "07 Oct", colClass: "col-7" }
+    ]
+  },
+  {
+    weekIndex: 2,
+    banners: [
+      {
+        class: "mc-blue banner-start-flat banner-end-round mc1-group",
+        style: "grid-column: 1 / 3;",
+        title: "◀ MICRO_01",
+        cols: 2,
+        items: [
+          { type: "session", title: "D4: ACCESSORY FLOW", vol: "3,220 kg", inol: "0.40", inolClass: "color: var(--ok-green);" },
+          { type: "rest" }
+        ]
+      },
+      {
+        class: "mc-violet banner-start-round banner-end-flat mc2-group",
+        style: "grid-column: 3 / 8;",
+        title: "MICRO_02: Hypertrophy Block",
+        hasChevron: true,
+        cols: 5,
+        items: [
+          { type: "session", title: "D5: COMPETITION SQUAT PEAK", vol: "14,800 kg", inol: "1.45", inolClass: "color: var(--ok-red);" },
+          { type: "rest" },
+          { type: "session", title: "D6: BENCH STRENGTH TEST", vol: "6,800 kg", inol: "0.85", inolClass: "color: var(--ok-green);" },
+          { type: "rest" },
+          { type: "session", title: "D7: HEAVY DEADLIFT / ACC", vol: "11,200 kg", inol: "1.10", inolClass: "color: var(--ok-amber);" }
+        ]
+      }
+    ],
+    days: [
+      { num: "08 Oct", colClass: "col-1" },
+      { num: "09 Oct", colClass: "col-2" },
+      { num: "10 Oct", colClass: "col-3" },
+      { num: "11 Oct", colClass: "col-4" },
+      { num: "12 Oct", colClass: "col-5" },
+      { num: "13 Oct", colClass: "col-6" },
+      { num: "14 Oct", colClass: "col-7" }
+    ]
+  },
+  {
+    weekIndex: 3,
+    banners: [
+      {
+        class: "mc-violet banner-start-flat banner-end-round mc2-group",
+        style: "grid-column: 1 / 3;",
+        title: "◀ MICRO_02",
+        cols: 2,
+        items: [
+          { type: "session", title: "D8: DELOAD RECOVERY", vol: "2,100 kg", inol: "0.25", inolClass: "color: var(--ok-green);" },
+          { type: "rest" }
+        ]
+      },
+      {
+        class: "mc-blue banner-start-round banner-end-flat mc3-group",
+        style: "grid-column: 3 / 8;",
+        title: "MICRO_03: Intensity Peak",
+        hasChevron: true,
+        cols: 5,
+        items: [
+          { type: "session", title: "D9: COMPETITION PEAK TEST", vol: "16,500 kg", inol: "1.55", inolClass: "color: var(--ok-red);" },
+          { type: "rest" },
+          { type: "session", title: "D10: ACCUM VOLUME SQUAT", vol: "9,200 kg", inol: "0.65", inolClass: "color: var(--ok-green);" },
+          { type: "rest" },
+          { type: "session", title: "D11: BENCH HIGHER INTENSITY", vol: "4,100 kg", inol: "0.75", inolClass: "color: var(--ok-green);" }
+        ]
+      }
+    ],
+    days: [
+      { num: "15 Oct", colClass: "col-1" },
+      { num: "16 Oct", colClass: "col-2" },
+      { num: "17 Oct", colClass: "col-3" },
+      { num: "18 Oct", colClass: "col-4" },
+      { num: "19 Oct", colClass: "col-5" },
+      { num: "20 Oct", colClass: "col-6" },
+      { num: "21 Oct", colClass: "col-7" }
+    ]
+  },
+  {
+    weekIndex: 4,
+    banners: [
+      {
+        class: "mc-blue banner-start-flat banner-end-round mc3-group",
+        style: "grid-column: 1 / 3;",
+        title: "◀ MICRO_03",
+        cols: 2,
+        items: [
+          { type: "session", title: "D12: BENCH SPEED WORK", vol: "3,400 kg", inol: "0.45", inolClass: "color: var(--ok-green);" },
+          { type: "rest" }
+        ]
+      },
+      {
+        class: "mc-violet banner-start-round banner-end-round mc4-group",
+        style: "grid-column: 3 / 8;",
+        title: "MICRO_04: Deload & Recovery",
+        cols: 5,
+        items: [
+          { type: "session", title: "D13: DELOAD ACC FEEDBACK", vol: "1,800 kg", inol: "0.20", inolClass: "color: var(--ok-green);" },
+          { type: "rest" },
+          { type: "session", title: "D14: LOW VOLUME CNS RESET", vol: "2,400 kg", inol: "0.30", inolClass: "color: var(--ok-green);" },
+          { type: "rest" },
+          { type: "session", title: "D15: PEAK SINGLE PREP", vol: "8,400 kg", inol: "0.80", inolClass: "color: var(--ok-green);" }
+        ]
+      }
+    ],
+    days: [
+      { num: "22 Oct", colClass: "col-1" },
+      { num: "23 Oct", colClass: "col-2" },
+      { num: "24 Oct", colClass: "col-3" },
+      { num: "25 Oct", colClass: "col-4" },
+      { num: "26 Oct", colClass: "col-5" },
+      { num: "27 Oct", colClass: "col-6" },
+      { num: "28 Oct", colClass: "col-7" }
+    ]
+  }
+];
+
+function renderGrid(targetSelector) {
+  const container = document.querySelector(targetSelector);
+  let gridHtml = `
+    <div class="headers-row">
+      <div class="day-header">Mon</div>
+      <div class="day-header">Tue</div>
+      <div class="day-header">Wed</div>
+      <div class="day-header">Thu</div>
+      <div class="day-header">Fri</div>
+      <div class="day-header">Sat</div>
+      <div class="day-header">Sun</div>
+    </div>
+  `;
+
+  weeksData.forEach(week => {
+    const bannersHtml = week.banners.map(b => {
+      const itemsHtml = b.items.map(item => {
+        if (item.type === 'rest') {
+          return `<div class="rest-day">Rest Day</div>`;
+        }
+        return `
+          <div class="session-card">
+            <div class="session-title">${item.title}</div>
+            <div class="session-metrics">
+              <span>Vol: ${item.vol}</span>
+              <span style="${item.inolClass}">INOL: ${item.inol}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="microcycle-banner ${b.class}" style="${b.style}">
+          <div class="banner-header">
+            <span>${b.title}</span>
+            ${b.hasChevron ? '<span>▶</span>' : ''}
+          </div>
+          <div class="banner-content-grid" style="grid-template-columns: repeat(${b.cols}, minmax(0, 1fr));">
+            ${itemsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const daysHtml = week.days.map(d => `
+      <div class="day-cell ${d.inactive ? 'inactive' : ''} ${d.colClass}">
+        <span class="day-number">${d.num}</span>
+      </div>
+    `).join('');
+
+    gridHtml += `
+      <div class="week-row">
+        ${bannersHtml}
+        ${daysHtml}
+      </div>
+    `;
+  });
+
+  container.innerHTML = gridHtml;
+}
+
+// Sync hover events between matching group segments
+const setupSync = (className) => {
+  const segments = document.querySelectorAll('.' + className);
+  segments.forEach(seg => {
+    seg.addEventListener('mouseenter', () => {
+      segments.forEach(s => s.classList.add('hovered'));
+    });
+    seg.addEventListener('mouseleave', () => {
+      segments.forEach(s => s.classList.remove('hovered'));
+    });
+  });
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderGrid('.calendar-grid');
+  setupSync('mc1-group');
+  setupSync('mc2-group');
+  setupSync('mc3-group');
+  setupSync('mc4-group');
+});
+
+// View toggle logic
+const monthBtn = document.getElementById('monthViewBtn');
+const microBtn = document.getElementById('microviewBtn');
+const calendarGrid = document.querySelector('.calendar-grid');
+const microviewGrid = document.querySelector('.microview-grid');
+
+monthBtn.addEventListener('click', () => {
+  monthBtn.classList.add('active');
+  microBtn.classList.remove('active');
+  calendarGrid.style.display = 'grid';
+  microviewGrid.style.display = 'none';
+});
+
+microBtn.addEventListener('click', () => {
+  microBtn.classList.add('active');
+  monthBtn.classList.remove('active');
+  
+  // Render same template inside microview target
+  renderGrid('.microview-grid');
+  
+  // Adjust banner content layout to single column for microview
+  microviewGrid.querySelectorAll('.banner-content-grid').forEach(grid => {
+    grid.style.gridTemplateColumns = '1fr';
+  });
+  
+  // Reapply hover sync for clones
+  setupSync('mc1-group');
+  setupSync('mc2-group');
+  setupSync('mc3-group');
+  setupSync('mc4-group');
+  
+  calendarGrid.style.display = 'none';
+  microviewGrid.style.display = 'grid';
+});
+</script> });
+</script>
+</body>
+</html>

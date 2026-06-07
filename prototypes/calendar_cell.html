@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Calendar Cell Prototype</title>
+<style>
+  :root {
+    --bg-dark: #0a0a0a;
+    --bg-card: rgba(255, 255, 255, 0.08);
+    --bg-card-hover: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --accent: #4caf50;
+    --radius: 8px;
+    --shadow: 0 4px 12px rgba(0,0,0,0.3);
+    --transition: 0.2s ease-out;
+    --z-cell: 1;
+    --z-card: 2;
+  }
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-dark);
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--text-primary);
+  }
+  .calendar-cell {
+    position: relative;
+    width: 320px;
+    height: 240px;
+    background: var(--bg-card);
+    backdrop-filter: blur(8px);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    padding: 12px;
+    z-index: var(--z-cell);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mesocycle-card {
+    background: var(--bg-card);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+    z-index: var(--z-card);
+  }
+  .mesocycle-card:hover {
+    background: var(--bg-card-hover);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+  }
+  .mesocycle-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  .mesocycle-detail {
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+  <div class="calendar-cell" aria-label="Calendar cell prototype">
+    <div class="mesocycle-card" role="button" aria-pressed="false">
+      <div class="mesocycle-title">Mesocycle A</div>
+      <div class="mesocycle-detail">Weeks 1‑4 • Hypertrophy</div>
+    </div>
+    <div class="mesocycle-card" role="button" aria-pressed="false">
+      <div class="mesocycle-title">Mesocycle B</div>
+      <div class="mesocycle-detail">Weeks 5‑8 • Strength</div>
+    </div>
+  </div>
+</body>
+</html>

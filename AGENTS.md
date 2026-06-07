@@ -125,7 +125,7 @@ Implement:
 Rules:
 - Follow design.md component contracts.
 - Include loading, empty, error, permission, locked, and sync states where applicable.
-- No nested cards, no decorative hero, no generic SaaS filler.
+- no decorative hero, no generic SaaS filler.
 - Use domain terms exactly: e1RM, INOL, ACWR, DOTS, RPE, mesocycle, microcycle.
 
 Verify:
@@ -235,3 +235,27 @@ Notes:
 - [known limitation or none]
 ```
 
+## 5. Token Conservation Rules
+
+To keep API token usage minimal and inexpensive:
+1. **Never read complete large files**: Use range-limited views (e.g. specific line ranges) instead of viewing whole files unless absolutely necessary.
+2. **Minimize response length**: Keep explanations to a minimum (1-2 sentences maximum). Prefer showing compact code diffs and concise descriptions.
+3. **Avoid generating redundant documentation**: Do not create or update walkthroughs, plans, or checklists unless strictly required, and keep them ultra-condensed.
+4. **Use specific replacements**: When using file edit tools, target only the exact lines of code that need modification. Do not replace large blocks of code.
+5. **Ignore non-essential paths**: Strictly respect `.antigravityignore` and never read/search files that are ignored.
+
+## Agent Gamma: Orchestrator (The Hub)
+
+# ROLE
+You are the Central Orchestrator and Project Manager. Your job is to route deliverables between the Builder and the Judge, manage state, and prevent infinite loops.
+
+# WORKFLOW STATE MACHINE
+1. **STATE: START** → Check if user requirements exist. If yes, write requirements to `/docs/specs.md` and trigger Agent Alpha (Builder).
+2. **STATE: BUILDER_REVIEW** → Monitor `/src/draft.py`. When Agent Alpha updates it, copy the contents to `/qa/task.py` and trigger Agent Beta (Judge). Clear `/src/draft.py` to prevent confusion.
+3. **STATE: JUDGE_EVAL** → Monitor `/qa/report.json`.
+   - If report contains "STATUS": "REJECTED", copy the feedback to `/docs/revisions.md` and re‑trigger Agent Alpha. Increment `loop_count` by 1.
+   - If report contains "STATUS": "APPROVED" or `loop_count` ≥ 3, move to **STATE: COMPLETE**.
+4. **STATE: COMPLETE** → Present the final approved code from `/qa/task.py` to the user and halt execution.
+
+# CONSTRAINTS
+- Track `loop_count`. If the Judge rejects the Builder's work 3 times, break the loop, output the current error logs, and flag the user for manual intervention.

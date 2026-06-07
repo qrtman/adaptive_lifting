@@ -1,123 +1,173 @@
-import { Dumbbell } from 'lucide-react';
-import { EditablePerformanceCell } from './EditablePerformanceCell';
+import React from 'react';
+import { CheckSquare, Square, Trash2, Plus } from 'lucide-react';
+import type { AccessoryData } from '../types';
 
-export const AccessoryLedger = ({
+interface AccessoryLedgerProps {
+  accessories: AccessoryData[];
+  onUpdateAccessories: (accessories: AccessoryData[]) => void;
+}
+
+export function AccessoryLedger({
   accessories,
-  onUpdateAccessories
-}: {
-  accessories: any[],
-  onUpdateAccessories: (accs: any[]) => void
-}) => {
-  const updateAccessory = (index: number, updates: any) => {
-    const newAcc = [...accessories];
-    newAcc[index] = { ...newAcc[index], ...updates };
-    onUpdateAccessories(newAcc);
+  onUpdateAccessories,
+}: AccessoryLedgerProps) {
+  const handleToggleStatus = (idx: number) => {
+    const updated = [...accessories];
+    updated[idx] = {
+      ...updated[idx],
+      status: updated[idx].status === 'Done' ? 'Pending' : 'Done',
+    };
+    onUpdateAccessories(updated);
+  };
+
+  const handleFieldChange = (idx: number, key: 'weight' | 'reps' | 'executedRpe' | 'name', val: string) => {
+    const updated = [...accessories];
+    updated[idx] = {
+      ...updated[idx],
+      [key]: val,
+    };
+    onUpdateAccessories(updated);
+  };
+
+  const handleAddAccessory = () => {
+    const newAcc: AccessoryData = {
+      id: `acc-new-${Date.now()}-${accessories.length}`,
+      name: 'Accessory Movement',
+      prescribedSets: '3',
+      targetReps: '10-12',
+      targetRpe: '7',
+      weight: '',
+      reps: '',
+      executedRpe: '',
+      status: 'Pending',
+    };
+    onUpdateAccessories([...accessories, newAcc]);
+  };
+
+  const handleRemoveAccessory = (idx: number) => {
+    onUpdateAccessories(accessories.filter((_, i) => i !== idx));
   };
 
   return (
-    <div className="glass-card rounded-2xl overflow-hidden mb-10 border border-white/5">
-      <div className="px-8 py-5 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Dumbbell size={20} className="text-mac-blue" />
-          <h2 className="text-[18px] font-black uppercase tracking-[0.2em] text-white font-sans">Accessories & Isolation</h2>
+    <div className="bg-transparent p-4 font-sans relative flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+        <div>
+          <h3 className="text-sm font-black text-white uppercase tracking-wider">Accessory Ledger</h3>
+          <span className="text-[10px] font-mono text-[#AEAEB2] tracking-widest uppercase block mt-0.5">
+            SUPPLEMENTAL WORK & ISOLATIONS
+          </span>
         </div>
-        <span className="text-[15px] font-black text-amber-400 uppercase tracking-widest font-sans">{accessories?.filter(a => a.status !== 'Done').length || 0} Pending</span>
+        <button
+          onClick={handleAddAccessory}
+          className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/15 hover:border-white/30 text-white rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all"
+        >
+          <Plus size={12} /> Add accessory
+        </button>
       </div>
 
-      <table className="w-full text-left border-collapse">
-        <thead className="bg-black/40">
-          <tr>
-            <th className="px-8 py-5 text-[20px] font-black text-white uppercase tracking-[0.2em] font-sans">Exercise</th>
-            <th className="px-8 py-5 border-r border-white/5 bg-white/[0.01]">
-              <span className="text-[20px] font-black text-white uppercase tracking-[0.2em] block mb-2 font-sans">Prescription</span>
-              <div className="flex items-center gap-4">
-                <span className="w-16 text-center text-[15px] font-black text-amber-400 uppercase tracking-widest font-sans">Reps</span>
-                <span className="w-16 text-center text-[15px] font-black text-amber-400 uppercase tracking-widest font-sans">RPE</span>
-              </div>
-            </th>
-            <th className="px-8 py-5">
-              <span className="text-[20px] font-black text-white uppercase tracking-[0.2em] block mb-2 font-sans">Log Performance</span>
-              <div className="flex items-center gap-4">
-                <span className="w-16 text-center text-[15px] font-black text-amber-400 uppercase tracking-widest font-sans">Reps</span>
-                <span className="w-16 text-center text-[15px] font-black text-amber-400 uppercase tracking-widest font-sans">RPE</span>
-                <span className="w-24 text-center text-[15px] font-black text-amber-400 uppercase tracking-widest font-sans">Weight (kg)</span>
-              </div>
-            </th>
-            <th className="px-8 py-5 text-[20px] font-black text-white uppercase tracking-[0.2em] text-right font-sans">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {accessories?.map((acc, i) => (
-            <tr key={acc.id || i} className="group hover:bg-white/[0.02] transition-colors">
-              <td className="px-8 py-6">
-                <div className="flex flex-col">
-                  <span className="text-[16px] font-bold text-white transition-colors group-hover:text-mac-blue font-sans">{acc.name}</span>
-                  <span className="text-[15px] font-black text-gray-300 uppercase tracking-widest mt-1 font-sans">{acc.prescribedSets} Sets</span>
-                </div>
-              </td>
-              <td className="px-8 py-6 border-r border-white/5 bg-white/[0.01]">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 py-3 bg-white/[0.01] border border-white/5 rounded-xl text-center text-xl font-bold font-sans text-gray-300 tabular-nums">
-                    {acc.targetReps}
-                  </div>
-                  <div className="w-16 py-3 bg-white/[0.01] border border-white/5 rounded-xl text-center text-xl font-bold font-sans text-gray-300 tabular-nums">
-                    {acc.targetRpe}
-                  </div>
-                </div>
-              </td>
-              <td className="px-8 py-6">
-                <div className="flex items-center gap-4">
-                  <EditablePerformanceCell
-                    value={acc.reps || ""}
-                    onChange={(val) => updateAccessory(i, { reps: val })}
-                    placeholder="—"
-                    fieldKey="accessory-reps"
-                    label="Log Reps"
-                    widthClass="w-16"
-                    isLogged={true}
-                    step={1}
-                    rowIndex={i}
-                  />
-                  <EditablePerformanceCell
-                    value={acc.executedRpe || ""}
-                    onChange={(val) => updateAccessory(i, { executedRpe: val })}
-                    placeholder="—"
-                    fieldKey="accessory-executedRpe"
-                    label="Log RPE"
-                    widthClass="w-16"
-                    isLogged={true}
-                    step={0.5}
-                    rowIndex={i}
-                  />
-                  <EditablePerformanceCell
-                    value={acc.weight || ""}
-                    onChange={(val) => updateAccessory(i, { weight: val })}
-                    placeholder="—"
-                    fieldKey="accessory-weight"
-                    label="Log Weight"
-                    widthClass="w-24"
-                    isLogged={true}
-                    step={2.5}
-                    rowIndex={i}
-                  />
-                </div>
-              </td>
-              <td className="px-8 py-6 text-right">
-                <button 
-                  onClick={() => updateAccessory(i, { status: acc.status === 'Done' ? 'Pending' : 'Done' })}
-                  className={`px-5 py-2.5 rounded-full text-[15px] font-black uppercase tracking-widest border transition-all cursor-pointer ${
-                    acc.status === 'Done'
-                      ? 'bg-mac-green/10 border-mac-green/30 text-mac-green shadow-[0_0_15px_rgba(52,199,89,0.1)]'
-                      : 'bg-white/10 border-white/10 text-gray-300 hover:border-white/20'
-                  }`}
-                >
-                  {acc.status}
-                </button>
-              </td>
+      <div className="flex-1 min-h-0 overflow-auto">
+        <table className="w-full border-collapse text-left text-xs font-mono">
+          <thead>
+            <tr className="border-b border-white/10 text-zinc-500 text-[10px] uppercase tracking-wider">
+              <th className="pb-2 w-8 text-center">Done</th>
+              <th className="pb-2 text-left">Exercise</th>
+              <th className="pb-2 text-center w-24">Prescription</th>
+              <th className="pb-2 text-center w-24">Weight</th>
+              <th className="pb-2 text-center w-16">Reps</th>
+              <th className="pb-2 text-center w-16">RPE</th>
+              <th className="pb-2 text-center w-12">Delete</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {accessories.map((acc, idx) => {
+              const isDone = acc.status === 'Done';
+              return (
+                <tr key={acc.id} className={`hover:bg-white/2 align-middle ${isDone ? 'opacity-60' : ''}`}>
+                  {/* Status Checkbox */}
+                  <td className="py-2.5 text-center">
+                    <button
+                      onClick={() => handleToggleStatus(idx)}
+                      className="text-gray-400 hover:text-white cursor-pointer"
+                    >
+                      {isDone ? (
+                        <CheckSquare className="text-mac-blue" size={16} />
+                      ) : (
+                        <Square size={16} />
+                      )}
+                    </button>
+                  </td>
+
+                  {/* Name field */}
+                  <td className="py-2 px-1">
+                    <input
+                      type="text"
+                      value={acc.name}
+                      onChange={(e) => handleFieldChange(idx, 'name', e.target.value)}
+                      className="bg-[#1C1C1E]/50 border border-white/5 rounded px-2 py-1 w-full text-white text-xs focus:outline-none focus:border-mac-blue"
+                    />
+                  </td>
+
+                  {/* Prescription column */}
+                  <td className="py-2 px-1 text-center text-zinc-500 text-xs">
+                    {acc.prescribedSets}x{acc.targetReps} @ {acc.targetRpe}
+                  </td>
+
+                  {/* Weight column */}
+                  <td className="py-2 px-1">
+                    <input
+                      type="text"
+                      placeholder="Load"
+                      value={acc.weight}
+                      onChange={(e) => handleFieldChange(idx, 'weight', e.target.value)}
+                      className="bg-[#1C1C1E]/50 border border-white/5 rounded px-2 py-1 w-full text-center text-white text-xs focus:outline-none focus:border-mac-blue tabular-nums"
+                    />
+                  </td>
+
+                  {/* Reps column */}
+                  <td className="py-2 px-1">
+                    <input
+                      type="text"
+                      placeholder="Reps"
+                      value={acc.reps}
+                      onChange={(e) => handleFieldChange(idx, 'reps', e.target.value)}
+                      className="bg-[#1C1C1E]/50 border border-white/5 rounded px-2 py-1 w-full text-center text-white text-xs focus:outline-none focus:border-mac-blue tabular-nums"
+                    />
+                  </td>
+
+                  {/* Executed RPE */}
+                  <td className="py-2 px-1">
+                    <input
+                      type="text"
+                      placeholder="RPE"
+                      value={acc.executedRpe}
+                      onChange={(e) => handleFieldChange(idx, 'executedRpe', e.target.value)}
+                      className="bg-[#1C1C1E]/50 border border-white/5 rounded px-2 py-1 w-full text-center text-white text-xs focus:outline-none focus:border-mac-blue tabular-nums"
+                    />
+                  </td>
+
+                  {/* Delete row */}
+                  <td className="py-2.5 text-center">
+                    <button
+                      onClick={() => handleRemoveAccessory(idx)}
+                      className="text-zinc-500 hover:text-[#FF453A] p-1 rounded hover:bg-white/5 cursor-pointer transition-colors"
+                      title="Remove Accessory"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {accessories.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-zinc-500">
+                  No accessories scheduled for this session.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
-};
+}

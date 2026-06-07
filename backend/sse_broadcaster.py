@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .database import get_db, DomainEvent, Workout, User
-from .main import get_current_user
+
 
 router = APIRouter()
 

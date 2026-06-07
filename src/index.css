@@ -1,139 +1,198 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Arial", -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
-  --color-obsidian-950: #0a0a0a;
-  --color-obsidian-900: #131313;
-  --color-obsidian-800: #161616;
-  --color-obsidian-700: #20201f;
-  
-  --color-mac-blue: #007AFF;
-  --color-mac-green: #34C759;
-  
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
+/* Minimalistic Premium Dark UI stylesheet - Obsidian Black Scheme */
+:root {
+  --bg-color: hsl(0, 0%, 4%);
+  --surface-1: hsl(0, 0%, 7%);
+  --surface-2: hsl(0, 0%, 9%);
+  --surface-3: hsl(0, 0%, 12%);
+  --border-color: hsl(0, 0%, 16%);
+  --text-color: hsl(240, 5%, 96%);
+  --text-muted: hsl(240, 5%, 67%);
+  --accent: hsl(217, 91%, 60%);
+  --spacing-unit: 8px;
+  --font-sans: -apple-system, "SF Pro", "Inter", system-ui, sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
-@layer base {
-  body {
-    @apply bg-obsidian-950 text-[#E0E0E0] antialiased overflow-hidden;
-  }
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-.glass-sidebar {
-  background: rgba(28, 27, 27, 0.7);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-}
-
-.glass-card {
-  background: #161616;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.glass-footer {
-  background: rgba(19, 19, 19, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
+/* Custom Sleek Dark Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  background: var(--surface-3);
+  border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--border-color);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-/* Stitch premium obsidian theme additions */
-.emerald-glow {
-  box-shadow: 0 0 20px rgba(117, 255, 158, 0.15);
+/* Utility classes */
+.p-2 { padding: var(--spacing-unit); }
+.p-4 { padding: calc(var(--spacing-unit) * 2); }
+.rounded { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.border { border: 1px solid var(--border-color); }
+.bg-surface-1 { background: var(--surface-1); }
+.bg-surface-2 { background: var(--surface-2); }
+.bg-surface-3 { background: var(--surface-3); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent); }
+.bg-accent { background: var(--accent); }
+.border-accent { border-color: var(--accent); }
+
+/* Simple button style */
+.btn {
+  display: inline-block;
+  padding: calc(var(--spacing-unit) * 0.5) calc(var(--spacing-unit) * 1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn:hover {
+  background: var(--surface-3);
+  border-color: var(--text-muted);
 }
 
-.massive-input-v2 {
-  background: #0C0F0F;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* Component specific minimal styles */
+.sv-exercise-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-unit);
+}
+.sv-set-row {
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-unit);
 }
 
-.massive-input-v2.active {
-  background: #141a16;
-  border: 2px solid #75ff9e;
-  box-shadow: 0 0 15px rgba(117, 255, 158, 0.2);
+/* Keep styling clean but do not hide structural blocks */
+.glass-sidebar {
+  background: var(--surface-1);
+  border-right: 1px solid var(--border-color);
+}
+.glass-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+.glass-footer {
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-color);
 }
 
-/* Slide-up numpad and stepper sheet styling */
-.numpad-overlay {
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* Placeholder blocks styling */
+.placeholder-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
 }
 
-.numpad-sheet {
-  background: #0C0F0F;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  transition: transform 0.35s cubic-bezier(0.3, 1, 0.4, 1);
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+.placeholder-card:hover {
+  border-color: var(--text-muted);
 }
 
-/* Custom styles for kinetic interactions */
-.stepper-btn {
-  background: #1A1C1C;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: all 0.15s ease;
+.placeholder-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.5s infinite linear;
 }
 
-.stepper-btn:active {
-  background: #252828;
-  transform: scale(0.95);
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-.stepper-btn.disabled {
-  opacity: 0.3;
-  pointer-events: none;
+.placeholder-line {
+  height: 10px;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.placeholder-line.short { width: 40%; }
+.placeholder-line.medium { width: 70%; }
+.placeholder-line.long { width: 90%; }
+
+/* Agent Vision Mode */
+.vision-grid {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
 
-.numpad-key {
-  background: #121414;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  transition: all 0.1s ease;
+.vision-active {
+  position: relative;
 }
 
-.numpad-key:active {
-  background: #1A1C1C;
-  transform: scale(0.95);
+.vision-week {
+  border: 1px dashed hsl(188, 86%, 53%) !important; /* cyan */
+  background: hsla(188, 86%, 53%, 0.02);
 }
 
-/* Swipable training tabs */
-.tab-bar-hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-.tab-bar-hide-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari and Opera */
+.vision-day {
+  border: 1px dashed hsl(263, 90%, 65%) !important; /* violet */
+  background: hsla(263, 90%, 65%, 0.02);
 }
 
-/* Hide scrollbars globally on mobile viewport to prevent bouncing */
-@media (max-width: 768px) {
-  body {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  body::-webkit-scrollbar {
-    display: none;
-  }
+.vision-session {
+  border: 1px dashed hsl(38, 92%, 50%) !important; /* amber */
+  background: hsla(38, 92%, 50%, 0.02);
+}
+
+.vision-exercise {
+  border: 1px dashed hsl(142, 70%, 45%) !important; /* green */
+  background: hsla(142, 70%, 45%, 0.02);
+}
+
+.vision-set {
+  border: 1px dotted hsl(0, 84%, 60%) !important; /* red */
+}
+
+/* Spreadsheet Selection Logic */
+.spreadsheet-cell[data-active="true"][data-mode="NAV"] {
+  box-shadow: inset 0 0 0 2px var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.spreadsheet-cell[data-active="true"][data-mode="EDIT"] {
+  box-shadow: inset 0 0 0 1px #888 !important;
+  border-color: #888 !important;
+}
+.spreadsheet-input[data-mode="NAV"] {
+  caret-color: transparent !important;
+}
+.spreadsheet-input[data-mode="NAV"]::selection {
+  background-color: transparent !important;
 }

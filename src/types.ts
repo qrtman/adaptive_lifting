@@ -141,7 +141,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
           }
         ],
         accessories: [
-          { id: 'a-1-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: 12.0, executedRpe: 7.0, status: 'Done' }
+          { id: 'a-1-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: '12', executedRpe: '7', status: 'Done' }
         ]
       },
       {
@@ -368,7 +368,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
           }
         ],
         accessories: [
-          { id: 'a-3-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: 12.0, executedRpe: 7.0, status: 'Done' },
+          { id: 'a-3-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: '12', executedRpe: '7', status: 'Done' },
           { id: 'a-3-1-2', name: 'Triceps Extension', prescribedSets: '3', targetReps: '12', targetRpe: '9', weight: '', reps: null, executedRpe: null, status: 'Pending' },
           { id: 'a-3-1-3', name: 'Lateral Raises', prescribedSets: '3', targetReps: '15', targetRpe: '10', weight: '', reps: null, executedRpe: null, status: 'Pending' }
         ]

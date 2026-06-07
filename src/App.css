@@ -39,7 +39,7 @@
   }
 
   .framework {
-    z-index: 1;
+    z-index: var(--z-card);
     top: 34px;
     height: 28px;
     transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
@@ -47,13 +47,27 @@
   }
 
   .vite {
-    z-index: 0;
+    z-index: var(--z-base);
     top: 107px;
     height: 26px;
     width: auto;
     transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
       scale(0.8);
   }
+}
+
+:root {
+  --z-base: 0;
+  --z-card: 1;
+  --z-modal: 2;
+  --z-tooltip: 3;
+  --accent: #54e083;
+  --accent-bg: #0A0A0A;
+  --accent-border: #54e083;
+  --text-h: #fff;
+  --social-bg: #111;
+  --shadow: 0 2px 8px rgba(0,0,0,0.2);
+  --border: #444;
 }
 
 #center {

@@ -1,4 +1,5 @@
-import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse } from '../types';
+import { INITIAL_MICROCYCLES } from '../types';
+import type { MicrocycleData, AICoachResponse } from '../types';
 
 const STORAGE_KEY = 'iron_box_microcycles';
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
@@ -33,7 +34,6 @@ export function recalculateWorkoutMetrics(
   workout.exercises = workout.exercises.map((exercise: any) => {
     let exerciseVolume = 0;
     let maxWeight = 0;
-    let maxWeightReps = 0;
     let topSingleE1RM = 0;
     let topSingleSet: any = null;
 
@@ -49,7 +49,6 @@ export function recalculateWorkoutMetrics(
         // Track max physical load
         if (weight > maxWeight) {
           maxWeight = weight;
-          maxWeightReps = reps;
         }
 
         // Track RTS top single (highest e1RM or explicitly flagged isTop)
@@ -307,6 +306,7 @@ export const apiService = {
         console.warn('Backend server trends unavailable.', err);
         return null;
       }
+    }
   },
 
   /**
@@ -334,7 +334,7 @@ export const apiService = {
   /**
    * Mock workout saver for App.tsx compatibility.
    */
-  async saveLog(workout: any): Promise<boolean> {
+  async saveLog(_workout: any): Promise<boolean> {
     return true;
   },
 

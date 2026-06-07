@@ -1,0 +1,42 @@
+:root {
+  /* Core App Grayscale (Obsidian Black Scheme) */
+  --ok-bg: hsl(0, 0%, 4%);
+  --ok-surface-1: hsl(0, 0%, 7%);
+  --ok-surface-2: hsl(0, 0%, 9%);
+  --ok-surface-3: hsl(0, 0%, 12%);
+  --ok-border: hsl(0, 0%, 16%);
+
+  /* Text Contrast System */
+  --ok-text: hsl(240, 5%, 96%);
+  --ok-text-muted: hsl(240, 5%, 67%);
+  --ok-text-faint: hsl(240, 4%, 46%);
+
+  /* Semantic Core */
+  --ok-blue: hsl(217, 91%, 60%);
+  --ok-green: hsl(142, 70%, 45%);
+  --ok-amber: hsl(38, 92%, 50%);
+  --ok-red: hsl(0, 84%, 60%);
+  --ok-cyan: hsl(188, 86%, 53%);
+  --ok-violet: hsl(263, 90%, 65%);
+
+  /* Typography */
+  --ok-font-primary: -apple-system, "SF Pro", "Inter", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ok-font-sans: var(--ok-font-primary);
+  --ok-font-mono: var(--ok-font-sans);
+
+  --ok-text-xs: 0.75rem;   /* 12 px */
+  --ok-text-sm: 0.875rem;  /* 14 px */
+  --ok-text-base: 1rem;    /* 16 px */
+  --ok-text-lg: 1.125rem;  /* 18 px */
+  --ok-text-xl: 1.25rem;   /* 20 px */
+
+  /* Shape & Spacing */
+  --ok-radius-sm: 6px;
+  --ok-radius-md: 8px;
+  --ok-radius-lg: 12px;
+  --ok-space-1: 4px;
+  --ok-space-2: 8px;
+  --ok-space-3: 12px;
+  --ok-space-4: 16px;
+  --ok-space-6: 24px;
+}

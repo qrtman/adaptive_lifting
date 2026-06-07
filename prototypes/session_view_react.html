@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Obsidian Kinetic - Inside Session View</title>
+<!-- React and Babel CDNs for single-file dynamic prototyping -->
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root {
+    --ok-bg: hsl(0, 0%, 4%);
+    --ok-surface-1: hsl(0, 0%, 7%);
+    --ok-surface-2: hsl(0, 0%, 9%);
+    --ok-surface-3: hsl(0, 0%, 12%);
+    --ok-border: hsl(0, 0%, 16%);
+    --ok-border-dim: hsl(0, 0%, 11%);
+    
+    --ok-text: hsl(240, 5%, 96%);
+    --ok-text-muted: hsl(240, 5%, 67%);
+    --ok-text-faint: hsl(240, 4%, 46%);
+    
+    --ok-blue: hsl(217, 91%, 60%);
+    --ok-green: hsl(142, 70%, 45%);
+    --ok-amber: hsl(38, 92%, 50%);
+    --ok-red: hsl(0, 84%, 60%);
+    --ok-cyan: hsl(188, 86%, 53%);
+    --ok-violet: hsl(263, 90%, 65%);
+    
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 16px;
+    --space-4: 24px;
+
+    /* Theme-specific variables driven by active microcycle */
+    --mc-h: 217;
+    --mc-s: 91%;
+    --mc-l: 60%;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: var(--space-4);
+  }
+
+  /* Layout Container */
+  .sv-container {
+    max-w: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  /* Header Card */
+  .sv-header {
+    background: var(--ok-surface-1);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .sv-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .sv-back-btn {
+    background: var(--ok-surface-2);
+    border: 1px solid var(--ok-border);
+    color: var(--ok-text);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 750;
+    transition: all 0.2s;
+  }
+
+  .sv-back-btn:hover {
+    background: var(--ok-surface-3);
+    border-color: var(--ok-text-faint);
+  }
+
+  .sv-title-block {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sv-tag-pill {
+    font-size: 0.65rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ok-blue);
+    background: hsla(217, 91%, 60%, 0.15);
+    border: 1px solid hsla(217, 91%, 60%, 0.3);
+    padding: 2px 8px;
+    border-radius: 999px;
+    display: inline-block;
+    align-self: flex-start;
+    margin-bottom: 2px;
+  }
+
+  .sv-session-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--ok-text);
+  }
+
+  /* Role Switcher */
+  .sv-role-switcher {
+    display: flex;
+    background: var(--ok-surface-2);
+    border: 1px solid var(--ok-border);
+    padding: 2px;
+    border-radius: var(--radius-md);
+  }
+
+  .sv-role-btn {
+    background: transparent;
+    border: none;
+    color: var(--ok-text-muted);
+    padding: 6px 14px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .sv-role-btn.active.coach {
+    background: var(--ok-blue);
+    color: var(--ok-text);
+  }
+
+  .sv-role-btn.active.athlete {
+    background: var(--ok-green);
+    color: var(--ok-bg);
+    font-weight: 900;
+  }
+
+  /* Nested Exercise Card Layer */
+  .sv-exercise-card {
+    background: var(--ok-surface-1);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .sv-ex-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--ok-border-dim);
+    padding-bottom: var(--space-2);
+  }
+
+  .sv-ex-title-block {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sv-ex-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ok-text);
+  }
+
+  .sv-ex-variation {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.85);
+  }
+
+  .sv-ex-metrics {
+    display: flex;
+    gap: var(--space-3);
+    font-size: 0.75rem;
+    color: var(--ok-text-muted);
+  }
+
+  /* Sets High-Density Grid Table */
+  .sv-sets-table {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .sv-set-row {
+    display: grid;
+    grid-template-columns: 24px 2.2fr 2.2fr 1.2fr 90px;
+    gap: var(--space-2);
+    align-items: center;
+    background: hsla(0, 0%, 0%, 0.22);
+    border: 1px solid var(--ok-border-dim);
+    border-radius: var(--radius-md);
+    padding: 6px 12px;
+  }
+
+  .sv-set-num {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.6);
+  }
+
+  .sv-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sv-col-label {
+    font-size: 0.55rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ok-text-faint);
+  }
+
+  /* Form Fields */
+  .sv-input-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sv-input {
+    background: var(--ok-surface-2);
+    border: 1px solid var(--ok-border);
+    color: var(--ok-text);
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.72rem;
+    font-weight: 600;
+    width: 50px;
+    text-align: center;
+  }
+
+  .sv-input:focus {
+    border-color: var(--ok-blue);
+    outline: none;
+  }
+
+  .sv-input-units {
+    font-size: 0.65rem;
+    color: var(--ok-text-faint);
+    font-weight: 600;
+  }
+
+  /* Badges */
+  .sv-rpe-badge {
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: hsla(142, 70%, 45%, 0.15);
+    color: var(--ok-green);
+  }
+
+  .sv-rpe-badge.amber {
+    background: hsla(38, 92%, 50%, 0.15);
+    color: var(--ok-amber);
+  }
+
+  /* e1RM Column & Top Highlight */
+  .sv-e1rm-val {
+    font-size: 0.78rem;
+    font-weight: 750;
+    color: var(--ok-text-muted);
+  }
+
+  .sv-e1rm-val.top-set {
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 1);
+  }
+
+  .sv-top-badge {
+    font-size: 0.48rem;
+    font-weight: 900;
+    padding: 0px 4px;
+    background: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.15);
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 1);
+    border: 1px solid hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.3);
+    border-radius: 2px;
+    margin-left: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Variance Indicator */
+  .sv-variance-chip {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    align-self: flex-start;
+    font-family: monospace;
+  }
+
+  .sv-variance-chip.pos {
+    background: hsla(142, 70%, 45%, 0.1);
+    color: var(--ok-green);
+  }
+
+  .sv-variance-chip.neg {
+    background: hsla(0, 84%, 60%, 0.1);
+    color: var(--ok-red);
+  }
+
+  .sv-variance-chip.neutral {
+    background: hsla(0, 0%, 100%, 0.05);
+    color: var(--ok-text-muted);
+  }
+
+  /* Action Buttons */
+  .sv-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .sv-action-btn {
+    background: transparent;
+    border: 1px solid var(--ok-border);
+    color: var(--ok-text-muted);
+    padding: 3px 6px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: 700;
+    transition: all 0.15s;
+  }
+
+  .sv-action-btn:hover {
+    color: var(--ok-text);
+    border-color: var(--ok-text-faint);
+    background: var(--ok-surface-3);
+  }
+
+  .sv-action-btn.finish {
+    border-color: rgba(84, 224, 131, 0.3);
+    color: var(--ok-green);
+  }
+
+  .sv-add-btn {
+    background: var(--ok-surface-2);
+    border: 1px dashed var(--ok-border);
+    color: var(--ok-text-muted);
+    padding: 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.2s;
+    margin-top: 4px;
+  }
+
+  .sv-add-btn:hover {
+    border-color: var(--ok-blue);
+    color: var(--ok-text);
+  }
+
+  /* Notes Block */
+  .sv-notes-block {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    border-left: 3px solid var(--ok-blue);
+  }
+
+  .sv-notes-title {
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ok-text-faint);
+    margin-bottom: 2px;
+  }
+
+  .sv-notes-content {
+    font-size: 0.72rem;
+    color: var(--ok-text-muted);
+  }
+
+  /* Footer Card */
+  .sv-footer {
+    background: var(--ok-surface-1);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .sv-footer-left {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ok-text-faint);
+  }
+
+  .sv-footer-right {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .sv-primary-btn {
+    background: var(--ok-blue);
+    border: none;
+    color: var(--ok-text);
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+
+  .sv-primary-btn:hover {
+    background: hsl(217, 91%, 65%);
+  }
+
+  .sv-primary-btn.green {
+    background: var(--ok-green);
+    color: var(--ok-bg);
+  }
+
+  .sv-primary-btn.green:hover {
+    background: hsl(142, 70%, 52%);
+  }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// Simple RTS e1RM calculation
+function calculateE1RM(weight, reps, rpe) {
+  if (!weight || !reps || !rpe) return 0;
+  const effectiveReps = reps + (10 - rpe);
+  if (effectiveReps <= 0) return weight;
+  const e1rm = weight / (1.0278 - (0.0278 * effectiveReps));
+  return Math.round(e1rm * 10) / 10;
+}
+
+// Initial structured data representing inside session exercises
+const INITIAL_EXERCISES = [
+  {
+    id: "ex-1",
+    title: "Competition Squat",
+    variation: "Low Bar / Primary SQ",
+    note: "Volume ceiling active. Focus on deep hip crease depth and strict speed off the floor.",
+    sets: [
+      { id: "s1-1", plannedWeight: 140, plannedReps: 5, targetRpe: 8, actualWeight: 140, actualReps: 5, executedRpe: 7.8 },
+      { id: "s1-2", plannedWeight: 140, plannedReps: 5, targetRpe: 8, actualWeight: 142.5, actualReps: 5, executedRpe: 8.1 },
+      { id: "s1-3", plannedWeight: 135, plannedReps: 5, targetRpe: 7.5, actualWeight: 135, actualReps: 5, executedRpe: 7.5 }
+    ]
+  },
+  {
+    id: "ex-2",
+    title: "Leg Press",
+    variation: "Deep Sled / Quad Accent",
+    note: "Rest 3 minutes between sets. Autoregulation drop rule set to -5% on load.",
+    sets: [
+      { id: "s2-1", plannedWeight: 200, plannedReps: 8, targetRpe: 7, actualWeight: 200, actualReps: 9, executedRpe: 7.2 },
+      { id: "s2-2", plannedWeight: 200, plannedReps: 8, targetRpe: 7, actualWeight: null, actualReps: null, executedRpe: null }
+    ]
+  }
+];
+
+function SessionViewApp() {
+  const [exercises, setExercises] = useState(INITIAL_EXERCISES);
+  const [roleMode, setRoleMode] = useState('athlete'); // 'coach' | 'athlete'
+
+  // Update set details in React state
+  const handleUpdateSet = (exId, setId, field, val) => {
+    setExercises(prev => prev.map(ex => {
+      if (ex.id !== exId) return ex;
+      return {
+        ...ex,
+        sets: ex.sets.map(s => {
+          if (s.id !== setId) return s;
+          const numVal = val === '' ? null : parseFloat(val);
+          return { ...s, [field]: numVal };
+        })
+      };
+    }));
+  };
+
+  // Keyboard navigation helper
+  const handleKeyDown = (e, exId, field, idx) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextInput = document.getElementById(`input-${exId}-${field}-${idx + 1}`);
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (idx > 0) {
+        const prevInput = document.getElementById(`input-${exId}-${field}-${idx - 1}`);
+        if (prevInput) {
+          prevInput.focus();
+          prevInput.select();
+        }
+      }
+    }
+  };
+
+  const handleAddSet = (exId) => {
+    setExercises(prev => prev.map(ex => {
+      if (ex.id !== exId) return ex;
+      const lastSet = ex.sets[ex.sets.length - 1];
+      const newSet = {
+        id: `s-${Date.now()}`,
+        plannedWeight: lastSet ? lastSet.plannedWeight : 100,
+        plannedReps: lastSet ? lastSet.plannedReps : 5,
+        targetRpe: lastSet ? lastSet.targetRpe : 8,
+        actualWeight: null,
+        actualReps: null,
+        executedRpe: null
+      };
+      return { ...ex, sets: [...ex.sets, newSet] };
+    }));
+  };
+
+  const handleDuplicateSet = (exId, setId) => {
+    setExercises(prev => prev.map(ex => {
+      if (ex.id !== exId) return ex;
+      const sIdx = ex.sets.findIndex(s => s.id === setId);
+      if (sIdx === -1) return ex;
+      const copy = { ...ex.sets[sIdx], id: `s-${Date.now()}` };
+      const newSets = [...ex.sets];
+      newSets.splice(sIdx + 1, 0, copy);
+      return { ...ex, sets: newSets };
+    }));
+  };
+
+  const handleDeleteSet = (exId, setId) => {
+    setExercises(prev => prev.map(ex => {
+      if (ex.id !== exId) return ex;
+      return { ...ex, sets: ex.sets.filter(s => s.id !== setId) };
+    }));
+  };
+
+  const handleSyncPrescription = (exId, setId) => {
+    setExercises(prev => prev.map(ex => {
+      if (ex.id !== exId) return ex;
+      return {
+        ...ex,
+        sets: ex.sets.map(s => {
+          if (s.id !== setId) return s;
+          return {
+            ...s,
+            actualWeight: s.plannedWeight,
+            actualReps: s.plannedReps,
+            executedRpe: s.targetRpe
+          };
+        })
+      };
+    }));
+  };
+
+  return (
+    <div className="sv-container">
+      {/* Header Panel */}
+      <header className="sv-header">
+        <div className="sv-header-left">
+          <button className="sv-back-btn" onClick={() => alert('Returning to Dashboard')}>← Back</button>
+          <div className="sv-title-block">
+            <span className="sv-tag-pill">Oct 2029 • Day 01</span>
+            <h1 className="sv-session-title">D1: Squat Dominant</h1>
+          </div>
+        </div>
+
+        {/* Dynamic Switcher */}
+        <div className="sv-role-switcher">
+          <button 
+            className={`sv-role-btn ${roleMode === 'coach' ? 'active coach' : ''}`}
+            onClick={() => setRoleMode('coach')}
+          >
+            Coach View
+          </button>
+          <button 
+            className={`sv-role-btn ${roleMode === 'athlete' ? 'active athlete' : ''}`}
+            onClick={() => setRoleMode('athlete')}
+          >
+            Athlete View
+          </button>
+        </div>
+      </header>
+
+      {/* Main exercises stack */}
+      {exercises.map(ex => {
+        // Calculate dynamic values for top set and total volume
+        let topE1RM = 0;
+        let topSetId = null;
+
+        const calculatedSets = ex.sets.map(s => {
+          const actualWt = s.actualWeight ?? 0;
+          const actualRp = s.actualReps ?? 0;
+          const actualRpeVal = s.executedRpe ?? 0;
+          const e1rmVal = calculateE1RM(actualWt, actualRp, actualRpeVal);
+
+          if (e1rmVal > topE1RM) {
+            topE1RM = e1rmVal;
+            topSetId = s.id;
+          }
+          return { ...s, e1rmVal };
+        });
+
+        const totalVol = ex.sets.reduce((sum, s) => {
+          const wt = s.actualWeight ?? s.plannedWeight ?? 0;
+          const reps = s.actualReps ?? s.plannedReps ?? 0;
+          return sum + (wt * reps);
+        }, 0);
+
+        return (
+          <section key={ex.id} className="sv-exercise-card">
+            <div className="sv-ex-header">
+              <div className="sv-ex-title-block">
+                <span className="sv-ex-variation">{ex.variation}</span>
+                <h3 className="sv-ex-title">{ex.title}</h3>
+              </div>
+              <div className="sv-ex-metrics">
+                <div>Vol: <strong style={{color:'var(--ok-text)'}}>{totalVol.toLocaleString()} kg</strong></div>
+                {topE1RM > 0 && (
+                  <div>Peak e1RM: <strong style={{color:'hsla(var(--mc-h), var(--mc-s), var(--mc-l), 1)'}}>{topE1RM} kg</strong></div>
+                )}
+              </div>
+            </div>
+
+            {/* Set row grid representation */}
+            <div className="sv-sets-table">
+              {calculatedSets.map((s, idx) => {
+                const isTop = s.id === topSetId;
+                const wtDelta = s.actualWeight && s.plannedWeight ? (s.actualWeight - s.plannedWeight) : 0;
+                
+                return (
+                  <div key={s.id} className="sv-set-row">
+                    <div className="sv-set-num">S{idx + 1}</div>
+
+                    {/* Prescription Config Column */}
+                    <div className="sv-col">
+                      <span className="sv-col-label">Prescription</span>
+                      {roleMode === 'coach' ? (
+                        <div className="sv-input-group">
+                          <input 
+                            id={`input-${ex.id}-plannedWeight-${idx}`}
+                            type="number" 
+                            className="sv-input"
+                            value={s.plannedWeight ?? ''}
+                            onChange={(e) => handleUpdateSet(ex.id, s.id, 'plannedWeight', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, ex.id, 'plannedWeight', idx)}
+                          />
+                          <span className="sv-input-units">kg</span>
+                          <input 
+                            id={`input-${ex.id}-plannedReps-${idx}`}
+                            type="number" 
+                            className="sv-input" 
+                            value={s.plannedReps ?? ''}
+                            onChange={(e) => handleUpdateSet(ex.id, s.id, 'plannedReps', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, ex.id, 'plannedReps', idx)}
+                          />
+                          <span className="sv-input-units">r</span>
+                        </div>
+                      ) : (
+                        <span style={{fontSize:'0.72rem', fontWeight:600, color:'var(--ok-text-muted)'}}>
+                          {s.plannedWeight} kg × {s.plannedReps} <span className="sv-rpe-badge">RPE {s.targetRpe}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Logging / Performance Column */}
+                    <div className="sv-col">
+                      <span className="sv-col-label">Logged Lift</span>
+                      {roleMode === 'athlete' ? (
+                        <div className="sv-input-group">
+                          <input 
+                            id={`input-${ex.id}-actualWeight-${idx}`}
+                            type="number" 
+                            className="sv-input" 
+                            placeholder="—"
+                            value={s.actualWeight ?? ''}
+                            onChange={(e) => handleUpdateSet(ex.id, s.id, 'actualWeight', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, ex.id, 'actualWeight', idx)}
+                          />
+                          <span className="sv-input-units">kg</span>
+                          <input 
+                            id={`input-${ex.id}-actualReps-${idx}`}
+                            type="number" 
+                            className="sv-input" 
+                            placeholder="—"
+                            value={s.actualReps ?? ''}
+                            onChange={(e) => handleUpdateSet(ex.id, s.id, 'actualReps', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, ex.id, 'actualReps', idx)}
+                          />
+                          <span className="sv-input-units">r</span>
+                          <input 
+                            id={`input-${ex.id}-executedRpe-${idx}`}
+                            type="number" 
+                            step="0.5" 
+                            className="sv-input" 
+                            placeholder="—"
+                            value={s.executedRpe ?? ''}
+                            onChange={(e) => handleUpdateSet(ex.id, s.id, 'executedRpe', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, ex.id, 'executedRpe', idx)}
+                          />
+                        </div>
+                      ) : (
+                        <span style={{fontSize:'0.72rem', fontWeight:600, color: s.actualWeight ? 'var(--ok-text)' : 'var(--ok-text-faint)'}}>
+                          {s.actualWeight ? `${s.actualWeight} kg × ${s.actualReps} @ RPE ${s.executedRpe}` : 'not logged yet'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Variance delta Column */}
+                    <div className="sv-col">
+                      <span className="sv-col-label">Variance</span>
+                      {s.actualWeight ? (
+                        <span className={`sv-variance-chip ${wtDelta > 0 ? 'pos' : wtDelta < 0 ? 'neg' : 'neutral'}`}>
+                          {wtDelta > 0 ? `+${wtDelta}` : wtDelta} kg
+                        </span>
+                      ) : (
+                        <span className="sv-variance-chip neutral">0 kg</span>
+                      )}
+                    </div>
+
+                    {/* e1RM Column & top set marks */}
+                    <div className="sv-col">
+                      <span className="sv-col-label">e1RM</span>
+                      <div className="sv-input-group">
+                        <span className={`sv-e1rm-val ${isTop ? 'top-set' : ''}`}>
+                          {s.e1rmVal > 0 ? `${s.e1rmVal} kg` : '—'}
+                        </span>
+                        {isTop && <span className="sv-top-badge">Top</span>}
+                      </div>
+                    </div>
+
+                    {/* Row Context Actions */}
+                    <div className="sv-row-actions">
+                      {roleMode === 'coach' && (
+                        <button className="sv-action-btn finish" onClick={() => handleSyncPrescription(ex.id, s.id)}>Copy</button>
+                      )}
+                      <button className="sv-action-btn" onClick={() => handleDuplicateSet(ex.id, s.id)}>Dup</button>
+                      <button className="sv-action-btn" onClick={() => handleDeleteSet(ex.id, s.id)}>Del</button>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Card tools */}
+            <button className="sv-add-btn" onClick={() => handleAddSet(ex.id)}>+ Add Set</button>
+
+            {/* Nested note layer */}
+            {ex.note && (
+              <div className="sv-notes-block">
+                <div className="sv-notes-title">Exercise Directive</div>
+                <p className="sv-notes-content">{ex.note}</p>
+              </div>
+            )}
+          </section>
+        );
+      })}
+
+      {/* Footer bar */}
+      <footer className="sv-footer">
+        <div className="sv-footer-left">
+          Offline Sync Secure • Autoregulation Active
+        </div>
+        <div className="sv-footer-right">
+          <button className="sv-action-btn" onClick={() => alert('Plan overridden')}>Override Plan</button>
+          <button className="sv-primary-btn green" onClick={() => alert('Macros committed!')}>Commit Macro Adjustments</button>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<SessionViewApp />);
+</script>
+</body>
+</html>

@@ -8,9 +8,39 @@ build/
 .cache/
 __pycache__/
 *.pyc
+.vs/
+.git/
 
-# CRITICAL EXCLUSIONS (Do NOT ignore these configuration files)
-# !package.json
-# !.env
-# !tsconfig.json
-# !vite.config.ts
+# Ignore large/heavy package lock file (144KB+)
+package-lock.json
+
+# Ignore images and screenshot folders
+*.png
+*.jpg
+*.jpeg
+*.gif
+screenshots/
+**/screenshot*.png
+current_screen.png
+
+# Ignore text logs and temporary reports
+git_log.txt
+qa/report.json
+
+# Ignore large static exported HTML files that are only reference designs
+analysis_terminal.html
+athlete_logger_terminal.html
+command_center.html
+execution_feed.html
+stitch_calendar_antigravity.html
+stitch_calendar_macos_dark.html
+stitch_weekly_enhanced.html
+
+# Ignore stitch query/download helper python scripts to keep indexing light
+call_stitch_*.py
+download_*.py
+get_*.py
+query_*.py
+test_auth.py
+verify.py
+

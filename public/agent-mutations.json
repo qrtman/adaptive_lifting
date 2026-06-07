@@ -1,0 +1,25 @@
+{
+  "app-shell-nav": {
+    "flexDirection": "column",
+    "borderRadius": "0px"
+  },
+  "agent-workspace": {
+    "flexDirection": "row",
+    "flexWrap": "nowrap",
+    "alignItems": "flex-start",
+    "borderRadius": "8px"
+  },
+  "day-cell": {
+    "display": "flex",
+    "flexDirection": "row",
+    "gap": "20px",
+    "flexWrap": "wrap"
+  },
+  "session-block": {
+    "display": "flex",
+    "flexDirection": "row",
+    "gap": "16px",
+    "flexWrap": "nowrap",
+    "overflowX": "auto"
+  }
+}

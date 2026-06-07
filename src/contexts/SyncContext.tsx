@@ -64,7 +64,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     });
   };
 
-  const handleResolveConflict = (index: number, action: string) => {
+  const handleResolveConflict = (index: number, _action: string) => {
      // For now just dismiss it. Real app would re-submit or discard.
      setConflicts(prev => prev.filter((_, i) => i !== index));
   };

@@ -31,7 +31,7 @@ def run_tests():
     print(f"  - Decrypted: {decrypted}")
     
     assert test_token == decrypted, "Decryption error: tokens do not match"
-    print("  ✓ Encryption parity verification success.")
+    print("  [OK] Encryption parity verification success.")
 
     # 2. Test Telegram initData Cryptographic Signature Verification
     print("Test 2: Testing Telegram WebApp initData verification...")
@@ -62,7 +62,7 @@ def run_tests():
     print(f"  - Verified User Payload: {result_user}")
     assert result_user["id"] == 8888, "User ID parsed improperly"
     assert result_user["username"] == "powerlifter", "Username parsed improperly"
-    print("  ✓ Authentic signature accepted.")
+    print("  [OK] Authentic signature accepted.")
 
     # Test Tampered payload
     print("  - Verifying tampered initData payload is rejected...")
@@ -72,10 +72,10 @@ def run_tests():
     
     try:
         verify_telegram_init_data(raw_tampered, bot_token)
-        print("  ❌ Bug: Tampered payload was accepted.")
+        print("  [FAIL] Bug: Tampered payload was accepted.")
         sys.exit(1)
     except ValueError as e:
-        print(f"  ✓ Successfully rejected tampered payload: {str(e)}")
+        print(f"  [OK] Successfully rejected tampered payload: {str(e)}")
 
     # 3. Test Database Outbox Model Integration
     print("Test 3: Testing Database Outbox integration...")
@@ -104,7 +104,7 @@ def run_tests():
         # Cleanup
         db.delete(fetched)
         db.commit()
-        print("  ✓ Database Outbox integration success.")
+        print("  [OK] Database Outbox integration success.")
     finally:
         db.close()
 

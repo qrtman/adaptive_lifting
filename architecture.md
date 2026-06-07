@@ -55,7 +55,7 @@ Understanding the RTS methodology is essential for working with this system. All
 | **Tier** | Exercise classification: **Comp** (competition lift), **Variation** (close derivative), **Accessory** (isolation/bodybuilding). |
 | **Lift Category** | Movement pattern classifier: Squat, Bench, Deadlift, or Other. Used for INOL grouping and export gating. |
 | **Top Set** | The heaviest or most fatiguing set in an exercise block. Flagged with `isTop` for e1RM tracking. |
-| **Effective Reps** | The total number of reps the body treats as fatiguing, including the implied reps-in-reserve. Formalized as `Reps + (10 - RPE)`. Used by the Brzycki e1RM formula. |
+| **Effective Reps** | The total number of reps the body treats as fatiguing, including the implied reps-in-reserve. Formalized as `Reps + (10 - RPE)`. Used by the RPE-Compensated Linear Decay e1RM formula. |
 | **DOTS** | A bodyweight-normalized strength coefficient allowing cross-weight-class comparison of powerlifting totals. |
 
 ---
@@ -1082,7 +1082,7 @@ async function performSafeEviction(db: IndexedDB): Promise<void> {
 
 ### 11.3 Backend Math Protection
 
-- **Zero-Division Guard:** If the Brzycki denominator (`1.0278 - 0.0278 * EffectiveReps`) resolves to <= 0, return the raw weight as a safe fallback.
+- **Zero-Division Guard:** If the linear decay denominator (`1.0 - (10.0 - RPE + Reps - 1) * 0.03`) resolves to <= 0, return the raw weight as a safe fallback.
 - **INOL Intensity Cap:** If `Intensity >= 1.0`, cap INOL at `Reps * 1.0` to prevent infinity.
 
 ### 11.4 Observability & APM

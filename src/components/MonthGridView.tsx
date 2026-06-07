@@ -3,14 +3,10 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Calendar, 
-  AlertTriangle,
-  Move,
-  Trophy,
-  Activity,
-  Dumbbell
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { WorkoutData, MicrocycleData, MesocycleData } from '../types';
+import type { WorkoutData, MicrocycleData, MesocycleData } from '../types';
 import { apiService } from '../services/api';
 
 const getMondayOfDate = (dateStr: string) => {
@@ -35,8 +31,7 @@ const hexToRgb = (hex: string) => {
     : '255, 255, 255';
 };
 
-
-interface CalendarViewProps {
+interface MonthGridViewProps {
   microcycles: MicrocycleData[];
   mesocycles: MesocycleData[];
   onUpdateWorkouts: (updatedMicrocycles: MicrocycleData[]) => void;
@@ -44,22 +39,19 @@ interface CalendarViewProps {
   filter: 'All' | 'Squat' | 'Bench' | 'Deadlift';
 }
 
-export function CalendarView({
+export function MonthGridView({
   microcycles,
   mesocycles,
   onUpdateWorkouts,
   onViewSession,
   filter
-}: CalendarViewProps) {
-  // Navigation states (we start in September 2026)
+}: MonthGridViewProps) {
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(8); // September is 8 (0-indexed)
 
-  // Drag and drop states
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
   const [draggedFromMicrocycleId, setDraggedFromMicrocycleId] = useState<string | null>(null);
   
-  // Conflict Prompt states
   const [conflictModal, setConflictModal] = useState<{
     workout: WorkoutData;
     sourceMicroId: string;
@@ -68,7 +60,6 @@ export function CalendarView({
     conflictType: 'overlap' | 'periodization_breach' | 'normal';
   } | null>(null);
 
-  // Added state for high-fidelity Stitch Side Panel Session Analysis
   const [selectedWorkout, setSelectedWorkout] = useState<{ workout: WorkoutData; microId: string } | null>(null);
 
   const months = [
@@ -94,16 +85,12 @@ export function CalendarView({
     }
   };
 
-  // Helper date logic
   const daysInMonthCount = new Date(currentYear, currentMonth + 1, 0).getDate();
   const rawFirstDayNo = new Date(currentYear, currentMonth, 1).getDay();
-  // Adjust so Monday is 0, Sunday is 6
   const startDayOffset = (rawFirstDayNo + 6) % 7;
 
-  // Build grid entries
   const daysGrid: { dateString: string; dayNumber: number; isCurrentMonth: boolean }[] = [];
   
-  // Padding for start of month
   const prevMonthDaysCount = new Date(currentYear, currentMonth, 0).getDate();
   const prevMonthIdx = currentMonth === 0 ? 11 : currentMonth - 1;
   const prevYearIdx = currentMonth === 0 ? currentYear - 1 : currentYear;
@@ -117,7 +104,6 @@ export function CalendarView({
     });
   }
 
-  // Current month days
   for (let d = 1; d <= daysInMonthCount; d++) {
     daysGrid.push({
       dateString: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
@@ -126,7 +112,6 @@ export function CalendarView({
     });
   }
 
-  // Padding for end of month to make multiples of 7
   const totalDaysSoFar = daysGrid.length;
   const endPadding = totalDaysSoFar % 7 === 0 ? 0 : 7 - (totalDaysSoFar % 7);
   const nextMonthIdx = currentMonth === 11 ? 0 : currentMonth + 1;
@@ -140,7 +125,6 @@ export function CalendarView({
     });
   }
 
-  // Flatten all workouts with their microcycle reference for easier query mapping
   const workoutList: { workout: WorkoutData; microId: string }[] = [];
   microcycles.forEach(micro => {
     micro.workouts.forEach(w => {
@@ -148,7 +132,6 @@ export function CalendarView({
     });
   });
 
-  // Drag handlers
   const handleDragStart = (e: React.DragEvent, workoutId: string, microId: string) => {
     setDraggedWorkoutId(workoutId);
     setDraggedFromMicrocycleId(microId);
@@ -159,7 +142,6 @@ export function CalendarView({
     e.preventDefault();
     if (!draggedWorkoutId || !draggedFromMicrocycleId) return;
 
-    // Find dragged workout
     let targetWorkout: WorkoutData | null = null;
     microcycles.forEach(m => {
       m.workouts.forEach(w => {
@@ -171,10 +153,9 @@ export function CalendarView({
 
     if (!targetWorkout) return;
 
-    const sourceDateStr = (targetWorkout as WorkoutData).date;
-    if (sourceDateStr === targetDate) return; // Dropped on same day
+    const sourceDateStr = targetWorkout.date;
+    if (sourceDateStr === targetDate) return;
 
-    // Restrict dragging across microcycle boundaries to preserve periodization integrity
     const dropMon = getMondayOfDate(targetDate);
     const origMon = getMondayOfDate(sourceDateStr);
 
@@ -190,28 +171,19 @@ export function CalendarView({
     const diffTime = Math.abs(dropDate.getTime() - sourceDate.getTime());
     const daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) * (dropDate > sourceDate ? 1 : -1);
 
-    // Look for scheduling conflict (workout on the same target date)
     const existingWorkoutOnTarget = workoutList.find(item => item.workout.date === targetDate);
     
-    // Evaluate if this breaks periodization (e.g. dragged too far, or out of order)
     const activeMicroId = draggedFromMicrocycleId;
     const currentMicro = microcycles.find(m => m.id === activeMicroId);
     let isPeriodizationBreach = false;
 
     if (currentMicro) {
-      // Find other workouts in same microcycle
-      const sortingWorkouts = [...currentMicro.workouts].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const firstWorkout = sortingWorkouts[0];
-      const lastWorkout = sortingWorkouts[sortingWorkouts.length - 1];
-
-      // If dragging this workout stretches the microcycle over too many days or overlaps bounds of next micro, trigger cascade option
       if (Math.abs(daysDiff) > 7) {
         isPeriodizationBreach = true;
       }
     }
 
     if (existingWorkoutOnTarget || isPeriodizationBreach || Math.abs(daysDiff) > 3) {
-      // Trigger decision prompt modal!
       setConflictModal({
         workout: targetWorkout,
         sourceMicroId: draggedFromMicrocycleId,
@@ -220,11 +192,9 @@ export function CalendarView({
         conflictType: existingWorkoutOnTarget ? 'overlap' : 'periodization_breach'
       });
     } else {
-      // Directly execute granular move (Single adjust)
       executeMove(targetWorkout, draggedFromMicrocycleId, targetDate, false, 0);
     }
 
-    // Reset drag variables
     setDraggedWorkoutId(null);
     setDraggedFromMicrocycleId(null);
   };
@@ -239,13 +209,11 @@ export function CalendarView({
     const updatedMicrocycles = microcycles.map(m => {
       if (m.id !== microId) return m;
 
-      // Update workouts inside the matching microcycle
       const updatedWorkouts = m.workouts.map(w => {
         if (w.id === workout.id) {
           return { ...w, date: newDate };
         }
         
-        // If cascading, we shift all subsequent workouts (chronologically after the current workout's original date) by N days
         if (cascadeShift) {
           const wDate = new Date(w.date);
           const currentOrigDate = new Date(workout.date);
@@ -277,36 +245,35 @@ export function CalendarView({
     setDraggedFromMicrocycleId(null);
   };
 
-  // Helper to fetch microcycle visual specs based on index
   const getMicrocycleColorInfo = (microIdx: number) => {
     switch (microIdx) {
-      case 0: // Microcycle 1: Obsidian Jade
+      case 0:
         return {
-          borderClass: "border-[#54e083]",
+          borderClass: "border-accent",
           bgClass: "bg-[#54e083]/5",
           textClass: "text-[#54e083]",
           labelBg: "bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/20",
           accentColor: "#54e083"
         };
-      case 1: // Microcycle 2: RTS Comp Blue
+      case 1:
         return {
-          borderClass: "border-[#007aff]",
+          borderClass: "border-[#007aff]/40",
           bgClass: "bg-[#007aff]/5",
           textClass: "text-[#007aff]",
           labelBg: "bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/20",
           accentColor: "#007aff"
         };
-      case 2: // Microcycle 3: Supercompensation Green
+      case 2:
         return {
-          borderClass: "border-[#53e16f]",
+          borderClass: "border-[#53e16f]/40",
           bgClass: "bg-[#53e16f]/5",
           textClass: "text-[#53e16f]",
           labelBg: "bg-[#53e16f]/15 text-[#53e16f] border border-[#53e16f]/20",
           accentColor: "#53e16f"
         };
-      case 3: // Microcycle 4: CNS Warning Orange
+      case 3:
         return {
-          borderClass: "border-[#F5A623]",
+          borderClass: "border-[#F5A623]/40",
           bgClass: "bg-[#F5A623]/5",
           textClass: "text-[#F5A623]",
           labelBg: "bg-[#F5A623]/15 text-[#F5A623] border border-[#F5A623]/20",
@@ -314,7 +281,7 @@ export function CalendarView({
         };
       default:
         return {
-          borderClass: "border-[#20201F]",
+          borderClass: "border-white/10",
           bgClass: "bg-white/[0.01]",
           textClass: "text-gray-400",
           labelBg: "bg-white/5 text-gray-400 border border-white/5",
@@ -330,11 +297,10 @@ export function CalendarView({
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-[#0A0A0A]">
-      {/* Left Pane: Scrollable Calendar Grid */}
-      <div className="flex-1 flex flex-col p-6 space-y-6 overflow-y-auto scroll-smooth">
-        {/* Calendar Header */}
-        <div className="flex justify-between items-center bg-[#131313] p-5 rounded-[8px] border border-white/10 backdrop-blur-md">
+    <div className="w-full h-full flex flex-col md:flex-row overflow-hidden bg-transparent">
+      <div className="flex-1 flex flex-col p-4 space-y-4 overflow-y-auto scroll-smooth">
+        {/* Month Header */}
+        <div className="flex justify-between items-center bg-[#131313] p-4 rounded-[8px] border border-white/10 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-mac-blue/10 rounded-[4px] border border-mac-blue/20 text-mac-blue shadow-[0_0_15px_rgba(0,122,255,0.15)]">
               <Calendar size={22} />
@@ -361,7 +327,7 @@ export function CalendarView({
             <button
               onClick={() => {
                 setCurrentYear(2026);
-                setCurrentMonth(8); // Reset to active September 2026
+                setCurrentMonth(8);
               }}
               onMouseDown={triggerHaptic}
               className="px-4 py-2 bg-white/10 border border-white/10 text-xs font-bold uppercase tracking-wider hover:bg-white/15 text-white rounded-[4px] transition-all cursor-pointer font-sans"
@@ -379,10 +345,9 @@ export function CalendarView({
           </div>
         </div>
 
-        {/* Calendar Grid Container */}
+        {/* Month Grid Container */}
         <div className="space-y-6">
           {(() => {
-            // Helpers for periodized entity resolution
             const getMesocycleForDate = (dateStr: string) => {
               const curr = new Date(dateStr);
               return mesocycles.find(m => {
@@ -403,13 +368,11 @@ export function CalendarView({
               return found;
             };
 
-            // Group the daysGrid into 7-day weeks
             const weeksList: typeof daysGrid[] = [];
             for (let i = 0; i < daysGrid.length; i += 7) {
               weeksList.push(daysGrid.slice(i, i + 7));
             }
 
-            // Group consecutive weeks by dominant Mesocycle
             const groupedMesoWeeks: { meso: MesocycleData | null; weeks: typeof daysGrid[] }[] = [];
             weeksList.forEach(week => {
               const counts = new Map<string, number>();
@@ -446,13 +409,13 @@ export function CalendarView({
                   key={meso ? meso.id : `ungrouped-meso-${groupIdx}`}
                   className="border border-white/10 rounded-[8px] bg-[#131313] shadow-2xl overflow-hidden ring-1 ring-inset ring-white/5"
                 >
-                  {/* 1. Mesocycle (Block) Container Header Banner */}
+                  {/* Mesocycle Container Banner (Macro Phase Tracker) */}
                   {meso ? (
                     <div className="p-4 border-b border-white/5 flex flex-wrap items-center justify-between bg-[#161616]/50 backdrop-blur-sm gap-4">
                       <div className="flex flex-col gap-1 pl-4 relative">
                         <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#54e083] rounded-full shadow-[0_0_12px_rgba(84,224,131,0.6)]" />
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-[#54e083] text-[10px] font-bold tracking-widest">MESOCYCLE PHASE</span>
+                          <span className="font-mono text-accent text-[10px] font-bold tracking-widest">MESOCYCLE PHASE</span>
                           <span className="font-mono text-[9px] bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/20 px-2 py-0.5 rounded-[4px] font-bold uppercase">ACTIVE</span>
                         </div>
                         <h4 className="text-base text-white tracking-tight uppercase font-sans font-bold">
@@ -473,12 +436,12 @@ export function CalendarView({
                     </div>
                   )}
 
-                  {/* Weeks Container Nested inside Mesocycle Block Container Slot */}
-                  <div className="p-6 bg-transparent space-y-6">
+                  {/* Weeks list inside Mesocycle container */}
+                  <div className="p-3 bg-transparent space-y-3">
                     {/* Weekday Headers */}
-                    <div className="grid grid-cols-7 gap-0">
+                    <div className="grid grid-cols-7 gap-2">
                       {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((day) => (
-                        <div key={day} className="pb-3 flex justify-start pl-4">
+                        <div key={day} className="flex justify-start pl-1">
                           <span className="font-mono text-[10px] text-gray-400 font-bold tracking-widest">{day}</span>
                         </div>
                       ))}
@@ -486,195 +449,185 @@ export function CalendarView({
 
                     {group.weeks.map((week, weekIdx) => {
                       const firstDay = week[0].dateString;
+                      const weekMicro = getMicrocycleForDate(firstDay);
+                      
+                      let colorInfo = {
+                        borderClass: "border-white/10",
+                        bgClass: "bg-white/[0.01]",
+                        textClass: "text-gray-400",
+                        labelBg: "bg-white/5 text-gray-400 border border-white/5",
+                        accentColor: "#20201F"
+                      };
+
+                      if (weekMicro) {
+                        const microIdx = microcycles.findIndex(m => m.id === weekMicro.id);
+                        colorInfo = getMicrocycleColorInfo(microIdx);
+                      }
 
                       return (
                         <div 
                           key={`${firstDay}-${weekIdx}`}
-                          className="grid grid-cols-7 gap-0"
+                          className="flex flex-col gap-2 p-2 bg-white/[0.01] border border-white/5 rounded-[8px] transition-all hover:border-white/10"
                         >
-                          {week.map((cell, idx) => {
-                            const dateStr = cell.dateString;
-                            const isToday = dateStr === '2026-09-16'; // Mocked Today
-                            const dayWorkouts = workoutList.filter(item => item.workout.date === dateStr);
-
-                            const isLeftColumn = idx === 0;
-                            const isRightColumn = idx === 6;
-
-                            let borderStyles = "border border-[#20201F]";
-                            let glowClasses = "";
-                            let colorInfo = {
-                              borderClass: "border-[#20201F]",
-                              bgClass: "bg-white/[0.01]",
-                              textClass: "text-gray-400",
-                              labelBg: "bg-white/5 text-gray-400 border border-white/5",
-                              accentColor: "#20201F"
-                            };
-
-                            // ── Capsule range logic ─────────────────────────────────────────────
-                            // Set the capsule territory strictly to the active week row of the microcycle.
-                            const weekMicro = getMicrocycleForDate(firstDay);
-
-                            let capsuleRole: 'first' | 'last' | 'middle' | null = null;
-                            let capsuleMicro: (typeof microcycles)[0] | null = null;
-
-                            if (weekMicro) {
-                              capsuleMicro = weekMicro;
-                              if (idx === 0) {
-                                capsuleRole = 'first';
-                              } else if (idx === 6) {
-                                capsuleRole = 'last';
-                              } else {
-                                capsuleRole = 'middle';
-                              }
-                            }
-
-                            if (capsuleMicro && capsuleRole !== null) {
-                              const microIdx = microcycles.findIndex(m => m.id === capsuleMicro!.id);
-                              colorInfo = getMicrocycleColorInfo(microIdx);
-
-                              switch (capsuleRole) {
-                                case 'first':
-                                  borderStyles = `border-y-2 border-l-2 ${colorInfo.borderClass} border-r border-[#252525] rounded-l-[8px]`;
-                                  break;
-                                case 'last':
-                                  borderStyles = `border-y-2 border-r-2 ${colorInfo.borderClass} border-l border-[#252525] rounded-r-[8px]`;
-                                  break;
-                                case 'middle':
-                                  borderStyles = `border-y-2 ${colorInfo.borderClass} border-x border-[#252525]`;
-                                  break;
-                              }
-
-                              glowClasses = 'hover:bg-white/[0.015]';
-                            } else {
-                              // Outside all microcycle ranges — neutral grid
-                              if (isLeftColumn)       borderStyles = 'border-y border-l border-r border-[#20201F] rounded-l-[8px]';
-                              else if (isRightColumn) borderStyles = 'border-y border-r border-[#20201F] rounded-r-[8px]';
-                              else                    borderStyles = 'border-y border-r border-[#20201F]';
-                            }
-
-                            // Day label & rank calculation for workouts
-                            let labelMicro: (typeof microcycles)[0] | null = null;
-                            let workoutRankInMicro = 0;
-                            let labelColorInfo = colorInfo;
-
-                            if (dayWorkouts.length > 0) {
-                              const firstW = dayWorkouts[0];
-                              const wMicro = microcycles.find(m => m.id === firstW.microId);
-                              if (wMicro) {
-                                labelMicro = wMicro;
-                                const labelMicroIdx = microcycles.findIndex(m => m.id === wMicro.id);
-                                labelColorInfo = getMicrocycleColorInfo(labelMicroIdx);
-                                const sortedW = [...wMicro.workouts].sort((a, b) => a.date.localeCompare(b.date));
-                                workoutRankInMicro = sortedW.findIndex(w => w.id === firstW.workout.id) + 1;
-                              }
-                            }
-
-                            return (
-                              <div
-                                key={`${dateStr}-${idx}`}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={(e) => handleDrop(e, dateStr)}
-                                style={{
-                                  backgroundColor: capsuleMicro && cell.isCurrentMonth
-                                    ? `rgba(${hexToRgb(colorInfo.accentColor)}, 0.03)`
-                                    : undefined
-                                }}
-                                className={`h-auto min-h-[175px] p-3 flex flex-col relative group cursor-pointer transition-all bg-[#131313] ${borderStyles} ${glowClasses} ${
-                                  !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
-                                } ${isToday ? 'ring-1 ring-[#007aff] bg-[#007aff]/5 shadow-[0_0_15px_rgba(0,122,255,0.08)]' : ''}`}
-                              >
-                                {/* Date label */}
-                                <div className="flex items-center mt-1 ml-1 relative z-10 gap-2">
-                                  <span className={`font-mono text-xs font-bold ${isToday ? 'text-[#007aff]' : 'text-gray-400'}`}>
-                                    {String(cell.dayNumber).padStart(2, '0')}
-                                  </span>
-                                  {labelMicro && workoutRankInMicro > 0 && (
-                                    <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-[4px] font-bold ${labelColorInfo.labelBg}`}>
-                                      W{microcycles.indexOf(labelMicro) + 1} • D{workoutRankInMicro}
-                                    </span>
-                                  )}
+                          {/* Shared Periodization Track */}
+                          {weekMicro && (
+                            <div className="flex items-center justify-between px-3 py-2 bg-[#161616]/80 border border-white/10 rounded-[6px] backdrop-blur-sm">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorInfo.accentColor }} />
+                                  <span className="font-mono text-[9px] text-[#AEAEB2] font-black uppercase tracking-wider">BLOCK:</span>
+                                  <span className="text-[11px] font-black text-white uppercase">{meso ? meso.name : 'Alpha-09'}</span>
                                 </div>
-
-
-                                {/* Workout Slots strictly aligned to days */}
-                                {cell.isCurrentMonth && dayWorkouts
-                                  .filter(item => {
-                                    if (filter === 'All') return true;
-                                    const hasSquat = item.workout.exercises.some(e => e.title.toLowerCase().includes('squat'));
-                                    const hasBench = item.workout.exercises.some(e => e.title.toLowerCase().includes('bench'));
-                                    const hasDeadlift = item.workout.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
-                                    if (filter === 'Squat') return hasSquat;
-                                    if (filter === 'Bench') return hasBench;
-                                    if (filter === 'Deadlift') return hasDeadlift;
-                                    return false;
-                                  })
-                                  .map(({ workout, microId }) => {
-                                    const isSelected = selectedWorkout?.workout.id === workout.id;
-                                    return (
-                                      <div
-                                        key={workout.id}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, workout.id, microId)}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedWorkout({ workout, microId });
-                                        }}
-                                        className={`mt-3 border rounded-[8px] flex-1 flex flex-col backdrop-blur-sm overflow-hidden relative z-10 p-2 gap-2 cursor-grab active:cursor-grabbing hover:border-white/20 transition-all ${
-                                          isSelected 
-                                            ? 'bg-[#1C1C1E] border-mac-blue shadow-[0_0_12px_rgba(0,122,255,0.15)]' 
-                                            : 'bg-[#161616] border-[#20201F] hover:bg-[#1C1C1E]'
-                                        }`}
-                                      >
-                                        <div className="flex flex-col gap-2">
-                                          {workout.exercises.map((ex) => {
-                                            const isSquat = ex.title.toLowerCase().includes('squat');
-                                            const isBench = ex.title.toLowerCase().includes('bench');
-                                            const movementName = isSquat ? 'SQUAT' : (isBench ? 'BENCH' : 'DEADLIFT');
-                                            
-                                            // Map to strict Obsidian Kinetic colors
-                                            const movementColorClass = isSquat 
-                                              ? 'text-[#007aff]' // RTS Blue
-                                              : (isBench 
-                                                ? 'text-[#54e083]' // Obsidian Jade
-                                                : 'text-[#F5A623]'); // CNS Warning Orange
-                                            
-                                            // Find the first set details
-                                            const targetSet = ex.sets[0];
-                                            const plannedW = targetSet?.plannedWeight || '---';
-                                            const plannedR = targetSet?.plannedReps || '—';
-                                            const plannedRp = targetSet?.plannedRpe || '—';
-                                            
-                                            const actualW = targetSet?.actual || '';
-                                            const actualR = targetSet?.reps || '';
-                                            const actualRp = targetSet?.executedRpe || '';
-
-                                            return (
-                                              <div key={ex.id} className="flex flex-col border-b border-white/5 pb-1 last:border-0 last:pb-0">
-                                                <div className="flex items-center justify-between">
-                                                  <span className={`text-[10px] font-bold leading-tight font-sans ${movementColorClass}`}>{movementName}</span>
-                                                  <span className="text-[8px] text-gray-500 font-mono">e1RM: {ex.top?.split(' ')[0] || '—'}</span>
-                                                </div>
-                                                <span className="text-[9px] text-gray-400 leading-tight mt-0.5 font-mono">
-                                                  Presc: {plannedW}kg x {plannedR} @ {plannedRp}
-                                                </span>
-                                                <div className="flex items-center justify-between text-[10px] leading-tight mt-0.5">
-                                                  <span className="text-gray-300 font-bold text-[9px] font-mono">
-                                                    {actualW ? `${actualW}kg x ${actualR} @ ${actualRp}` : 'Pending'}
-                                                  </span>
-                                                  {workout.status === 'Completed' && (
-                                                    <span className="bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/30 px-1 py-0.5 rounded-[2px] text-[8px] font-black font-mono leading-none">[✓]</span>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
+                                <span className="text-zinc-700">|</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-[9px] text-[#AEAEB2] font-black uppercase tracking-wider">MICROCYCLE:</span>
+                                  <span className="text-[11px] font-black text-white uppercase" style={{ color: colorInfo.accentColor }}>
+                                    {weekMicro.weekName}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-400">({weekMicro.focus})</span>
+                                </div>
                               </div>
-                            );
-                          })}
+                              <div className="flex items-center gap-2">
+                                <span className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded-[4px] ${colorInfo.labelBg}`}>
+                                  {weekMicro.status.toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 7-Day column grid below header */}
+                          <div className="grid grid-cols-7 gap-2">
+                            {week.map((cell, idx) => {
+                              const dateStr = cell.dateString;
+                              const isToday = dateStr === '2026-09-16'; // Mocked Today
+                              const dayWorkouts = workoutList.filter(item => item.workout.date === dateStr);
+
+                              let cellBorderStyles = `border ${colorInfo.borderClass} rounded-[6px]`;
+                              if (!weekMicro) {
+                                cellBorderStyles = "border border-white/10 rounded-[6px]";
+                              }
+
+                              let labelMicro: (typeof microcycles)[0] | null = null;
+                              let workoutRankInMicro = 0;
+                              let labelColorInfo = colorInfo;
+
+                              if (dayWorkouts.length > 0) {
+                                const firstW = dayWorkouts[0];
+                                const wMicro = microcycles.find(m => m.id === firstW.microId);
+                                if (wMicro) {
+                                  labelMicro = wMicro;
+                                  const labelMicroIdx = microcycles.findIndex(m => m.id === wMicro.id);
+                                  labelColorInfo = getMicrocycleColorInfo(labelMicroIdx);
+                                  const sortedW = [...wMicro.workouts].sort((a, b) => a.date.localeCompare(b.date));
+                                  workoutRankInMicro = sortedW.findIndex(w => w.id === firstW.workout.id) + 1;
+                                }
+                              }
+
+                              return (
+                                <div
+                                  key={`${dateStr}-${idx}`}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => handleDrop(e, dateStr)}
+                                  style={{
+                                    backgroundColor: weekMicro && cell.isCurrentMonth
+                                      ? `rgba(${hexToRgb(colorInfo.accentColor)}, 0.02)`
+                                      : undefined
+                                  }}
+                                  className={`h-auto min-h-[140px] p-2 flex flex-col relative group cursor-pointer transition-all bg-[#131313]/40 ${cellBorderStyles} hover:bg-white/[0.01] ${
+                                    !cell.isCurrentMonth ? 'opacity-30 select-none border-white/5 bg-[#1A1A1E]/30' : ''
+                                  } ${isToday ? 'ring-1 ring-mac-blue bg-mac-blue/5 shadow-[0_0_15px_rgba(0,122,255,0.08)]' : ''}`}
+                                >
+                                  {/* Date label */}
+                                  <div className="flex justify-between items-center mb-2 relative z-10">
+                                    <span className={`text-[11px] font-mono font-bold leading-none ${isToday ? 'text-mac-blue' : 'text-gray-400'}`}>
+                                      {String(cell.dayNumber).padStart(2, '0')}
+                                    </span>
+                                    {labelMicro && workoutRankInMicro > 0 && (
+                                      <span className={`font-mono text-[8px] px-1.5 py-0.5 rounded-[4px] font-bold ${labelColorInfo.labelBg}`}>
+                                        D{workoutRankInMicro}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Workout Slots */}
+                                  {cell.isCurrentMonth && dayWorkouts
+                                    .filter(item => {
+                                      if (filter === 'All') return true;
+                                      const hasSquat = item.workout.exercises.some(e => e.title.toLowerCase().includes('squat'));
+                                      const hasBench = item.workout.exercises.some(e => e.title.toLowerCase().includes('bench'));
+                                      const hasDeadlift = item.workout.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
+                                      if (filter === 'Squat') return hasSquat;
+                                      if (filter === 'Bench') return hasBench;
+                                      if (filter === 'Deadlift') return hasDeadlift;
+                                      return false;
+                                    })
+                                    .map(({ workout, microId }) => {
+                                      const isSelected = selectedWorkout?.workout.id === workout.id;
+                                      return (
+                                        <div
+                                          key={workout.id}
+                                          draggable
+                                          onDragStart={(e) => handleDragStart(e, workout.id, microId)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedWorkout({ workout, microId });
+                                            onViewSession(workout, microId);
+                                          }}
+                                          className={`mt-3 border rounded-[8px] flex-1 flex flex-col backdrop-blur-sm overflow-hidden relative z-10 p-2 gap-2 cursor-grab active:cursor-grabbing hover:border-white/20 transition-all ${
+                                            isSelected 
+                                              ? 'bg-[#1C1C1E] border-mac-blue shadow-[0_0_12px_rgba(0,122,255,0.15)]' 
+                                              : 'bg-[#161616] border-[#20201F] hover:bg-[#1C1C1E]'
+                                          }`}
+                                        >
+                                          <div className="flex flex-col gap-2">
+                                            {workout.exercises.map((ex) => {
+                                              const isSquat = ex.title.toLowerCase().includes('squat');
+                                              const isBench = ex.title.toLowerCase().includes('bench');
+                                              const movementName = isSquat ? 'SQUAT' : (isBench ? 'BENCH' : 'DEADLIFT');
+                                              
+                                              const movementColorClass = isSquat 
+                                                ? 'text-mac-blue' 
+                                                : (isBench 
+                                                  ? 'text-accent' 
+                                                  : 'text-[#F5A623]');
+                                              
+                                              const targetSet = ex.sets[0];
+                                              const plannedW = targetSet?.plannedWeight || '---';
+                                              const plannedR = targetSet?.plannedReps || '—';
+                                              const plannedRp = targetSet?.plannedRpe || '—';
+                                              
+                                              const actualW = targetSet?.actual || '';
+                                              const actualR = targetSet?.reps || '';
+                                              const actualRp = targetSet?.executedRpe || '';
+
+                                              return (
+                                                <div key={ex.id} className="flex flex-col border-b border-white/5 pb-1.5 last:border-0 last:pb-0">
+                                                  <div className="flex flex-col">
+                                                    <span className={`text-[10px] font-bold leading-tight font-sans ${movementColorClass}`}>{movementName}</span>
+                                                    <span className="text-[8px] text-gray-500 font-mono mt-0.5">e1RM: {ex.top?.split(' ')[0] || '—'}</span>
+                                                  </div>
+                                                  <span className="text-[9px] text-gray-400 leading-normal mt-1 font-mono">
+                                                    Presc: {plannedW}kg x {plannedR} @ {plannedRp}
+                                                  </span>
+                                                  <div className="flex items-center justify-between text-[10px] leading-normal mt-1.5 pt-1 border-t border-white/5">
+                                                    <span className="text-gray-300 font-bold text-[9px] font-mono">
+                                                      {actualW ? `${actualW}kg x ${actualR} @ ${actualRp}` : 'Pending'}
+                                                    </span>
+                                                    {workout.status === 'Completed' && (
+                                                      <span className="bg-accent/20 text-accent border border-accent/30 px-1 py-0.5 rounded-[2px] text-[8px] font-black font-mono leading-none shrink-0 ml-1">[✓]</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
@@ -685,11 +638,11 @@ export function CalendarView({
           })()}
         </div>
 
-        {/* Grid Legend & Informational Footnote */}
+        {/* Legend */}
         <div className="flex justify-between items-center bg-[#131313] p-4 border border-white/10 rounded-[8px] text-xs text-gray-400 font-sans">
           <div className="flex items-center gap-4">
-            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#54e083] shadow-[0_0_8px_rgba(84,224,131,0.4)]" /> COMPLETED</span>
-            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#007aff] shadow-[0_0_8px_rgba(0,122,255,0.4)] animate-pulse" /> TODAY</span>
+            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-accent shadow-[0_0_8px_rgba(84,224,131,0.4)]" /> COMPLETED</span>
+            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-mac-blue shadow-[0_0_8px_rgba(0,122,255,0.4)] animate-pulse" /> TODAY</span>
             <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-gray-500" /> PLANNED</span>
           </div>
           <div className="italic text-right text-[11px] font-mono font-bold text-amber-400 tracking-wider">
@@ -698,7 +651,7 @@ export function CalendarView({
         </div>
       </div>
 
-      {/* Slide-out Session Analysis Side Panel (Stitch Premium Detail View Refinement) */}
+      {/* Slide-out Session Analysis Side Panel */}
       <AnimatePresence>
         {selectedWorkout && (
           <motion.aside
@@ -708,7 +661,6 @@ export function CalendarView({
             transition={{ type: "spring", damping: 30, stiffness: 220 }}
             className="w-[420px] border-l border-white/10 bg-[#131313] flex flex-col z-20 h-full shadow-[0_0_40px_rgba(0,0,0,0.5)] shrink-0"
           >
-            {/* Header */}
             <div className="p-6 border-b border-white/5 flex justify-between items-start">
               <div>
                 <span className="font-mono text-[#54e083] text-[10px] font-bold tracking-widest block mb-1">SESSION ANALYSIS</span>
@@ -737,9 +689,7 @@ export function CalendarView({
               </button>
             </div>
 
-            {/* Scrollable details */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* High Density Stats Row */}
               <div className="grid grid-cols-3 border border-white/10 bg-[#161616] rounded-[8px] overflow-hidden">
                 <div className="p-4 border-r border-white/10 text-center">
                   <p className="font-mono text-[9px] text-gray-400 font-bold tracking-widest uppercase mb-1">TOTAL VOL</p>
@@ -761,7 +711,6 @@ export function CalendarView({
                 </div>
               </div>
 
-              {/* Exercises Spreadsheet hybrid log */}
               <div className="space-y-3">
                 <p className="font-mono text-[10px] text-gray-400 font-bold tracking-widest uppercase">
                   EXERCISE LOG: PLANNED VS EXECUTED
@@ -801,7 +750,6 @@ export function CalendarView({
                 </div>
               </div>
 
-              {/* Coach's Notes */}
               <div className="p-4 border border-white/10 bg-[#161616] rounded-[8px] space-y-2">
                 <div className="flex items-center gap-2 text-amber-400">
                   <span className="material-symbols-outlined !text-[16px]">notes</span>
@@ -814,7 +762,6 @@ export function CalendarView({
                 </p>
               </div>
 
-              {/* Biomechanical Trace Graph (Premium SVG dynamic visualizer) */}
               <div className="p-4 border border-white/10 bg-[#161616] rounded-[8px] space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[#54e083]">
@@ -828,7 +775,7 @@ export function CalendarView({
                     <defs>
                       <linearGradient id="trace-glow" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor="#007aff" stopOpacity="0.1" />
-                        <stop offset="50%" stopColor="#54e083" stopOpacity="0.6" />
+                        <stop offset="50%" stopColor="var(--accent)" stopOpacity="0.6" />
                         <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
                       </linearGradient>
                     </defs>
@@ -850,12 +797,11 @@ export function CalendarView({
               </div>
             </div>
 
-            {/* Action Footer */}
             <div className="p-6 border-t border-white/5 bg-[#161616] flex gap-3">
               <button 
                 onClick={() => onViewSession(selectedWorkout.workout, selectedWorkout.microId)}
                 onMouseDown={triggerHaptic}
-                className="flex-1 py-3 bg-mac-blue hover:bg-blue-600 text-white text-xs font-bold uppercase tracking-widest rounded-[4px] transition-all cursor-pointer text-center"
+                className="flex-1 py-3 bg-mac-blue hover:bg-blue-600 text-white text-xs font-bold uppercase tracking-widest rounded-[4px] transition-all cursor-pointer text-center font-sans"
               >
                 LAUNCH SESSION LOGGER
               </button>
@@ -876,7 +822,7 @@ export function CalendarView({
                   }
                 }}
                 onMouseDown={triggerHaptic}
-                className="px-3 py-3 border border-white/10 hover:border-[#54e083] hover:bg-[#54e083]/5 text-[#54e083] text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
+                className="px-3 py-3 border border-white/10 hover:border-[#54e083] hover:bg-[#54e083]/5 text-[#54e083] text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer font-sans"
               >
                 CSV
               </button>
@@ -897,7 +843,7 @@ export function CalendarView({
                   }
                 }}
                 onMouseDown={triggerHaptic}
-                className="px-3 py-3 border border-white/10 hover:border-mac-blue hover:bg-mac-blue/5 text-mac-blue text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
+                className="px-3 py-3 border border-white/10 hover:border-mac-blue hover:bg-mac-blue/5 text-mac-blue text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer font-sans"
               >
                 JSON
               </button>
@@ -918,10 +864,10 @@ export function CalendarView({
             >
               <div className="flex items-center gap-3 text-orange-500 mb-4 bg-orange-500/10 p-3 rounded-[4px] border border-orange-500/20">
                 <AlertTriangle size={20} />
-                <h4 className="text-sm font-bold uppercase tracking-wider text-white">Periodization Conflict</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-white font-sans">Periodization Conflict</h4>
               </div>
 
-              <p className="text-xs text-gray-400 leading-relaxed mb-6">
+              <p className="text-xs text-gray-400 leading-relaxed mb-6 font-sans">
                 You are rescheduling <strong className="text-white">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-white">{conflictModal.newDate}</strong>.
                 This action exceeds standard tactical variance limits.
               </p>
@@ -933,11 +879,11 @@ export function CalendarView({
                     conflictModal.workout,
                     conflictModal.sourceMicroId,
                     conflictModal.newDate,
-                    true,      // Cascade shift subsequent sessions
+                    true,
                     conflictModal.daysDiff
                   )}
                   onMouseDown={triggerHaptic}
-                  className="w-full flex items-center justify-between p-4 bg-mac-blue/10 hover:bg-mac-blue/15 text-mac-blue border border-mac-blue/30 rounded-[4px] text-left transition-all group cursor-pointer"
+                  className="w-full flex items-center justify-between p-4 bg-mac-blue/10 hover:bg-mac-blue/15 text-mac-blue border border-mac-blue/30 rounded-[4px] text-left transition-all group cursor-pointer font-sans"
                 >
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider block text-white group-hover:text-mac-blue mb-1">
@@ -956,11 +902,11 @@ export function CalendarView({
                     conflictModal.workout,
                     conflictModal.sourceMicroId,
                     conflictModal.newDate,
-                    false,     // Granular session move ONLY
+                    false,
                     0
                   )}
                   onMouseDown={triggerHaptic}
-                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[4px] text-left transition-all group cursor-pointer"
+                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[4px] text-left transition-all group cursor-pointer font-sans"
                 >
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider block text-white group-hover:text-mac-blue mb-1">
@@ -979,7 +925,7 @@ export function CalendarView({
                   type="button"
                   onClick={cancelMove}
                   onMouseDown={triggerHaptic}
-                  className="px-4 py-2 bg-transparent text-xs font-bold uppercase tracking-widest text-[#8E8E93] hover:text-white transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-transparent text-xs font-bold uppercase tracking-widest text-[#8E8E93] hover:text-white transition-colors cursor-pointer font-sans"
                 >
                   Abort Rescheduling
                 </button>
@@ -991,3 +937,12 @@ export function CalendarView({
     </div>
   );
 }
+export const SampleDefault = () => (
+  <MonthGridView 
+    microcycles={[]} 
+    mesocycles={[]} 
+    onUpdateWorkouts={() => {}} 
+    onViewSession={() => {}} 
+    filter="All"
+  />
+);

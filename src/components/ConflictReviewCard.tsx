@@ -1,60 +1,73 @@
 import React from 'react';
-import { AlertCircle, Check, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface ConflictReviewCardProps {
   entityType: string;
   field: string;
   serverValue: string;
   clientValue: string;
-  onResolve: (action: 'keep_server' | 'force_client') => void;
+  onResolve: (action: 'force' | 'discard') => void;
 }
 
-export const ConflictReviewCard: React.FC<ConflictReviewCardProps> = ({
+export function ConflictReviewCard({
   entityType,
   field,
   serverValue,
   clientValue,
-  onResolve
-}) => {
+  onResolve,
+}: ConflictReviewCardProps) {
   return (
-    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
-      <div className="flex items-start gap-3">
-        <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
-        <div className="flex-1">
-          <h4 className="text-red-400 font-bold text-sm uppercase tracking-widest mb-1">
-            Sync Conflict Detected
-          </h4>
-          <p className="text-xs text-gray-300 mb-3 leading-relaxed">
-            Another device modified the <span className="font-mono text-white">{field}</span> on this <span className="font-mono text-white">{entityType}</span>.
-          </p>
-          
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-black/40 rounded p-2 border border-white/5">
-              <div className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Server (Current)</div>
-              <div className="text-sm font-mono text-white break-all">{serverValue || '—'}</div>
+    <div className="bg-transparent p-4 flex flex-col h-full font-sans overflow-hidden">
+      {/* Header */}
+      <div className="bg-red-500/10 px-4 py-3 border-b border-red-500/20 flex items-center gap-2">
+        <AlertTriangle className="text-[#FF3B30] shrink-0" size={18} />
+        <span className="font-bold text-white uppercase tracking-wider text-xs">
+          Tombstone Conflict (409) — {entityType} {field}
+        </span>
+      </div>
+
+      {/* Body Content */}
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Local changes */}
+        <div className="bg-[#2C2C2E]/30 p-3 rounded border border-white/5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono text-[#AEAEB2] uppercase tracking-wider">Local Cache (Your Device)</span>
+              <span className="text-[10px] bg-[#FF9500]/20 text-[#FF9500] px-1.5 py-0.5 rounded font-mono">PENDING</span>
             </div>
-            <div className="bg-black/40 rounded p-2 border border-white/5">
-              <div className="text-[10px] text-mac-blue uppercase font-bold tracking-widest mb-1">Your Edit</div>
-              <div className="text-sm font-mono text-white break-all">{clientValue || '—'}</div>
+            <div className="space-y-1 font-mono text-xs">
+              <p className="text-white">Value: <span className="text-[#FF9500] font-bold">{clientValue}</span></p>
+              <p className="text-zinc-500 text-[11px]">Uncommitted local edit</p>
             </div>
           </div>
-          
-          <div className="flex gap-2">
-            <button 
-              onClick={() => onResolve('keep_server')}
-              className="flex items-center justify-center gap-1.5 flex-1 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider rounded transition-colors"
-            >
-              <Check size={14} /> Keep Server
-            </button>
-            <button 
-              onClick={() => onResolve('force_client')}
-              className="flex items-center justify-center gap-1.5 flex-1 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-bold uppercase tracking-wider rounded transition-colors"
-            >
-              <X size={14} /> Force Mine
-            </button>
+          <button
+            onClick={() => onResolve('force')}
+            className="mt-4 w-full py-2 bg-[#FF9500]/20 hover:bg-[#FF9500]/30 border border-[#FF9500]/30 hover:border-[#FF9500]/50 text-[#FF9500] rounded font-bold transition-all text-xs tracking-wider uppercase cursor-pointer"
+          >
+            Force Local Changes
+          </button>
+        </div>
+
+        {/* Server state */}
+        <div className="bg-[#2C2C2E]/30 p-3 rounded border border-white/5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono text-[#AEAEB2] uppercase tracking-wider">Server State (Database)</span>
+              <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-mono">CANONICAL</span>
+            </div>
+            <div className="space-y-1 font-mono text-xs">
+              <p className="text-white">Value: <span className="text-green-400 font-bold">{serverValue}</span></p>
+              <p className="text-zinc-500 text-[11px]">Database canonical version</p>
+            </div>
           </div>
+          <button
+            onClick={() => onResolve('discard')}
+            className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 border border-white/15 hover:border-white/30 text-white rounded font-bold transition-all text-xs tracking-wider uppercase cursor-pointer"
+          >
+            Discard & Keep Server
+          </button>
         </div>
       </div>
     </div>
   );
-};
+}

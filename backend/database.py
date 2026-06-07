@@ -101,6 +101,7 @@ class ExerciseSet(Base, TimestampMixin):
     id = Column(String, primary_key=True, index=True)
     lexo_rank = Column(String, nullable=False, default="a0")
     label = Column(String, nullable=False)
+    planned = Column(String, nullable=True)
     plannedWeight = Column(Float, nullable=True)
     plannedReps = Column(Integer, nullable=True)
     plannedRpe = Column(Float, nullable=True)

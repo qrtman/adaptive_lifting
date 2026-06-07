@@ -1,4 +1,5 @@
-import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
+import { saveMutation, getPendingMutations, updateMutationStatus } from './db';
+import type { SyncMutation } from './db';
 
 let syncTimeout: number | null = null;
 const SYNC_DEBOUNCE_MS = 2000;

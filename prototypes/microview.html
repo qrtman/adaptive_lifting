@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Obsidian Kinetic – Microview</title>
+<style>
+  :root {
+    --ok-bg:         hsl(0, 0%, 4%);
+    --ok-surface-1:  hsl(0, 0%, 7%);
+    --ok-surface-2:  hsl(0, 0%, 9%);
+    --ok-surface-3:  hsl(0, 0%, 12%);
+    --ok-border:     hsl(0, 0%, 16%);
+    --ok-border-dim: hsl(0, 0%, 11%);
+
+    --ok-text:       hsl(240, 5%, 96%);
+    --ok-text-muted: hsl(240, 5%, 67%);
+    --ok-text-faint: hsl(240, 4%, 46%);
+
+    --ok-blue:   hsl(217, 91%, 60%);
+    --ok-green:  hsl(142, 70%, 45%);
+    --ok-amber:  hsl(38, 92%, 50%);
+    --ok-red:    hsl(0, 84%, 60%);
+    --ok-cyan:   hsl(188, 86%, 53%);
+    --ok-violet: hsl(263, 90%, 65%);
+
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+
+    /* Microcycle color vars (set per container) */
+    --mc-h: 217;
+    --mc-s: 91%;
+    --mc-l: 60%;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--ok-bg);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ok-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  /* ─────────────────────────── Container ─── */
+  .mv-container {
+    width: 100%;
+    max-width: 1600px;
+    background: var(--ok-surface-1);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.7);
+  }
+
+  /* ─────────────────────────── Toolbar ─── */
+  .mv-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--ok-border);
+    margin-bottom: var(--space-4);
+  }
+
+  .mv-toolbar-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .mv-nav-btn {
+    background: none;
+    border: 1px solid var(--ok-border);
+    color: var(--ok-text-muted);
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    transition: all 0.15s ease;
+  }
+  .mv-nav-btn:hover { border-color: var(--ok-blue); color: var(--ok-text); }
+
+  .mv-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ok-text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    flex-wrap: wrap;
+  }
+
+  .mv-breadcrumb .tag {
+    background: var(--ok-surface-3);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-sm);
+    padding: 3px 9px;
+    color: var(--ok-text-muted);
+  }
+
+  .mv-breadcrumb .tag.active {
+    border-color: hsla(217, 91%, 60%, 0.5);
+    color: var(--ok-blue);
+    background: hsla(217, 91%, 60%, 0.07);
+  }
+
+  .mv-breadcrumb .sep { color: var(--ok-text-faint); font-size: 0.65rem; }
+
+  .mv-toolbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .mv-view-selector {
+    display: flex;
+    gap: 2px;
+    background: var(--ok-surface-2);
+    padding: var(--space-1);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--ok-border);
+  }
+
+  .mv-view-btn {
+    background: none;
+    border: none;
+    color: var(--ok-text-muted);
+    padding: 5px 11px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+  }
+  .mv-view-btn.active {
+    background: var(--ok-surface-3);
+    color: var(--ok-text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+
+  .mv-sync-btn {
+    background: none;
+    border: 1px solid var(--ok-border);
+    color: var(--ok-text-muted);
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+  }
+  .mv-sync-btn:hover { border-color: var(--ok-green); color: var(--ok-green); }
+
+  /* ─────────────────────────── Microcycle Strip ─── */
+  .mv-mc-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-3);
+    background: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.04);
+    border: 1px solid hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.22);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .mv-mc-name {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.95);
+    white-space: nowrap;
+  }
+
+  .mv-mc-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--ok-border);
+    flex-shrink: 0;
+  }
+
+  .mv-mc-kpi {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+  .mv-mc-kpi .label { color: var(--ok-text-faint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .mv-mc-kpi .value { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mv-mc-kpi .value.green  { color: var(--ok-green); }
+  .mv-mc-kpi .value.amber  { color: var(--ok-amber); }
+  .mv-mc-kpi .value.normal { color: var(--ok-text); }
+
+  /* ─────────────────────────── Sessions row ─── */
+  .mv-days {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  /* ─────────────────────────── Day column ─── */
+  .mv-day-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1 1 260px;    /* session columns start at 260px, grow freely */
+    min-width: 220px;
+  }
+
+  /* Rest day columns are much narrower */
+  .mv-day-col.rest-col {
+    flex: 0 0 80px;
+    min-width: 80px;
+  }
+
+  /* Active (today) column gets a blue accent */
+  .mv-day-col.active-today .mv-day-header {
+    border-color: var(--ok-blue);
+    background: hsla(217, 91%, 60%, 0.07);
+  }
+
+  /* ─────────────────────────── Day header chip ─── */
+  .mv-day-header {
+    background: var(--ok-surface-2);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .mv-day-col.rest-col .mv-day-header {
+    opacity: 0.5;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1px;
+    padding: var(--space-2);
+  }
+
+  .mv-day-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ok-text-muted);
+  }
+
+  .mv-day-date {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ok-text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ─────────────────────────── Session card ─── */
+  .mv-session-card {
+    background: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.05);
+    border: 1px solid hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.2);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+    flex: 1;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mv-session-card:hover {
+    border-color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.4);
+    box-shadow: 0 0 18px hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.1);
+  }
+
+  /* ── Session card header section ── */
+  .mv-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.12);
+  }
+
+  .mv-session-name {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ok-text);
+  }
+
+  .mv-status-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .mv-status-badge.locked  { color: var(--ok-green); background: hsla(142, 70%, 45%, 0.1); }
+  .mv-status-badge.pending { color: var(--ok-amber); background: hsla(38, 92%, 50%, 0.1); }
+  .mv-status-badge.live    { color: var(--ok-cyan);  background: hsla(188, 86%, 53%, 0.1); animation: pulse-live 1.8s ease infinite; }
+
+  @keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+
+  /* ── Session metrics row ── */
+  .mv-card-metrics {
+    display: flex;
+    gap: var(--space-3);
+    padding: 6px var(--space-3);
+    border-bottom: 1px solid var(--ok-border-dim);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ok-text-muted);
+    flex-wrap: wrap;
+    align-items: center;
+    background: hsla(0,0%,0%,0.15);
+  }
+
+  .mv-card-metrics .kv { display: flex; align-items: baseline; gap: 3px; }
+  .mv-card-metrics .kv .k { color: var(--ok-text-faint); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.62rem; }
+  .mv-card-metrics .kv .v { color: var(--ok-text); font-weight: 700; }
+  .mv-card-metrics .kv .v.green { color: var(--ok-green); }
+  .mv-card-metrics .kv .v.amber { color: var(--ok-amber); }
+  .mv-card-metrics .kv .v.red   { color: var(--ok-red); }
+
+  .mv-delta-row {
+    display: flex;
+    gap: var(--space-3);
+    padding: 4px var(--space-3);
+    border-bottom: 1px solid var(--ok-border-dim);
+    background: hsla(0,0%,0%,0.10);
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .mv-delta-row .delta-item { color: var(--ok-text-faint); display: flex; gap: 3px; }
+  .mv-delta-row .delta-item .pos { color: var(--ok-green); font-weight: 700; }
+  .mv-delta-row .delta-item .neg { color: var(--ok-amber); font-weight: 700; }
+
+  /* ── Exercise blocks wrapper ── */
+  .mv-exercises {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+    background: hsla(0,0%,0%,0.18);
+  }
+
+  /* ── Each exercise is a nested card layer ── */
+  .mv-exercise-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-2);
+    background: var(--ok-surface-2);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-md);
+    /* Subtle inner shadow to reinforce depth below session card */
+    box-shadow: inset 0 1px 0 hsla(255,100%,100%,0.02),
+                0 2px 6px rgba(0,0,0,0.25);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .mv-exercise-block:hover {
+    border-color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.3);
+    background: var(--ok-surface-3);
+  }
+
+  /* Exercise name bar inside the exercise card */
+  .mv-exercise-name {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ok-text);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--ok-border-dim);
+    margin-bottom: var(--space-1);
+  }
+
+  .mv-exercise-name .grip {
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.5);
+    font-size: 0.6rem;
+    flex-shrink: 0;
+    font-weight: 900;
+  }
+
+  /* ── Set table (inside the exercise card layer) ── */
+  .mv-sets-table {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* Each set row: set-num | target | logged | e1rm */
+  .mv-set-row {
+    display: grid;
+    grid-template-columns: 18px 1fr 1fr 50px;
+    gap: 6px;
+    align-items: start;
+    font-size: 0.67rem;
+    font-variant-numeric: tabular-nums;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    background: hsla(0,0%,0%,0.18);
+    border: 1px solid var(--ok-border-dim);
+  }
+  .mv-set-row:last-child { }
+
+  .mv-set-e1rm {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--ok-text-muted);
+    line-height: 1.3;
+  }
+
+  .mv-set-e1rm.top-set {
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 1);
+  }
+
+  .mv-top-badge {
+    display: inline-block;
+    font-size: 0.46rem;
+    font-weight: 900;
+    padding: 0px 3px;
+    background: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.15);
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 1);
+    border: 1px solid hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.3);
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-top: 1px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .mv-set-num {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: hsla(var(--mc-h), var(--mc-s), var(--mc-l), 0.6);
+    padding-top: 1px;
+    text-align: right;
+  }
+
+  .mv-set-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+  }
+
+  .mv-set-col-label {
+    font-size: 0.56rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ok-text-faint);
+    margin-bottom: 1px;
+  }
+
+  .mv-set-target {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ok-text-muted);
+    line-height: 1.3;
+  }
+
+  .mv-set-logged {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ok-text);
+    line-height: 1.3;
+  }
+
+  .mv-set-logged.done    { color: var(--ok-text); }
+  .mv-set-logged.pending { color: var(--ok-text-faint); font-style: italic; font-weight: 500; font-size: 0.65rem; }
+  .mv-set-logged.over    { color: var(--ok-amber); }
+
+  .mv-rpe-badge {
+    display: inline-block;
+    margin-left: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+  .mv-rpe-badge.on-target { background: hsla(142,70%,45%,0.15); color: var(--ok-green); }
+  .mv-rpe-badge.high-rpe  { background: hsla(38,92%,50%,0.15);  color: var(--ok-amber); }
+
+  /* ─────────────────────────── Rest card ─── */
+  .mv-rest-card {
+    border: 1px dashed var(--ok-border);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ok-text-faint);
+    opacity: 0.55;
+    min-height: 120px;
+    flex: 1;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    padding: var(--space-2);
+  }
+</style>
+</head>
+<body>
+
+<div class="mv-container">
+
+  <!-- ── Toolbar ── -->
+  <div class="mv-toolbar">
+    <div class="mv-toolbar-nav">
+      <button class="mv-nav-btn">← Prev</button>
+      <div class="mv-breadcrumb">
+        <span class="tag">Oct 2029</span>
+        <span class="sep">›</span>
+        <span class="tag">MESO_02</span>
+        <span class="sep">›</span>
+        <span class="tag active">Microcycle 01 / 04 — Accumulation</span>
+      </div>
+      <button class="mv-nav-btn">Next →</button>
+    </div>
+    <div class="mv-toolbar-right">
+      <div class="mv-view-selector">
+        <button class="mv-view-btn" onclick="window.location='wrapping_calendar.html'">Month</button>
+        <button class="mv-view-btn active">Micro</button>
+      </div>
+      <button class="mv-sync-btn">⟳ Sync Logs</button>
+    </div>
+  </div>
+
+  <!-- ── Microcycle KPI strip ── -->
+  <div class="mv-mc-strip">
+    <div class="mv-mc-name">MICRO_01 — Accumulation Phase</div>
+    <div class="mv-mc-divider"></div>
+    <div class="mv-mc-kpi"><span class="label">Period</span><span class="value normal">09 – 15 Oct 2029</span></div>
+    <div class="mv-mc-divider"></div>
+    <div class="mv-mc-kpi"><span class="label">Sessions</span><span class="value normal">4</span></div>
+    <div class="mv-mc-kpi"><span class="label">Rest</span><span c  <!-- ── Day Columns ── -->
+  <div class="mv-days" id="mv-days-container">
+    <!-- Rendered dynamically by script below -->
+  </div>
+
+</div><!-- /mv-container -->
+
+<script>
+const microcycleDays = [
+  {
+    dayLabel: "Mon · Day 01",
+    date: "09 Oct",
+    isActiveToday: false,
+    session: {
+      name: "D1: Squat Dominant",
+      status: "locked",
+      statusText: "✓ Locked",
+      metrics: [
+        { k: "Vol", v: "12,450 kg" },
+        { k: "INOL", v: "0.85", class: "green" }
+      ],
+      deltas: [
+        { label: "Vol", text: "+1,200 kg (+10.6%)", isPos: true },
+        { label: "e1RM", text: "+2.5 kg (+1.6%)", isPos: true }
+      ],
+      exercises: [
+        {
+          name: "Competition Squat",
+          sets: [
+            {
+              num: "S1",
+              target: "140 kg × 5",
+              targetRpe: "RPE 8.0",
+              logged: "140 kg × 5",
+              loggedRpe: "7.8",
+              loggedStatus: "done",
+              e1rm: "169.1 kg"
+            },
+            {
+              num: "S2",
+              target: "140 kg × 5",
+              targetRpe: "RPE 8.0",
+              logged: "142.5 kg × 5",
+              loggedRpe: "8.1",
+              loggedRpeClass: "high-rpe",
+              loggedStatus: "over",
+              e1rm: "170.5 kg",
+              isTop: true
+            },
+            {
+              num: "S3",
+              target: "135 kg × 5",
+              targetRpe: "RPE 7.5",
+              logged: "135 kg × 5",
+              loggedRpe: "7.5",
+              loggedStatus: "done",
+              e1rm: "164.8 kg"
+            }
+          ]
+        },
+        {
+          name: "Leg Press",
+          sets: [
+            {
+              num: "S1",
+              target: "200 kg × 8",
+              targetRpe: "RPE 7.0",
+              logged: "200 kg × 9",
+              loggedRpe: "7.2",
+              loggedStatus: "done",
+              e1rm: "285.8 kg",
+              isTop: true
+            },
+            {
+              num: "S2",
+              target: "200 kg × 8",
+              targetRpe: "RPE 7.0",
+              logged: "not logged yet",
+              loggedStatus: "pending",
+              e1rm: "—"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    dayLabel: "Tue",
+    date: "10 Oct",
+    isRest: true
+  },
+  {
+    dayLabel: "Wed · Day 02",
+    date: "11 Oct",
+    session: {
+      name: "D2: Horizontal Push",
+      status: "pending",
+      statusText: "~ Pending",
+      metrics: [
+        { k: "Vol", v: "5,400 kg" },
+        { k: "INOL", v: "0.62", class: "green" }
+      ],
+      deltas: [
+        { label: "Vol", text: "+500 kg (+10.2%)", isPos: true }
+      ],
+      exercises: [
+        {
+          name: "Bench Press",
+          sets: [
+            { num: "S1", target: "100 kg × 5", targetRpe: "RPE 7.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" },
+            { num: "S2", target: "100 kg × 5", targetRpe: "RPE 7.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" },
+            { num: "S3", target: "100 kg × 5", targetRpe: "RPE 7.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" }
+          ]
+        },
+        {
+          name: "Overhead Press",
+          sets: [
+            { num: "S1", target: "50 kg × 8", targetRpe: "RPE 7.0", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" },
+            { num: "S2", target: "50 kg × 8", targetRpe: "RPE 7.0", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    dayLabel: "Thu",
+    date: "12 Oct",
+    isRest: true
+  },
+  {
+    dayLabel: "Fri · Day 03 ◉",
+    date: "13 Oct",
+    isActiveToday: true,
+    session: {
+      name: "D3: Hinge & Acc Pull",
+      status: "live",
+      statusText: "◉ Live",
+      metrics: [
+        { k: "Vol", v: "8,820 kg" },
+        { k: "INOL", v: "1.12", class: "amber" }
+      ],
+      deltas: [
+        { label: "Vol", text: "+920 kg (+11.6%)", isPos: true }
+      ],
+      exercises: [
+        {
+          name: "Conventional Deadlift",
+          sets: [
+            {
+              num: "S1",
+              target: "180 kg × 3",
+              targetRpe: "RPE 8.5",
+              logged: "180 kg × 3",
+              loggedRpe: "8.5",
+              loggedStatus: "done",
+              e1rm: "199.4 kg",
+              isTop: true
+            },
+            {
+              num: "S2",
+              target: "180 kg × 3",
+              targetRpe: "RPE 8.5",
+              logged: "in progress…",
+              loggedStatus: "pending",
+              e1rm: "—"
+            }
+          ]
+        },
+        {
+          name: "Romanian Deadlift",
+          sets: [
+            { num: "S1", target: "100 kg × 8", targetRpe: "RPE 7.0", logged: "not started yet", loggedStatus: "pending", e1rm: "—" },
+            { num: "S2", target: "100 kg × 8", targetRpe: "RPE 7.0", logged: "not started yet", loggedStatus: "pending", e1rm: "—" }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    dayLabel: "Sat",
+    date: "14 Oct",
+    isRest: true
+  },
+  {
+    dayLabel: "Sun · Day 04",
+    date: "15 Oct",
+    session: {
+      name: "D4: Accessory Flow",
+      status: "pending",
+      statusText: "~ Pending",
+      metrics: [
+        { k: "Vol", v: "3,220 kg" },
+        { k: "INOL", v: "0.40", class: "green" }
+      ],
+      deltas: [],
+      exercises: [
+        {
+          name: "Lat Pulldown",
+          sets: [
+            { num: "S1", target: "70 kg × 10", targetRpe: "RPE 6.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" },
+            { num: "S2", target: "70 kg × 10", targetRpe: "RPE 6.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" }
+          ]
+        },
+        {
+          name: "Seated Cable Row",
+          sets: [
+            { num: "S1", target: "60 kg × 12", targetRpe: "RPE 6.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" },
+            { num: "S2", target: "60 kg × 12", targetRpe: "RPE 6.5", logged: "not logged yet", loggedStatus: "pending", e1rm: "—" }
+          ]
+        }
+      ]
+    }
+  }
+];
+
+function renderDays() {
+  const container = document.getElementById('mv-days-container');
+  container.innerHTML = microcycleDays.map(day => {
+    if (day.isRest) {
+      return `
+        <div class="mv-day-col rest-col">
+          <div class="mv-day-header">
+            <div class="mv-day-label">${day.dayLabel}</div>
+            <div class="mv-day-date">${day.date}</div>
+          </div>
+          <div class="mv-rest-card">Rest</div>
+        </div>
+      `;
+    }
+
+    const session = day.session;
+    const metricsHtml = session.metrics.map(m => `
+      <div class="kv"><span class="k">${m.k}</span><span class="v ${m.class || ''}">${m.v}</span></div>
+    `).join('');
+
+    const deltaHtml = session.deltas && session.deltas.length > 0 ? `
+      <div class="mv-delta-row">
+        ${session.deltas.map(d => `
+          <div class="delta-item">${d.label} <span class="${d.isPos ? 'pos' : 'neg'}">${d.text}</span></div>
+        `).join('')}
+      </div>
+    ` : '';
+
+    const exercisesHtml = session.exercises.map(ex => {
+      const setsHtml = ex.sets.map(s => {
+        const topSetClass = s.isTop ? 'top-set' : '';
+        const rpeBadgeClass = s.loggedRpeClass || 'on-target';
+        const loggedValHtml = s.loggedRpe ? `${s.logged} <span class="mv-rpe-badge ${rpeBadgeClass}">${s.loggedRpe}</span>` : s.logged;
+
+        return `
+          <div class="mv-set-row">
+            <div class="mv-set-num">${s.num}</div>
+            <div class="mv-set-col">
+              <div class="mv-set-col-label">Target</div>
+              <div class="mv-set-target">${s.target} <span class="mv-rpe-badge on-target">${s.targetRpe}</span></div>
+            </div>
+            <div class="mv-set-col">
+              <div class="mv-set-col-label">Logged</div>
+              <div class="mv-set-logged ${s.loggedStatus}">${loggedValHtml}</div>
+            </div>
+            <div class="mv-set-col">
+              <div class="mv-set-col-label">e1RM</div>
+              <div class="mv-set-e1rm ${topSetClass}">${s.e1rm}${s.isTop ? ` <span class="mv-top-badge">Top</span>` : ''}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="mv-exercise-block">
+          <div class="mv-exercise-name">
+            <span class="grip">::</span>${ex.name}
+          </div>
+          <div class="mv-sets-table">
+            ${setsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const activeClass = day.isActiveToday ? 'active-today' : '';
+
+    return `
+      <div class="mv-day-col ${activeClass}">
+        <div class="mv-day-header">
+          <div class="mv-day-label">${day.dayLabel}</div>
+          <div class="mv-day-date">${day.date}</div>
+        </div>
+        <div class="mv-session-card">
+          <div class="mv-card-header">
+            <div class="mv-session-name">${session.name}</div>
+            <span class="mv-status-badge ${session.status}">${session.statusText}</span>
+          </div>
+          <div class="mv-card-metrics">
+            ${metricsHtml}
+          </div>
+          ${deltaHtml}
+          <div class="mv-exercises">
+            ${exercisesHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', renderDays);
+</script>
+</body>
+</html>

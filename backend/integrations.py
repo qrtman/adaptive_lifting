@@ -17,7 +17,10 @@ from .database import (
     IntegrationOutbox, WebhookEvent, SheetPublication, Workout, 
     Microcycle, Exercise, ExerciseSet, CoachingRelationship
 )
-from .main import get_current_user
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    from .main import get_current_user as actual_get_current_user
+    return actual_get_current_user(request, db)
+
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
 
 router = APIRouter()

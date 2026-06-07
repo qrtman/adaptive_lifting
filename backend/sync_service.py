@@ -9,7 +9,7 @@ from .database import (
     Workout, ExerciseSet, Exercise, Accessory, SyncMutation, 
     WorkoutLock, DomainEvent, AuditEvent
 )
-from .math_utils import calculate_e1rm, calculate_inol
+
 
 class SyncFieldMutation(BaseModel):
     entity: str

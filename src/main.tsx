@@ -13,11 +13,21 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-createRoot(document.getElementById('root')!).render(
+// @hyperide-managed
+if (new URLSearchParams(location.search).get("component") && location.pathname.includes("test-preview")) {
+  import("./__canvas_preview__").then(m => {
+    var CanvasPreviewComp = m.default;
 
-  <StrictMode>
-    <SyncProvider>
-      <App />
-    </SyncProvider>
-  </StrictMode>,
-);
+    if (CanvasPreviewComp)
+      createRoot(document.getElementById("root")!).render(<CanvasPreviewComp />);
+  }).catch(() => {});
+} else {
+  createRoot(document.getElementById('root')!).render(
+
+    <StrictMode>
+      <SyncProvider>
+        <App />
+      </SyncProvider>
+    </StrictMode>,
+  );
+}
