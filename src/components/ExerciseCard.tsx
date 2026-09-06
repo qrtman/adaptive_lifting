@@ -7,13 +7,15 @@ import {
   calculateCapacityScaledWeight, 
   calculateE1RM, 
   calculateWeightFromE1RM 
-} from '../utils/mathUtils';
+} from '../services/mathEngine';
+import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 
 export const ExerciseCard = ({ 
   id,
   title, 
   variation, 
   tags, 
+  tier,
   initialSets,
   onUpdateSets,
   roleMode = 'coach'
@@ -22,25 +24,25 @@ export const ExerciseCard = ({
   title: string, 
   variation: string, 
   tags: string[], 
+  tier?: 'Comp' | 'Variation' | 'Accessory',
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
   roleMode?: 'coach' | 'athlete',
-  key?: any
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => {
     if (setArray.length === 0) return setArray;
 
     // Use Set 0 baseline_e1rm as the primary anchor
-    const primaryAnchor = setArray[0].baseline_e1rm !== undefined ? parseFloat(setArray[0].baseline_e1rm) : 150;
+    const primaryAnchor = setArray[0].baseline_e1rm !== undefined ? trainingOrZero(setArray[0].baseline_e1rm) : 150;
 
     return setArray.map((s, index) => {
       // Find the most recent E1RM from logged preceding sets
       let prevLogE1RM = 0;
       for (let j = index - 1; j >= 0; j--) {
         const prevSet = setArray[j];
-        const prevW = parseFloat(prevSet.actual || "0");
-        const prevR = parseInt(prevSet.reps || "0");
-        const prevRp = parseFloat(prevSet.executedRpe || "0");
+        const prevW = trainingOrZero(prevSet.actual);
+        const prevR = trainingIntOrZero(prevSet.reps);
+        const prevRp = trainingOrZero(prevSet.executedRpe);
         const calcPrev = calculateE1RM(prevW, prevR, prevRp);
         if (calcPrev > 0) {
           prevLogE1RM = calcPrev;
@@ -54,7 +56,7 @@ export const ExerciseCard = ({
         : (prevLogE1RM > 0 ? prevLogE1RM : primaryAnchor);
 
       // Recalculate planned weight (prescribed weight) using the active E1RM
-      const repsVal = parseInt(s.plannedReps || "4") || 4;
+      const repsVal = trainingInt(s.plannedReps) || 4;
       const computedWeight = calculateCapacityScaledWeight(
         activeE1RM,
         s.intensity_type || "RPE",
@@ -65,7 +67,7 @@ export const ExerciseCard = ({
 
       // Log suggested weight (if auto-scale applies for log side)
       let suggestedWeight = s.suggestedWeight;
-      const anchorWeight = parseFloat(setArray[0].actual || setArray[0].plannedWeight || "0");
+      const anchorWeight = trainingOrZero(setArray[0].actual ?? setArray[0].plannedWeight);
       if (anchorWeight > 0 && index > 0 && s.isAuto) {
         const drop = s.dropPercent !== undefined ? s.dropPercent : -5;
         suggestedWeight = anchorWeight * (1 + drop / 100);
@@ -75,7 +77,7 @@ export const ExerciseCard = ({
         ...s,
         baseline_e1rm: activeE1RM,
         suggestedWeight,
-        plannedWeight: computedWeight > 0 ? computedWeight.toString() : s.plannedWeight
+        plannedWeight: computedWeight > 0 ? computedWeight : trainingNumber(s.plannedWeight)
       };
     });
   };
@@ -85,13 +87,13 @@ export const ExerciseCard = ({
       const plannedWeightMatch = s.planned?.match(/(\d+(?:\.\d+)?)/);
       const plannedRepsMatch = s.planned?.match(/x\s*(\d+)/);
       
-      const plannedReps = s.plannedReps || (plannedRepsMatch ? plannedRepsMatch[1] : "");
-      const plannedRpe = s.plannedRpe || s.rpe || "";
-      const plannedWeight = s.plannedWeight || (plannedWeightMatch ? plannedWeightMatch[0] : "");
+      const plannedReps = trainingInt(s.plannedReps) ?? (plannedRepsMatch ? trainingInt(plannedRepsMatch[1]) : null);
+      const plannedRpe = trainingNumber(s.plannedRpe ?? s.rpe);
+      const plannedWeight = trainingNumber(s.plannedWeight) ?? (plannedWeightMatch ? trainingNumber(plannedWeightMatch[1]) : null);
 
-      const repsVal = parseInt(plannedReps || "4") || 4;
-      const rpeVal = parseFloat(plannedRpe || "8") || 8;
-      const weightVal = parseFloat(plannedWeight || "100") || 100;
+      const repsVal = plannedReps || 4;
+      const rpeVal = plannedRpe || 8;
+      const weightVal = plannedWeight || 100;
 
       const calculatedBase = calculateE1RM(weightVal, repsVal, rpeVal);
       const baseline_e1rm = s.baseline_e1rm !== undefined ? s.baseline_e1rm : (calculatedBase > 0 ? calculatedBase : 150);
@@ -107,16 +109,18 @@ export const ExerciseCard = ({
 
       return {
         ...s,
-        plannedWeight: s.plannedWeight || (weightVal > 0 ? weightVal.toString() : "137.5"),
-        plannedReps: plannedReps || "4",
-        plannedRpe: intensity_type === "RPE" ? target_value.toString() : (plannedRpe || "8"),
+        plannedWeight: plannedWeight ?? (weightVal > 0 ? weightVal : 137.5),
+        plannedReps: plannedReps ?? 4,
+        plannedRpe: intensity_type === "RPE" ? target_value : (plannedRpe ?? 8),
         baseline_e1rm,
         intensity_type,
         target_value,
         adjustment_pct,
         dropPercent: s.dropPercent !== undefined ? s.dropPercent : (i > 0 ? -5 : 0),
         isAuto: s.isAuto !== undefined ? s.isAuto : (i > 0 && !s.actual),
-        executedRpe: s.executedRpe || ""
+        actual: trainingNumber(s.actual),
+        reps: trainingInt(s.reps),
+        executedRpe: trainingNumber(s.executedRpe)
       };
     });
     
@@ -147,7 +151,7 @@ export const ExerciseCard = ({
   const commitSuggestion = (index: number) => {
     if (sets[index].suggestedWeight) {
       updateSet(index, { 
-        actual: (Math.round(sets[index].suggestedWeight! * 4) / 4).toString(), // Round to nearest 0.25
+        actual: Math.round(sets[index].suggestedWeight! * 4) / 4,
         isAuto: false 
       });
     }
@@ -156,7 +160,7 @@ export const ExerciseCard = ({
   const duplicateSet = (index: number) => {
     const set = sets[index];
     const newSets = [...sets];
-    newSets.splice(index + 1, 0, { ...set, isTop: false, actual: "", isAuto: true });
+    newSets.splice(index + 1, 0, { ...set, isTop: false, actual: null, isAuto: true });
     updateAndPropagate(newSets);
   };
 
@@ -168,14 +172,14 @@ export const ExerciseCard = ({
   const syncTarget = (index: number) => {
     const set = sets[index];
     updateSet(index, { 
-      actual: set.plannedWeight || "", 
-      reps: set.plannedReps || "",
-      executedRpe: set.plannedRpe || "",
+      actual: trainingNumber(set.plannedWeight),
+      reps: trainingInt(set.plannedReps),
+      executedRpe: trainingNumber(set.plannedRpe),
       isAuto: false
     });
   };
 
-  const totalVolume = sets.reduce((acc, s) => acc + (parseFloat(s.actual || s.suggestedWeight || "0") * parseInt(s.reps || "0")), 0);
+  const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual ?? s.suggestedWeight) * trainingIntOrZero(s.reps)), 0);
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden mb-8 border border-white/5 transition-all hover:bg-white/[0.02]">
@@ -183,7 +187,9 @@ export const ExerciseCard = ({
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
             <h4 className="text-3xl font-bold text-white tracking-tight font-sans">{title}</h4>
-            <span className={`text-[16px] text-${accentColor} font-black uppercase tracking-[0.2em] mt-1 font-sans`}>{variation}</span>
+            <span className={`text-[16px] text-${accentColor} font-black uppercase tracking-[0.2em] mt-1 font-sans`}>
+              {tier ? `${tier} · ${variation}` : variation}
+            </span>
           </div>
           <div className="h-8 w-px bg-white/10 hidden sm:block" />
         </div>
@@ -238,13 +244,13 @@ export const ExerciseCard = ({
         <tbody className="divide-y divide-[#20201F]">
           <AnimatePresence>
             {sets.map((set, i) => {
-              const weight = parseFloat(set.actual || set.suggestedWeight || "0");
-              const reps = parseInt(set.reps || "0");
-              const rpe = parseFloat(set.executedRpe || "0");
+              const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
+              const reps = trainingIntOrZero(set.reps);
+              const rpe = trainingOrZero(set.executedRpe);
               const e1RM = calculateE1RM(weight, reps, rpe);
               
-              const isOvershoot = rpe > parseFloat(set.plannedRpe || set.rpe || "0");
-              const isUndershoot = rpe > 0 && rpe < parseFloat(set.plannedRpe || set.rpe || "0");
+              const isOvershoot = rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
+              const isUndershoot = rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
               
               const rowHighlight = isOvershoot 
                 ? 'bg-orange-500/10' 
@@ -256,9 +262,9 @@ export const ExerciseCard = ({
               let prevLogE1RM = 0;
               for (let j = i - 1; j >= 0; j--) {
                 const prevSet = sets[j];
-                const prevW = parseFloat(prevSet.actual || "0");
-                const prevR = parseInt(prevSet.reps || "0");
-                const prevRp = parseFloat(prevSet.executedRpe || "0");
+                const prevW = trainingOrZero(prevSet.actual);
+                const prevR = trainingIntOrZero(prevSet.reps);
+                const prevRp = trainingOrZero(prevSet.executedRpe);
                 const calcPrev = calculateE1RM(prevW, prevR, prevRp);
                 if (calcPrev > 0) {
                   prevLogE1RM = calcPrev;
@@ -266,23 +272,23 @@ export const ExerciseCard = ({
                 }
               }
 
-              const targetReps = parseInt(set.plannedReps || "0");
-              const targetRpe = parseFloat(set.plannedRpe || "0");
+              const targetReps = trainingIntOrZero(set.plannedReps);
+              const targetRpe = trainingOrZero(set.plannedRpe);
               let suggestedPrescribedWeight = null;
               if (targetReps > 0 && targetRpe > 0 && prevLogE1RM > 0) {
                 const calcW = calculateWeightFromE1RM(prevLogE1RM, targetReps, targetRpe);
                 if (calcW > 0) {
-                  suggestedPrescribedWeight = (Math.round(calcW * 4) / 4).toString();
+                  suggestedPrescribedWeight = Math.round(calcW * 4) / 4;
                 }
               }
 
               // Calculate Variance Deltas
-              const actualWt = parseFloat(set.actual || "0");
-              const plannedWt = parseFloat(set.plannedWeight || "0");
+              const actualWt = trainingOrZero(set.actual);
+              const plannedWt = trainingOrZero(set.plannedWeight);
               const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
 
-              const actualRp = parseFloat(set.executedRpe || "0");
-              const targetRpVal = parseFloat(set.plannedRpe || "0");
+              const actualRp = trainingOrZero(set.executedRpe);
+              const targetRpVal = trainingOrZero(set.plannedRpe);
               const rpeDelta = actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
 
               return (
@@ -316,7 +322,7 @@ export const ExerciseCard = ({
                               plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
                             })}
                           />
-                          {suggestedPrescribedWeight && parseFloat(suggestedPrescribedWeight) !== parseFloat(set.plannedWeight?.toString() || "0") && (
+                          {suggestedPrescribedWeight && suggestedPrescribedWeight !== trainingOrZero(set.plannedWeight) && (
                             <button
                               type="button"
                               onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
@@ -330,9 +336,9 @@ export const ExerciseCard = ({
 
                           {/* Fatigue/Modifier (adjustment_pct) */}
                           <EditablePerformanceCell
-                            value={set.adjustment_pct !== undefined ? Math.round(set.adjustment_pct * 100).toString() : "0"}
+                            value={displayTrainingValue(set.adjustment_pct !== undefined ? Math.round(set.adjustment_pct * 100) : 0)}
                             onChange={(val) => {
-                              const rawPct = parseFloat(val) || 0;
+                              const rawPct = trainingOrZero(val);
                               updateSet(i, { adjustment_pct: rawPct / 100, dropPercent: rawPct });
                             }}
                             placeholder="0"
@@ -370,7 +376,7 @@ export const ExerciseCard = ({
                           <span className="text-[19px] font-extrabold text-mac-blue font-sans mt-0.5 leading-none mb-1">
                             {set.plannedWeight} kg
                           </span>
-                          {suggestedPrescribedWeight && parseFloat(suggestedPrescribedWeight) !== parseFloat(set.plannedWeight || "0") && (
+                          {suggestedPrescribedWeight && suggestedPrescribedWeight !== trainingOrZero(set.plannedWeight) && (
                             <button
                               type="button"
                               onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
@@ -398,8 +404,8 @@ export const ExerciseCard = ({
                       roleMode === 'coach' ? (
                         <div className="flex justify-center">
                           <EditablePerformanceCell
-                            value={set.baseline_e1rm !== undefined ? Math.round(set.baseline_e1rm).toString() : "150"}
-                            onChange={(val) => updateSet(i, { baseline_e1rm: parseFloat(val) || 150 })}
+                            value={displayTrainingValue(set.baseline_e1rm !== undefined ? Math.round(set.baseline_e1rm) : 150)}
+                            onChange={(val) => updateSet(i, { baseline_e1rm: trainingNumber(val) || 150 })}
                             placeholder="150"
                             fieldKey={`${id}-baseline_e1rm`}
                             label="Baseline e1RM"
@@ -460,8 +466,8 @@ export const ExerciseCard = ({
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
                       <EditablePerformanceCell
-                        value={set.reps || ""}
-                        onChange={(val) => updateSet(i, { reps: val })}
+                        value={displayTrainingValue(set.reps)}
+                        onChange={(val) => updateSet(i, { reps: trainingInt(val) })}
                         placeholder="—"
                         fieldKey={`${id}-reps`}
                         label="Log Reps"
@@ -471,8 +477,8 @@ export const ExerciseCard = ({
                         rowIndex={i}
                       />
                       <EditablePerformanceCell
-                        value={set.executedRpe || ""}
-                        onChange={(val) => updateSet(i, { executedRpe: val })}
+                        value={displayTrainingValue(set.executedRpe)}
+                        onChange={(val) => updateSet(i, { executedRpe: trainingNumber(val) })}
                         placeholder="—"
                         fieldKey={`${id}-executedRpe`}
                         label="Log RPE"
@@ -482,15 +488,15 @@ export const ExerciseCard = ({
                         rowIndex={i}
                       />
                       <EditablePerformanceCell
-                        value={set.actual || ""}
-                        onChange={(val) => updateSet(i, { actual: val, isAuto: !val })}
+                        value={displayTrainingValue(set.actual)}
+                        onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
                         placeholder="—"
                         fieldKey={`${id}-actual-weight`}
                         label="Log Weight"
                         widthClass="w-24"
                         isLogged={true}
                         isAuto={set.isAuto}
-                        suggestedValue={set.suggestedWeight ? (Math.round(set.suggestedWeight * 4) / 4).toString() : "0"}
+                        suggestedValue={set.suggestedWeight ? displayTrainingValue(Math.round(set.suggestedWeight * 4) / 4) : "0"}
                         step={2.5}
                         rowIndex={i}
                       />
@@ -539,7 +545,16 @@ export const ExerciseCard = ({
         </div>
         <button 
           onClick={() => {
-            const nextSet = { label: "Additional Set", planned: "", rpe: "", isTop: false, actual: "", reps: "", executedRpe: "" };
+            const nextSet = {
+              label: "Additional Set",
+              plannedWeight: null,
+              plannedReps: null,
+              plannedRpe: null,
+              isTop: false,
+              actual: null,
+              reps: null,
+              executedRpe: null
+            };
             updateAndPropagate([...sets, nextSet]);
           }}
           className="flex items-center gap-2 text-[15px] font-black text-white hover:text-white transition-all uppercase tracking-widest bg-white/10 hover:bg-white/15 px-4 py-2 rounded-lg border border-white/10 hover:border-white/20 cursor-pointer"

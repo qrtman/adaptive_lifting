@@ -5,7 +5,22 @@ from typing import List, Optional
 import os
 
 from sqlalchemy.orm import Session
-from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, Accessory, User, CoachingRelationship
+from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, User, CoachingRelationship
+from .runtime_config import (
+    JWT_KID_CURRENT,
+    JWT_KID_PREVIOUS,
+    apply_dotenv,
+    cookie_secure_flag,
+    load_cors_allowed_origins,
+    load_jwt_secrets,
+)
+
+apply_dotenv()
+SECRET_KEY, JWT_SECRET_PREVIOUS = load_jwt_secrets()
+CORS_ALLOWED_ORIGINS = load_cors_allowed_origins()
+COOKIE_SECURE = cookie_secure_flag()
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -13,7 +28,8 @@ import jwt
 from datetime import datetime, timedelta
 import uuid
 
-from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
+from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
+from .accessory_migration import coerce_float, coerce_int
 
 from sqlalchemy import text
 # Make sure SQLite tables exist on launch
@@ -60,14 +76,18 @@ def migrate_db():
     finally:
         db.close()
 
+    from .database import migrate_accessories_to_exercises, SessionLocal as MigrationSession
+    migrate_session = MigrationSession()
+    try:
+        migrate_accessories_to_exercises(migrate_session)
+    except Exception:
+        migrate_session.rollback()
+    finally:
+        migrate_session.close()
+
 migrate_db()
 
-app = FastAPI(title="Iron Box Terminal Backend", version="1.0.0")
-
-from .sse_broadcaster import router as sse_router
-from .integrations import router as integrations_router
-app.include_router(sse_router)
-app.include_router(integrations_router)
+app = FastAPI(title="Adaptive Lifting Backend", version="1.0.0")
 
 @app.on_event("startup")
 def on_startup():
@@ -75,10 +95,9 @@ def on_startup():
     start_background_worker()
 
 
-# CORS setup for frontend development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permits standard local dev servers to connect
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,10 +106,6 @@ app.add_middleware(
 analytics_cache = {}
 
 # --- Security Setup ---
-SECRET_KEY = "iron_box_secret_key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
-
 import bcrypt
 from fastapi.security import OAuth2PasswordBearer
 
@@ -109,8 +124,38 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode,
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+        headers={"kid": JWT_KID_CURRENT},
+    )
     return encoded_jwt
+
+
+def decode_access_token(token: str):
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+    except jwt.PyJWTError:
+        kid = None
+
+    candidates = []
+    if kid == JWT_KID_PREVIOUS and JWT_SECRET_PREVIOUS:
+        candidates.append(JWT_SECRET_PREVIOUS)
+    candidates.append(SECRET_KEY)
+    if JWT_SECRET_PREVIOUS and JWT_SECRET_PREVIOUS not in candidates:
+        candidates.append(JWT_SECRET_PREVIOUS)
+
+    last_error = None
+    for key in candidates:
+        try:
+            return jwt.decode(token, key, algorithms=[ALGORITHM])
+        except jwt.PyJWTError as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise jwt.InvalidTokenError("Unable to decode JWT")
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -129,7 +174,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         raise credentials_exception
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_access_token(token)
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
@@ -140,6 +185,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     if user is None:
         raise credentials_exception
     return user
+
+from .sse_broadcaster import router as sse_router
+from .integrations import router as integrations_router
+app.include_router(sse_router)
+app.include_router(integrations_router)
 
 # --- Pydantic Schemas for Requests ---
 
@@ -180,7 +230,7 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
         httponly=True,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",
-        secure=False  # Set to True in production
+        secure=COOKIE_SECURE
     )
     
     return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
@@ -229,7 +279,7 @@ def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depe
         httponly=True,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",
-        secure=False
+        secure=COOKIE_SECURE
     )
     
     return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
@@ -239,7 +289,7 @@ def logout(response: Response, request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("session_id")
     if token:
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            payload = decode_access_token(token)
             session_id = payload.get("session_id")
             if session_id:
                 from .database import Session as DBSession
@@ -260,37 +310,20 @@ class LogSetRequest(BaseModel):
     workoutId: str
     exerciseId: str
     setId: str
-    weight: str
-    reps: str
-    rpe: str
+    weight: float
+    reps: int
+    rpe: float
     note: Optional[str] = None
-    velocity: Optional[str] = None
-    readiness: Optional[str] = None
-    hrv: Optional[str] = None
-
-class LogAccessoryRequest(BaseModel):
-    workoutId: str
-    accessoryId: str
-    weight: str
-    reps: str
-    rpe: str
-    status: str
+    velocity: Optional[float] = None
+    readiness: Optional[int] = None
+    hrv: Optional[float] = None
 
 class PushProgramRequest(BaseModel):
     athleteId: str
     template: str
 
 # --- Powerlifting Math Helpers ---
-
-def calculate_e1rm(weight: float, reps: int, rpe: float) -> float:
-    if weight <= 0 or reps <= 0:
-        return 0.0
-    rpe_val = rpe if rpe > 0 else 10.0
-    effective_reps = reps + (10 - rpe_val)
-    if effective_reps >= 37:
-        return weight
-    e1rm = weight / (1.0278 - (0.0278 * effective_reps))
-    return round(e1rm, 1)
+# Canonical formulas live in math_utils.py (calculate_e1rm / calculate_e1rm_linear_decay).
 
 def recalculate_metrics(db: Session, workout_id: str, day_label: str):
     workout = db.query(Workout).filter(Workout.id == workout_id).first()
@@ -309,12 +342,9 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
         top_single_reps = 0
 
         for s in exercise.sets:
-            try:
-                wt = float(s.actual or s.plannedWeight or "0")
-                rp = int(s.reps or s.plannedReps or "0")
-                rp_val = float(s.executedRpe or s.plannedRpe or "0")
-            except ValueError:
-                wt, rp, rp_val = 0.0, 0, 0.0
+            wt = coerce_float(s.actual if s.actual is not None else s.plannedWeight) or 0.0
+            rp = coerce_int(s.reps if s.reps is not None else s.plannedReps) or 0
+            rp_val = coerce_float(s.executedRpe if s.executedRpe is not None else s.plannedRpe) or 0.0
 
             if wt > 0.0 and rp > 0:
                 set_volume = wt * rp
@@ -337,15 +367,6 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
             exercise.top = f"{top_single_weight}kg x {top_single_reps}"
         if exercise_volume > 0.0:
             exercise.vol = f"{exercise_volume:,.0f}kg"
-
-    for acc in workout.accessories:
-        if acc.status == "Done":
-            try:
-                wt = float(acc.weight or "0")
-                rp = int(acc.reps or "0")
-                total_tonnage += wt * rp
-            except ValueError:
-                pass
 
     workout.tonnage = total_tonnage
 
@@ -374,59 +395,43 @@ def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
         exercises_list = []
-        for e in sorted(w.exercises, key=lambda x: x.id):
+        for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id)):
             sets_list = []
-            for s in sorted(e.sets, key=lambda x: x.id):
+            for s in sorted(e.sets, key=lambda x: (x.lexo_rank or "", x.id)):
                 set_dict = {
                     "id": s.id,
                     "label": s.label,
-                    "planned": s.planned,
-                    "plannedWeight": s.plannedWeight,
-                    "plannedReps": s.plannedReps,
-                    "plannedRpe": s.plannedRpe,
+                    "plannedWeight": coerce_float(s.plannedWeight),
+                    "plannedReps": coerce_int(s.plannedReps),
+                    "plannedRpe": coerce_float(s.plannedRpe),
+                    "actual": coerce_float(s.actual),
+                    "reps": coerce_int(s.reps),
+                    "executedRpe": coerce_float(s.executedRpe),
+                    "velocity": coerce_float(s.velocity),
+                    "readiness": coerce_int(s.readiness),
+                    "hrv": coerce_float(s.hrv),
                     "isAuto": s.isAuto,
                     "isTop": s.isTop,
                 }
+                planned_preview = getattr(s, "planned", None)
+                if planned_preview is not None:
+                    set_dict["planned"] = planned_preview
                 if s.dropPercent is not None:
                     set_dict["dropPercent"] = s.dropPercent
-                if s.actual is not None:
-                    set_dict["actual"] = s.actual
-                if s.reps is not None:
-                    set_dict["reps"] = s.reps
-                if s.executedRpe is not None:
-                    set_dict["executedRpe"] = s.executedRpe
                 if s.note is not None:
                     set_dict["note"] = s.note
-                if s.velocity is not None:
-                    set_dict["velocity"] = str(s.velocity)
-                if s.readiness is not None:
-                    set_dict["readiness"] = str(s.readiness)
-                if s.hrv is not None:
-                    set_dict["hrv"] = str(s.hrv)
                 sets_list.append(set_dict)
 
             exercises_list.append({
                 "id": e.id,
                 "title": e.title,
                 "variation": e.variation,
+                "tier": e.tier or "Comp",
+                "liftCategory": e.lift_category or "Other",
                 "tags": e.tags,
                 "top": e.top,
                 "vol": e.vol,
                 "sets": sets_list
-            })
-
-        acc_list = []
-        for a in sorted(w.accessories, key=lambda x: x.id):
-            acc_list.append({
-                "id": a.id,
-                "name": a.name,
-                "prescribedSets": a.prescribedSets,
-                "targetReps": a.targetReps,
-                "targetRpe": a.targetRpe,
-                "weight": a.weight,
-                "reps": a.reps,
-                "executedRpe": a.executedRpe,
-                "status": a.status
             })
 
         workouts_list.append({
@@ -439,7 +444,6 @@ def format_microcycle(mc: Microcycle) -> dict:
             "color": w.color,
             "status": w.status,
             "exercises": exercises_list,
-            "accessories": acc_list
         })
 
     return {
@@ -458,50 +462,56 @@ INITIAL_SEEDS = [
         "id": "micro-1",
         "weekName": "Microcycle 01",
         "focus": "Technical Proficiency / Baseline",
-        "status": "Verified",
+        "status": "COMPLETED",
         "active": False,
         "workouts": [
             {
                 "id": "w-1-1", "date": "2026-09-02", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 12400.0, "delta": 0.0, "color": "mac-green", "status": "Completed",
+                "tonnage": 12400.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
                 "exercises": [
                     {
                         "id": "e-1-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus",
                         "top": "150kg x 1", "vol": "8,600kg",
                         "sets": [
-                            {"id": "s-1-1-1a", "label": "Top Single", "planned": "150kg x 1", "plannedWeight": "150", "plannedReps": "1", "plannedRpe": "5", "isTop": True, "actual": "150", "reps": "1", "executedRpe": "5"},
-                            {"id": "s-1-1-1b", "label": "Main Set", "planned": "137.5kg x 4", "plannedWeight": "137.5", "plannedReps": "4", "plannedRpe": "6", "actual": "137.5", "reps": "4", "executedRpe": "6"},
-                            {"id": "s-1-1-1c", "label": "Backdown", "planned": "127.5kg x 4", "plannedWeight": "127.5", "plannedReps": "4", "plannedRpe": "5", "note": "-5% Drop", "actual": "127.5", "reps": "4", "executedRpe": "5", "dropPercent": -5.0}
+                            {"id": "s-1-1-1a", "label": "Top Single", "planned": "150kg x 1", "plannedWeight": 150.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 150.0, "reps": 1, "executedRpe": 5.0},
+                            {"id": "s-1-1-1b", "label": "Main Set", "planned": "137.5kg x 4", "plannedWeight": 137.5, "plannedReps": 4, "plannedRpe": 6.0, "actual": 137.5, "reps": 4, "executedRpe": 6.0},
+                            {"id": "s-1-1-1c", "label": "Backdown", "planned": "127.5kg x 4", "plannedWeight": 127.5, "plannedReps": 4, "plannedRpe": 5.0, "note": "-5% Drop", "actual": 127.5, "reps": 4, "executedRpe": 5.0, "dropPercent": -5.0}
                         ]
                     },
                     {
                         "id": "e-1-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause",
                         "top": "90kg x 3", "vol": "3,800kg",
                         "sets": [
-                            {"id": "s-1-1-2a", "label": "Top Single", "planned": "90kg x 3", "plannedWeight": "90", "plannedReps": "3", "plannedRpe": "6", "isTop": True, "actual": "90", "reps": "3", "executedRpe": "6"}
+                            {"id": "s-1-1-2a", "label": "Top Single", "plannedWeight": 90.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 90.0, "reps": 3, "executedRpe": 6.0}
+                        ]
+                    },
+                    {
+                        "id": "a-1-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
+                        "top": "120kg x 12", "vol": "4,320kg",
+                        "sets": [
+                            {"id": "a-1-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
+                            {"id": "a-1-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
+                            {"id": "a-1-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
                         ]
                     }
                 ],
-                "accessories": [
-                    {"id": "a-1-1-1", "name": "Leg Press", "prescribedSets": "3", "targetReps": "10-12", "targetRpe": "7", "weight": "120", "reps": "12", "executedRpe": "7", "status": "Done"}
-                ]
             },
             {
                 "id": "w-1-2", "date": "2026-09-04", "dayLabel": "D2", "title": "Secondary Deadlift, Secondary Bench",
-                "tonnage": 8900.0, "delta": 0.0, "color": "mac-green", "status": "Completed",
+                "tonnage": 8900.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
                 "exercises": [
                     {
                         "id": "e-1-2-1", "title": "Secondary Deadlift", "variation": "Deficit Deadlift", "tags": "Patience off Floor",
                         "top": "180kg x 3", "vol": "4,700kg",
                         "sets": [
-                            {"id": "s-1-2-1a", "label": "Top Set", "planned": "180kg x 3", "plannedWeight": "180", "plannedReps": "3", "plannedRpe": "6", "isTop": True, "actual": "180", "reps": "3", "executedRpe": "6"}
+                            {"id": "s-1-2-1a", "label": "Top Set", "planned": "180kg x 3", "plannedWeight": 180.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 180.0, "reps": 3, "executedRpe": 6.0}
                         ]
                     },
                     {
                         "id": "e-1-2-2", "title": "Secondary Bench", "variation": "Spoto Press", "tags": "Hover Focus, Chest Activation",
                         "top": "85kg x 5", "vol": "4,200kg",
                         "sets": [
-                            {"id": "s-1-2-2a", "label": "Top Set", "planned": "85kg x 5", "plannedWeight": "85", "plannedReps": "5", "plannedRpe": "7", "isTop": True, "actual": "85", "reps": "5", "executedRpe": "7"}
+                            {"id": "s-1-2-2a", "label": "Top Set", "planned": "85kg x 5", "plannedWeight": 85.0, "plannedReps": 5, "plannedRpe": 7.0, "isTop": True, "actual": 85.0, "reps": 5, "executedRpe": 7.0}
                         ]
                     }
                 ]
@@ -512,25 +522,25 @@ INITIAL_SEEDS = [
         "id": "micro-2",
         "weekName": "Microcycle 02",
         "focus": "Accumulation / Volume Expansion",
-        "status": "Verified",
+        "status": "COMPLETED",
         "active": False,
         "workouts": [
             {
                 "id": "w-2-1", "date": "2026-09-09", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 13200.0, "delta": 800.0, "color": "mac-green", "status": "Completed",
+                "tonnage": 13200.0, "delta": 800.0, "color": "mac-green", "status": "COMPLETED",
                 "exercises": [
                     {
                         "id": "e-2-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Quads Drive",
                         "top": "155kg x 1", "vol": "9,200kg",
                         "sets": [
-                            {"id": "s-2-1-1a", "label": "Top Single", "planned": "155kg x 1", "plannedWeight": "155", "plannedReps": "1", "plannedRpe": "5.5", "isTop": True, "actual": "155", "reps": "1", "executedRpe": "5.5"}
+                            {"id": "s-2-1-1a", "label": "Top Single", "planned": "155kg x 1", "plannedWeight": 155.0, "plannedReps": 1, "plannedRpe": 5.5, "isTop": True, "actual": 155.0, "reps": 1, "executedRpe": 5.5}
                         ]
                     },
                     {
                         "id": "e-2-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive",
                         "top": "92.5kg x 3", "vol": "4,000kg",
                         "sets": [
-                            {"id": "s-2-1-2a", "label": "Top Set", "planned": "92.5kg x 3", "plannedWeight": "92.5", "plannedReps": "3", "plannedRpe": "6", "isTop": True, "actual": "92.5", "reps": "3", "executedRpe": "6"}
+                            {"id": "s-2-1-2a", "label": "Top Set", "planned": "92.5kg x 3", "plannedWeight": 92.5, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 92.5, "reps": 3, "executedRpe": 6.0}
                         ]
                     }
                 ]
@@ -541,36 +551,58 @@ INITIAL_SEEDS = [
         "id": "micro-3",
         "weekName": "Microcycle 03",
         "focus": "Threshold / Intensity Peak",
-        "status": "In Progress",
+        "status": "ACTIVE",
         "active": True,
         "workouts": [
             {
                 "id": "w-3-1", "date": "2026-09-16", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 14100.0, "delta": 900.0, "color": "mac-blue", "status": "Today",
+                "tonnage": 14100.0, "delta": 900.0, "color": "mac-blue", "status": "IN_PROGRESS",
                 "exercises": [
                     {
                         "id": "e-3-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus, Heel Drive",
                         "top": "160kg x 1", "vol": "9,800kg",
                         "sets": [
-                            {"id": "s-3-1-1a", "label": "Top Single", "planned": "160kg x 1", "plannedWeight": "160", "plannedReps": "1", "plannedRpe": "5", "isTop": True, "actual": "160", "reps": "1", "executedRpe": "8.5"},
-                            {"id": "s-3-1-1b", "label": "Main Set", "planned": "152.5kg x 3", "plannedWeight": "152.5", "plannedReps": "3", "plannedRpe": "6.5", "actual": "152.5", "reps": "3", "executedRpe": "7.5"},
-                            {"id": "s-3-1-1c", "label": "Backdown", "planned": "152.5kg x 3", "plannedWeight": "152.5", "plannedReps": "3", "plannedRpe": "5.5", "note": "-5% Drop", "actual": "152.5", "reps": "3", "executedRpe": "8", "dropPercent": -5.0}
+                            {"id": "s-3-1-1a", "label": "Top Single", "planned": "160kg x 1", "plannedWeight": 160.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 160.0, "reps": 1, "executedRpe": 8.5},
+                            {"id": "s-3-1-1b", "label": "Main Set", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 6.5, "actual": 152.5, "reps": 3, "executedRpe": 7.5},
+                            {"id": "s-3-1-1c", "label": "Backdown", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 5.5, "note": "-5% Drop", "actual": 152.5, "reps": 3, "executedRpe": 8.0, "dropPercent": -5.0}
                         ]
                     },
                     {
                         "id": "e-3-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause, Shoulder Pin",
                         "top": "95kg x 3", "vol": "4,300kg",
                         "sets": [
-                            {"id": "s-3-1-2a", "label": "Top Single", "planned": "95kg x 3", "plannedWeight": "95", "plannedReps": "3", "plannedRpe": "5", "isTop": True, "actual": "95", "reps": "3", "executedRpe": "8"},
-                            {"id": "s-3-1-2b", "label": "Main Set", "planned": "90kg x 5", "plannedWeight": "90", "plannedReps": "5", "plannedRpe": "6", "actual": "90", "reps": "5", "executedRpe": "7"}
+                            {"id": "s-3-1-2a", "label": "Top Single", "planned": "95kg x 3", "plannedWeight": 95.0, "plannedReps": 3, "plannedRpe": 5.0, "isTop": True, "actual": 95.0, "reps": 3, "executedRpe": 8.0},
+                            {"id": "s-3-1-2b", "label": "Main Set", "plannedWeight": 90.0, "plannedReps": 5, "plannedRpe": 6.0, "actual": 90.0, "reps": 5, "executedRpe": 7.0}
+                        ]
+                    },
+                    {
+                        "id": "a-3-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
+                        "top": "120kg x 12", "vol": "4,320kg",
+                        "sets": [
+                            {"id": "a-3-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
+                            {"id": "a-3-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
+                            {"id": "a-3-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
+                        ]
+                    },
+                    {
+                        "id": "a-3-1-2", "title": "Triceps Extension", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
+                        "top": "—", "vol": "—",
+                        "sets": [
+                            {"id": "a-3-1-2-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
+                            {"id": "a-3-1-2-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
+                            {"id": "a-3-1-2-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0}
+                        ]
+                    },
+                    {
+                        "id": "a-3-1-3", "title": "Lateral Raises", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
+                        "top": "—", "vol": "—",
+                        "sets": [
+                            {"id": "a-3-1-3-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
+                            {"id": "a-3-1-3-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
+                            {"id": "a-3-1-3-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0}
                         ]
                     }
                 ],
-                "accessories": [
-                    {"id": "a-3-1-1", "name": "Leg Press", "prescribedSets": "3", "targetReps": "10-12", "targetRpe": "7", "weight": "120", "reps": "12", "executedRpe": "7", "status": "Done"},
-                    {"id": "a-3-1-2", "name": "Triceps Extension", "prescribedSets": "3", "targetReps": "12", "targetRpe": "9", "weight": "", "reps": "", "executedRpe": "", "status": "Pending"},
-                    {"id": "a-3-1-3", "name": "Lateral Raises", "prescribedSets": "3", "targetReps": "15", "targetRpe": "10", "weight": "", "reps": "", "executedRpe": "", "status": "Pending"}
-                ]
             }
         ]
     }
@@ -616,6 +648,8 @@ def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
                     id=e_data["id"] + "-" + str(uuid.uuid4())[:8],
                     title=e_data["title"],
                     variation=e_data["variation"],
+                    tier=e_data.get("tier", "Comp"),
+                    lift_category=e_data.get("lift_category", "Other"),
                     tags_raw=e_data["tags"],
                     top=e_data["top"],
                     vol=e_data["vol"],
@@ -628,40 +662,23 @@ def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
                     s = ExerciseSet(
                         id=s_data["id"] + "-" + str(uuid.uuid4())[:8],
                         label=s_data["label"],
-                        planned=s_data["planned"],
-                        plannedWeight=s_data["plannedWeight"],
-                        plannedReps=s_data["plannedReps"],
-                        plannedRpe=s_data["plannedRpe"],
-                        dropPercent=s_data.get("dropPercent"),
+                        plannedWeight=coerce_float(s_data.get("plannedWeight")),
+                        plannedReps=coerce_int(s_data.get("plannedReps")),
+                        plannedRpe=coerce_float(s_data.get("plannedRpe")),
+                        dropPercent=coerce_float(s_data.get("dropPercent")),
                         isAuto=s_data.get("isAuto", False),
-                        actual=s_data.get("actual"),
-                        reps=s_data.get("reps"),
-                        executedRpe=s_data.get("executedRpe"),
+                        actual=coerce_float(s_data.get("actual")),
+                        reps=coerce_int(s_data.get("reps")),
+                        executedRpe=coerce_float(s_data.get("executedRpe")),
                         isTop=s_data.get("isTop", False),
                         note=s_data.get("note"),
-                        velocity=s_data.get("velocity"),
-                        readiness=s_data.get("readiness"),
-                        hrv=s_data.get("hrv"),
+                        velocity=coerce_float(s_data.get("velocity")),
+                        readiness=coerce_int(s_data.get("readiness")),
+                        hrv=coerce_float(s_data.get("hrv")),
                         exercise_id=e.id
                     )
                     db.add(s)
                 db.commit()
-
-            for a_data in w_data.get("accessories", []):
-                a = Accessory(
-                    id=a_data["id"] + "-" + str(uuid.uuid4())[:8],
-                    name=a_data["name"],
-                    prescribedSets=a_data["prescribedSets"],
-                    targetReps=a_data["targetReps"],
-                    targetRpe=a_data["targetRpe"],
-                    weight=a_data["weight"],
-                    reps=a_data["reps"],
-                    executedRpe=a_data["executedRpe"],
-                    status=a_data["status"],
-                    workout_id=w.id
-                )
-                db.add(a)
-            db.commit()
 
 # --- REST Endpoints ---
 from .sync_service import SyncPayload, resolve_sync_payload
@@ -702,7 +719,7 @@ def register_user(req: RegisterRequest, response: Response, db: Session = Depend
         httponly=True,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",
-        secure=False
+        secure=COOKIE_SECURE
     )
     
     return {"access_token": access_token, "token_type": "bearer", "role": user.role, "email": user.email}
@@ -789,36 +806,15 @@ def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: Use
     if req.note is not None:
         s.note = req.note
     if req.velocity is not None:
-        try: s.velocity = float(req.velocity)
-        except ValueError: s.velocity = None
+        s.velocity = req.velocity
     if req.readiness is not None:
-        try: s.readiness = int(req.readiness)
-        except ValueError: s.readiness = None
+        s.readiness = req.readiness
     if req.hrv is not None:
-        try: s.hrv = float(req.hrv)
-        except ValueError: s.hrv = None
+        s.hrv = req.hrv
 
     db.commit()
     recalculate_metrics(db, req.workoutId, db.query(Workout).filter(Workout.id == req.workoutId).first().dayLabel)
     
-    analytics_cache.pop(current_user.id, None)
-    mcs = get_visible_microcycles(db, current_user)
-    return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
-
-@app.post("/api/accessories/log")
-def log_accessory(req: LogAccessoryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    a = db.query(Accessory).filter(Accessory.id == req.accessoryId).first()
-    if not a:
-        raise HTTPException(status_code=404, detail="Accessory not found")
-
-    a.weight = req.weight
-    a.reps = req.reps
-    a.executedRpe = req.rpe
-    a.status = req.status
-    db.commit()
-
-    recalculate_metrics(db, req.workoutId, db.query(Workout).filter(Workout.id == req.workoutId).first().dayLabel)
-
     analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
@@ -866,12 +862,9 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
             
         for e in w.exercises:
             for s in e.sets:
-                try:
-                    wt = float(s.actual or "0")
-                    rp = int(s.reps or "0")
-                    rpe = float(s.executedRpe or "0")
-                except ValueError:
-                    continue
+                wt = coerce_float(s.actual) or 0.0
+                rp = coerce_int(s.reps) or 0
+                rpe = coerce_float(s.executedRpe) or 0.0
                     
                 if wt > 0.0 and rp > 0:
                     if e.tier == "Comp": comp_nl += rp
@@ -981,13 +974,10 @@ def export_csv(
         ex = s.exercise
         w = ex.workout
         
-        try:
-            planned_wt = float(s.plannedWeight or 0.0)
-            actual_wt = float(s.actual or 0.0)
-            reps_val = int(s.reps or s.plannedReps or 0)
-            rpe_val = float(s.executedRpe or s.plannedRpe or 0.0)
-        except (ValueError, TypeError):
-            planned_wt, actual_wt, reps_val, rpe_val = 0.0, 0.0, 0, 0.0
+        planned_wt = coerce_float(s.plannedWeight) or 0.0
+        actual_wt = coerce_float(s.actual) or 0.0
+        reps_val = coerce_int(s.reps if s.reps is not None else s.plannedReps) or 0
+        rpe_val = coerce_float(s.executedRpe if s.executedRpe is not None else s.plannedRpe) or 0.0
 
         e1rm = calculate_e1rm(actual_wt, reps_val, rpe_val)
         intensity_pct = (actual_wt / e1rm) * 100.0 if e1rm > 0 else 0.0
@@ -1031,7 +1021,7 @@ def export_csv(
     return Response(
         content=csv_data,
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=obsidian_kinetic_export.csv"}
+        headers={"Content-Disposition": "attachment; filename=adaptive_lifting_export.csv"}
     )
 
 @app.get("/api/export/json")
@@ -1058,7 +1048,7 @@ def export_json(
     return Response(
         content=json.dumps(formatted, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=obsidian_kinetic_export.json"}
+        headers={"Content-Disposition": "attachment; filename=adaptive_lifting_export.json"}
     )
 
 @app.get("/api/analytics/ai-advisor")
@@ -1108,12 +1098,9 @@ def get_ai_advisor(
         workout_sets = []
         for e in w.exercises:
             for s in e.sets:
-                try:
-                    wt = float(s.actual or 0.0)
-                    rp = int(s.reps or 0)
-                    rpe = float(s.executedRpe or 0.0)
-                except (ValueError, TypeError):
-                    continue
+                wt = coerce_float(s.actual) or 0.0
+                rp = coerce_int(s.reps) or 0
+                rpe = coerce_float(s.executedRpe) or 0.0
                 if wt > 0.0 and rp > 0:
                     e1rm = calculate_e1rm(wt, rp, rpe)
                     if e.lift_category == "Squat" and e1rm > squat_max: squat_max = e1rm

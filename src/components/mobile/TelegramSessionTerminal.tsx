@@ -1,27 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MicrocycleData, WorkoutData, ExerciseData, SetData, AccessoryData } from '../../types';
-import { apiService, calculateE1RM } from '../../services/api';
-
-interface TelegramSessionTerminalProps {
-  microcycles: MicrocycleData[];
-  onUpdate: (data: MicrocycleData[]) => void;
-}
+import { SetData, isWorkoutInProgress } from '../../types';
+import { apiService } from '../../services/api';
+import { calculateE1RM } from '../../services/mathEngine';
+import { usePeriodization } from '../../contexts/PeriodizationContext';
+import { displayTrainingValue, trainingInt, trainingNumber, trainingOrZero } from '../../services/numericTraining';
 
 interface SetBuffer {
   reps: number;
   rpe: number;
   weight: number;
   note?: string;
-  velocity?: string;
-  readiness?: string;
-  hrv?: string;
+  velocity?: number | null;
+  readiness?: number | null;
+  hrv?: number | null;
 }
 
-export default function TelegramSessionTerminal({ microcycles, onUpdate }: TelegramSessionTerminalProps) {
+export default function TelegramSessionTerminal() {
+  const { microcycles, setMicrocycles } = usePeriodization();
+  const onUpdate = setMicrocycles;
+
   // --- Find Today's Workout ---
   const todayWorkout = React.useMemo(() => {
     for (const mc of microcycles) {
-      const today = mc.workouts.find((w) => w.status === 'Today');
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const today = mc.workouts.find((w) => isWorkoutInProgress(w.status) || w.date === todayIso);
       if (today) return today;
     }
     // Fallback: use first planned or completed workout in active microcycle
@@ -31,9 +33,6 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
 
   // --- UI Tabs and Navigation State ---
   const exercises = todayWorkout?.exercises || [];
-  const hasAccessories = todayWorkout?.accessories && todayWorkout.accessories.length > 0;
-  
-  // Tabs: index 0 to (exercises.length - 1) represent exercises, index (exercises.length) represents accessories
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [activeSetId, setActiveSetId] = useState<string | null>(null);
   const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
@@ -58,13 +57,13 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
       const newBuffers: Record<string, SetBuffer> = {};
       activeExercise.sets.forEach((s) => {
         newBuffers[s.id] = {
-          reps: parseInt(s.reps || s.plannedReps || '5') || 5,
-          rpe: parseFloat(s.executedRpe || s.plannedRpe || '7.0') || 7.0,
-          weight: parseFloat(s.actual || s.plannedWeight || '0') || 0,
+          reps: trainingInt(s.reps ?? s.plannedReps) || 5,
+          rpe: trainingNumber(s.executedRpe ?? s.plannedRpe) || 7.0,
+          weight: trainingOrZero(s.actual ?? s.plannedWeight),
           note: s.note || '',
-          velocity: s.velocity || '',
-          readiness: s.readiness || '',
-          hrv: s.hrv || ''
+          velocity: trainingNumber(s.velocity),
+          readiness: trainingInt(s.readiness),
+          hrv: trainingNumber(s.hrv)
         };
       });
       setSetBuffers(newBuffers);
@@ -97,13 +96,13 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
   // --- Safe Buffer Reader ---
   const getSetBuffer = (setId: string, fallbackSet: SetData): SetBuffer => {
     return setBuffers[setId] || {
-      reps: parseInt(fallbackSet.reps || fallbackSet.plannedReps || '5') || 5,
-      rpe: parseFloat(fallbackSet.executedRpe || fallbackSet.plannedRpe || '7.0') || 7.0,
-      weight: parseFloat(fallbackSet.actual || fallbackSet.plannedWeight || '0') || 0,
+      reps: trainingInt(fallbackSet.reps ?? fallbackSet.plannedReps) || 5,
+      rpe: trainingNumber(fallbackSet.executedRpe ?? fallbackSet.plannedRpe) || 7.0,
+      weight: trainingOrZero(fallbackSet.actual ?? fallbackSet.plannedWeight),
       note: fallbackSet.note || '',
-      velocity: fallbackSet.velocity || '',
-      readiness: fallbackSet.readiness || '',
-      hrv: fallbackSet.hrv || ''
+      velocity: trainingNumber(fallbackSet.velocity),
+      readiness: trainingInt(fallbackSet.readiness),
+      hrv: trainingNumber(fallbackSet.hrv)
     };
   };
 
@@ -172,9 +171,9 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
     } else if (key === 'RESET') {
       const activeSet = activeExercise?.sets.find(s => s.id === activeInputSetId);
       if (activeSet) {
-        if (activeInput === 'weight') setNumpadValueString(activeSet.plannedWeight || '');
-        if (activeInput === 'reps') setNumpadValueString(activeSet.plannedReps || '');
-        if (activeInput === 'rpe') setNumpadValueString(activeSet.plannedRpe || '');
+        if (activeInput === 'weight') setNumpadValueString(displayTrainingValue(activeSet.plannedWeight));
+        if (activeInput === 'reps') setNumpadValueString(displayTrainingValue(activeSet.plannedReps));
+        if (activeInput === 'rpe') setNumpadValueString(displayTrainingValue(activeSet.plannedRpe));
       }
     } else {
       if (key === '.' && numpadValueString.includes('.')) return;
@@ -272,9 +271,9 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
         todayWorkout.id,
         activeExercise.id,
         setId,
-        buf.weight.toString(),
-        buf.reps.toString(),
-        buf.rpe.toFixed(1),
+        buf.weight,
+        buf.reps,
+        buf.rpe,
         buf.note,
         buf.velocity,
         buf.readiness,
@@ -294,8 +293,6 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
         // Exercise completed, advance tabs
         if (activeTabIdx < exercises.length - 1) {
           setActiveTabIdx((prev) => prev + 1);
-        } else if (hasAccessories) {
-          setActiveTabIdx(exercises.length);
         }
       }
     } catch (err) {
@@ -319,9 +316,9 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
         todayWorkout.id,
         activeExercise.id,
         setId,
-        buf.weight.toString(),
-        buf.reps.toString(),
-        buf.rpe.toFixed(1),
+        buf.weight,
+        buf.reps,
+        buf.rpe,
         buf.note,
         buf.velocity,
         buf.readiness,
@@ -352,9 +349,9 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
           todayWorkout.id,
           activeExercise.id,
           setId,
-          '0', // weight = 0 marks skipped
-          '0', // reps = 0 marks skipped
-          '0', // rpe = 0
+          0,
+          0,
+          0,
           'Skipped'
         );
 
@@ -370,8 +367,6 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
         } else {
           if (activeTabIdx < exercises.length - 1) {
             setActiveTabIdx((prev) => prev + 1);
-          } else if (hasAccessories) {
-            setActiveTabIdx(exercises.length);
           }
         }
       } catch (err) {
@@ -381,53 +376,6 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
         setIsSubmitting(false);
       }
     }
-  };
-
-  // --- Accessory Log Handler ---
-  const handleLogAccessory = async (accId: string, isChecked: boolean) => {
-    triggerHaptic('medium');
-    const acc = todayWorkout.accessories?.find(a => a.id === accId);
-    if (!acc) return;
-
-    const newStatus = isChecked ? 'Done' : 'Pending';
-    const defaultWeight = acc.weight || '0';
-    const defaultReps = acc.reps || acc.targetReps.split('-')[0] || '10';
-    const defaultRpe = acc.executedRpe || acc.targetRpe || '8';
-
-    try {
-      const updatedData = await apiService.logAccessory(
-        todayWorkout.id,
-        accId,
-        defaultWeight,
-        defaultReps,
-        defaultRpe,
-        newStatus
-      );
-      onUpdate(updatedData);
-      if (isChecked) triggerHaptic('success');
-    } catch (err) {
-      console.error(err);
-      triggerHaptic('error');
-    }
-  };
-
-  const handleUpdateAccessoryData = (accId: string, field: 'weight' | 'reps' | 'executedRpe', value: string) => {
-    const acc = todayWorkout.accessories?.find(a => a.id === accId);
-    if (!acc) return;
-
-    const weight = field === 'weight' ? value : (acc.weight || '0');
-    const reps = field === 'reps' ? value : (acc.reps || '10');
-    const rpe = field === 'executedRpe' ? value : (acc.executedRpe || '8');
-    const status = acc.status;
-
-    apiService.logAccessory(
-      todayWorkout.id,
-      accId,
-      weight,
-      reps,
-      rpe,
-      status
-    ).then(data => onUpdate(data));
   };
 
   const handleToggleExpandSet = (setId: string) => {
@@ -442,7 +390,7 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
   return (
     <div className="relative flex flex-col h-screen bg-black font-sans text-white overflow-hidden pb-10">
       
-      {/* --- Obsidian Top Glass Header --- */}
+      {/* Session header */}
       <div className="sticky top-0 z-40 bg-[#0C0F0F]/80 backdrop-blur-xl border-b border-zinc-900 px-4 pt-4 pb-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -469,22 +417,9 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
                   : 'bg-[#121414] text-zinc-400 border-zinc-800 hover:text-white'
               }`}
             >
-              {ex.title}
+              {ex.tier === 'Accessory' ? `Acc · ${ex.title}` : ex.title}
             </button>
           ))}
-          
-          {hasAccessories && (
-            <button
-              onClick={() => { triggerHaptic('medium'); setActiveTabIdx(exercises.length); }}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border transition-all duration-200 ${
-                activeTabIdx === exercises.length
-                  ? 'bg-[#75ff9e] text-black border-[#75ff9e] font-extrabold shadow-[0_0_12px_rgba(117,255,158,0.3)]'
-                  : 'bg-[#121414] text-zinc-400 border-zinc-800 hover:text-white'
-              }`}
-            >
-              Accessories
-            </button>
-          )}
         </div>
       </div>
 
@@ -500,7 +435,7 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
               <h2 className="text-2xl font-extrabold text-white">{activeExercise.title}</h2>
               <div className="flex gap-2 mt-2">
                 <span className="h-[24px] px-3 bg-[#75ff9e]/10 text-[#75ff9e] text-[10px] tracking-wider uppercase rounded-full flex items-center border border-[#75ff9e]/20 font-semibold">
-                  {activeExercise.variation}
+                  {activeExercise.tier ? `${activeExercise.tier} · ${activeExercise.variation}` : activeExercise.variation}
                 </span>
                 <span className="h-[24px] px-3 bg-[#1e2020] text-[#bacbb9] text-[10px] tracking-wider uppercase rounded-full flex items-center border border-white/5 font-semibold">
                   {activeExercise.sets.length} Sets
@@ -659,29 +594,29 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
                             {expandedMetrics[set.id] && (
                               <div className="grid grid-cols-3 gap-2">
                                 <input
-                                  type="text"
+                                  type="number"
                                   placeholder="Vel (m/s)"
-                                  value={buf.velocity || ''}
+                                  value={displayTrainingValue(buf.velocity)}
                                   onChange={(e) => {
-                                    setSetBuffers(prev => ({ ...prev, [set.id]: { ...buf, velocity: e.target.value } }));
+                                    setSetBuffers(prev => ({ ...prev, [set.id]: { ...buf, velocity: trainingNumber(e.target.value) } }));
                                   }}
                                   className="w-full text-center bg-zinc-950/60 border border-zinc-900 rounded-lg py-1.5 text-xs text-white font-mono placeholder-zinc-700 focus:outline-none focus:border-zinc-800"
                                 />
                                 <input
-                                  type="text"
+                                  type="number"
                                   placeholder="Readiness (1-10)"
-                                  value={buf.readiness || ''}
+                                  value={displayTrainingValue(buf.readiness)}
                                   onChange={(e) => {
-                                    setSetBuffers(prev => ({ ...prev, [set.id]: { ...buf, readiness: e.target.value } }));
+                                    setSetBuffers(prev => ({ ...prev, [set.id]: { ...buf, readiness: trainingInt(e.target.value) } }));
                                   }}
                                   className="w-full text-center bg-zinc-950/60 border border-zinc-900 rounded-lg py-1.5 text-xs text-white font-mono placeholder-zinc-700 focus:outline-none focus:border-zinc-800"
                                 />
                                 <input
-                                  type="text"
+                                  type="number"
                                   placeholder="HRV (ms)"
-                                  value={buf.hrv || ''}
+                                  value={displayTrainingValue(buf.hrv)}
                                   onChange={(e) => {
-                                    setSetBuffers(prev => ({ ...prev, [set.id]: { ...buf, hrv: e.target.value } }));
+                                    setSetBuffers(prev => ({ ...prev, [set.id]: { ...buf, hrv: trainingNumber(e.target.value) } }));
                                   }}
                                   className="w-full text-center bg-zinc-950/60 border border-zinc-900 rounded-lg py-1.5 text-xs text-white font-mono placeholder-zinc-700 focus:outline-none focus:border-zinc-800"
                                 />
@@ -866,79 +801,6 @@ export default function TelegramSessionTerminal({ microcycles, onUpdate }: Teleg
               })}
             </div>
 
-          </div>
-        )}
-
-        {/* VIEW 2: ACCESSORIES VIEW */}
-        {!activeExercise && todayWorkout.accessories && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold tracking-tight text-zinc-400 mb-2">Accessory Exercises</h3>
-            
-            <div className="space-y-3">
-              {todayWorkout.accessories.map((acc) => {
-                const isCompleted = acc.status === 'Done';
-                
-                return (
-                  <div 
-                    key={acc.id}
-                    className={`border rounded-2xl p-4 transition-all duration-300 ${
-                      isCompleted 
-                        ? 'bg-[#141a16]/30 border-emerald-950/40' 
-                        : 'bg-[#0C0F0F] border-zinc-900'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h4 className="text-sm font-bold text-white">{acc.name}</h4>
-                        <p className="text-[10px] text-zinc-500">
-                          Prescribed: {acc.prescribedSets} Sets x {acc.targetReps} Reps @ RPE {acc.targetRpe}
-                        </p>
-                      </div>
-                      
-                      <input
-                        type="checkbox"
-                        checked={isCompleted}
-                        onChange={(e) => handleLogAccessory(acc.id, e.target.checked)}
-                        className="h-5 w-5 rounded border-zinc-800 bg-zinc-900 text-[#75ff9e] focus:ring-[#75ff9e]/50 cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      <div>
-                        <span className="text-[9px] text-zinc-500 uppercase block mb-1">Weight</span>
-                        <input
-                          type="text"
-                          value={acc.weight || ''}
-                          placeholder={`${acc.weight || '—'} kg`}
-                          onChange={(e) => handleUpdateAccessoryData(acc.id, 'weight', e.target.value)}
-                          className="w-full text-center bg-zinc-950/60 border border-zinc-900 rounded-lg py-1.5 text-xs text-white font-mono placeholder-zinc-700"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-zinc-500 uppercase block mb-1">Reps</span>
-                        <input
-                          type="text"
-                          value={acc.reps || ''}
-                          placeholder={acc.targetReps}
-                          onChange={(e) => handleUpdateAccessoryData(acc.id, 'reps', e.target.value)}
-                          className="w-full text-center bg-zinc-950/60 border border-zinc-900 rounded-lg py-1.5 text-xs text-white font-mono placeholder-zinc-700"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-zinc-500 uppercase block mb-1">RPE</span>
-                        <input
-                          type="text"
-                          value={acc.executedRpe || ''}
-                          placeholder={`@ ${acc.targetRpe}`}
-                          onChange={(e) => handleUpdateAccessoryData(acc.id, 'executedRpe', e.target.value)}
-                          className="w-full text-center bg-zinc-950/60 border border-zinc-900 rounded-lg py-1.5 text-xs text-white font-mono placeholder-zinc-700"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         )}
       </div>

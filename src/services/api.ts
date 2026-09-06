@@ -1,25 +1,10 @@
-import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse } from '../types';
+import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
+import { getSnapshot, saveSnapshot } from './db';
+import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
+import { calculateE1RM } from './mathEngine';
+import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 
-const STORAGE_KEY = 'iron_box_microcycles';
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
-
-// --- Powerlifting RTS & Progression Computations ---
-
-/**
- * Calculates Estimated 1RM (e1RM) using an RPE-compensated Brzycki formula.
- * In RTS, executing a set at less than RPE 10 acts like doing additional reps.
- * e.g., 5 reps at RPE 9 is fatigue-equivalent to a 6-rep max.
- */
-export function calculateE1RM(weight: number, reps: number, rpe: number): number {
-  if (weight <= 0 || reps <= 0) return 0;
-  // If no RPE or full RPE 10, calculate standard Brzycki
-  const rpeValue = rpe > 0 ? rpe : 10;
-  const effectiveReps = reps + (10 - rpeValue);
-  
-  if (effectiveReps >= 37) return weight; // Prevent division by zero or negative ratio
-  const e1rm = weight / (1.0278 - (0.0278 * effectiveReps));
-  return Math.round(e1rm * 10) / 10;
-}
 
 /**
  * Recalculates metrics for a workout: exercise volumes, top single labels, and day's overall tonnage.
@@ -38,9 +23,9 @@ export function recalculateWorkoutMetrics(
     let topSingleSet: any = null;
 
     exercise.sets.forEach((set: any) => {
-      const weight = parseFloat(set.actual || set.plannedWeight || '0');
-      const reps = parseInt(set.reps || set.plannedReps || '0');
-      const rpe = parseFloat(set.executedRpe || set.plannedRpe || '0');
+      const weight = trainingOrZero(set.actual ?? set.plannedWeight);
+      const reps = trainingIntOrZero(set.reps ?? set.plannedReps);
+      const rpe = trainingOrZero(set.executedRpe ?? set.plannedRpe);
 
       if (weight > 0 && reps > 0) {
         const setVolume = weight * reps;
@@ -78,39 +63,28 @@ export function recalculateWorkoutMetrics(
     };
   });
 
-  // Include accessory work in tonnage if logged
-  if (workout.accessories) {
-    workout.accessories.forEach((acc: any) => {
-      const weight = parseFloat(acc.weight || '0');
-      const reps = parseInt(acc.reps || '0');
-      if (acc.status === 'Done' && weight > 0 && reps > 0) {
-        totalTonnage += weight * reps;
-      }
-    });
-  }
-
   workout.tonnage = totalTonnage;
   workout.delta = previousWorkoutTonnage > 0 ? totalTonnage - previousWorkoutTonnage : 0;
 }
 
-// --- LocalStorage Driver ---
-
-function getLocalData(): MicrocycleData[] {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (!data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MICROCYCLES));
-    return INITIAL_MICROCYCLES;
-  }
+async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
   try {
-    return JSON.parse(data);
-  } catch {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MICROCYCLES));
-    return INITIAL_MICROCYCLES;
+    const cached = await getSnapshot('microcycles');
+    if (cached && Array.isArray(cached) && cached[0]?.workouts) {
+      return cached;
+    }
+  } catch (err) {
+    console.warn('IndexedDB snapshot read failed.', err);
   }
+  return INITIAL_MICROCYCLES;
 }
 
-function saveLocalData(data: MicrocycleData[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+async function saveOfflineMicrocycles(data: MicrocycleData[]): Promise<void> {
+  try {
+    await saveSnapshot('microcycles', data);
+  } catch (err) {
+    console.error('Failed to write IndexedDB microcycles snapshot:', err);
+  }
 }
 
 function getHeaders() {
@@ -132,11 +106,11 @@ export const apiService = {
         if (!response.ok) throw new Error('API server returned error status');
         return await response.json();
       } catch (err) {
-        console.warn('Backend server unavailable. Falling back to LocalStorage.', err);
-        return getLocalData();
+        console.warn('Backend server unavailable. Falling back to IndexedDB snapshot.', err);
+        return getOfflineMicrocycles();
       }
     }
-    return getLocalData();
+    return getOfflineMicrocycles();
   },
 
   /**
@@ -146,13 +120,13 @@ export const apiService = {
     workoutId: string,
     exerciseId: string,
     setId: string,
-    weight: string,
-    reps: string,
-    rpe: string,
+    weight: number,
+    reps: number,
+    rpe: number,
     note?: string,
-    velocity?: string,
-    readiness?: string,
-    hrv?: string
+    velocity?: number | null,
+    readiness?: number | null,
+    hrv?: number | null
   ): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
@@ -165,12 +139,11 @@ export const apiService = {
         if (!response.ok) throw new Error('API set log request failed');
         return await response.json();
       } catch (err) {
-        console.warn('Backend server save failed. Syncing to LocalStorage.', err);
+        console.warn('Backend server save failed. Queueing set on IndexedDB snapshot.', err);
       }
     }
 
-    // LocalStorage Fallback Mutation
-    const data = getLocalData();
+    const data = await getOfflineMicrocycles();
     
     // Find active workout indices
     let workoutObj: any = null;
@@ -201,78 +174,20 @@ export const apiService = {
     if (exercise) {
       const set = exercise.sets.find((s: any) => s.id === setId);
       if (set) {
-        set.actual = weight;
-        set.reps = reps;
-        set.executedRpe = rpe;
+        set.actual = trainingNumber(weight);
+        set.reps = trainingInt(reps);
+        set.executedRpe = trainingNumber(rpe);
         if (note !== undefined) set.note = note;
-        if (velocity !== undefined) set.velocity = velocity;
-        if (readiness !== undefined) set.readiness = readiness;
-        if (hrv !== undefined) set.hrv = hrv;
+        if (velocity !== undefined) set.velocity = trainingNumber(velocity);
+        if (readiness !== undefined) set.readiness = trainingInt(readiness);
+        if (hrv !== undefined) set.hrv = trainingNumber(hrv);
       }
     }
 
     // 3. Recalculate training volumes and progression delta
     recalculateWorkoutMetrics(workoutObj, prevWorkoutTonnage);
     
-    saveLocalData(data);
-    return data;
-  },
-
-  /**
-   * Logs or updates an accessory exercise inside a workout.
-   */
-  async logAccessory(
-    workoutId: string,
-    accessoryId: string,
-    weight: string,
-    reps: string,
-    rpe: string,
-    status: 'Pending' | 'Done'
-  ): Promise<MicrocycleData[]> {
-    if (BACKEND_URL) {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/accessories/log`, {
-          method: 'POST',
-          headers: getHeaders(),
-          credentials: 'include',
-          body: JSON.stringify({ workoutId, accessoryId, weight, reps, rpe, status })
-        });
-        if (!response.ok) throw new Error('API accessory log request failed');
-        return await response.json();
-      } catch (err) {
-        console.warn('Backend server save failed. Syncing to LocalStorage.', err);
-      }
-    }
-
-    const data = getLocalData();
-    let workoutObj: any = null;
-    let prevWorkoutTonnage = 0;
-
-    data.forEach((mc, mcIdx) => {
-      mc.workouts.forEach((w) => {
-        if (w.id === workoutId) {
-          workoutObj = w;
-          if (mcIdx > 0) {
-            const prevMC = data[mcIdx - 1];
-            const prevW = prevMC.workouts.find((pw) => pw.dayLabel === w.dayLabel);
-            if (prevW) prevWorkoutTonnage = prevW.tonnage;
-          }
-        }
-      });
-    });
-
-    if (workoutObj && workoutObj.accessories) {
-      const acc = workoutObj.accessories.find((a: any) => a.id === accessoryId);
-      if (acc) {
-        acc.weight = weight;
-        acc.reps = reps;
-        acc.executedRpe = rpe;
-        acc.status = status;
-      }
-      recalculateWorkoutMetrics(workoutObj, prevWorkoutTonnage);
-      saveLocalData(data);
-    }
-
+    await saveOfflineMicrocycles(data);
     return data;
   },
 
@@ -286,10 +201,10 @@ export const apiService = {
         if (!response.ok) throw new Error('API server reset failed');
         return await response.json();
       } catch (err) {
-        console.warn('Backend server reset unavailable. Resetting LocalStorage.', err);
+        console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
       }
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MICROCYCLES));
+    await saveOfflineMicrocycles(INITIAL_MICROCYCLES);
     return INITIAL_MICROCYCLES;
   },
 
@@ -307,6 +222,8 @@ export const apiService = {
         console.warn('Backend server trends unavailable.', err);
         return null;
       }
+    }
+    return null;
   },
 
   /**
@@ -347,12 +264,12 @@ export const apiService = {
     
     microcycles.forEach((mc) => {
       mc.workouts.forEach((w) => {
-        if (w.status === 'Completed' || w.status === 'Today') {
+        if (isWorkoutCompleted(w.status) || isWorkoutInProgress(w.status)) {
           w.exercises.forEach((e) => {
             e.sets.forEach((s) => {
-              const weightVal = parseFloat(s.actual || s.plannedWeight || '0');
-              const repsVal = parseInt(s.reps || s.plannedReps || '0');
-              const rpeVal = parseFloat(s.executedRpe || s.plannedRpe || '0');
+              const weightVal = trainingOrZero(s.actual ?? s.plannedWeight);
+              const repsVal = trainingIntOrZero(s.reps ?? s.plannedReps);
+              const rpeVal = trainingOrZero(s.executedRpe ?? s.plannedRpe);
               
               if (weightVal > 0 && repsVal > 0) {
                 const e1rmVal = calculateE1RM(weightVal, repsVal, rpeVal);
@@ -389,8 +306,8 @@ export const apiService = {
     });
     if (!response.ok) throw new Error('Login failed');
     const data = await response.json();
-    localStorage.setItem('iron_box_role', data.user.role);
-    localStorage.setItem('iron_box_email', data.user.email);
+    setUiPref(UI_KEYS.role, data.user.role);
+    setUiPref(UI_KEYS.email, data.user.email);
     return data;
   },
 
@@ -406,8 +323,8 @@ export const apiService = {
       throw new Error(errData.detail || 'Registration failed');
     }
     const data = await response.json();
-    localStorage.setItem('iron_box_role', data.role);
-    localStorage.setItem('iron_box_email', data.email);
+    setUiPref(UI_KEYS.role, data.role);
+    setUiPref(UI_KEYS.email, data.email);
     return data;
   },
 
@@ -462,8 +379,8 @@ export const apiService = {
     try {
       await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     } catch (err) {}
-    localStorage.removeItem('iron_box_role');
-    localStorage.removeItem('iron_box_email');
-    localStorage.removeItem('obsidian_role_mode');
+    removeUiPref(UI_KEYS.role);
+    removeUiPref(UI_KEYS.email);
+    removeUiPref(UI_KEYS.roleMode);
   }
 };
