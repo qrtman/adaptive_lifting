@@ -4,7 +4,7 @@ import { Send, CheckCircle2, AlertCircle, RefreshCw, XCircle, ArrowRight } from 
 export const TelegramLinkPanel = () => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'unlinked' | 'generating' | 'linked' | 'error'>('idle');
   const [token, setToken] = useState<string | null>(null);
-  const [botUsername, setBotUsername] = useState<string>('ObsidianKineticBot');
+  const [botUsername, setBotUsername] = useState<string>('AdaptiveLiftingBot');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(600); // 10 minutes
 
@@ -47,7 +47,7 @@ export const TelegramLinkPanel = () => {
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
-        setBotUsername(data.bot_username || 'ObsidianKineticBot');
+        setBotUsername(data.bot_username || 'AdaptiveLiftingBot');
         setStatus('generating');
         setSecondsLeft(600); // reset countdown
       } else {

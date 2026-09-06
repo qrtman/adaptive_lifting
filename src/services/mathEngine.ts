@@ -113,8 +113,8 @@ export function calculateAttemptJumps(
   }
 
   return {
-    suggested_second: `${minSecond}kg - ${maxSecond}kg`,
-    third_ceiling: `${ceiling}kg`,
+    suggested_second: `${minSecond.toFixed(1)}kg - ${maxSecond.toFixed(1)}kg`,
+    third_ceiling: `${ceiling.toFixed(1)}kg`,
   };
 }
 

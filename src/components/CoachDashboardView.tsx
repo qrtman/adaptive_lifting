@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
 
 export const CoachDashboardView: React.FC = () => {
   const [roster, setRoster] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState(localStorage.getItem('iron_box_email') || '');
+  const [userEmail, setUserEmail] = useState(getUiPref(UI_KEYS.email) || '');
   const [linkSuccess, setLinkSuccess] = useState('');
 
   // Drill-down state

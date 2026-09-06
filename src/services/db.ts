@@ -1,9 +1,13 @@
-export const DB_NAME = 'obsidian_kinetic_db';
+export const DB_NAME = 'adaptive_lifting_db';
+const LEGACY_DB_NAME = 'obsidian_kinetic_db';
 export const DB_VERSION = 1;
+
+let openPromise: Promise<IDBDatabase> | null = null;
 
 export interface SyncMutation {
   mutation_id: string;
   client_device_id: string;
+  workout_id?: string;
   entity_type: string;
   entity_id: string;
   field_path: string; // 'ALL' or specific field
@@ -13,27 +17,91 @@ export interface SyncMutation {
   retry_count: number;
 }
 
-export function openDB(): Promise<IDBDatabase> {
+function ensureStores(db: IDBDatabase): void {
+  if (!db.objectStoreNames.contains('snapshots')) {
+    db.createObjectStore('snapshots', { keyPath: 'id' });
+  }
+  if (!db.objectStoreNames.contains('mutations')) {
+    db.createObjectStore('mutations', { keyPath: 'mutation_id' });
+  }
+  if (!db.objectStoreNames.contains('tombstones')) {
+    db.createObjectStore('tombstones', { keyPath: 'id' });
+  }
+  if (!db.objectStoreNames.contains('metadata')) {
+    db.createObjectStore('metadata', { keyPath: 'key' });
+  }
+}
+
+function openNamed(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = (event: any) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains('snapshots')) {
-        db.createObjectStore('snapshots', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('mutations')) {
-        db.createObjectStore('mutations', { keyPath: 'mutation_id' });
-      }
-      if (!db.objectStoreNames.contains('tombstones')) {
-        db.createObjectStore('tombstones', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('metadata')) {
-        db.createObjectStore('metadata', { keyPath: 'key' });
-      }
+      ensureStores(event.target.result);
     };
     request.onsuccess = (event: any) => resolve(event.target.result);
     request.onerror = (event: any) => reject(event.target.error);
   });
+}
+
+function readAll(db: IDBDatabase, storeName: string): Promise<any[]> {
+  if (!db.objectStoreNames.contains(storeName)) return Promise.resolve([]);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function writeAll(db: IDBDatabase, storeName: string, records: any[]): Promise<void> {
+  if (!db.objectStoreNames.contains(storeName) || records.length === 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    records.forEach((record) => store.put(record));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function migrateLegacyIndexedDB(): Promise<void> {
+  if (typeof indexedDB.databases !== 'function') return;
+  const names = (await indexedDB.databases()).map((entry) => entry.name || '');
+  if (!names.includes(LEGACY_DB_NAME)) return;
+
+  const source = await openNamed(LEGACY_DB_NAME);
+  const dest = await openNamed(DB_NAME);
+  try {
+    const existingSnapshots = await readAll(dest, 'snapshots');
+    if (existingSnapshots.length === 0) {
+      for (const storeName of ['snapshots', 'mutations', 'tombstones', 'metadata']) {
+        const records = await readAll(source, storeName);
+        await writeAll(dest, storeName, records);
+      }
+    }
+  } finally {
+    source.close();
+    dest.close();
+  }
+
+  await new Promise<void>((resolve) => {
+    const req = indexedDB.deleteDatabase(LEGACY_DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => resolve();
+  });
+}
+
+export function openDB(): Promise<IDBDatabase> {
+  if (!openPromise) {
+    openPromise = migrateLegacyIndexedDB()
+      .then(() => openNamed(DB_NAME))
+      .catch((err) => {
+        openPromise = null;
+        throw err;
+      });
+  }
+  return openPromise;
 }
 
 export async function saveMutation(mutation: SyncMutation): Promise<void> {
@@ -98,6 +166,16 @@ export async function getSnapshot(id: string): Promise<any | null> {
     req.onsuccess = () => {
       resolve(req.result ? req.result.data : null);
     };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function clearSnapshot(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('snapshots', 'readwrite');
+    const req = tx.objectStore('snapshots').delete(id);
+    req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
 }

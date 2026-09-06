@@ -4,3 +4,6 @@ sqlalchemy
 PyJWT
 passlib[bcrypt]
 python-multipart
+python-dateutil
+pytest
+httpx

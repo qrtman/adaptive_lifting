@@ -1,7 +1,7 @@
-# Obsidian Kinetic - System Architecture
+# Adaptive Lifting - System Architecture
 
 > **Document Status:** Architecture Reference  
-> **System:** Obsidian Kinetic Periodization Dashboard  
+> **System:** Adaptive Lifting Periodization Dashboard  
 > **Foundation:** Mike Tuchscherer's Reactive Training Systems (RTS) - Autoregulated Training  
 > **Companion Document:** `design.md` (Visual Design System & Style Guide)
 
@@ -32,7 +32,7 @@
 
 ## 1. Executive Summary
 
-Obsidian Kinetic is a powerlifting periodization dashboard that replaces rigid spreadsheets with a dynamic, auto-regulatory planning and logging system. It serves two distinct user personas - **Coaches** who design mesocycle-level training blocks and prescribe workouts, and **Athletes** who execute sessions on the gym floor, logging weight, reps, and RPE in real-time.
+Adaptive Lifting is a powerlifting periodization dashboard that replaces rigid spreadsheets with a dynamic, auto-regulatory planning and logging system. It serves two distinct user personas - **Coaches** who design mesocycle-level training blocks and prescribe workouts, and **Athletes** who execute sessions on the gym floor, logging weight, reps, and RPE in real-time.
 
 The system's core differentiator is its **RTS Math Engine**, which delivers real-time e1RM projections, INOL fatigue tracking, and ACWR workload diagnostics directly within the training grid. This gives coaches objective, chronologically-sound metrics to autoregulate loading without requiring complex external spreadsheets.
 
@@ -55,7 +55,7 @@ Understanding the RTS methodology is essential for working with this system. All
 | **Tier** | Exercise classification: **Comp** (competition lift), **Variation** (close derivative), **Accessory** (isolation/bodybuilding). |
 | **Lift Category** | Movement pattern classifier: Squat, Bench, Deadlift, or Other. Used for INOL grouping and export gating. |
 | **Top Set** | The heaviest or most fatiguing set in an exercise block. Flagged with `isTop` for e1RM tracking. |
-| **Effective Reps** | The total number of reps the body treats as fatiguing, including the implied reps-in-reserve. Formalized as `Reps + (10 - RPE)`. Used by the Brzycki e1RM formula. |
+| **Effective Reps** | The total number of reps the body treats as fatiguing, including the implied reps-in-reserve. Formalized as `Reps + (10 - RPE)`. Used by the RPE-compensated linear-decay e1RM formula. |
 | **DOTS** | A bodyweight-normalized strength coefficient allowing cross-weight-class comparison of powerlifting totals. |
 
 ---
@@ -188,7 +188,6 @@ erDiagram
     Mesocycle ||--o{ Microcycle : "contains"
     Microcycle ||--o{ Workout : "contains"
     Workout ||--o{ Exercise : "contains"
-    Workout ||--o{ Accessory : "contains"
     Exercise ||--o{ ExerciseSet : "contains"
     Workout ||--o| WorkoutLock : "may have"
     ClientDevice ||--o{ SyncMutation : "queues"
@@ -207,9 +206,10 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate` | Contains Microcycles |
 | **Microcycle** | `id` (String) | `weekName`, `status`, `startDate`, `endDate` | Belongs to Mesocycle; contains Workouts |
 | **Workout** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw` | Belongs to Microcycle |
-| **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier`, `lift_category`, `deleted_at` | Belongs to Workout |
-| **ExerciseSet** | `id` (String) | `lexo_rank`, `planned`, `actual`, `reps`, `executedRpe`, `deleted_at` | Belongs to Exercise |
-| **Accessory** | `id` (String) | `name`, `lexo_rank`, `status`, `deleted_at` | Belongs to Workout |
+| **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
+| **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `deleted_at` | Belongs to Exercise |
+
+Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `tier = Accessory`. Comp lifts, variations, and accessories all own individual `ExerciseSet` rows. The legacy `accessories` table is tombstoned after one-time migration and is not part of the canonical API.
 
 ### 5.2 Domain Invariants
 
@@ -218,6 +218,7 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 | **Tombstone Integrity**: Updates to records with `deleted_at != null` are strictly rejected. | Service-layer sync validation |
 | **State Machine Lock**: A workout in `COMPLETED` state rejects execution mutations unless reverted to `IN_PROGRESS`. | Pydantic schema / Service layer |
 | **LexoRank Order**: Ordering strings (`lexo_rank`) must maintain lexical sortability without integer collisions. | Client generation, DB indexing |
+| **Accessory identity**: Isolation work is `Exercise.tier = Accessory`, never a workout-level blob without sets. | Schema + sync entity allow-list |
 | `Workout.date` must fall within parent `Microcycle.startDate` and `endDate` | Server validation |
 
 ### 5.3 Lifecycle Status Values
@@ -226,16 +227,16 @@ Statuses are stored as enums rather than display strings. Transitions are strict
 
 | Entity | Status Values | Execution Locks |
 | :--- | :--- | :--- |
-| `Mesocycle` | `DRAFT`, `ACTIVE`, `COMPLETED`, `ARCHIVED` | - |
-| `Microcycle` | `DRAFT`, `ACTIVE`, `COMPLETED`, `LOCKED` | `LOCKED` prevents structural edits. |
-| `Workout` | `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `MISSED` | `COMPLETED` locks set-level mutations. |
+| `Mesocycle` | `DRAFT`, `ACTIVE`, `COMPLETED` | `COMPLETED` prevents structural edits to the block. |
+| `Microcycle` | `DRAFT`, `ACTIVE`, `COMPLETED` | `COMPLETED` prevents structural edits to the week. |
+| `Workout` | `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `MISSED` | `COMPLETED` and `MISSED` lock set-level mutations. |
 
 Allowed transitions are explicit:
 
 | Entity | Allowed Transitions |
 | :--- | :--- |
-| `Mesocycle` | `DRAFT -> ACTIVE -> COMPLETED -> ARCHIVED` |
-| `Microcycle` | `DRAFT -> ACTIVE -> COMPLETED -> LOCKED` |
+| `Mesocycle` | `DRAFT -> ACTIVE -> COMPLETED` |
+| `Microcycle` | `DRAFT -> ACTIVE -> COMPLETED` |
 | `Workout` | `PLANNED -> IN_PROGRESS -> COMPLETED`; `PLANNED -> MISSED`; `COMPLETED -> IN_PROGRESS` only through explicit reopen |
 
 Only one mesocycle may be `ACTIVE` per athlete at a time.
@@ -495,6 +496,8 @@ def calculate_systemic_cns_fatigue(workouts: list, target_date: datetime.date) -
 
 ### 7.1 Offline-First Sync Architecture
 
+Client domain state lives in `PeriodizationContext`. Calendar, Sessions, and the Telegram Mini App read `microcycles` from that store. Auth state lives in `AuthContext`. Sync queue telemetry lives in `SyncContext`. `App.tsx` owns view chrome (dashboard vs session, filters), not the training tree.
+
 ```mermaid
 sequenceDiagram
     participant U as User Action
@@ -530,6 +533,21 @@ The offline store is versioned independently from the API. Migrations must be ad
 | `metadata` | `key` | Store version, active athlete, hydration window boundaries, and last successful sync timestamp. |
 
 Mutation queue states are `PENDING`, `IN_FLIGHT`, `ACKED`, `REJECTED`, and `CONFLICTED`. On boot, any `IN_FLIGHT` mutation older than 30 seconds is returned to `PENDING` before retry.
+
+### 7.1.2 LocalStorage (UI preferences only)
+
+LocalStorage must never store workout trees, set logs, or mutation queues. Those belong in IndexedDB (`adaptive_lifting_db`) snapshots and the mutation queue.
+
+Allowed preference keys use the `al_` prefix:
+
+| Key | Purpose |
+| :--- | :--- |
+| `al_role_mode`, `al_role`, `al_email` | Auth chrome only |
+| `al_app_view`, `al_dashboard_mode`, `al_sessions_scroll_y` | View chrome |
+| `al_active_workout_id`, `al_active_microcycle_id` | Selected IDs, not payloads |
+| `al_client_device_id` | Sync device identity |
+
+On boot, leftover `obsidian_*` and `iron_box_*` keys are migrated (UI prefs) or deleted (workout trees).
 
 ### 7.2 Fractional Indexing (LexoRank) for Reordering
 
@@ -916,8 +934,7 @@ Athletes are linked to coaches via the `CoachingRelationship` entity. An athlete
 | `GET` | `/api/integrations/google-sheets/callback` | Complete Google OAuth callback | Coach |
 | `POST` | `/api/integrations/google-sheets/publish` | Publish selected training data to a configured spreadsheet | Coach |
 | `DELETE` | `/api/integrations/google-sheets` | Revoke Google Sheets connection | Coach |
-| `POST` | `/api/sets/{id}/log` | Log actual execution data for a set | Athlete |
-| `POST` | `/api/accessories/{id}/log` | Log accessory execution | Athlete |
+| `POST` | `/api/sets/{id}/log` | Log actual execution data for a set (including accessory-tier exercises) | Athlete |
 | `GET` | `/api/analytics/inol` | INOL time-series by lift category | Coach / Athlete |
 | `GET` | `/api/export/csv` | Flat CSV export of set data | Coach |
 | `GET` | `/api/export/json` | Hierarchical JSON export | Coach |
@@ -1082,7 +1099,7 @@ async function performSafeEviction(db: IndexedDB): Promise<void> {
 
 ### 11.3 Backend Math Protection
 
-- **Zero-Division Guard:** If the Brzycki denominator (`1.0278 - 0.0278 * EffectiveReps`) resolves to <= 0, return the raw weight as a safe fallback.
+- **Zero-Division Guard:** If the linear-decay denominator (`1.0 - Effective Drop %`) resolves to `<= 0.1`, return the raw weight as a safe fallback.
 - **INOL Intensity Cap:** If `Intensity >= 1.0`, cap INOL at `Reps * 1.0` to prevent infinity.
 
 ### 11.4 Observability & APM
@@ -1110,6 +1127,18 @@ async function performSafeEviction(db: IndexedDB): Promise<void> {
 
 ## 12. Testing & Quality Assurance
 
+### 12.0 How to run tests
+
+From the repository root:
+
+| Suite | Command |
+| :--- | :--- |
+| Backend (`pytest`) | `pytest` |
+| Frontend unit (Vitest) | `npm test` |
+| End-to-end (Playwright) | `npx playwright install chromium` then `npm run test:e2e` |
+
+Shared formula fixtures live in `tests/math_vectors.json` and are consumed by both `pytest` and Vitest.
+
 ### 12.1 Unit Tests (Backend - `pytest`)
 
 | Test Area | Key Scenarios |
@@ -1127,10 +1156,10 @@ async function performSafeEviction(db: IndexedDB): Promise<void> {
 
 ### 12.3 End-to-End Tests (Playwright)
 
-- Drag-and-drop within microcycle boundary -> success.
-- Drag-and-drop across microcycle boundary -> rejection with visual feedback.
-- Full set logging flow: Enter weight -> reps -> RPE -> verify e1RM, INOL, tonnage update.
-- Offline logging: Disconnect network -> log sets -> reconnect -> verify sync.
+- Drag-and-drop within microcycle boundary -> success (`e2e/calendar.spec.ts`).
+- Drag-and-drop across microcycle boundary -> rejection with visual feedback (`e2e/calendar.spec.ts`).
+- Full set logging flow: Enter weight -> reps -> RPE -> verify e1RM, INOL, tonnage update (`e2e/session.spec.ts`).
+- Offline logging: Disconnect network -> log sets -> reconnect -> verify sync (`e2e/offline.spec.ts`).
 
 ### 12.4 Contract, Storage, and Security Tests
 
@@ -1153,7 +1182,7 @@ async function performSafeEviction(db: IndexedDB): Promise<void> {
 | Layer | Technology | Rationale |
 | :--- | :--- | :--- |
 | **Frontend Framework** | React 18 (TypeScript) + Vite | Fast HMR, strong typing, component ecosystem |
-| **Styling** | Tailwind CSS v4 | Utility-first, zero-runtime, matches the obsidian dark theme system |
+| **Styling** | Tailwind CSS v4 | Utility-first, zero-runtime, matches the dark ink theme system |
 | **State Management** | React Context + Custom Hooks | Lightweight, no external deps, sufficient for single-user session state |
 | **Offline Storage** | IndexedDB | Durable structured storage for mutation queues and cached workout trees |
 | **Backend API** | FastAPI (Python 3.10+) | Async-native, auto-generated OpenAPI docs, Pydantic validation |
@@ -1168,9 +1197,13 @@ async function performSafeEviction(db: IndexedDB): Promise<void> {
 ```
 adaptive_lifting/
 +-- src/                            # React Frontend
-|   +-- App.tsx                     # Root component, routing, master state
+|   +-- App.tsx                     # Root shell: view routing and chrome
 |   +-- types.ts                    # TypeScript interfaces (domain shape)
-|   +-- index.css                   # Tailwind config + obsidian theme tokens
+|   +-- index.css                   # Tailwind config + ink theme tokens
+|   +-- contexts/
+|   |   +-- AuthContext.tsx         # Login status, role, session revocation
+|   |   +-- SyncContext.tsx         # Online/offline, mutation queue, conflicts
+|   |   \-- PeriodizationContext.tsx # Mesocycle/microcycle/workout tree + IndexedDB hydrate
 |   +-- services/
 |   |   +-- api.ts                  # HTTP client (fetch wrapper)
 |   |   +-- mathEngine.ts           # Frontend math replication (e1RM, INOL)
@@ -1258,7 +1291,7 @@ Telegram Mini App actions and bot commands are translated into the same internal
 
 ### 14.4 Google Sheets Integration
 
-Google Sheets is designed for coach-facing reporting and external analysis. The first implementation is **one-way publish/export** from Obsidian Kinetic to Sheets.
+Google Sheets is designed for coach-facing reporting and external analysis. The first implementation is **one-way publish/export** from Adaptive Lifting to Sheets.
 
 **Supported modes:**
 - **Manual publish:** Coach selects an export profile and pushes the current canonical data to a spreadsheet.
@@ -1306,7 +1339,7 @@ The initial production deployment target is a **single Dockerized Linux VPS/VM**
 
 ```mermaid
 graph TD
-    DNS["DNS<br/>app.obsidiankinetic.com"] --> Proxy["Caddy / Nginx<br/>TLS + Static PWA + Reverse Proxy"]
+    DNS["DNS<br/>app.example.com"] --> Proxy["Caddy / Nginx<br/>TLS + Static PWA + Reverse Proxy"]
     Proxy --> API["FastAPI App<br/>Uvicorn/Gunicorn"]
     API --> DB[("SQLite WAL<br/>Persistent Volume")]
     API --> Worker["Background Worker<br/>Outbox / Backups / Scheduled Sheets Publish"]
@@ -1388,7 +1421,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 
 ## 16. Performance Budget & Targets
 
-For Obsidian Kinetic to feel like a high-performance, professional tool, it must adhere to strict performance budgets, particularly on the mobile terminal.
+For Adaptive Lifting to feel like a high-performance, professional tool, it must adhere to strict performance budgets, particularly on the mobile terminal.
 
 | Metric | Target | Rationale |
 | :--- | :--- | :--- |
@@ -1440,15 +1473,16 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | SSE for Live Telemetry | Accepted | Allows coaches to monitor meet-day execution without browser refreshes. |
 | Strict Hydration Window | Accepted | Prevents mobile IndexedDB from blowing up memory limits over a lifter's multi-year career. |
 | Use IndexedDB for offline queueing instead of LocalStorage | Accepted | Structured mutation queues need durability, larger capacity, and safer record-level recovery. |
+| Drop leftover Obsidian / Iron Box LocalStorage workout keys | Accepted | Early placeholders stored workout trees in LocalStorage. Canonical offline store is IndexedDB only. |
 | Keep backend math canonical while duplicating formulas on frontend | Accepted | Athletes need instant feedback, but persisted analytics must be server-authoritative. |
 | Enforce microcycle boundary locks on client and server | Accepted | Chronological workload metrics fail if workouts silently move across week boundaries. |
 | Start with SQLite for deployment simplicity | Accepted | The initial target is single-coach or small-team deployment; PostgreSQL migration is reserved for multi-tenant SaaS. |
 | Use mutation IDs for offline sync idempotency | Accepted | Mobile reconnects and retries must not duplicate set logs or inflate workload metrics. |
-| Store lifecycle statuses as enums | Accepted | Analytics, filtering, and exports need stable machine values independent of UI copy. |
+| Store lifecycle statuses as enums | Accepted | Analytics, filtering, and exports need stable machine values independent of UI copy. Mesocycle and microcycle stop at `COMPLETED`; workout uses `PLANNED`, `IN_PROGRESS`, `COMPLETED`, and `MISSED`. |
 | Use session-backed JWT revocation | Accepted | Logout, device revocation, and password changes require server-side session invalidation. |
 | Store canonical weights in kilograms | Accepted | Formula parity and export consistency require one storage unit regardless of display preference. |
 | Emit SSE from committed domain events | Accepted | Live telemetry must never show data that later rolls back. |
 | Enable SQLite WAL in production | Accepted | Read-heavy dashboard views need better concurrency while preserving deployment simplicity. |
-| Treat Telegram Mini App as an adapter over internal commands | Accepted | Telegram-native logging must reuse RBAC, locks, tombstones, and math recalculation instead of creating a parallel write path. |
+| Treat accessory work as Exercise + ExerciseSet with `tier = Accessory` | Accepted | Isolation movements need the same per-set logging, numeric fields, INOL/tonnage, and sync path as competition lifts. |
 | Start Google Sheets as one-way publish | Accepted | Spreadsheet cells are weakly typed and should not become canonical training data without an explicit import review workflow. |
 | Deploy initial production on one Dockerized VPS/VM | Accepted | SQLite, SSE, Telegram Mini App sessions, webhooks, OAuth callbacks, background jobs, and persistent backups need a long-running host with durable disk. |

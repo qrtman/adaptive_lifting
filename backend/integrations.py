@@ -27,7 +27,7 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "mock_bot_token")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "mock_webhook_secret")
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "mock_client_id")
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "mock_client_secret")
-INTEGRATION_ENCRYPTION_KEY = os.environ.get("INTEGRATION_ENCRYPTION_KEY", "obsidian_kinetic_secure_key_123!")
+INTEGRATION_ENCRYPTION_KEY = os.environ.get("INTEGRATION_ENCRYPTION_KEY", "dev-only-change-me")
 APP_URL = os.environ.get("APP_URL", "http://localhost:5173")
 
 # In-memory dictionary for short-lived link tokens: token -> {"user_id": user_id, "expires_at": datetime}
@@ -127,7 +127,7 @@ def generate_telegram_link_token(current_user: User = Depends(get_current_user),
         "user_id": current_user.id,
         "expires_at": datetime.utcnow() + timedelta(minutes=10)
     }
-    return {"token": token, "bot_username": "ObsidianKineticBot"}
+    return {"token": token, "bot_username": "AdaptiveLiftingBot"}
 
 @router.post("/api/integrations/telegram/miniapp/session")
 def telegram_miniapp_session(req: dict, db: Session = Depends(get_db)):
@@ -934,7 +934,7 @@ def background_outbox_processor():
     """
     Background thread processing sheets exports sequentially
     """
-    print("[OBSIDIAN KINETIC] Starting background outbox processor thread...")
+    print("[adaptive_lifting] Starting background outbox processor thread...")
     while True:
         try:
             # Open local database session

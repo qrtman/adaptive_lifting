@@ -3,6 +3,11 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { SyncProvider } from './contexts/SyncContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { PeriodizationProvider } from './contexts/PeriodizationContext';
+import { migrateAndPurgeLegacyStorage } from './storage/uiPrefs';
+
+migrateAndPurgeLegacyStorage();
 
 // Register Service Worker for offline PWA capabilities
 if ('serviceWorker' in navigator) {
@@ -16,8 +21,12 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
 
   <StrictMode>
-    <SyncProvider>
-      <App />
-    </SyncProvider>
+    <AuthProvider>
+      <PeriodizationProvider>
+        <SyncProvider>
+          <App />
+        </SyncProvider>
+      </PeriodizationProvider>
+    </AuthProvider>
   </StrictMode>,
 );

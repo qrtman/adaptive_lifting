@@ -6,10 +6,9 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 from .database import (
-    Workout, ExerciseSet, Exercise, Accessory, SyncMutation, 
+    Workout, ExerciseSet, Exercise, SyncMutation, 
     WorkoutLock, DomainEvent, AuditEvent
 )
-from .math_utils import calculate_e1rm, calculate_inol
 
 class SyncFieldMutation(BaseModel):
     entity: str
@@ -76,7 +75,6 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
         model_class = None
         if change.entity == "ExerciseSet": model_class = ExerciseSet
         elif change.entity == "Exercise": model_class = Exercise
-        elif change.entity == "Accessory": model_class = Accessory
         elif change.entity == "Workout": model_class = Workout
         
         if not model_class:

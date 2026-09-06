@@ -25,6 +25,9 @@ def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
         
     return round(weight / denominator, 2)
 
+# Architecture contract name (calculateE1RM). Same function as linear decay.
+calculate_e1rm = calculate_e1rm_linear_decay
+
 def calculate_inol(reps: int, intensity_pct: float) -> float:
     """
     INOL = Reps / (100 - Intensity %)

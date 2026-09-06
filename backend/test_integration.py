@@ -7,6 +7,9 @@ from typing import Generator
 
 # Adjust path to import local modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault("JWT_SECRET_CURRENT", "test-jwt-secret-current")
+os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://testserver")
+os.environ.setdefault("COOKIE_SECURE", "false")
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -36,7 +39,7 @@ class MockRequest:
         self.cookies = cookies or {}
         self.headers = headers or {}
 
-def run_integration_tests():
+def test_security_and_data_isolation():
     print("==================================================")
     print("RUNNING SECURITY & DATA ISOLATION INTEGRATION TESTS")
     print("==================================================")
@@ -52,7 +55,7 @@ def run_integration_tests():
         # Register coach
         coach = User(
             id="coach-123",
-            email="coach@obsidian.com",
+            email="coach@example.com",
             hashed_password=get_password_hash("password123"),
             role="COACH"
         )
@@ -61,7 +64,7 @@ def run_integration_tests():
         # Register athlete
         athlete = User(
             id="athlete-123",
-            email="athlete@obsidian.com",
+            email="athlete@example.com",
             hashed_password=get_password_hash("password123"),
             role="ATHLETE"
         )
@@ -99,6 +102,12 @@ def run_integration_tests():
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         sub = payload.get("sub")
         s_id = payload.get("session_id")
+        header = jwt.get_unverified_header(token)
+        assert header.get("kid") == "current", "JWT kid must identify the current signing key"
+        
+        from backend.main import decode_access_token
+        decoded = decode_access_token(token)
+        assert decoded.get("sub") == athlete.id, "decode_access_token failed for current key"
         
         assert sub == athlete.id, "Sub mismatch"
         assert s_id == session_id, "Session ID mismatch"
@@ -201,7 +210,7 @@ def run_integration_tests():
         # Setup: Unrelated athlete for RBAC check
         unrelated_athlete = User(
             id="athlete-unrelated",
-            email="unrelated@obsidian.com",
+            email="unrelated@example.com",
             hashed_password=get_password_hash("password123"),
             role="ATHLETE"
         )
@@ -268,7 +277,7 @@ def run_integration_tests():
                 id="mc-test-1",
                 weekName="Microcycle 01",
                 focus="Technical Proficiency",
-                status="Verified",
+                status="COMPLETED",
                 active=False,
                 owner_id=athlete.id
             )
@@ -283,7 +292,7 @@ def run_integration_tests():
                 tonnage=12400.0,
                 delta=0.0,
                 color="mac-green",
-                status="Completed",
+                status="COMPLETED",
                 microcycle_id=mc.id
             )
             db.add(w)
@@ -340,10 +349,3 @@ def run_integration_tests():
         # Cleanup
         db.close()
         Base.metadata.drop_all(bind=engine)
-
-    print("==================================================")
-    print("ALL SECURITY & ISOLATION TESTS PASSED SUCCESSFULLY!")
-    print("==================================================")
-
-if __name__ == "__main__":
-    run_integration_tests()

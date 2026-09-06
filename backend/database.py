@@ -2,6 +2,7 @@ import os
 from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
+from .accessory_migration import expand_legacy_accessory_sets
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.sqlite")
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
@@ -37,7 +38,7 @@ class Mesocycle(Base, TimestampMixin):
     __tablename__ = "mesocycles"
     id = Column(String, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    status = Column(String, nullable=False) # DRAFT, ACTIVE, COMPLETED, ARCHIVED
+    status = Column(String, nullable=False) # DRAFT, ACTIVE, COMPLETED
     color = Column(String, nullable=False)
     startDate = Column(String, nullable=False)
     endDate = Column(String, nullable=False)
@@ -48,7 +49,7 @@ class Microcycle(Base, TimestampMixin):
     id = Column(String, primary_key=True, index=True)
     weekName = Column(String, nullable=False)
     focus = Column(String, nullable=False)
-    status = Column(String, nullable=False) # DRAFT, ACTIVE, COMPLETED, LOCKED
+    status = Column(String, nullable=False) # DRAFT, ACTIVE, COMPLETED
     active = Column(Boolean, default=False)
     owner_id = Column(String, ForeignKey("users.id"), nullable=True)
     mesocycle_id = Column(String, ForeignKey("mesocycles.id"), nullable=True)
@@ -118,6 +119,8 @@ class ExerciseSet(Base, TimestampMixin):
 
     exercise = relationship("Exercise", back_populates="sets")
 
+# Legacy table. New accessories are Exercise rows with tier="Accessory"
+# plus ExerciseSet rows. Existing accessory rows are tombstoned after migration.
 class Accessory(Base, TimestampMixin):
     __tablename__ = "accessories"
     id = Column(String, primary_key=True, index=True)
@@ -244,6 +247,51 @@ class SheetPublication(Base, TimestampMixin):
     export_profile = Column(String, nullable=False)
     last_published_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False)
+
+def migrate_accessories_to_exercises(db):
+    now = datetime.datetime.utcnow()
+    rows = db.query(Accessory).filter(Accessory.deleted_at.is_(None)).all()
+    for acc in rows:
+        existing = db.query(Exercise).filter(Exercise.id == acc.id).first()
+        if existing is None:
+            exercise = Exercise(
+                id=acc.id,
+                lexo_rank=acc.lexo_rank or "n0",
+                title=acc.name,
+                variation="Accessory",
+                tier="Accessory",
+                lift_category="Other",
+                tags_raw="Accessory",
+                top="—",
+                vol="—",
+                workout_id=acc.workout_id,
+            )
+            db.add(exercise)
+            db.flush()
+            for index, spec in enumerate(expand_legacy_accessory_sets(
+                acc.prescribedSets,
+                acc.targetReps,
+                acc.targetRpe,
+                acc.weight,
+                acc.reps,
+                acc.executedRpe,
+                acc.status,
+            )):
+                db.add(ExerciseSet(
+                    id=f"{acc.id}-s{index + 1}",
+                    lexo_rank=spec["lexo_rank"],
+                    label=spec["label"],
+                    plannedWeight=spec["plannedWeight"],
+                    plannedReps=spec["plannedReps"],
+                    plannedRpe=spec["plannedRpe"],
+                    actual=spec["actual"],
+                    reps=spec["reps"],
+                    executedRpe=spec["executedRpe"],
+                    exercise_id=exercise.id,
+                ))
+        acc.deleted_at = now
+    db.commit()
+
 
 # Create tables
 def init_db():

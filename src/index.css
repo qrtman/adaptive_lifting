@@ -5,10 +5,10 @@
   --font-sans: "Arial", -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-obsidian-950: #0a0a0a;
-  --color-obsidian-900: #131313;
-  --color-obsidian-800: #161616;
-  --color-obsidian-700: #20201f;
+  --color-ink-950: #0a0a0a;
+  --color-ink-900: #131313;
+  --color-ink-800: #161616;
+  --color-ink-700: #20201f;
   
   --color-mac-blue: #007AFF;
   --color-mac-green: #34C759;
@@ -20,7 +20,7 @@
 
 @layer base {
   body {
-    @apply bg-obsidian-950 text-[#E0E0E0] antialiased overflow-hidden;
+    @apply bg-ink-950 text-[#E0E0E0] antialiased overflow-hidden;
   }
 }
 
@@ -58,7 +58,7 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Stitch premium obsidian theme additions */
+/* Dark theme additions */
 .emerald-glow {
   box-shadow: 0 0 20px rgba(117, 255, 158, 0.15);
 }

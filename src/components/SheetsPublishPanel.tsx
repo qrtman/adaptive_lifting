@@ -17,7 +17,7 @@ export const SheetsPublishPanel: React.FC = () => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'disconnected' | 'connected' | 'error'>('idle');
   const [roster, setRoster] = useState<any[]>([]);
   const [selectedAthlete, setSelectedAthlete] = useState<string>('');
-  const [sheetName, setSheetName] = useState<string>('Obsidian Kinetic Export');
+  const [sheetName, setSheetName] = useState<string>('Adaptive Lifting Export');
   const [selectedTabs, setSelectedTabs] = useState<string[]>(['Sets', 'Workouts', 'INOL', 'ACWR', 'e1RM']);
   const [recentJobs, setRecentJobs] = useState<OutboxJob[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -56,12 +56,12 @@ export const SheetsPublishPanel: React.FC = () => {
       if (data && data.length > 0) {
         setSelectedAthlete(data[0].id);
         const emailPrefix = data[0].email.split('@')[0];
-        setSheetName(`Obsidian Kinetic - ${emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1)}`);
+        setSheetName(`Adaptive Lifting - ${emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1)}`);
       }
     } catch (e) {
       console.error("Failed to load roster", e);
       // Fallback roster for mock mode
-      const mockRoster = [{ id: 'mock-athlete-1', email: 'athlete@obsidian.com' }];
+      const mockRoster = [{ id: 'mock-athlete-1', email: 'athlete@example.com' }];
       setRoster(mockRoster);
       setSelectedAthlete(mockRoster[0].id);
     }
@@ -159,7 +159,7 @@ export const SheetsPublishPanel: React.FC = () => {
     const athleteObj = roster.find(a => a.id === aid);
     if (athleteObj) {
       const emailPrefix = athleteObj.email.split('@')[0];
-      setSheetName(`Obsidian Kinetic - ${emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1)}`);
+      setSheetName(`Adaptive Lifting - ${emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1)}`);
     }
   };
 

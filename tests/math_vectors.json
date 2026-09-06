@@ -1,0 +1,37 @@
+{
+  "e1rm": [
+    { "weight": 0, "reps": 5, "rpe": 8, "expected": 0 },
+    { "weight": 100, "reps": 0, "rpe": 8, "expected": 0 },
+    { "weight": 100, "reps": 5, "rpe": 5.5, "expected": 100 },
+    { "weight": 100, "reps": 13, "rpe": 8, "expected": 100 },
+    { "weight": 100, "reps": 1, "rpe": 10, "expected": 100 },
+    { "weight": 100, "reps": 5, "rpe": 9, "expected": 117.65 },
+    { "weight": 100, "reps": 10, "rpe": 8, "expected": 133.33 }
+  ],
+  "inol": [
+    { "reps": 5, "intensity_pct": 85, "expected": 0.33 },
+    { "reps": 5, "intensity_pct": 100, "expected": 5 },
+    { "reps": 5, "intensity_pct": 105, "expected": 5 },
+    { "reps": 5, "intensity_pct": 0, "expected": 0 },
+    { "reps": 5, "intensity_pct": -10, "expected": 0 }
+  ],
+  "plates": [
+    { "weight": 101.2, "expected": 100 },
+    { "weight": 101.3, "expected": 102.5 },
+    { "weight": 102.4, "expected": 102.5 },
+    { "weight": 103.8, "expected": 105 }
+  ],
+  "dots": [
+    { "gender": "MALE", "bodyweight": 90, "total": 600, "expected": 10233.39 },
+    { "gender": "FEMALE", "bodyweight": 60, "total": 350, "expected": 1899.5 }
+  ],
+  "attempts": [
+    {
+      "first_attempt": 200,
+      "profile": "squat_dl",
+      "gender": "MALE",
+      "suggested_second": "215.0kg - 220.0kg",
+      "third_ceiling": "242.5kg"
+    }
+  ]
+}

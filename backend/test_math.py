@@ -137,19 +137,3 @@ def test_acwr_series_calculations():
     assert series[0]["zone"] == "DANGER_ZONE"
     
     print("  [OK] ACWR series tests passed.")
-
-def run_all_unit_tests():
-    print("==================================================")
-    print("RUNNING MATH ENGINE UNIT TESTS")
-    print("==================================================")
-    test_e1rm_calculations()
-    test_inol_calculations()
-    test_dots_coefficients()
-    test_attempt_rounder()
-    test_acwr_series_calculations()
-    print("==================================================")
-    print("ALL MATH ENGINE UNIT TESTS PASSED SUCCESSFULLY!")
-    print("==================================================")
-
-if __name__ == "__main__":
-    run_all_unit_tests()

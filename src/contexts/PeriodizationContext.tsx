@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
+import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import {
@@ -139,6 +140,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         })
       };
     }));
+
+    void queueMutation(activeWorkoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
   };
 
   const finishSession = async (status: WorkoutStatus) => {

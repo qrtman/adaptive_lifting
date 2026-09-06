@@ -25,7 +25,22 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [conflicts, setConflicts] = useState<any[]>([]);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      void (async () => {
+        try {
+          const pending = await getPendingMutations();
+          const workoutIds = [...new Set(pending.map((m) => m.workout_id).filter(Boolean))] as string[];
+          for (const id of workoutIds) {
+            await processSyncQueue(id);
+          }
+          const left = await getPendingMutations();
+          setPendingCount(left.length);
+        } catch {
+          // IndexedDB may not be ready
+        }
+      })();
+    };
     const handleOffline = () => setIsOnline(false);
     
     const handleConflicts = (e: any) => {

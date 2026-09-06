@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obsidian-kinetic-v2';
+const CACHE_NAME = 'adaptive-lifting-v3';
 
 const CORE_ASSETS = [
   '/',

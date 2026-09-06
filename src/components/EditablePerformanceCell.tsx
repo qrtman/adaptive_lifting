@@ -119,37 +119,34 @@ export const EditablePerformanceCell = ({
               setIsEditing(false);
             }
           }}
-          className={`${variant === "transparent" ? "w-20 py-2.5 text-center text-xl" : `${widthClass} py-3 text-center text-xl`} bg-[rgba(255,255,255,0.06)] border ${
-            isLogged ? 'border-mac-green text-mac-green' : 'border-mac-blue text-white'
-          } rounded-xl font-black font-sans focus:outline-none focus:ring-1 focus:ring-mac-blue shadow-[0_0_10px_rgba(0,122,255,0.25)] tabular-nums`}
+          className={`${variant === "transparent" ? "w-12 py-0 text-center text-xs" : `${widthClass} py-0 h-6 text-center text-xs`} bg-[#161616] border ${
+            isLogged ? 'border-[#34C759] text-[#34C759]' : 'border-[#007AFF] text-white'
+          } rounded-sm font-mono tabular-nums focus:outline-none`}
         />
       ) : variant === "transparent" ? (
         <div 
           onClick={handleCellClick}
           id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
-          className={`${widthClass} py-1 flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 select-none relative group/cell`}
+          className={`${widthClass} h-6 flex items-center justify-center cursor-pointer select-none`}
         >
-          <span className={`text-[24px] font-black font-sans tabular-nums tracking-tighter leading-none ${value ? 'text-white' : 'text-gray-600'}`}>
+          <span className={`text-xs font-mono tabular-nums ${value ? 'text-white' : 'text-[#636366]'}`}>
             {value ? value : placeholder}
-          </span>
-          <span className="text-[12px] font-black text-gray-400 uppercase tracking-widest mt-1.5 font-sans leading-none group-hover/cell:text-mac-blue transition-colors">
-            Anchor
           </span>
         </div>
       ) : (
         <div 
           onClick={handleCellClick}
           id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
-          className={`${widthClass} py-3 rounded-xl text-center text-xl transition-all cursor-pointer font-sans tabular-nums select-none active:scale-95 border relative group/cell ${
+          className={`${widthClass} h-6 rounded-sm text-center text-xs font-mono tabular-nums cursor-pointer border flex items-center justify-center ${
             isLogged 
               ? value 
-                ? 'bg-mac-green/5 hover:bg-mac-green/10 border-mac-green/20 text-mac-green font-black text-2xl drop-shadow-[0_0_8px_rgba(52,199,89,0.25)]' 
-                : 'bg-white/[0.02] hover:bg-white/[0.08] border-white/5 hover:border-white/15 text-gray-500 font-bold'
+                ? 'border-[#34C759]/40 text-[#34C759]' 
+                : 'border-white/10 text-[#636366]'
               : value
-                ? 'bg-white/[0.02] hover:bg-white/[0.08] border-white/5 hover:border-white/15 text-gray-200 font-bold'
+                ? 'border-white/10 text-white'
                 : isAuto && suggestedValue
-                  ? 'bg-mac-blue/5 hover:bg-mac-blue/10 border-dashed border-mac-blue/30 text-mac-blue/50 font-normal text-lg'
-                  : 'bg-white/[0.02] hover:bg-white/[0.08] border-white/5 hover:border-white/15 text-gray-500 font-bold'
+                  ? 'border-dashed border-[#007AFF]/40 text-[#007AFF]/70'
+                  : 'border-white/10 text-[#636366]'
           }`}
         >
           {value 
@@ -157,13 +154,6 @@ export const EditablePerformanceCell = ({
             : isAuto && suggestedValue
               ? suggestedValue
               : placeholder}
-          
-          {isAuto && suggestedValue && !value && (
-            <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-mac-blue/90 border border-mac-blue text-[10px] font-black uppercase text-white px-1.5 py-0.5 rounded opacity-0 group-hover/cell:opacity-100 transition-opacity whitespace-nowrap z-20 shadow"
-            >
-              Auto Suggest
-            </span>
-          )}
         </div>
       )}
 

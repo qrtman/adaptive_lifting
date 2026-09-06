@@ -1,52 +1,112 @@
-import { ReactNode } from 'react';
-import { LayoutDashboard, BarChart3, Dumbbell, MessageSquare, Settings } from 'lucide-react';
+import { Calendar, BarChart3, Dumbbell, Link2, Settings, List } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import type { DashboardMode } from './AppShell';
 
-const NavItem = ({ icon, label, active = false }: { icon: ReactNode, label: string, active?: boolean }) => (
-  <a href="#" className={`
-    group px-3 py-2 rounded-lg flex items-center gap-3 transition-all duration-200
-    ${active ? 'bg-white/10 text-white font-semibold' : 'text-gray-300 hover:bg-white/5 hover:text-gray-200'}
-  `}>
-    <span className={`${active ? 'text-mac-blue' : 'text-gray-400 group-hover:text-gray-200'} transition-colors`}>
-      {icon}
-    </span>
-    <span className="text-[15px] font-sans">{label}</span>
-  </a>
-);
+const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
+  { mode: 'calendar', label: 'Calendar', testId: 'nav-calendar' },
+  { mode: 'sessions', label: 'Sessions' },
+  { mode: 'roster', label: 'Roster' },
+  { mode: 'insights', label: 'Insights' },
+];
 
-export const Sidebar = () => (
-  <aside className="fixed left-0 top-0 h-screen w-64 glass-sidebar border-r border-white/10 flex flex-col p-4 space-y-2 z-50">
-    <div className="mb-8 px-3">
-      <h1 className="text-lg font-bold text-white tracking-tight">Elite Performance</h1>
-      <p className="text-[15px] font-bold text-gray-200 font-sans">Macrocycle Phase: Hypertrophy</p>
-    </div>
-    
-    <nav className="flex-1 space-y-3">
-      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-3">Primary Workspaces</div>
-      
-      <NavItem icon={<LayoutDashboard size={20} />} label="Calendar Grid" />
-      
-      <div className="relative">
-        <NavItem icon={<Dumbbell size={20} />} label="Athletes Roster" active />
-        <span className="absolute right-3 top-2 px-1.5 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 font-bold rounded border border-amber-500/30">
-          3 Alerts
-        </span>
-      </div>
-      
-      <NavItem icon={<BarChart3 size={20} />} label="Analytics Engine" />
+const OPS: { mode: DashboardMode; label: string }[] = [
+  { mode: 'integrations', label: 'Integrations' },
+  { mode: 'security', label: 'Security' },
+];
 
-      <div className="pt-2 text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-3">Operations & Links</div>
-      <NavItem icon={<MessageSquare size={20} />} label="Sheets Publisher" />
-      <NavItem icon={<Settings size={20} />} label="Security & Audit" />
-    </nav>
-    
-    <div className="pt-4 border-t border-white/10 flex items-center gap-3 px-3">
-      <div className="w-10 h-10 rounded-full border border-white/20 bg-gradient-to-br from-gray-700 to-gray-900 overflow-hidden flex items-center justify-center">
-        <span className="text-[15px] font-bold text-white font-sans">AM</span>
+const ICONS: Record<DashboardMode, typeof Calendar> = {
+  calendar: Calendar,
+  sessions: List,
+  roster: Dumbbell,
+  insights: BarChart3,
+  integrations: Link2,
+  security: Settings,
+};
+
+function NavButton({
+  mode,
+  label,
+  testId,
+  active,
+  onNavigate,
+}: {
+  mode: DashboardMode;
+  label: string;
+  testId?: string;
+  active: boolean;
+  onNavigate: (mode: DashboardMode) => void;
+}) {
+  const Icon = ICONS[mode];
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={() => onNavigate(mode)}
+      className={`w-full px-2 h-8 rounded flex items-center gap-2 text-left text-[13px] ${
+        active ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white hover:bg-white/5'
+      }`}
+    >
+      <Icon size={14} className={active ? 'text-[#007AFF]' : ''} />
+      {label}
+    </button>
+  );
+}
+
+export const Sidebar = ({
+  dashboardMode,
+  onNavigate,
+  onResetPlan,
+}: {
+  dashboardMode: DashboardMode;
+  onNavigate: (mode: DashboardMode) => void;
+  onResetPlan?: () => void;
+}) => {
+  const { user, roleMode, signOut } = useAuth();
+  const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
+
+  return (
+    <aside className="fixed left-0 top-0 h-screen w-[240px] min-w-[240px] max-w-[240px] bg-[#131313] border-r border-white/10 flex flex-col px-3 py-4 z-50">
+      <div className="px-2 mb-4">
+        <h1 className="text-xs font-semibold text-white tracking-wide uppercase">Adaptive Lifting</h1>
       </div>
-      <div>
-        <p className="text-sm font-semibold text-white">Alex Mercer</p>
-        <p className="text-[15px] text-amber-400 uppercase tracking-wider font-bold font-sans">Pro Athlete</p>
+
+      <nav className="flex-1 flex flex-col gap-4">
+        <div className="flex flex-col gap-0.5">
+          {PRIMARY.map((item) => (
+            <NavButton
+              key={item.mode}
+              {...item}
+              active={dashboardMode === item.mode}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <p className="px-2 pb-1 text-[10px] text-[#636366] uppercase tracking-wider">Ops</p>
+          {OPS.map((item) => (
+            <NavButton
+              key={item.mode}
+              {...item}
+              active={dashboardMode === item.mode}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      </nav>
+
+      <div className="pt-3 border-t border-white/10 px-2 flex flex-col gap-1">
+        <p className="text-xs text-white truncate">{email}</p>
+        <p className="text-[11px] text-[#AEAEB2] capitalize">{roleMode}</p>
+        <button type="button" onClick={signOut} className="text-left text-[12px] text-[#AEAEB2] hover:text-white h-7">
+          Sign out
+        </button>
+        {onResetPlan && (
+          <button type="button" onClick={onResetPlan} className="text-left text-[12px] text-[#AEAEB2] hover:text-red-400 h-7">
+            Reset plan
+          </button>
+        )}
       </div>
-    </div>
-  </aside>
-);
+    </aside>
+  );
+};

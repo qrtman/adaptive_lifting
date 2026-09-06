@@ -1,4 +1,4 @@
-# Iron Box Terminal: Knowledge Block (Context Guardian)
+# Adaptive Lifting: Knowledge Block
 
 *This document serves as the persistent "Active Context Compression" module. It distills key learnings and operational rules for the Antigravity IDE agent to prevent context window bloat and eliminate the "Long Thread Trap."*
 
@@ -11,7 +11,7 @@
 
 ## 2. Technical State
 - **Stack**: React (TypeScript/Vite), Tailwind v4 (Utility-first), FastAPI (Python), SQLite (SQLAlchemy).
-- **Hybrid State**: IndexedDB handles local mutation queues and snapshots for robust offline-first synchronization; LocalStorage is reserved for minor UI state preferences.
+- **Hybrid State**: IndexedDB handles local mutation queues and snapshots for robust offline-first synchronization; LocalStorage is reserved for `al_*` UI preferences and must never store workout trees.
 - **Data Integrity Gate**: Lift prescriptions use discrete numeric columns (`planned_weight`, `planned_reps`), not strings. Workouts are chronologically bound to `YYYY-MM-DD` for strict fatigue tracking (ACWR/INOL). Variations (e.g., "Paused Deadlift") are tracked discretely via Percentage-Delta mapping to Baseline compounds.
 
 ## 3. Current Execution Focus

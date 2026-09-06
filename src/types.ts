@@ -33,16 +33,73 @@ export interface ExerciseData {
   sets: SetData[];
 }
 
-export interface AccessoryData {
-  id: string;
-  name: string;
-  prescribedSets: string;
-  targetReps: string;
-  targetRpe: string;
-  weight: string;
-  reps: string;
-  executedRpe: string;
-  status: 'Pending' | 'Done';
+export function isAccessoryExercise(exercise: ExerciseData): boolean {
+  return exercise.tier === 'Accessory';
+}
+
+export function splitWorkoutExercises(exercises: ExerciseData[]): {
+  main: ExerciseData[];
+  accessories: ExerciseData[];
+} {
+  const main: ExerciseData[] = [];
+  const accessories: ExerciseData[] = [];
+  for (const exercise of exercises) {
+    if (isAccessoryExercise(exercise)) accessories.push(exercise);
+    else main.push(exercise);
+  }
+  return { main, accessories };
+}
+
+function accessoryExercise(
+  id: string,
+  title: string,
+  setCount: number,
+  plannedReps: number,
+  plannedRpe: number,
+  plannedWeight: number | null,
+  logged?: { actual: number; reps: number; rpe: number }
+): ExerciseData {
+  const sets: SetData[] = Array.from({ length: setCount }, (_, index) => ({
+    id: `${id}-s${index + 1}`,
+    label: `Set ${index + 1}`,
+    plannedWeight,
+    plannedReps,
+    plannedRpe,
+    actual: logged?.actual ?? null,
+    reps: logged?.reps ?? null,
+    executedRpe: logged?.rpe ?? null,
+  }));
+  return {
+    id,
+    title,
+    variation: 'Accessory',
+    tier: 'Accessory',
+    liftCategory: 'Other',
+    tags: ['Accessory'],
+    top: logged ? `${logged.actual}kg x ${logged.reps}` : '—',
+    vol: logged && plannedWeight ? `${(logged.actual * logged.reps * setCount).toLocaleString()}kg` : '—',
+    sets,
+  };
+}
+
+export type MesocycleStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED';
+export type MicrocycleStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED';
+export type WorkoutStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'MISSED';
+
+export function isWorkoutCompleted(status: string): boolean {
+  return status === 'COMPLETED' || status === 'Completed';
+}
+
+export function isWorkoutInProgress(status: string): boolean {
+  return status === 'IN_PROGRESS' || status === 'Today';
+}
+
+export function isMicrocycleCompleted(status: string): boolean {
+  return status === 'COMPLETED' || status === 'Verified';
+}
+
+export function isMicrocycleActive(status: string): boolean {
+  return status === 'ACTIVE' || status === 'In Progress';
 }
 
 export interface WorkoutData {
@@ -55,15 +112,14 @@ export interface WorkoutData {
   delta: number;
   color: 'mac-green' | 'mac-blue' | 'orange' | 'gray';
   exercises: ExerciseData[];
-  accessories?: AccessoryData[];
-  status: 'Completed' | 'Today' | 'Planned' | 'Testing';
+  status: WorkoutStatus;
 }
 
 export interface MicrocycleData {
   id: string;
   weekName: string; // "Microcycle 01"
   focus: string;
-  status: 'Verified' | 'In Progress' | 'Planned';
+  status: MicrocycleStatus;
   active?: boolean;
   workouts: WorkoutData[];
 }
@@ -71,7 +127,7 @@ export interface MicrocycleData {
 export interface MesocycleData {
   id: string;
   name: string;
-  status: string;
+  status: MesocycleStatus;
   color: string; // css classes or raw colors, e.g. "border-mac-blue text-mac-blue"
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
@@ -83,7 +139,7 @@ export const INITIAL_MESOCYCLE: MesocycleData[] = [
   {
     id: 'meso-1',
     name: 'Alpha-09 Strength Phase',
-    status: 'Strength Phase • Hypertrophy Block 02',
+    status: 'ACTIVE',
     color: '#007AFF', // mac-blue
     startDate: '2026-09-01',
     endDate: '2026-09-28',
@@ -91,7 +147,7 @@ export const INITIAL_MESOCYCLE: MesocycleData[] = [
   {
     id: 'meso-2',
     name: 'Beta-10 Peaking Cycle',
-    status: 'Intense Peaking • CNS Adaptation',
+    status: 'DRAFT',
     color: '#34C759', // mac-green
     startDate: '2026-09-29',
     endDate: '2026-10-15',
@@ -103,7 +159,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
     id: 'micro-1',
     weekName: 'Microcycle 01',
     focus: 'Technical Proficiency / Baseline',
-    status: 'Verified',
+    status: 'COMPLETED',
     workouts: [
       {
         id: 'w-1-1',
@@ -113,7 +169,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 12400,
         delta: 0,
         color: 'mac-green',
-        status: 'Completed',
+        status: 'COMPLETED',
         exercises: [
           {
             id: 'e-1-1-1',
@@ -138,11 +194,9 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
             sets: [
               { id: 's-1-1-2a', label: 'Top Single', plannedWeight: 90.0, plannedReps: 3.0, plannedRpe: 6.0, isTop: true, actual: 90.0, reps: 3.0, executedRpe: 6.0 }
             ]
-          }
+          },
+          accessoryExercise('a-1-1-1', 'Leg Press', 3, 10, 7, 120, { actual: 120, reps: 12, rpe: 7 })
         ],
-        accessories: [
-          { id: 'a-1-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: 12.0, executedRpe: 7.0, status: 'Done' }
-        ]
       },
       {
         id: 'w-1-2',
@@ -152,7 +206,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 8900,
         delta: 0,
         color: 'mac-green',
-        status: 'Completed',
+        status: 'COMPLETED',
         exercises: [
           {
             id: 'e-1-2-1',
@@ -186,7 +240,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 11200,
         delta: 0,
         color: 'mac-green',
-        status: 'Completed',
+        status: 'COMPLETED',
         exercises: [
           {
             id: 'e-1-3-1',
@@ -218,7 +272,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
     id: 'micro-2',
     weekName: 'Microcycle 02',
     focus: 'Accumulation / Volume Expansion',
-    status: 'Verified',
+    status: 'COMPLETED',
     workouts: [
       {
         id: 'w-2-1',
@@ -228,7 +282,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 13200,
         delta: 800,
         color: 'mac-green',
-        status: 'Completed',
+        status: 'COMPLETED',
         exercises: [
           {
             id: 'e-2-1-1',
@@ -262,7 +316,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 9400,
         delta: 500,
         color: 'mac-green',
-        status: 'Completed',
+        status: 'COMPLETED',
         exercises: [
           {
             id: 'e-2-2-1',
@@ -296,7 +350,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 11800,
         delta: 600,
         color: 'mac-green',
-        status: 'Completed',
+        status: 'COMPLETED',
         exercises: [
           {
             id: 'e-2-3-1',
@@ -328,7 +382,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
     id: 'micro-3',
     weekName: 'Microcycle 03',
     focus: 'Threshold / Intensity Peak',
-    status: 'In Progress',
+    status: 'ACTIVE',
     active: true,
     workouts: [
       {
@@ -339,7 +393,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 14100,
         delta: 900,
         color: 'mac-blue',
-        status: 'Today',
+        status: 'IN_PROGRESS',
         exercises: [
           {
             id: 'e-3-1-1',
@@ -365,13 +419,11 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
               { id: 's-3-1-2a', label: 'Top Single', plannedWeight: 95.0, plannedReps: 3.0, plannedRpe: 5.0, isTop: true, actual: 95.0, reps: 3.0, executedRpe: 8.0 },
               { id: 's-3-1-2b', label: 'Main Set', plannedWeight: 90.0, plannedReps: 5.0, plannedRpe: 6.0, actual: 90.0, reps: 5.0, executedRpe: 7.0 }
             ]
-          }
+          },
+          accessoryExercise('a-3-1-1', 'Leg Press', 3, 10, 7, 120, { actual: 120, reps: 12, rpe: 7 }),
+          accessoryExercise('a-3-1-2', 'Triceps Extension', 3, 12, 9, null),
+          accessoryExercise('a-3-1-3', 'Lateral Raises', 3, 15, 10, null)
         ],
-        accessories: [
-          { id: 'a-3-1-1', name: 'Leg Press', prescribedSets: '3', targetReps: '10-12', targetRpe: '7', weight: '120', reps: 12.0, executedRpe: 7.0, status: 'Done' },
-          { id: 'a-3-1-2', name: 'Triceps Extension', prescribedSets: '3', targetReps: '12', targetRpe: '9', weight: '', reps: null, executedRpe: null, status: 'Pending' },
-          { id: 'a-3-1-3', name: 'Lateral Raises', prescribedSets: '3', targetReps: '15', targetRpe: '10', weight: '', reps: null, executedRpe: null, status: 'Pending' }
-        ]
       },
       {
         id: 'w-3-2',
@@ -381,7 +433,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 9900,
         delta: 500,
         color: 'gray',
-        status: 'Planned',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-3-2-1',
@@ -415,7 +467,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 12500,
         delta: 700,
         color: 'gray',
-        status: 'Planned',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-3-3-1',
@@ -447,7 +499,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
     id: 'micro-4',
     weekName: 'Microcycle 04',
     focus: 'Overreach / Final Exposure',
-    status: 'Planned',
+    status: 'DRAFT',
     workouts: [
       {
         id: 'w-4-1',
@@ -457,7 +509,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 14800,
         delta: 700,
         color: 'gray',
-        status: 'Planned',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-4-1-1',
@@ -491,7 +543,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 10400,
         delta: 500,
         color: 'gray',
-        status: 'Planned',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-4-2-1',
@@ -525,7 +577,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 13100,
         delta: 600,
         color: 'gray',
-        status: 'Planned',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-4-3-1',
@@ -557,7 +609,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
     id: 'micro-5',
     weekName: 'Microcycle 05',
     focus: 'Peaking Phase Start',
-    status: 'Planned',
+    status: 'DRAFT',
     workouts: [
       {
         id: 'w-5-1',
@@ -567,7 +619,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 15300,
         delta: 500,
         color: 'orange',
-        status: 'Testing',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-5-1-1',
@@ -601,7 +653,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 11000,
         delta: 200,
         color: 'orange',
-        status: 'Testing',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-5-2-1',
@@ -635,7 +687,7 @@ export const INITIAL_MICROCYCLES: MicrocycleData[] = [
         tonnage: 12100,
         delta: 300,
         color: 'orange',
-        status: 'Testing',
+        status: 'PLANNED',
         exercises: [
           {
             id: 'e-5-3-1',

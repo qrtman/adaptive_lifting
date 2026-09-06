@@ -1,10 +1,10 @@
-# Obsidian Kinetic Periodization Dashboard (Iron Box Terminal)
+# Adaptive Lifting Periodization Dashboard
 
-Sleek, high-fidelity, and auto-regulatory periodization dashboard for elite powerlifting coaches and athletes.
+Auto-regulatory periodization dashboard for powerlifting coaches and athletes.
 
 ---
 
-## 🚀 System Requirements & Run Instructions
+## System Requirements & Run Instructions
 
 This project requires a dual-process spin-up (Vite + FastAPI).
 
@@ -28,41 +28,44 @@ This project requires a dual-process spin-up (Vite + FastAPI).
 
 ---
 
-## 🎨 Premium Design Philosophy
-This system is strictly designed around a premium "Obsidian & HSL" visual schema. Expect micro-animations, glassmorphic blurs, and strict adherence to specific brand colors (RTS Blue, Obsidian Jade, CNS Orange). See [design.md](design.md) for full specifications.
+## Tests
+
+```bash
+pip install -r backend/requirements.txt
+pytest
+```
+
+```bash
+npm test
+```
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Playwright covers the login screen, same-week calendar drag, cross-week boundary lock, set logging (e1RM / INOL / tonnage), and offline mutation flush.
 
 ---
 
-## 🛡️ Safety Mechanisms & Data Integrity
+## Design
+
+This system uses a restrained dark visual schema. See [design.md](design.md) for full specifications.
+
+---
+
+## Safety Mechanisms & Data Integrity
 
 > [!WARNING]  
-> **Startup Guard Active**: The `App.tsx` contains a robust Error Boundary Startup Guard. Upon application boot, it sanitizes local storage and isolates corrupted UI preferences, resetting them to safe default states automatically to eliminate blank-screen failures.
+> **Startup:** On boot, leftover `obsidian_*` / `iron_box_*` LocalStorage keys are purged. Workout trees hydrate from IndexedDB snapshots, then the backend.
 
 > [!IMPORTANT]  
 > **Data Integrity**: All prescriptions are strictly columnar (`planned_weight`, `planned_reps`) and tracked against actual chronological dates (`YYYY-MM-DD`). See [architecture.md](architecture.md) for detailed boundaries.
 
 ---
 
-## 📁 Key Active Folders
+## Key Active Folders
 * **`src/components/CalendarView.tsx`**: The core periodization planning grid featuring week-long microcycle visual capsules and auto-regulated bounds.
 * **`src/components/mobile/TelegramSessionTerminal.tsx`**: High-performance mobile workout logging interface simulating the Telegram Mini App.
-* **`src/App.tsx`**: Main component managing periodization data, viewport checks, IndexedDB state synchronization, and startup state validation.
+* **`src/App.tsx`**: Root shell for view routing and chrome. Periodization data lives in `PeriodizationContext`.
 * **`backend/`**: FastAPI database models, sync services, calculation models, and integrations (Telegram Mini App, Google Sheets).
-
----
-
-## 🗄️ Archived & Legacy Assets
-
-> [!CAUTION]
-> The following files are **DEPRECATED** and should not be used for active development. They are retained purely for historical reference.
-
-| File Name / Category | Description |
-| :--- | :--- |
-| **`migration_manifest.md`** | Deprecated relational DB mappings. |
-| **`analysis_terminal.html`** | Static dashboard mockup iteration from earlier versions. |
-| **`athlete_logger_terminal.html`** | Static logger screen export. |
-| **`command_center.html`** | Static switchboard control panel. |
-| **`execution_feed.html`** | Old training feed export. |
-| **`stitch_*.html`** | Static design references exported from Stitch boards. Do not edit. |
-| **`download_screens.py`** | Script for syncing assets from design boards. |
-| **`call_stitch_*.py`** | Script helpers interacting with Stitch APIs. |

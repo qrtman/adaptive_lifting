@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Calendar, 
   AlertTriangle,
-  Move,
-  Trophy,
-  Activity,
-  Dumbbell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { WorkoutData, MicrocycleData, MesocycleData } from '../types';
+import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
 import { apiService } from '../services/api';
+import { usePeriodization } from '../contexts/PeriodizationContext';
+import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
 const getMondayOfDate = (dateStr: string) => {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -26,31 +23,19 @@ const getMondayOfDate = (dateStr: string) => {
   return `${y}-${m}-${r}`;
 };
 
-const hexToRgb = (hex: string) => {
-  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-  const fullHex = hex.replace(shorthandRegex, (_, r, g, b) => r + r + g + g + b + b);
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
-  return result 
-    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
-    : '255, 255, 255';
-};
-
-
 interface CalendarViewProps {
-  microcycles: MicrocycleData[];
-  mesocycles: MesocycleData[];
-  onUpdateWorkouts: (updatedMicrocycles: MicrocycleData[]) => void;
   onViewSession: (workout: WorkoutData, microId: string) => void;
-  filter: 'All' | 'Squat' | 'Bench' | 'Deadlift';
+  filter: LiftFilterValue;
+  onFilterChange: (value: LiftFilterValue) => void;
 }
 
 export function CalendarView({
-  microcycles,
-  mesocycles,
-  onUpdateWorkouts,
   onViewSession,
-  filter
+  filter,
+  onFilterChange,
 }: CalendarViewProps) {
+  const { microcycles, mesocycles, setMicrocycles } = usePeriodization();
+  const onUpdateWorkouts = setMicrocycles;
   // Navigation states (we start in September 2026)
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(8); // September is 8 (0-indexed)
@@ -58,6 +43,9 @@ export function CalendarView({
   // Drag and drop states
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
   const [draggedFromMicrocycleId, setDraggedFromMicrocycleId] = useState<string | null>(null);
+  const dragPayloadRef = useRef<{ workoutId: string; microId: string } | null>(null);
+  const [boundaryLockVisible, setBoundaryLockVisible] = useState(false);
+  const [boundaryFlashDate, setBoundaryFlashDate] = useState<string | null>(null);
   
   // Conflict Prompt states
   const [conflictModal, setConflictModal] = useState<{
@@ -150,20 +138,42 @@ export function CalendarView({
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, workoutId: string, microId: string) => {
+    dragPayloadRef.current = { workoutId, microId };
     setDraggedWorkoutId(workoutId);
     setDraggedFromMicrocycleId(microId);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({ workoutId, microId }));
+  };
+
+  const readDragPayload = (e: React.DragEvent): { workoutId: string; microId: string } | null => {
+    if (dragPayloadRef.current) return dragPayloadRef.current;
+    if (draggedWorkoutId && draggedFromMicrocycleId) {
+      return { workoutId: draggedWorkoutId, microId: draggedFromMicrocycleId };
+    }
+    const raw = e.dataTransfer.getData('text/plain');
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { workoutId?: string; microId?: string };
+      if (parsed.workoutId && parsed.microId) {
+        return { workoutId: parsed.workoutId, microId: parsed.microId };
+      }
+    } catch {
+      return null;
+    }
+    return null;
   };
 
   const handleDrop = (e: React.DragEvent, targetDate: string) => {
     e.preventDefault();
-    if (!draggedWorkoutId || !draggedFromMicrocycleId) return;
+    const payload = readDragPayload(e);
+    if (!payload) return;
+    const { workoutId, microId } = payload;
 
     // Find dragged workout
     let targetWorkout: WorkoutData | null = null;
     microcycles.forEach(m => {
       m.workouts.forEach(w => {
-        if (w.id === draggedWorkoutId) {
+        if (w.id === workoutId) {
           targetWorkout = w;
         }
       });
@@ -179,7 +189,9 @@ export function CalendarView({
     const origMon = getMondayOfDate(sourceDateStr);
 
     if (dropMon !== origMon) {
-      alert("⚠️ Periodization Boundary Lock:\nWorkouts cannot be dragged across microcycle week boundaries to preserve load-fatigue tracking. Please reschedule within the active week.");
+      setBoundaryLockVisible(true);
+      setBoundaryFlashDate(sourceDateStr);
+      dragPayloadRef.current = null;
       setDraggedWorkoutId(null);
       setDraggedFromMicrocycleId(null);
       return;
@@ -193,38 +205,25 @@ export function CalendarView({
     // Look for scheduling conflict (workout on the same target date)
     const existingWorkoutOnTarget = workoutList.find(item => item.workout.date === targetDate);
     
-    // Evaluate if this breaks periodization (e.g. dragged too far, or out of order)
-    const activeMicroId = draggedFromMicrocycleId;
-    const currentMicro = microcycles.find(m => m.id === activeMicroId);
-    let isPeriodizationBreach = false;
+    const currentMicro = microcycles.find(m => m.id === microId);
+    const isPeriodizationBreach = Boolean(currentMicro && Math.abs(daysDiff) > 7);
 
-    if (currentMicro) {
-      // Find other workouts in same microcycle
-      const sortingWorkouts = [...currentMicro.workouts].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const firstWorkout = sortingWorkouts[0];
-      const lastWorkout = sortingWorkouts[sortingWorkouts.length - 1];
-
-      // If dragging this workout stretches the microcycle over too many days or overlaps bounds of next micro, trigger cascade option
-      if (Math.abs(daysDiff) > 7) {
-        isPeriodizationBreach = true;
-      }
-    }
+    setBoundaryLockVisible(false);
+    setBoundaryFlashDate(null);
 
     if (existingWorkoutOnTarget || isPeriodizationBreach || Math.abs(daysDiff) > 3) {
-      // Trigger decision prompt modal!
       setConflictModal({
         workout: targetWorkout,
-        sourceMicroId: draggedFromMicrocycleId,
+        sourceMicroId: microId,
         newDate: targetDate,
         daysDiff: daysDiff,
         conflictType: existingWorkoutOnTarget ? 'overlap' : 'periodization_breach'
       });
     } else {
-      // Directly execute granular move (Single adjust)
-      executeMove(targetWorkout, draggedFromMicrocycleId, targetDate, false, 0);
+      executeMove(targetWorkout, microId, targetDate, false, 0);
     }
 
-    // Reset drag variables
+    dragPayloadRef.current = null;
     setDraggedWorkoutId(null);
     setDraggedFromMicrocycleId(null);
   };
@@ -269,10 +268,12 @@ export function CalendarView({
 
     onUpdateWorkouts(updatedMicrocycles);
     setConflictModal(null);
+    dragPayloadRef.current = null;
   };
 
   const cancelMove = () => {
     setConflictModal(null);
+    dragPayloadRef.current = null;
     setDraggedWorkoutId(null);
     setDraggedFromMicrocycleId(null);
   };
@@ -280,7 +281,7 @@ export function CalendarView({
   // Helper to fetch microcycle visual specs based on index
   const getMicrocycleColorInfo = (microIdx: number) => {
     switch (microIdx) {
-      case 0: // Microcycle 1: Obsidian Jade
+      case 0: // Microcycle 1: Jade
         return {
           borderClass: "border-[#54e083]",
           bgClass: "bg-[#54e083]/5",
@@ -332,55 +333,44 @@ export function CalendarView({
   return (
     <div className="flex-1 flex overflow-hidden bg-[#0A0A0A]">
       {/* Left Pane: Scrollable Calendar Grid */}
-      <div className="flex-1 flex flex-col p-6 space-y-6 overflow-y-auto scroll-smooth">
-        {/* Calendar Header */}
-        <div className="flex justify-between items-center bg-[#131313] p-5 rounded-[8px] border border-white/10 backdrop-blur-md">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-mac-blue/10 rounded-[4px] border border-mac-blue/20 text-mac-blue shadow-[0_0_15px_rgba(0,122,255,0.15)]">
-              <Calendar size={22} />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white tracking-tight font-sans">
-                {months[currentMonth]} {currentYear}
-              </h3>
-              <p className="text-[10px] font-mono tracking-widest text-[#AEAEB2] mt-1 uppercase">
-                PRO ATOM PERIODIZATION GRID • ACTIVE CONFLICT MITIGATION
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handlePrevMonth}
-              onMouseDown={triggerHaptic}
-              className="p-2 bg-[#161616] border border-white/10 hover:border-white/20 hover:bg-white/5 text-gray-300 hover:text-white rounded-[4px] transition-all active:scale-95 cursor-pointer"
-            >
+      <div className="flex-1 flex flex-col p-2 gap-2 overflow-y-auto">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm text-white">
+              {months[currentMonth]} {currentYear}
+            </h3>
+            <button type="button" onClick={handlePrevMonth} className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white">
               <ChevronLeft size={16} />
             </button>
-            
             <button
+              type="button"
               onClick={() => {
                 setCurrentYear(2026);
-                setCurrentMonth(8); // Reset to active September 2026
+                setCurrentMonth(8);
               }}
-              onMouseDown={triggerHaptic}
-              className="px-4 py-2 bg-white/10 border border-white/10 text-xs font-bold uppercase tracking-wider hover:bg-white/15 text-white rounded-[4px] transition-all cursor-pointer font-sans"
+              className="h-7 px-2 text-xs text-[#AEAEB2] hover:text-white"
             >
               Today
             </button>
-
-            <button 
-              onClick={handleNextMonth}
-              onMouseDown={triggerHaptic}
-              className="p-2 bg-[#161616] border border-white/10 hover:border-white/20 hover:bg-white/5 text-gray-300 hover:text-white rounded-[4px] transition-all active:scale-95 cursor-pointer"
-            >
+            <button type="button" onClick={handleNextMonth} className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white">
               <ChevronRight size={16} />
             </button>
           </div>
+          <LiftFilter value={filter} onChange={onFilterChange} />
         </div>
 
+        {boundaryLockVisible && (
+          <div
+            data-testid="calendar-boundary-lock"
+            role="alert"
+            className="border border-[#FF453A]/50 bg-[#FF453A]/10 text-[#FF453A] px-3 py-1.5 rounded font-mono text-xs"
+          >
+            Periodization Boundary Lock: Workouts cannot be dragged across microcycle week boundaries.
+          </div>
+        )}
+
         {/* Calendar Grid Container */}
-        <div className="space-y-6">
+        <div className="space-y-3">
           {(() => {
             // Helpers for periodized entity resolution
             const getMesocycleForDate = (dateStr: string) => {
@@ -390,17 +380,6 @@ export function CalendarView({
                 const end = new Date(m.endDate);
                 return curr >= start && curr <= end;
               });
-            };
-
-            const getMicrocycleForDate = (dateStr: string) => {
-              let found = microcycles.find(m => m.workouts.some(w => w.date === dateStr));
-              if (found) return found;
-
-              const targetMonStr = getMondayOfDate(dateStr);
-              found = microcycles.find(m => 
-                m.workouts.some(w => getMondayOfDate(w.date) === targetMonStr)
-              );
-              return found;
             };
 
             // Group the daysGrid into 7-day weeks
@@ -444,42 +423,30 @@ export function CalendarView({
               return (
                 <div 
                   key={meso ? meso.id : `ungrouped-meso-${groupIdx}`}
-                  className="border border-white/10 rounded-[8px] bg-[#131313] shadow-2xl overflow-hidden ring-1 ring-inset ring-white/5"
+                  className="border border-white/10 rounded overflow-hidden bg-[#131313]"
                 >
-                  {/* 1. Mesocycle (Block) Container Header Banner */}
                   {meso ? (
-                    <div className="p-4 border-b border-white/5 flex flex-wrap items-center justify-between bg-[#161616]/50 backdrop-blur-sm gap-4">
-                      <div className="flex flex-col gap-1 pl-4 relative">
-                        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#54e083] rounded-full shadow-[0_0_12px_rgba(84,224,131,0.6)]" />
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[#54e083] text-[10px] font-bold tracking-widest">MESOCYCLE PHASE</span>
-                          <span className="font-mono text-[9px] bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/20 px-2 py-0.5 rounded-[4px] font-bold uppercase">ACTIVE</span>
-                        </div>
-                        <h4 className="text-base text-white tracking-tight uppercase font-sans font-bold">
-                          {meso.name}
-                        </h4>
+                    <div className="h-8 px-2 border-b border-white/10 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-1 h-4 rounded bg-[#54e083] shrink-0" />
+                        <h4 className="text-xs text-white truncate">{meso.name}</h4>
+                        <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">mesocycle</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-gray-400 bg-white/5 border border-white/5 px-3 py-1.5 rounded-[4px] text-xs backdrop-blur-sm">
-                          {meso.startDate} - {meso.endDate}
-                        </span>
-                      </div>
+                      <span className="font-mono text-[10px] text-[#AEAEB2] shrink-0">
+                        {meso.startDate} – {meso.endDate}
+                      </span>
                     </div>
                   ) : (
-                    <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                      <span className="text-sm font-bold uppercase tracking-widest text-amber-400 font-sans">
-                        Standard Transition Intermission
-                      </span>
+                    <div className="h-8 px-2 border-b border-white/10 flex items-center">
+                      <span className="text-xs text-amber-400">Transition</span>
                     </div>
                   )}
 
-                  {/* Weeks Container Nested inside Mesocycle Block Container Slot */}
-                  <div className="p-6 bg-transparent space-y-6">
-                    {/* Weekday Headers */}
+                  <div className="p-2 space-y-2">
                     <div className="grid grid-cols-7 gap-0">
-                      {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((day) => (
-                        <div key={day} className="pb-3 flex justify-start pl-4">
-                          <span className="font-mono text-[10px] text-gray-400 font-bold tracking-widest">{day}</span>
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                        <div key={day} className="pb-1 pl-1.5">
+                          <span className="font-mono text-[10px] text-[#AEAEB2]">{day}</span>
                         </div>
                       ))}
                     </div>
@@ -492,70 +459,16 @@ export function CalendarView({
                           key={`${firstDay}-${weekIdx}`}
                           className="grid grid-cols-7 gap-0"
                         >
-                          {week.map((cell, idx) => {
+                          {week.map((cell) => {
                             const dateStr = cell.dateString;
-                            const isToday = dateStr === '2026-09-16'; // Mocked Today
                             const dayWorkouts = workoutList.filter(item => item.workout.date === dateStr);
-
-                            const isLeftColumn = idx === 0;
-                            const isRightColumn = idx === 6;
-
-                            let borderStyles = "border border-[#20201F]";
-                            let glowClasses = "";
-                            let colorInfo = {
-                              borderClass: "border-[#20201F]",
-                              bgClass: "bg-white/[0.01]",
-                              textClass: "text-gray-400",
-                              labelBg: "bg-white/5 text-gray-400 border border-white/5",
-                              accentColor: "#20201F"
-                            };
-
-                            // ── Capsule range logic ─────────────────────────────────────────────
-                            // Set the capsule territory strictly to the active week row of the microcycle.
-                            const weekMicro = getMicrocycleForDate(firstDay);
-
-                            let capsuleRole: 'first' | 'last' | 'middle' | null = null;
-                            let capsuleMicro: (typeof microcycles)[0] | null = null;
-
-                            if (weekMicro) {
-                              capsuleMicro = weekMicro;
-                              if (idx === 0) {
-                                capsuleRole = 'first';
-                              } else if (idx === 6) {
-                                capsuleRole = 'last';
-                              } else {
-                                capsuleRole = 'middle';
-                              }
-                            }
-
-                            if (capsuleMicro && capsuleRole !== null) {
-                              const microIdx = microcycles.findIndex(m => m.id === capsuleMicro!.id);
-                              colorInfo = getMicrocycleColorInfo(microIdx);
-
-                              switch (capsuleRole) {
-                                case 'first':
-                                  borderStyles = `border-y-2 border-l-2 ${colorInfo.borderClass} border-r border-[#252525] rounded-l-[8px]`;
-                                  break;
-                                case 'last':
-                                  borderStyles = `border-y-2 border-r-2 ${colorInfo.borderClass} border-l border-[#252525] rounded-r-[8px]`;
-                                  break;
-                                case 'middle':
-                                  borderStyles = `border-y-2 ${colorInfo.borderClass} border-x border-[#252525]`;
-                                  break;
-                              }
-
-                              glowClasses = 'hover:bg-white/[0.015]';
-                            } else {
-                              // Outside all microcycle ranges — neutral grid
-                              if (isLeftColumn)       borderStyles = 'border-y border-l border-r border-[#20201F] rounded-l-[8px]';
-                              else if (isRightColumn) borderStyles = 'border-y border-r border-[#20201F] rounded-r-[8px]';
-                              else                    borderStyles = 'border-y border-r border-[#20201F]';
-                            }
 
                             // Day label & rank calculation for workouts
                             let labelMicro: (typeof microcycles)[0] | null = null;
                             let workoutRankInMicro = 0;
-                            let labelColorInfo = colorInfo;
+                            let labelColorInfo = {
+                              labelBg: "bg-white/5 text-[#AEAEB2] border border-white/10",
+                            };
 
                             if (dayWorkouts.length > 0) {
                               const firstW = dayWorkouts[0];
@@ -571,32 +484,26 @@ export function CalendarView({
 
                             return (
                               <div
-                                key={`${dateStr}-${idx}`}
+                                key={dateStr}
+                                data-testid={`calendar-day-${dateStr}`}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, dateStr)}
-                                style={{
-                                  backgroundColor: capsuleMicro && cell.isCurrentMonth
-                                    ? `rgba(${hexToRgb(colorInfo.accentColor)}, 0.03)`
-                                    : undefined
-                                }}
-                                className={`h-auto min-h-[175px] p-3 flex flex-col relative group cursor-pointer transition-all bg-[#131313] ${borderStyles} ${glowClasses} ${
+                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative group cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
-                                } ${isToday ? 'ring-1 ring-[#007aff] bg-[#007aff]/5 shadow-[0_0_15px_rgba(0,122,255,0.08)]' : ''}`}
+                                } ${
+                                  boundaryFlashDate === dateStr ? 'ring-2 ring-[#FF453A] bg-[#FF453A]/10' : ''
+                                }`}
                               >
-                                {/* Date label */}
-                                <div className="flex items-center mt-1 ml-1 relative z-10 gap-2">
-                                  <span className={`font-mono text-xs font-bold ${isToday ? 'text-[#007aff]' : 'text-gray-400'}`}>
+                                <div className="flex items-center gap-1.5 relative z-10 mb-1">
+                                  <span className="font-mono text-[11px] text-[#AEAEB2]">
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
                                   {labelMicro && workoutRankInMicro > 0 && (
-                                    <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-[4px] font-bold ${labelColorInfo.labelBg}`}>
-                                      W{microcycles.indexOf(labelMicro) + 1} • D{workoutRankInMicro}
+                                    <span className={`font-mono text-[9px] px-1 rounded ${labelColorInfo.labelBg}`}>
+                                      W{microcycles.indexOf(labelMicro) + 1}·D{workoutRankInMicro}
                                     </span>
                                   )}
                                 </div>
-
-
-                                {/* Workout Slots strictly aligned to days */}
                                 {cell.isCurrentMonth && dayWorkouts
                                   .filter(item => {
                                     if (filter === 'All') return true;
@@ -613,58 +520,53 @@ export function CalendarView({
                                     return (
                                       <div
                                         key={workout.id}
+                                        data-testid={`workout-card-${workout.id}`}
                                         draggable
+                                        onDragOver={(e) => e.preventDefault()}
                                         onDragStart={(e) => handleDragStart(e, workout.id, microId)}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setSelectedWorkout({ workout, microId });
                                         }}
-                                        className={`mt-3 border rounded-[8px] flex-1 flex flex-col backdrop-blur-sm overflow-hidden relative z-10 p-2 gap-2 cursor-grab active:cursor-grabbing hover:border-white/20 transition-all ${
+                                        className={`mt-1 border rounded flex flex-col overflow-hidden relative z-10 p-1.5 gap-0.5 cursor-grab active:cursor-grabbing ${
                                           isSelected 
-                                            ? 'bg-[#1C1C1E] border-mac-blue shadow-[0_0_12px_rgba(0,122,255,0.15)]' 
-                                            : 'bg-[#161616] border-[#20201F] hover:bg-[#1C1C1E]'
+                                            ? 'bg-[#1C1C1E] border-[#007AFF]' 
+                                            : 'bg-[#161616] border-white/10 hover:border-white/20'
                                         }`}
                                       >
-                                        <div className="flex flex-col gap-2">
+                                        <div className="flex flex-col gap-0.5">
                                           {workout.exercises.map((ex) => {
                                             const isSquat = ex.title.toLowerCase().includes('squat');
                                             const isBench = ex.title.toLowerCase().includes('bench');
-                                            const movementName = isSquat ? 'SQUAT' : (isBench ? 'BENCH' : 'DEADLIFT');
+                                            const movementName = isSquat ? 'SQ' : (isBench ? 'BP' : 'DL');
                                             
-                                            // Map to strict Obsidian Kinetic colors
                                             const movementColorClass = isSquat 
-                                              ? 'text-[#007aff]' // RTS Blue
+                                              ? 'text-[#007aff]'
                                               : (isBench 
-                                                ? 'text-[#54e083]' // Obsidian Jade
-                                                : 'text-[#F5A623]'); // CNS Warning Orange
+                                                ? 'text-[#54e083]'
+                                                : 'text-[#F5A623]');
                                             
-                                            // Find the first set details
                                             const targetSet = ex.sets[0];
-                                            const plannedW = targetSet?.plannedWeight || '---';
+                                            const plannedW = targetSet?.plannedWeight || '—';
                                             const plannedR = targetSet?.plannedReps || '—';
                                             const plannedRp = targetSet?.plannedRpe || '—';
                                             
                                             const actualW = targetSet?.actual || '';
                                             const actualR = targetSet?.reps || '';
                                             const actualRp = targetSet?.executedRpe || '';
+                                            const logged = actualW
+                                              ? `${actualW}×${actualR}@${actualRp}`
+                                              : `${plannedW}×${plannedR}@${plannedRp}`;
 
                                             return (
-                                              <div key={ex.id} className="flex flex-col border-b border-white/5 pb-1 last:border-0 last:pb-0">
-                                                <div className="flex items-center justify-between">
-                                                  <span className={`text-[10px] font-bold leading-tight font-sans ${movementColorClass}`}>{movementName}</span>
-                                                  <span className="text-[8px] text-gray-500 font-mono">e1RM: {ex.top?.split(' ')[0] || '—'}</span>
-                                                </div>
-                                                <span className="text-[9px] text-gray-400 leading-tight mt-0.5 font-mono">
-                                                  Presc: {plannedW}kg x {plannedR} @ {plannedRp}
+                                              <div key={ex.id} className="flex items-center justify-between gap-1 font-mono text-[10px] leading-tight">
+                                                <span className={`${movementColorClass} shrink-0`}>{movementName}</span>
+                                                <span className={`truncate ${actualW ? 'text-white' : 'text-[#AEAEB2]'}`}>
+                                                  {logged}
                                                 </span>
-                                                <div className="flex items-center justify-between text-[10px] leading-tight mt-0.5">
-                                                  <span className="text-gray-300 font-bold text-[9px] font-mono">
-                                                    {actualW ? `${actualW}kg x ${actualR} @ ${actualRp}` : 'Pending'}
-                                                  </span>
-                                                  {workout.status === 'Completed' && (
-                                                    <span className="bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/30 px-1 py-0.5 rounded-[2px] text-[8px] font-black font-mono leading-none">[✓]</span>
-                                                  )}
-                                                </div>
+                                                {isWorkoutCompleted(workout.status) && (
+                                                  <span className="text-[#54e083] shrink-0">✓</span>
+                                                )}
                                               </div>
                                             );
                                           })}
@@ -685,16 +587,12 @@ export function CalendarView({
           })()}
         </div>
 
-        {/* Grid Legend & Informational Footnote */}
-        <div className="flex justify-between items-center bg-[#131313] p-4 border border-white/10 rounded-[8px] text-xs text-gray-400 font-sans">
-          <div className="flex items-center gap-4">
-            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#54e083] shadow-[0_0_8px_rgba(84,224,131,0.4)]" /> COMPLETED</span>
-            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#007aff] shadow-[0_0_8px_rgba(0,122,255,0.4)] animate-pulse" /> TODAY</span>
-            <span className="font-bold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-gray-500" /> PLANNED</span>
+        <div className="h-8 px-2 flex items-center justify-between gap-3 text-[10px] text-[#AEAEB2] border border-white/10 rounded">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
           </div>
-          <div className="italic text-right text-[11px] font-mono font-bold text-amber-400 tracking-wider">
-            💡 DRAG WORKOUT BUBBLE TO RESCHEDULE • AUTOREG MECHANISM LOCKS PACING
-          </div>
+          <span className="font-mono truncate">Drag within microcycle week · boundary lock across weeks</span>
         </div>
       </div>
 
@@ -706,158 +604,85 @@ export function CalendarView({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 450, opacity: 0 }}
             transition={{ type: "spring", damping: 30, stiffness: 220 }}
-            className="w-[420px] border-l border-white/10 bg-[#131313] flex flex-col z-20 h-full shadow-[0_0_40px_rgba(0,0,0,0.5)] shrink-0"
+            className="w-[360px] border-l border-white/10 bg-[#131313] flex flex-col z-20 h-full shrink-0"
           >
-            {/* Header */}
-            <div className="p-6 border-b border-white/5 flex justify-between items-start">
-              <div>
-                <span className="font-mono text-[#54e083] text-[10px] font-bold tracking-widest block mb-1">SESSION ANALYSIS</span>
-                <h3 className="text-xl font-bold text-white tracking-tight uppercase leading-tight">
+            <div className="px-3 py-2 border-b border-white/10 flex justify-between items-start gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm text-white truncate">
                   {selectedWorkout.workout.title}
                 </h3>
-                <div className="flex gap-2 mt-2 items-center">
-                  <span className="font-mono text-[11px] text-gray-400">
-                    {selectedWorkout.workout.date}
-                  </span>
-                  <span className="text-gray-600">•</span>
-                  <span className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded-[4px] ${
-                    selectedWorkout.workout.status === 'Completed' 
-                      ? 'bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/20' 
-                      : 'bg-white/5 text-gray-400 border border-white/5'
-                  }`}>
-                    {selectedWorkout.workout.status.toUpperCase()}
+                <div className="flex gap-2 mt-0.5 items-center text-[11px] font-mono text-[#AEAEB2]">
+                  <span>{selectedWorkout.workout.date}</span>
+                  <span className={
+                    isWorkoutCompleted(selectedWorkout.workout.status) ? 'text-[#54e083]' : ''
+                  }>
+                    {selectedWorkout.workout.status}
                   </span>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedWorkout(null)}
-                className="p-1.5 hover:bg-white/5 text-gray-400 hover:text-white rounded-[4px] transition-colors cursor-pointer"
+                className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white"
               >
-                <span className="material-symbols-outlined !text-[20px]">close</span>
+                <span className="material-symbols-outlined !text-[18px]">close</span>
               </button>
             </div>
 
-            {/* Scrollable details */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* High Density Stats Row */}
-              <div className="grid grid-cols-3 border border-white/10 bg-[#161616] rounded-[8px] overflow-hidden">
-                <div className="p-4 border-r border-white/10 text-center">
-                  <p className="font-mono text-[9px] text-gray-400 font-bold tracking-widest uppercase mb-1">TOTAL VOL</p>
-                  <p className="font-mono text-sm font-bold text-white">
-                    {selectedWorkout.workout.tonnage.toLocaleString()} kg
-                  </p>
-                </div>
-                <div className="p-4 border-r border-white/10 text-center">
-                  <p className="font-mono text-[9px] text-gray-400 font-bold tracking-widest uppercase mb-1">TIME</p>
-                  <p className="font-mono text-sm font-bold text-white">
-                    {selectedWorkout.workout.status === 'Completed' ? '74 MIN' : '—'}
-                  </p>
-                </div>
-                <div className="p-4 text-center">
-                  <p className="font-mono text-[9px] text-gray-400 font-bold tracking-widest uppercase mb-1">RPE AVG</p>
-                  <p className="font-mono text-sm font-bold text-[#54e083]">
-                    {selectedWorkout.workout.status === 'Completed' ? '8.2' : '—'}
-                  </p>
-                </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div className="h-8 px-2 flex items-center justify-between gap-3 border border-white/10 rounded text-[11px] font-mono">
+                <span className="text-[#AEAEB2]">Vol <span className="text-white">{selectedWorkout.workout.tonnage.toLocaleString()}kg</span></span>
+                <span className="text-[#AEAEB2]">Sets <span className="text-white">{selectedWorkout.workout.exercises.reduce((n, e) => n + e.sets.length, 0)}</span></span>
+                <span className="text-[#AEAEB2]">Lifts <span className="text-white">{selectedWorkout.workout.exercises.length}</span></span>
               </div>
 
-              {/* Exercises Spreadsheet hybrid log */}
-              <div className="space-y-3">
-                <p className="font-mono text-[10px] text-gray-400 font-bold tracking-widest uppercase">
-                  EXERCISE LOG: PLANNED VS EXECUTED
-                </p>
-                <div className="border border-white/10 bg-[#161616] rounded-[8px] overflow-hidden">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-white/5 border-b border-white/10">
-                        <th className="px-3 py-2.5 font-mono text-[9px] text-gray-400 font-bold uppercase">EXERCISE</th>
-                        <th className="px-3 py-2.5 font-mono text-[9px] text-gray-400 font-bold uppercase">TARGET</th>
-                        <th className="px-3 py-2.5 font-mono text-[9px] text-gray-400 font-bold uppercase text-right">ACTUAL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="font-mono text-[11px] divide-y divide-white/5">
-                      {selectedWorkout.workout.exercises.map((ex) => {
-                        const targetSet = ex.sets[0];
-                        const plannedW = targetSet?.plannedWeight || '---';
-                        const plannedR = targetSet?.plannedReps || '—';
-                        const plannedRp = targetSet?.plannedRpe || '—';
-                        
-                        const actualW = targetSet?.actual || '';
-                        const actualR = targetSet?.reps || '';
-                        const actualRp = targetSet?.executedRpe || '';
+              <div className="border border-white/10 rounded overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="px-2 py-1.5 font-mono text-[10px] text-[#AEAEB2] font-normal">Exercise</th>
+                      <th className="px-2 py-1.5 font-mono text-[10px] text-[#AEAEB2] font-normal">Target</th>
+                      <th className="px-2 py-1.5 font-mono text-[10px] text-[#AEAEB2] font-normal text-right">Actual</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono text-[11px]">
+                    {selectedWorkout.workout.exercises.map((ex) => {
+                      const targetSet = ex.sets[0];
+                      const plannedW = targetSet?.plannedWeight || '—';
+                      const plannedR = targetSet?.plannedReps || '—';
+                      const plannedRp = targetSet?.plannedRpe || '—';
+                      
+                      const actualW = targetSet?.actual || '';
+                      const actualR = targetSet?.reps || '';
+                      const actualRp = targetSet?.executedRpe || '';
 
-                        return (
-                          <tr key={ex.id} className="hover:bg-white/[0.01]">
-                            <td className="px-3 py-3 font-sans font-bold text-white leading-tight">{ex.title}</td>
-                            <td className="px-3 py-3 text-gray-400">{plannedW}kg x {plannedR} @ {plannedRp}</td>
-                            <td className="px-3 py-3 text-right font-bold text-[#54e083]">
-                              {actualW ? `${actualW}kg x ${actualR} @ ${actualRp}` : 'Pending'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                      return (
+                        <tr key={ex.id} className="border-b border-white/5 last:border-0">
+                          <td className="px-2 py-1.5 text-white truncate max-w-[110px]">{ex.title}</td>
+                          <td className="px-2 py-1.5 text-[#AEAEB2] whitespace-nowrap">{plannedW}×{plannedR}@{plannedRp}</td>
+                          <td className="px-2 py-1.5 text-right text-[#54e083] whitespace-nowrap">
+                            {actualW ? `${actualW}×${actualR}@${actualRp}` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Coach's Notes */}
-              <div className="p-4 border border-white/10 bg-[#161616] rounded-[8px] space-y-2">
-                <div className="flex items-center gap-2 text-amber-400">
-                  <span className="material-symbols-outlined !text-[16px]">notes</span>
-                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase">COACH'S NOTES</span>
-                </div>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  {selectedWorkout.workout.status === 'Completed' 
-                    ? "Excellent depth on the final squat set. The progression was handled well. Peripheral fatigue seems managed. Maintain active pacing."
-                    : "Focus on static brace stability off the floor. Keep vertical bar path linear. Ensure 1-sec pause on bench presses is strictly static."}
-                </p>
-              </div>
-
-              {/* Biomechanical Trace Graph (Premium SVG dynamic visualizer) */}
-              <div className="p-4 border border-white/10 bg-[#161616] rounded-[8px] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[#54e083]">
-                    <span className="material-symbols-outlined !text-[16px]">monitoring</span>
-                    <span className="font-mono text-[9px] font-bold tracking-widest uppercase">BIOMECHANICAL TRACE</span>
-                  </div>
-                  <span className="font-mono text-[8px] text-gray-500 uppercase">SET 3 PROFILE</span>
-                </div>
-                <div className="h-28 w-full border border-white/5 rounded bg-black/40 flex items-center justify-center p-2 relative overflow-hidden">
-                  <svg className="w-full h-full" viewBox="0 0 100 40">
-                    <defs>
-                      <linearGradient id="trace-glow" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#007aff" stopOpacity="0.1" />
-                        <stop offset="50%" stopColor="#54e083" stopOpacity="0.6" />
-                        <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M 5,20 C 15,5 25,35 35,15 C 45,5 55,30 65,10 C 75,25 85,15 95,20"
-                      fill="none"
-                      stroke="url(#trace-glow)"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                    <line x1="20" y1="0" x2="20" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="1 1" />
-                    <line x1="40" y1="0" x2="40" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="1 1" />
-                    <line x1="60" y1="0" x2="60" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="1 1" />
-                    <line x1="80" y1="0" x2="80" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="1 1" />
-                  </svg>
-                  <div className="absolute bottom-1 left-2 font-mono text-[8px] text-gray-500">VELOCITY (M/S)</div>
-                  <div className="absolute top-1 right-2 font-mono text-[8px] text-[#54e083]">AVG: 0.52m/s</div>
-                </div>
-              </div>
+              <p className="text-[11px] text-[#AEAEB2] leading-snug px-0.5">
+                {isWorkoutCompleted(selectedWorkout.workout.status) 
+                  ? "Logged session. Open logger to review or adjust sets."
+                  : "Focus brace and bar path. Open logger to record sets."}
+              </p>
             </div>
 
-            {/* Action Footer */}
-            <div className="p-6 border-t border-white/5 bg-[#161616] flex gap-3">
+            <div className="p-2 border-t border-white/10 flex gap-1.5">
               <button 
                 onClick={() => onViewSession(selectedWorkout.workout, selectedWorkout.microId)}
                 onMouseDown={triggerHaptic}
-                className="flex-1 py-3 bg-mac-blue hover:bg-blue-600 text-white text-xs font-bold uppercase tracking-widest rounded-[4px] transition-all cursor-pointer text-center"
+                className="flex-1 h-8 bg-[#007AFF] hover:bg-[#0066d6] text-white text-xs rounded"
               >
-                LAUNCH SESSION LOGGER
+                Open session
               </button>
               <button 
                 onClick={async () => {
@@ -866,7 +691,7 @@ export function CalendarView({
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `obsidian_kinetic_export_${filter.toLowerCase()}.csv`;
+                    a.download = `adaptive_lifting_export_${filter.toLowerCase()}.csv`;
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
@@ -876,7 +701,7 @@ export function CalendarView({
                   }
                 }}
                 onMouseDown={triggerHaptic}
-                className="px-3 py-3 border border-white/10 hover:border-[#54e083] hover:bg-[#54e083]/5 text-[#54e083] text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
+                className="h-8 px-2 border border-white/10 text-[#54e083] text-xs rounded"
               >
                 CSV
               </button>
@@ -887,7 +712,7 @@ export function CalendarView({
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'obsidian_kinetic_export.json';
+                    a.download = 'adaptive_lifting_export.json';
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
@@ -897,7 +722,7 @@ export function CalendarView({
                   }
                 }}
                 onMouseDown={triggerHaptic}
-                className="px-3 py-3 border border-white/10 hover:border-mac-blue hover:bg-mac-blue/5 text-mac-blue text-[11px] font-bold uppercase tracking-widest rounded-[4px] transition-colors cursor-pointer"
+                className="h-8 px-2 border border-white/10 text-[#007AFF] text-xs rounded"
               >
                 JSON
               </button>
@@ -909,45 +734,42 @@ export function CalendarView({
       {/* Conflict Decision Modal */}
       <AnimatePresence>
         {conflictModal && (
-          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#131313] border border-white/10 rounded-[8px] max-w-md w-full shadow-2xl p-6"
+              exit={{ scale: 0.98, opacity: 0 }}
+              className="bg-[#131313] border border-white/10 rounded max-w-md w-full p-4"
             >
-              <div className="flex items-center gap-3 text-orange-500 mb-4 bg-orange-500/10 p-3 rounded-[4px] border border-orange-500/20">
-                <AlertTriangle size={20} />
-                <h4 className="text-sm font-bold uppercase tracking-wider text-white">Periodization Conflict</h4>
+              <div className="flex items-center gap-2 text-orange-500 mb-3">
+                <AlertTriangle size={16} />
+                <h4 className="text-sm text-white">Periodization conflict</h4>
               </div>
 
-              <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                You are rescheduling <strong className="text-white">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-white">{conflictModal.newDate}</strong>.
-                This action exceeds standard tactical variance limits.
+              <p className="text-xs text-[#AEAEB2] leading-relaxed mb-4">
+                Rescheduling <strong className="text-white">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-white">{conflictModal.newDate}</strong>.
               </p>
 
-              <div className="space-y-3 mb-6">
+              <div className="space-y-2 mb-4">
                 <button
                   type="button"
                   onClick={() => executeMove(
                     conflictModal.workout,
                     conflictModal.sourceMicroId,
                     conflictModal.newDate,
-                    true,      // Cascade shift subsequent sessions
+                    true,
                     conflictModal.daysDiff
                   )}
                   onMouseDown={triggerHaptic}
-                  className="w-full flex items-center justify-between p-4 bg-mac-blue/10 hover:bg-mac-blue/15 text-mac-blue border border-mac-blue/30 rounded-[4px] text-left transition-all group cursor-pointer"
+                  className="w-full flex items-center justify-between p-3 bg-[#007AFF]/10 hover:bg-[#007AFF]/15 border border-[#007AFF]/30 rounded text-left"
                 >
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider block text-white group-hover:text-mac-blue mb-1">
-                      Cascading Shift
-                    </span>
-                    <span className="text-[10px] text-gray-400 block normal-case">
-                      Shift all subsequent workouts in this microcycle by {conflictModal.daysDiff} days to protect periodization intervals.
+                    <span className="text-xs text-white block mb-0.5">Cascading shift</span>
+                    <span className="text-[10px] text-[#AEAEB2] block">
+                      Move later workouts in this microcycle by {conflictModal.daysDiff} days.
                     </span>
                   </div>
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} className="text-[#007AFF]" />
                 </button>
 
                 <button
@@ -956,32 +778,30 @@ export function CalendarView({
                     conflictModal.workout,
                     conflictModal.sourceMicroId,
                     conflictModal.newDate,
-                    false,     // Granular session move ONLY
+                    false,
                     0
                   )}
                   onMouseDown={triggerHaptic}
-                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[4px] text-left transition-all group cursor-pointer"
+                  className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-left"
                 >
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider block text-white group-hover:text-mac-blue mb-1">
-                      Granular Adjust Only
-                    </span>
-                    <span className="text-[10px] text-gray-400 block normal-case">
-                      Schedule changes apply ONLY to this session. Creates standard recovery overshoots or overlaps.
+                    <span className="text-xs text-white block mb-0.5">This session only</span>
+                    <span className="text-[10px] text-[#AEAEB2] block">
+                      Leave other workouts where they are.
                     </span>
                   </div>
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} className="text-[#AEAEB2]" />
                 </button>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+              <div className="flex justify-end border-t border-white/10 pt-3">
                 <button
                   type="button"
                   onClick={cancelMove}
                   onMouseDown={triggerHaptic}
-                  className="px-4 py-2 bg-transparent text-xs font-bold uppercase tracking-widest text-[#8E8E93] hover:text-white transition-colors cursor-pointer"
+                  className="h-7 px-2 text-xs text-[#AEAEB2] hover:text-white"
                 >
-                  Abort Rescheduling
+                  Cancel
                 </button>
               </div>
             </motion.div>

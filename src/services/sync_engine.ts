@@ -1,4 +1,5 @@
 import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
+import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 
 let syncTimeout: number | null = null;
 const SYNC_DEBOUNCE_MS = 2000;
@@ -8,10 +9,10 @@ function generateMutationId() {
 }
 
 function getDeviceId() {
-  let id = localStorage.getItem('client_device_id');
+  let id = getUiPref(UI_KEYS.deviceId);
   if (!id) {
     id = 'dev-' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('client_device_id', id);
+    setUiPref(UI_KEYS.deviceId, id);
   }
   return id;
 }
@@ -20,6 +21,7 @@ export async function queueMutation(workout_id: string, entity_type: string, ent
   const mut: SyncMutation = {
     mutation_id: generateMutationId(),
     client_device_id: getDeviceId(),
+    workout_id,
     entity_type,
     entity_id,
     field_path: 'ALL',

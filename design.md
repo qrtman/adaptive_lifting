@@ -1,7 +1,7 @@
-# Obsidian Kinetic - Product Design System
+# Adaptive Lifting - Product Design System
 
 > **Document Status:** Canonical Design Reference  
-> **System:** Obsidian Kinetic Periodization Dashboard & Active Logging Console  
+> **System:** Adaptive Lifting Periodization Dashboard & Active Logging Console  
 > **Companion Document:** `architecture.md`  
 > **Design Scope:** React PWA, coach desktop dashboard, athlete mobile console, Telegram Mini App + bot entry points, Google Sheets publishing flow, and session security panels.
 
@@ -12,7 +12,7 @@
 0. [Implementation Directives](#0-implementation-directives)
 1. [Design Intent & Principles](#1-design-intent--principles)
 2. [Product Surfaces & Scale](#2-product-surfaces--scale)
-3. [Visual System & Obsidian Tokens](#3-visual-system--obsidian-tokens)
+3. [Visual System & Surface Tokens](#3-visual-system--surface-tokens)
 4. [Typography & Strict Data Formatting](#4-typography--strict-data-formatting)
 5. [Multi-Device Layout & Responsive Matrix](#5-multi-device-layout--responsive-matrix)
    * 5.1 [Responsive Breakpoint Grid Specifications](#51-responsive-breakpoint-grid-specifications)
@@ -55,7 +55,7 @@ Do not build:
 - **No marketing landing page** as the first screen.
 - **No decorative hero section** or generic SaaS filler banners.
 - **No nested cards inside cards** (causes optical fatigue).
-- **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark obsidian aesthetic).
+- **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark aesthetic).
 - **No freeform text parsing** for prescriptions, set logging, or Sheets import.
 - **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).
 - **No Telegram chat commands** as the primary mobile UI (Mini App WebView is canonical).
@@ -93,7 +93,7 @@ If implementation context is missing, assume:
 
 ## 1. Design Intent & Principles
 
-Obsidian Kinetic is work software for powerlifting coaches and athletes. It must feel fast, precise, and calm under physical fatigue. The interface prioritizes reliable logging, clean comparison, and immediate workload visibility over decorative presentation.
+Adaptive Lifting is work software for powerlifting coaches and athletes. It must feel fast, precise, and calm under physical fatigue. The interface prioritizes reliable logging, clean comparison, and immediate workload visibility over decorative presentation.
 
 The design system follows three product principles:
 
@@ -115,7 +115,7 @@ The design system follows three product principles:
 
 ---
 
-### 3. Visual System & Obsidian Tokens
+### 3. Visual System & Surface Tokens
 
 ### 3.1 Color Tokens (Mathematical HSL Color Space)
 
@@ -123,7 +123,7 @@ The visual palette is strictly dark, restrained, and functional, optimized mathe
 
 ```css
 :root {
-  /* Core App Grayscale (Obsidian Black Scheme) */
+  /* Core App Grayscale (Ink Black Scheme) */
   --ok-bg: hsl(0, 0%, 4%);             /* Deepest base workspace background */
   --ok-surface-1: hsl(0, 0%, 7%);     /* Structural headers, left side navigation panel */
   --ok-surface-2: hsl(0, 0%, 9%);     /* Primary workout grid cards, table outlines */
@@ -161,7 +161,7 @@ Every component visualizes execution states using HSL alerts combined with dedic
 
 ### 3.3 Shape, Spacing, and Density
 
-Obsidian Kinetic enforces sharp, high-density structural grids. Page cards and sections must not use nested margins.
+Adaptive Lifting enforces sharp, high-density structural grids. Page cards and sections must not use nested margins.
 
 | Token | Value | Applied Element Target |
 | :--- | :--- | :--- |
@@ -283,7 +283,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 
 ```
 +====================================+
-| [K] OBSIDIAN KINETIC               |
+| [K] ADAPTIVE LIFTING               |
 +====================================+
 | Current Monitored Athlete:         |
 | +--------------------------------+ |
@@ -341,7 +341,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 * **Default State (Expanded Layout)**: The left sidebar consumes `240px` of horizontal space. The main content workspace operates in a reduced viewport budget of `calc(100vw - 240px)`.
 * **Maximized State (Dynamic Space Reclamation)**: User collapses the left sidebar to icon-only (`60px`) or hides it completely (`0px`). This frees `180px` or `240px` of horizontal space respectively. The AppShell dynamically reallocates this space to the main active view container (e.g. expanding the Calendar Grid to 100% viewport width), preventing high-density column compression.
 
-* **Brand Header:** Sleek geometric symbol alongside all-caps title `"OBSIDIAN KINETIC"` utilizing `Inter` font, mapped strictly with a `9:1 contrast ratio` against the background.
+* **Brand Header:** Sleek geometric symbol alongside all-caps title `"ADAPTIVE LIFTING"` utilizing `Inter` font, mapped strictly with a `9:1 contrast ratio` against the background.
 * **Monitored Athlete Scope Panel:** High-contrast widget showing:
   * Athlete's thumbnail circle.
   * Active name and real-time SSE stream status: Mapped in `--ok-green` if connection is streaming, or pulsing `--ok-amber` if syncing offline mutations queue.
@@ -619,7 +619,7 @@ The Athletes Roster workspace functions as the primary operational console for c
 
 ```
 +======================================================================================================================+
-| [K] OBSIDIAN KINETIC | [ Calendar Grid ]  [✓] Athletes Roster [ 3 Alerts ]*  [ Analytics Engine ]       [ COACH ROLE ]|
+| [K] ADAPTIVE LIFTING | [ Calendar Grid ]  [✓] Athletes Roster [ 3 Alerts ]*  [ Analytics Engine ]       [ COACH ROLE ]|
 +======================+===============================================================================================+
 |                      |                                                                                               |
 | Monitored Athlete:   |  COACH ATHLETES ROSTER WORKSPACE                                                              |
@@ -628,9 +628,9 @@ The Athletes Roster workspace functions as the primary operational console for c
 | | [✓] SSE Active   | |  +-----------------------------------------------------------------------------------------+  |
 | +------------------+ |  | ACTIVE ROSTER OVERVIEW                                                            [ 3 ] |  |
 |                      |  +-----------------------------------------------------------------------------------------+  |
-| Primary Workspaces:  |  | [o] athlete1@obsidian.com   [2 Active Blocks]                           [ VIEW OVERVIEW ]|  |
-| [ ] Calendar Grid    |  | [o] athlete2@obsidian.com   [4 Active Blocks] - (High Fatigue Alert ⚠️)          [ VIEW OVERVIEW ]|  |
-| [✓] Athletes Roster  |  | [o] athlete3@obsidian.com   [1 Active Block]                            [ VIEW OVERVIEW ]|  |
+| Primary Workspaces:  |  | [o] athlete1@example.com   [2 Active Blocks]                           [ VIEW OVERVIEW ]|  |
+| [ ] Calendar Grid    |  | [o] athlete2@example.com   [4 Active Blocks] - (High Fatigue Alert ⚠️)          [ VIEW OVERVIEW ]|  |
+| [✓] Athletes Roster  |  | [o] athlete3@example.com   [1 Active Block]                            [ VIEW OVERVIEW ]|  |
 | [ ] Analytics        |  +-----------------------------------------------------------------------------------------+  |
 |                      |                                                                                               |
 | Operations:          |  +-----------------------------------------------------------------------------------------+  |
@@ -647,7 +647,7 @@ The Athletes Roster workspace functions as the primary operational console for c
 
 ```
 +======================================================================================================================+
-| Monitored Athlete:   |  ATHLETE OVERVIEW: [ athlete2@obsidian.com ]                                                  |
+| Monitored Athlete:   |  ATHLETE OVERVIEW: [ athlete2@example.com ]                                                  |
 | +------------------+ |  Current Phase: Hypertrophy Block (4 Weeks)                             [ DEPLOY / PUSH LIFT ]|
 | | (o) John Doe     | |                                                                                               |
 | | [✓] SSE Active   | |  +--------------------------+  +--------------------------+  +------------------------------+ |
@@ -1380,7 +1380,7 @@ The Telegram Mini App WebView companion functions as a native extension of the a
 ```
 
 * **Verify Connection Loader:**
-  * Displays a rotating blue spinner ring (`hsl(217, 91%, 60%)`) on a deep obsidian black background.
+  * Displays a rotating blue spinner ring (`hsl(217, 91%, 60%)`) on a deep black background.
   * Copy: `"Verifying Telegram security keys..."`
   * Action: Server-side validation of the raw `initData` query signature against the app's secret keys.
 * **Linked Account Success Panel:**
@@ -1463,7 +1463,7 @@ Sheets integrations are strictly one-way publishing targets, never bidirectional
 +--------------------------------------------------------------------------------------------------+
 | [!] CAUTION: One-Way Publishing Target                                                           |
 | "Sheets integration is strictly ONE-WAY export. Edits made inside your Google spreadsheets       |
-| do not sync back to Obsidian Kinetic canonical training data."                                   |
+| do not sync back to Adaptive Lifting canonical training data."                                   |
 +-----------------------------------------------------------------+--------------------------------+
 | Target Configurations (Left Pane)                               | Outbox Sync Queue (Right Pane) |
 | Active Account:  [ google_coach@example.com          [Revoke] ] | Status: [✓] Connected & Scoped |
@@ -1483,7 +1483,7 @@ Sheets integrations are strictly one-way publishing targets, never bidirectional
 
 * **Publisher Dashboard Configuration:**
   * Coach opens Settings -> Google Sheets Integration.
-  * Header Banner (Caution visual outline): `"Sheets integration is strictly ONE-WAY export. Edits made inside your Google spreadsheets do not sync back to Obsidian Kinetic canonical training data."`
+  * Header Banner (Caution visual outline): `"Sheets integration is strictly ONE-WAY export. Edits made inside your Google spreadsheets do not sync back to Adaptive Lifting canonical training data."`
   * Target Selector dropdown menu: Displays active authorized Google Account, sheet name metadata, and a checkbox list of sheets to create/update (`Sets Log`, `INOL Summaries`, `ACWR Ratios`, `Meet Attempts`).
 * **Integration Outbox Progress Stepper:**
   * Renders inside the side drawer panel when a publish operation is triggered:
@@ -1723,7 +1723,7 @@ Gym environments introduce specific physical challenges: sweat, dust, low dungeo
 ### 11.2 Environment Glare & Heavy Gym Shadows
 - **Contrast limits:** Heavy shadows in powerlifting gyms or direct sunlight in outdoor spaces degrade readability. Small UI text targets must maintain a strict WCAG AAA contrast ratio (`7:1` minimum).
 - Data mono figures (weight, reps, RPE) must maintain a **`9:1` contrast ratio** against deep dark background tones.
-- **Obsidian background utility:** The app base background is locked to `#0A0A0A` to eliminate backlight glare and preserve high visual contrast.
+- **Ink background utility:** The app base background is locked to `#0A0A0A` to eliminate backlight glare and preserve high visual contrast.
 
 ### 11.3 Device Telemetries & Gym Interruptions
 - **Timers:** Gym timers must preserve ticking state when the application moves to background loops. Local storage locks hold timestamps to calculate elapsed time on return.
