@@ -5,7 +5,7 @@ from typing import List, Optional
 import os
 
 from sqlalchemy.orm import Session
-from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, User, CoachingRelationship
+from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, User, CoachingRelationship, CustomExercise, AuditEvent
 from .runtime_config import (
     JWT_KID_CURRENT,
     JWT_KID_PREVIOUS,
@@ -776,6 +776,84 @@ def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current
         
     seed_db(db, req.athleteId, clear_existing=False)
     return {"status": "success", "message": f"Program {req.template} deployed successfully"}
+
+# --- Custom Exercise Library (owner-scoped, reusable movement definitions) ---
+
+class CustomExerciseCreate(BaseModel):
+    name: str
+    liftCategory: Optional[str] = "Other"
+    tier: Optional[str] = "Variation"
+    tempoId: Optional[str] = None
+    romId: Optional[str] = None
+    gear: Optional[List[str]] = None
+
+def format_custom_exercise(ce: CustomExercise):
+    return {
+        "id": ce.id,
+        "name": ce.name,
+        "liftCategory": ce.lift_category,
+        "tier": ce.tier,
+        "tempoId": ce.tempo_id,
+        "romId": ce.rom_id,
+        "gear": ce.gear,
+    }
+
+@app.get("/api/exercises/custom")
+def list_custom_exercises(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.query(CustomExercise).filter(
+        CustomExercise.owner_user_id == current_user.id,
+        CustomExercise.deleted_at.is_(None),
+    ).order_by(CustomExercise.created_at.desc()).all()
+    return [format_custom_exercise(r) for r in rows]
+
+@app.post("/api/exercises/custom")
+def create_custom_exercise(req: CustomExerciseCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Movement name is required")
+
+    # Upsert by (owner, name) so re-adding the same movement does not duplicate the library.
+    ce = db.query(CustomExercise).filter(
+        CustomExercise.owner_user_id == current_user.id,
+        CustomExercise.name == name,
+        CustomExercise.deleted_at.is_(None),
+    ).first()
+    if ce is None:
+        ce = CustomExercise(
+            id=str(uuid.uuid4()),
+            owner_user_id=current_user.id,
+            name=name,
+        )
+        db.add(ce)
+    ce.lift_category = req.liftCategory or "Other"
+    ce.tier = req.tier or "Variation"
+    ce.tempo_id = req.tempoId
+    ce.rom_id = req.romId
+    ce.gear = req.gear or []
+
+    db.add(AuditEvent(
+        id=str(uuid.uuid4()),
+        actor_user_id=current_user.id,
+        event_type="CUSTOM_EXERCISE_UPSERT",
+        resource_type="CustomExercise",
+        resource_id=ce.id,
+    ))
+    db.commit()
+    db.refresh(ce)
+    return format_custom_exercise(ce)
+
+@app.delete("/api/exercises/custom/{exercise_id}")
+def delete_custom_exercise(exercise_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    ce = db.query(CustomExercise).filter(
+        CustomExercise.id == exercise_id,
+        CustomExercise.owner_user_id == current_user.id,
+        CustomExercise.deleted_at.is_(None),
+    ).first()
+    if ce is None:
+        raise HTTPException(status_code=404, detail="Custom exercise not found")
+    ce.deleted_at = datetime.utcnow()
+    db.commit()
+    return {"status": "deleted", "id": exercise_id}
 
 def get_visible_microcycles(db: Session, current_user: User):
     if current_user.role == "COACH":

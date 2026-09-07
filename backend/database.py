@@ -238,6 +238,32 @@ class IntegrationOutbox(Base):
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
 
+class CustomExercise(Base, TimestampMixin):
+    """A reusable movement definition owned by a single user (coach or athlete).
+
+    This is a per-owner library entry — metadata only, no e1RM/prescription.
+    It is never global: listing is always scoped to the owner, so one user's
+    custom movements never appear for another user.
+    """
+    __tablename__ = "custom_exercises"
+    id = Column(String, primary_key=True, index=True)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    lift_category = Column(String, nullable=False, default="Other")  # Squat, Bench, Deadlift, Other
+    tier = Column(String, nullable=False, default="Variation")       # Comp, Variation, Accessory
+    tempo_id = Column(String, nullable=True)
+    rom_id = Column(String, nullable=True)
+    gear_raw = Column(String, default="")  # comma-separated gear tags
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @property
+    def gear(self):
+        return [g.strip() for g in self.gear_raw.split(",") if g.strip()] if self.gear_raw else []
+
+    @gear.setter
+    def gear(self, val_list):
+        self.gear_raw = ",".join(val_list) if val_list else ""
+
 class SheetPublication(Base, TimestampMixin):
     __tablename__ = "sheet_publications"
     id = Column(String, primary_key=True, index=True)

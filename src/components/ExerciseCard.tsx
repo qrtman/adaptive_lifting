@@ -18,6 +18,7 @@ export const ExerciseCard = ({
   tier,
   initialSets,
   onUpdateSets,
+  onRemove,
   roleMode = 'coach'
 }: { 
   id: string,
@@ -27,6 +28,7 @@ export const ExerciseCard = ({
   tier?: 'Comp' | 'Variation' | 'Accessory',
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
+  onRemove?: () => void,
   roleMode?: 'coach' | 'athlete',
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => {
@@ -216,6 +218,17 @@ export const ExerciseCard = ({
           <button type="button" onClick={addSet} className="text-[10px] text-[#AEAEB2] hover:text-white">
             + Set
           </button>
+          {roleMode === 'coach' && onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              data-testid={`exercise-remove-${id}`}
+              title="Remove exercise"
+              className="h-5 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-red-400"
+            >
+              <Trash2 size={11} />
+            </button>
+          )}
         </div>
       </div>
       <table className="w-full text-left border-collapse min-w-[720px]">

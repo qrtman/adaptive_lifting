@@ -8,6 +8,7 @@ import { SessionsView } from './components/SessionsView';
 import { AppShell, type DashboardMode } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
 import { AccessoryLedger } from './components/AccessoryLedger';
+import { WorkoutBuilder } from './components/WorkoutBuilder';
 import TelegramSessionTerminal from './components/mobile/TelegramSessionTerminal';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
@@ -28,9 +29,13 @@ export default function App() {
     setActiveMicrocycleId,
     activeWorkout,
     updateExerciseSets,
+    addExercise,
+    removeExercise,
     finishSession,
     resetPlan,
   } = usePeriodization();
+
+  const [builderOpen, setBuilderOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
     const saved = getUiPref(UI_KEYS.appView);
@@ -158,6 +163,15 @@ export default function App() {
                       >
                         Athlete
                       </button>
+                      {roleMode === 'coach' && (
+                        <button
+                          onClick={() => setBuilderOpen(true)}
+                          data-testid="session-add-exercise"
+                          className="h-7 px-2 text-[11px] bg-[#161616] border border-white/10 text-white rounded hover:border-white/20"
+                        >
+                          + Add Exercise
+                        </button>
+                      )}
                       <button
                         onClick={async () => {
                           await finishSession('COMPLETED');
@@ -196,6 +210,7 @@ export default function App() {
                           tier={ex.tier}
                           initialSets={ex.sets}
                           onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
+                          onRemove={() => removeExercise(ex.id)}
                           roleMode={roleMode}
                         />
                       ))}
@@ -203,8 +218,29 @@ export default function App() {
                       <AccessoryLedger 
                         exercises={splitWorkoutExercises(activeWorkout.exercises).accessories}
                         onUpdateSets={updateExerciseSets}
+                        onRemove={removeExercise}
                         roleMode={roleMode}
                       />
+
+                      {roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          onClick={() => setBuilderOpen(true)}
+                          data-testid="session-add-exercise-row"
+                          className="mt-2 w-full h-9 rounded border border-dashed border-white/15 text-[11px] text-[#AEAEB2] hover:text-white hover:border-white/30"
+                        >
+                          + Add Exercise
+                        </button>
+                      )}
+
+                      {activeWorkout.exercises.length === 0 && (
+                        <p
+                          data-testid="session-empty"
+                          className="text-[11px] text-[#636366] text-center py-6"
+                        >
+                          No exercises yet. Use “Add Exercise” to build this session.
+                        </p>
+                      )}
                     </div>
                   )}
                 </>
@@ -226,6 +262,12 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <WorkoutBuilder
+          isOpen={builderOpen && roleMode === 'coach'}
+          onClose={() => setBuilderOpen(false)}
+          onCommit={(exercise) => addExercise(exercise)}
+        />
     </AppShell>
   );
 }

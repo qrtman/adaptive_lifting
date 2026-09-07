@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Plus } from 'lucide-react';
 import { ExerciseData, WorkoutData } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
+import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
 interface SessionsViewProps {
-  onViewSession: (workout: WorkoutData, microId: string) => void;
+  onViewSession: (workout: { id: string }, microId: string) => void;
   filter: LiftFilterValue;
   onFilterChange: (value: LiftFilterValue) => void;
 }
@@ -61,7 +62,14 @@ export function SessionsView({
     setActiveMicrocycleId,
     activeWorkoutId,
     setActiveWorkoutId,
+    addWorkout,
   } = usePeriodization();
+  const { roleMode } = useAuth();
+
+  const handleNewSession = (microId: string) => {
+    const newId = addWorkout(microId);
+    if (newId) onViewSession({ id: newId }, microId);
+  };
   const containerRef = useRef<HTMLDivElement | null>(null);
   const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const hasRestoredRef = useRef(false);
@@ -246,16 +254,30 @@ export function SessionsView({
                       {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
                       {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
                     </button>
-                    <button
-                      type="button"
-                      data-testid={`sessions-expand-${micro.id}`}
-                      onClick={() => setExpanded(isExpanded ? null : micro.id)}
-                      className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1 shrink-0"
-                      title={isExpanded ? 'Minimize week' : 'Maximize week'}
-                    >
-                      {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                      {isExpanded ? 'Minimize' : 'Maximize'}
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          data-testid={`sessions-new-${micro.id}`}
+                          onClick={() => handleNewSession(micro.id)}
+                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                          title="Add a new session to this microcycle"
+                        >
+                          <Plus size={12} />
+                          New Session
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        data-testid={`sessions-expand-${micro.id}`}
+                        onClick={() => setExpanded(isExpanded ? null : micro.id)}
+                        className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        title={isExpanded ? 'Minimize week' : 'Maximize week'}
+                      >
+                        {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                        {isExpanded ? 'Minimize' : 'Maximize'}
+                      </button>
+                    </div>
                   </div>
 
                   {isCollapsedOther ? (

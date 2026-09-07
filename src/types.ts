@@ -9,6 +9,7 @@ export interface SetData {
   actual?: number | null;
   reps?: number | null;
   executedRpe?: number | null;
+  suggestedWeight?: number | null;
   isTop?: boolean;
   note?: string;
   velocity?: number | null;
