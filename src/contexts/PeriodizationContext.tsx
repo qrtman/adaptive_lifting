@@ -7,6 +7,7 @@ import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import {
   INITIAL_MICROCYCLES,
   INITIAL_MESOCYCLE,
+  ExerciseData,
   WorkoutData,
   MicrocycleData,
   MesocycleData,
@@ -24,6 +25,9 @@ interface PeriodizationState {
   activeMicro: MicrocycleData | undefined;
   activeWorkout: WorkoutData | undefined;
   updateExerciseSets: (exerciseId: string, updatedSets: any[]) => void;
+  addExercise: (exercise: ExerciseData) => void;
+  removeExercise: (exerciseId: string) => void;
+  addWorkout: (microcycleId: string) => string | null;
   finishSession: (status: WorkoutStatus) => Promise<void>;
   resetPlan: () => Promise<void>;
 }
@@ -144,6 +148,102 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     void queueMutation(activeWorkoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
   };
 
+  const computeWorkoutTonnage = (workout: WorkoutData): number =>
+    workout.exercises.reduce((acc, ex) => {
+      return acc + ex.sets.reduce((sum, s) => {
+        const wt = trainingOrZero(s.actual ?? s.suggestedWeight);
+        const rp = trainingIntOrZero(s.reps);
+        return sum + wt * rp;
+      }, 0);
+    }, 0);
+
+  const addExercise = (exercise: ExerciseData) => {
+    if (!activeMicrocycleId || !activeWorkoutId) return;
+
+    setMicrocycles(prev => prev.map(m => {
+      if (m.id !== activeMicrocycleId) return m;
+      return {
+        ...m,
+        workouts: m.workouts.map(w => {
+          if (w.id !== activeWorkoutId) return w;
+          if (w.exercises.some(ex => ex.id === exercise.id)) return w;
+          const updated = { ...w, exercises: [...w.exercises, exercise] };
+          return { ...updated, tonnage: computeWorkoutTonnage(updated) };
+        }),
+      };
+    }));
+
+    void queueMutation(activeWorkoutId, 'Exercise', exercise.id, {
+      action: 'ADD',
+      title: exercise.title,
+      variation: exercise.variation,
+      tier: exercise.tier,
+      liftCategory: exercise.liftCategory,
+      tags: exercise.tags,
+      sets: exercise.sets,
+    });
+  };
+
+  const removeExercise = (exerciseId: string) => {
+    if (!activeMicrocycleId || !activeWorkoutId) return;
+
+    setMicrocycles(prev => prev.map(m => {
+      if (m.id !== activeMicrocycleId) return m;
+      return {
+        ...m,
+        workouts: m.workouts.map(w => {
+          if (w.id !== activeWorkoutId) return w;
+          const updated = { ...w, exercises: w.exercises.filter(ex => ex.id !== exerciseId) };
+          return { ...updated, tonnage: computeWorkoutTonnage(updated) };
+        }),
+      };
+    }));
+
+    void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { action: 'REMOVE' });
+  };
+
+  const addWorkout = (microcycleId: string): string | null => {
+    const micro = microcycles.find(m => m.id === microcycleId);
+    if (!micro) return null;
+
+    const dayNumber = micro.workouts.length + 1;
+    const lastDate = micro.workouts[micro.workouts.length - 1]?.date;
+    let date = lastDate ?? new Date().toISOString().slice(0, 10);
+    if (lastDate) {
+      const [y, mo, d] = lastDate.split('-').map(Number);
+      const next = new Date(Date.UTC(y, mo - 1, d));
+      next.setUTCDate(next.getUTCDate() + 1);
+      date = next.toISOString().slice(0, 10);
+    }
+
+    const newWorkout: WorkoutData = {
+      id: `w-${microcycleId}-${dayNumber}-${Date.now()}`,
+      date,
+      dayLabel: `D${dayNumber}`,
+      title: 'New Session',
+      tonnage: 0,
+      delta: 0,
+      color: 'gray',
+      status: 'PLANNED',
+      exercises: [],
+    };
+
+    setMicrocycles(prev => prev.map(m => {
+      if (m.id !== microcycleId) return m;
+      return { ...m, workouts: [...m.workouts, newWorkout] };
+    }));
+
+    void queueMutation(newWorkout.id, 'Workout', newWorkout.id, {
+      action: 'ADD',
+      date: newWorkout.date,
+      dayLabel: newWorkout.dayLabel,
+      title: newWorkout.title,
+      microcycleId,
+    });
+
+    return newWorkout.id;
+  };
+
   const finishSession = async (status: WorkoutStatus) => {
     if (!activeMicrocycleId || !activeWorkoutId) return;
 
@@ -193,6 +293,9 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         activeMicro,
         activeWorkout,
         updateExerciseSets,
+        addExercise,
+        removeExercise,
+        addWorkout,
         finishSession,
         resetPlan,
       }}
