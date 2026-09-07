@@ -3,6 +3,7 @@ import { apiService } from '../services/api';
 import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
+import { deriveBaselineE1RM, exerciseCategoryOf } from '../services/exerciseLibrary';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import {
   INITIAL_MICROCYCLES,
@@ -159,6 +160,18 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
   const addExercise = (exercise: ExerciseData) => {
     if (!activeMicrocycleId || !activeWorkoutId) return;
+
+    // Seed the anchor e1RM from the athlete's own history for this lift category
+    // (dynamic, per-athlete) rather than a static library constant.
+    const category = exerciseCategoryOf(exercise);
+    const baseline = deriveBaselineE1RM(microcycles, category);
+    const seededExercise: ExerciseData = {
+      ...exercise,
+      sets: exercise.sets.map((s, i) =>
+        i === 0 ? { ...s, baseline_e1rm: s.baseline_e1rm ?? baseline } : s
+      ),
+    };
+    exercise = seededExercise;
 
     setMicrocycles(prev => prev.map(m => {
       if (m.id !== activeMicrocycleId) return m;

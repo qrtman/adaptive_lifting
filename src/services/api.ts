@@ -375,6 +375,46 @@ export const apiService = {
     return await response.blob();
   },
 
+  // --- Custom Exercise Library (owner-scoped, reusable movements) ---
+
+  /** Lists the current user's saved custom movements. Offline-safe (returns []). */
+  async fetchCustomExercises(): Promise<any[]> {
+    const base = BACKEND_URL || 'http://localhost:8000';
+    try {
+      const response = await fetch(`${base}/api/exercises/custom`, { headers: getHeaders(), credentials: 'include' });
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (err) {
+      console.warn('Custom exercise library unavailable (offline).', err);
+      return [];
+    }
+  },
+
+  /** Persists a custom movement for the current user. Offline-safe (returns null). */
+  async createCustomExercise(payload: {
+    name: string;
+    liftCategory: string;
+    tier: string;
+    tempoId?: string | null;
+    romId?: string | null;
+    gear?: string[];
+  }): Promise<any | null> {
+    const base = BACKEND_URL || 'http://localhost:8000';
+    try {
+      const response = await fetch(`${base}/api/exercises/custom`, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (err) {
+      console.warn('Failed to persist custom movement (offline); it remains available this session.', err);
+      return null;
+    }
+  },
+
   async logout() {
     try {
       await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });

@@ -3,7 +3,7 @@ import { Search, X, Plus } from 'lucide-react';
 import { ExerciseData } from '../types';
 import {
   CANONICAL_EXERCISES,
-  CanonicalExercise,
+  MovementOption,
   LIFT_CATEGORIES,
   TIERS,
   TEMPO_OPTIONS,
@@ -16,6 +16,7 @@ import {
   composeExerciseName,
   buildExercise,
 } from '../services/exerciseLibrary';
+import { apiService } from '../services/api';
 
 interface WorkoutBuilderProps {
   isOpen: boolean;
@@ -23,8 +24,22 @@ interface WorkoutBuilderProps {
   onCommit: (exercise: ExerciseData) => void;
 }
 
-type TierTab = 'All' | Tier;
-const TIER_TABS: TierTab[] = ['All', 'Comp', 'Variation', 'Accessory'];
+type TierTab = 'All' | Tier | 'Custom';
+const TIER_TABS: TierTab[] = ['All', 'Comp', 'Variation', 'Accessory', 'Custom'];
+
+// Custom movements created this page-session, so they reappear on reopen even
+// when the backend library is unavailable (offline-first).
+const sessionCustomCache: MovementOption[] = [];
+
+function mergeCustoms(...lists: MovementOption[][]): MovementOption[] {
+  const byName = new Map<string, MovementOption>();
+  for (const list of lists) {
+    for (const opt of list) {
+      byName.set(opt.name.toLowerCase(), opt);
+    }
+  }
+  return [...byName.values()];
+}
 
 const Chip: React.FC<{
   active: boolean;
@@ -52,41 +67,106 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
   const [search, setSearch] = useState('');
   const [tierTab, setTierTab] = useState<TierTab>('All');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isCustomSelection, setIsCustomSelection] = useState(false);
   const [movement, setMovement] = useState<BuilderMovement>(defaultMovement());
+  const [customs, setCustoms] = useState<MovementOption[]>([]);
 
   useEffect(() => {
-    if (isOpen) {
-      setSearch('');
-      setTierTab('All');
-      setSelectedId(null);
-      setMovement(defaultMovement());
-    }
+    if (!isOpen) return;
+    setSearch('');
+    setTierTab('All');
+    setSelectedId(null);
+    setIsCustomSelection(false);
+    setMovement(defaultMovement());
+    setCustoms(mergeCustoms(sessionCustomCache));
+
+    let cancelled = false;
+    apiService.fetchCustomExercises().then(rows => {
+      if (cancelled) return;
+      const mapped: MovementOption[] = (rows || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        liftCategory: (r.liftCategory as LiftCategory) || 'Other',
+        tier: (r.tier as Tier) || 'Variation',
+        source: 'custom' as const,
+        tempoId: r.tempoId || undefined,
+        romId: r.romId || undefined,
+        gear: r.gear || [],
+      }));
+      setCustoms(mergeCustoms(sessionCustomCache, mapped));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   const results = useMemo(() => {
+    const all: MovementOption[] = [...CANONICAL_EXERCISES, ...customs];
     const q = search.trim().toLowerCase();
-    return CANONICAL_EXERCISES.filter(ex => {
-      const tierOk = tierTab === 'All' || ex.tier === tierTab;
+    return all.filter(ex => {
+      const tierOk =
+        tierTab === 'All' ||
+        (tierTab === 'Custom' ? ex.source === 'custom' : ex.tier === tierTab);
       const searchOk = q === '' || ex.name.toLowerCase().includes(q) || ex.liftCategory.toLowerCase().includes(q);
       return tierOk && searchOk;
     });
-  }, [search, tierTab]);
+  }, [search, tierTab, customs]);
 
-  const selectCanonical = (ex: CanonicalExercise) => {
-    setSelectedId(ex.id);
-    setMovement(m => ({ ...m, baseName: ex.name, liftCategory: ex.liftCategory, tier: ex.tier, baselineE1RM: ex.baselineE1RM }));
+  const selectMovement = (opt: MovementOption) => {
+    setSelectedId(opt.id);
+    setIsCustomSelection(opt.source === 'custom');
+    setMovement(m => ({
+      ...m,
+      baseName: opt.name,
+      liftCategory: opt.liftCategory,
+      tier: opt.tier,
+      tempoId: opt.tempoId ?? 'standard',
+      romId: opt.romId ?? 'full',
+      gear: opt.gear ?? [],
+    }));
   };
 
   const createCustom = () => {
     setSelectedId('custom');
+    setIsCustomSelection(true);
     setMovement(m => ({ ...defaultMovement(search.trim() || m.baseName || 'Custom Movement'), tier: m.tier, liftCategory: m.liftCategory }));
   };
 
   const compiledName = composeExerciseName(movement);
   const canCommit = movement.baseName.trim().length > 0 && (selectedId !== null);
 
+  const persistCustomIfNeeded = () => {
+    if (!isCustomSelection) return;
+    const name = movement.baseName.trim();
+    if (!name) return;
+    const option: MovementOption = {
+      id: `custom-${name.toLowerCase()}`,
+      name,
+      liftCategory: movement.liftCategory,
+      tier: movement.tier,
+      source: 'custom',
+      tempoId: movement.tempoId,
+      romId: movement.romId,
+      gear: movement.gear,
+    };
+    // Cache for immediate reuse this session (works offline)…
+    const idx = sessionCustomCache.findIndex(o => o.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) sessionCustomCache[idx] = option;
+    else sessionCustomCache.push(option);
+    // …and persist to the owner-scoped backend library (offline-safe no-op on failure).
+    void apiService.createCustomExercise({
+      name,
+      liftCategory: movement.liftCategory,
+      tier: movement.tier,
+      tempoId: movement.tempoId,
+      romId: movement.romId,
+      gear: movement.gear,
+    });
+  };
+
   const commit = () => {
     if (!canCommit) return;
+    persistCustomIfNeeded();
     onCommit(buildExercise(movement));
     onClose();
   };
@@ -170,14 +250,21 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
                     key={ex.id}
                     type="button"
                     data-testid={`builder-result-${ex.id}`}
-                    onClick={() => selectCanonical(ex)}
+                    onClick={() => selectMovement(ex)}
                     className={`text-left rounded border px-2 py-1.5 flex items-center justify-between gap-2 ${
                       selectedId === ex.id
                         ? 'bg-mac-blue/10 border-mac-blue/50'
                         : 'bg-[#161616] border-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className="text-xs text-white truncate">{ex.name}</span>
+                    <span className="text-xs text-white truncate flex items-center gap-1">
+                      {ex.source === 'custom' && (
+                        <span className="text-[9px] uppercase tracking-wider text-mac-blue border border-mac-blue/40 rounded px-1">
+                          Custom
+                        </span>
+                      )}
+                      {ex.name}
+                    </span>
                     <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
                       {ex.liftCategory} · {ex.tier}
                     </span>

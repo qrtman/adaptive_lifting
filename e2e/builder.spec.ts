@@ -35,7 +35,7 @@ test.describe('workout builder — exercise constructor', () => {
     await expect(page.getByRole('heading', { name: 'Paused Front Squat (3-2-0)' })).toBeVisible();
   });
 
-  test('creates a custom movement and defines its sets in the exercise card', async ({ page }) => {
+  test('creates a custom movement, injects it, and makes it reusable from the library', async ({ page }) => {
     await page.getByTestId('session-add-exercise').click();
     await page.getByTestId('workout-builder-search').fill('Board Press');
     await page.getByTestId('builder-create-custom').click();
@@ -43,6 +43,11 @@ test.describe('workout builder — exercise constructor', () => {
 
     await page.getByTestId('builder-commit').click();
     await expect(page.getByRole('heading', { name: 'Board Press' })).toBeVisible();
+
+    // Reopen the builder — the custom movement is now reusable from the "Custom" tab
+    await page.getByTestId('session-add-exercise').click();
+    await page.getByTestId('builder-tiertab-Custom').click();
+    await expect(page.getByTestId('workout-builder').getByText('Board Press', { exact: false })).toBeVisible();
   });
 
   test('removes an exercise from the session', async ({ page }) => {

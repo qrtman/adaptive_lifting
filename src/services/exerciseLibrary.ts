@@ -1,26 +1,22 @@
 /**
- * Canonical exercise database for the Workout Builder (design.md §6.2 / §7.3).
+ * Canonical movement metadata for the Workout Builder.
  *
- * The builder chooses the MOVEMENT only (name, category, tier, tempo, ROM,
- * gear). Set-by-set prescription is authored afterward inside the exercise
- * card. A single structured starter set is injected so the movement is
- * immediately loggable; all training values stay numeric so the backend
- * fatigue engine (INOL / ACWR / e1RM) remains canonical.
+ * Design decisions (intentionally diverging from architecture.md):
+ * - The shared library holds MOVEMENT METADATA ONLY (name, category, tier).
+ *   It never stores e1RM: strength is dynamic, per-athlete performance state,
+ *   not a property of the movement.
+ * - The builder chooses the movement only. Set-by-set prescription is authored
+ *   in the exercise card. A single blank starter set is injected.
+ * - Custom movements are owner-scoped (persisted per user via the backend), so
+ *   they are reusable by their creator but never leak into the shared list or
+ *   to other athletes.
  */
 
-import { ExerciseData, SetData } from '../types';
+import { ExerciseData, MicrocycleData, SetData } from '../types';
+import { calculateE1RM } from './mathEngine';
 
 export type LiftCategory = 'Squat' | 'Bench' | 'Deadlift' | 'Other';
 export type Tier = 'Comp' | 'Variation' | 'Accessory';
-
-export interface CanonicalExercise {
-  id: string;
-  name: string;
-  liftCategory: LiftCategory;
-  tier: Tier;
-  /** Default anchor e1RM (kg) used to seed prescription weights. Coach-editable after injection. */
-  baselineE1RM: number;
-}
 
 export const LIFT_CATEGORIES: LiftCategory[] = ['Squat', 'Bench', 'Deadlift', 'Other'];
 export const TIERS: Tier[] = ['Comp', 'Variation', 'Accessory'];
@@ -52,31 +48,52 @@ export const ROM_OPTIONS: RomOption[] = [
 
 export const GEAR_OPTIONS: string[] = ['Beltless', 'Bands', 'Chains', 'Wraps/Sleeves', 'SlingShot'];
 
-export const CANONICAL_EXERCISES: CanonicalExercise[] = [
-  // Competition lifts
-  { id: 'comp-squat', name: 'Competition Squat', liftCategory: 'Squat', tier: 'Comp', baselineE1RM: 200 },
-  { id: 'comp-bench', name: 'Competition Bench', liftCategory: 'Bench', tier: 'Comp', baselineE1RM: 120 },
-  { id: 'comp-deadlift', name: 'Competition Deadlift', liftCategory: 'Deadlift', tier: 'Comp', baselineE1RM: 240 },
-  // Squat variations
-  { id: 'pause-squat', name: 'Pause Squat', liftCategory: 'Squat', tier: 'Variation', baselineE1RM: 170 },
-  { id: 'high-bar-squat', name: 'High Bar Squat', liftCategory: 'Squat', tier: 'Variation', baselineE1RM: 175 },
-  { id: 'front-squat', name: 'Front Squat', liftCategory: 'Squat', tier: 'Variation', baselineE1RM: 150 },
-  // Bench variations
-  { id: 'spoto-press', name: 'Spoto Press', liftCategory: 'Bench', tier: 'Variation', baselineE1RM: 105 },
-  { id: 'close-grip-bench', name: 'Close Grip Bench', liftCategory: 'Bench', tier: 'Variation', baselineE1RM: 110 },
-  { id: 'larsen-press', name: 'Larsen Press', liftCategory: 'Bench', tier: 'Variation', baselineE1RM: 100 },
-  // Deadlift variations
-  { id: 'deficit-deadlift', name: 'Deficit Deadlift', liftCategory: 'Deadlift', tier: 'Variation', baselineE1RM: 210 },
-  { id: 'block-pull', name: 'Block Pull', liftCategory: 'Deadlift', tier: 'Variation', baselineE1RM: 250 },
-  { id: 'romanian-deadlift', name: 'Romanian Deadlift', liftCategory: 'Deadlift', tier: 'Variation', baselineE1RM: 180 },
-  // Accessories
-  { id: 'leg-press', name: 'Leg Press', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 200 },
-  { id: 'bulgarian-split-squat', name: 'Bulgarian Split Squat', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 60 },
-  { id: 'barbell-row', name: 'Barbell Row', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 100 },
-  { id: 'pull-up', name: 'Weighted Pull-up', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 40 },
-  { id: 'triceps-extension', name: 'Triceps Extension', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 40 },
-  { id: 'lateral-raise', name: 'Lateral Raise', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 20 },
-  { id: 'hamstring-curl', name: 'Hamstring Curl', liftCategory: 'Other', tier: 'Accessory', baselineE1RM: 60 },
+/** Fallback anchor by lift category — used only when the athlete has no history. */
+export const DEFAULT_BASELINE_BY_CATEGORY: Record<LiftCategory, number> = {
+  Squat: 150,
+  Bench: 100,
+  Deadlift: 180,
+  Other: 60,
+};
+
+export function categoryDefaultBaseline(category: LiftCategory): number {
+  return DEFAULT_BASELINE_BY_CATEGORY[category] ?? 100;
+}
+
+/** A movement the coach can pick — either from the shared library or their own customs. */
+export interface MovementOption {
+  id: string;
+  name: string;
+  liftCategory: LiftCategory;
+  tier: Tier;
+  source: 'canonical' | 'custom';
+  /** Custom movements may carry saved modifiers. */
+  tempoId?: string;
+  romId?: string;
+  gear?: string[];
+}
+
+/** Curated, shared movement metadata (no e1RM). */
+export const CANONICAL_EXERCISES: MovementOption[] = [
+  { id: 'comp-squat', name: 'Competition Squat', liftCategory: 'Squat', tier: 'Comp', source: 'canonical' },
+  { id: 'comp-bench', name: 'Competition Bench', liftCategory: 'Bench', tier: 'Comp', source: 'canonical' },
+  { id: 'comp-deadlift', name: 'Competition Deadlift', liftCategory: 'Deadlift', tier: 'Comp', source: 'canonical' },
+  { id: 'pause-squat', name: 'Pause Squat', liftCategory: 'Squat', tier: 'Variation', source: 'canonical' },
+  { id: 'high-bar-squat', name: 'High Bar Squat', liftCategory: 'Squat', tier: 'Variation', source: 'canonical' },
+  { id: 'front-squat', name: 'Front Squat', liftCategory: 'Squat', tier: 'Variation', source: 'canonical' },
+  { id: 'spoto-press', name: 'Spoto Press', liftCategory: 'Bench', tier: 'Variation', source: 'canonical' },
+  { id: 'close-grip-bench', name: 'Close Grip Bench', liftCategory: 'Bench', tier: 'Variation', source: 'canonical' },
+  { id: 'larsen-press', name: 'Larsen Press', liftCategory: 'Bench', tier: 'Variation', source: 'canonical' },
+  { id: 'deficit-deadlift', name: 'Deficit Deadlift', liftCategory: 'Deadlift', tier: 'Variation', source: 'canonical' },
+  { id: 'block-pull', name: 'Block Pull', liftCategory: 'Deadlift', tier: 'Variation', source: 'canonical' },
+  { id: 'romanian-deadlift', name: 'Romanian Deadlift', liftCategory: 'Deadlift', tier: 'Variation', source: 'canonical' },
+  { id: 'leg-press', name: 'Leg Press', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
+  { id: 'bulgarian-split-squat', name: 'Bulgarian Split Squat', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
+  { id: 'barbell-row', name: 'Barbell Row', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
+  { id: 'pull-up', name: 'Weighted Pull-up', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
+  { id: 'triceps-extension', name: 'Triceps Extension', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
+  { id: 'lateral-raise', name: 'Lateral Raise', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
+  { id: 'hamstring-curl', name: 'Hamstring Curl', liftCategory: 'Other', tier: 'Accessory', source: 'canonical' },
 ];
 
 export interface BuilderMovement {
@@ -86,8 +103,6 @@ export interface BuilderMovement {
   tempoId: string;
   romId: string;
   gear: string[];
-  /** Anchor e1RM (kg) carried onto the starter set so the card can scale loads. */
-  baselineE1RM: number;
 }
 
 export function defaultMovement(searchSeed = ''): BuilderMovement {
@@ -98,13 +113,12 @@ export function defaultMovement(searchSeed = ''): BuilderMovement {
     tempoId: 'standard',
     romId: 'full',
     gear: [],
-    baselineE1RM: 150,
   };
 }
 
 /**
  * Compiles the canonical movement name from structured parameters, e.g.
- * "[Beltless] Deficit Pause Squat (3-2-0)". Never the reverse (no parsing).
+ * "[Beltless] Deficit Paused Squat (3-2-0)". Never the reverse (no parsing).
  */
 export function composeExerciseName(movement: BuilderMovement): string {
   const name = (movement.baseName || '').trim() || 'Custom Movement';
@@ -140,14 +154,63 @@ function tagsFor(movement: BuilderMovement): string[] {
   return tags;
 }
 
+/** Resolves an exercise's lift category from metadata, or infers it from the title. */
+export function exerciseCategoryOf(ex: { liftCategory?: string; title?: string }): LiftCategory {
+  if (ex.liftCategory && LIFT_CATEGORIES.includes(ex.liftCategory as LiftCategory)) {
+    return ex.liftCategory as LiftCategory;
+  }
+  const t = (ex.title || '').toLowerCase();
+  if (t.includes('squat')) return 'Squat';
+  if (t.includes('bench') || t.includes('press')) return 'Bench';
+  if (t.includes('dead') || t.includes('pull')) return 'Deadlift';
+  return 'Other';
+}
+
 /**
- * Builds an ExerciseData block for the chosen movement with a single blank,
- * structured starter set. The coach authors the actual set prescription
- * (reps / intensity / weight, add / remove sets) inside the exercise card.
+ * Derives a baseline e1RM anchor for a lift category from the ATHLETE'S OWN
+ * training data (dynamic, per-athlete), so a newly added movement is scaled to
+ * the lifter's real strength rather than a static library constant.
+ *
+ * Priority: highest e1RM from logged sets → highest planned baseline already on
+ * record → category default.
+ */
+export function deriveBaselineE1RM(microcycles: MicrocycleData[], category: LiftCategory): number {
+  let bestLogged = 0;
+  let bestPlanned = 0;
+
+  for (const mc of microcycles) {
+    for (const w of mc.workouts) {
+      for (const ex of w.exercises) {
+        if (exerciseCategoryOf(ex) !== category) continue;
+        for (const s of ex.sets) {
+          const weight = Number(s.actual ?? 0);
+          const reps = Number(s.reps ?? 0);
+          const rpe = Number(s.executedRpe ?? 8);
+          if (weight > 0 && reps > 0) {
+            const e1rm = calculateE1RM(weight, reps, rpe);
+            if (e1rm > bestLogged) bestLogged = e1rm;
+          }
+          const planned = Number(s.baseline_e1rm ?? 0);
+          if (planned > bestPlanned) bestPlanned = planned;
+        }
+      }
+    }
+  }
+
+  if (bestLogged > 0) return Math.round(bestLogged * 100) / 100;
+  if (bestPlanned > 0) return bestPlanned;
+  return categoryDefaultBaseline(category);
+}
+
+/**
+ * Builds an ExerciseData block for the chosen movement with a single blank
+ * starter set. The baseline anchor is intentionally left unset here — it is
+ * seeded from the athlete's history when the exercise is added to a workout
+ * (see PeriodizationContext.addExercise). The coach authors the set-by-set
+ * prescription (reps / intensity / weight, add / remove sets) in the card.
  */
 export function buildExercise(movement: BuilderMovement): ExerciseData {
   const idBase = `e-cust-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const baseline = movement.baselineE1RM > 0 ? movement.baselineE1RM : 150;
   const starterSet: SetData = {
     id: `${idBase}-s1`,
     label: 'Set 1',
@@ -155,7 +218,6 @@ export function buildExercise(movement: BuilderMovement): ExerciseData {
     plannedReps: null,
     plannedRpe: null,
     intensity_type: 'RPE',
-    baseline_e1rm: baseline,
     isTop: true,
     isAuto: false,
     actual: null,
