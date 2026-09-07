@@ -190,8 +190,8 @@ export const ExerciseCard = ({
   );
 
   return (
-    <div className="border-b border-white/10 overflow-x-auto">
-      <div className="px-2 min-h-8 py-1 flex items-center justify-between gap-3">
+    <div className="border-b border-white/10">
+      <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-baseline gap-2 min-w-0">
           <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
           <span className="text-xs text-[#AEAEB2] truncate">
@@ -228,16 +228,17 @@ export const ExerciseCard = ({
           </button>
         </div>
       </div>
-      <table className="w-full text-left border-collapse min-w-[760px]">
+      <div className="overflow-x-auto">
+      <table className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-white/5">
             <th className={`${th} w-6`}>#</th>
-            <th className={th}>
+            <th className={`${th} pr-3`}>
               <span className="text-[#AEAEB2]">Rx</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
             </th>
-            <th className={`${th} w-6`} aria-label="Copy prescription to log" />
-            <th className={`${th} border-l border-white/5`}>
+            <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
+            <th className={`${th} pl-3 border-l border-white/5`}>
               <span className="text-[#AEAEB2]">Log</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
             </th>
@@ -307,7 +308,7 @@ export const ExerciseCard = ({
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
                   <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
-                  <td className={td}>
+                  <td className={`${td} pr-3`}>
                     {roleMode === 'coach' ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
                           <PrescriptionEditor
@@ -357,7 +358,7 @@ export const ExerciseCard = ({
                       </div>
                     )}
                   </td>
-                  <td className={td}>
+                  <td className={`${td} px-1`}>
                     <button
                       type="button"
                       onClick={() => syncTarget(i)}
@@ -367,7 +368,7 @@ export const ExerciseCard = ({
                       <ArrowRight size={12} />
                     </button>
                   </td>
-                  <td className={`${td} border-l border-white/5`}>
+                  <td className={`${td} pl-3 border-l border-white/5`}>
                     <div className="flex items-center gap-0.5 whitespace-nowrap">
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.actual)}
@@ -448,6 +449,7 @@ export const ExerciseCard = ({
             })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };
