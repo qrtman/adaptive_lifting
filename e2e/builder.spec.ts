@@ -13,9 +13,12 @@ test.describe('workout builder — exercise constructor', () => {
     await expect(page.getByRole('heading', { name: 'Secondary Deadlift, Secondary Bench' })).toBeVisible();
   });
 
-  test('adds a canonical exercise with structured prescription into the session', async ({ page }) => {
+  test('adds a canonical movement into the session (movement only)', async ({ page }) => {
     await page.getByTestId('session-add-exercise').click();
     await expect(page.getByTestId('workout-builder')).toBeVisible();
+
+    // The builder chooses the movement only — there is no prescription editor
+    await expect(page.getByTestId('builder-preview')).toHaveCount(0);
 
     // Select a canonical movement from the database
     await page.getByTestId('builder-result-front-squat').click();
@@ -25,24 +28,18 @@ test.describe('workout builder — exercise constructor', () => {
     await page.getByTestId('builder-tempo-paused').click();
     await expect(page.getByTestId('builder-compiled-name')).toHaveText('Paused Front Squat (3-2-0)');
 
-    // Structured prescription preview is present (never freeform)
-    await expect(page.getByTestId('builder-preview')).toContainText('@ RPE');
-
     await page.getByTestId('builder-commit').click();
     await expect(page.getByTestId('workout-builder')).toHaveCount(0);
 
-    // The new exercise card is injected into the session
+    // The new exercise card is injected into the session; sets are edited here
     await expect(page.getByRole('heading', { name: 'Paused Front Squat (3-2-0)' })).toBeVisible();
   });
 
-  test('creates a custom exercise with a top-set + backdown prescription', async ({ page }) => {
+  test('creates a custom movement and defines its sets in the exercise card', async ({ page }) => {
     await page.getByTestId('session-add-exercise').click();
     await page.getByTestId('workout-builder-search').fill('Board Press');
     await page.getByTestId('builder-create-custom').click();
-
     await page.getByTestId('builder-cat-Bench').click();
-    await page.getByTestId('builder-mode-TOP_SET_BACKDOWN').click();
-    await expect(page.getByTestId('builder-preview')).toContainText('Backdown:');
 
     await page.getByTestId('builder-commit').click();
     await expect(page.getByRole('heading', { name: 'Board Press' })).toBeVisible();

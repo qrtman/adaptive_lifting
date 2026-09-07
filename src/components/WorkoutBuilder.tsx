@@ -9,16 +9,11 @@ import {
   TEMPO_OPTIONS,
   ROM_OPTIONS,
   GEAR_OPTIONS,
-  PRESCRIPTION_MODES,
-  PrescriptionMode,
   LiftCategory,
   Tier,
   BuilderMovement,
-  BuilderPrescription,
   defaultMovement,
-  defaultPrescription,
   composeExerciseName,
-  prescriptionPreview,
   buildExercise,
 } from '../services/exerciseLibrary';
 
@@ -58,7 +53,6 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
   const [tierTab, setTierTab] = useState<TierTab>('All');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [movement, setMovement] = useState<BuilderMovement>(defaultMovement());
-  const [prescription, setPrescription] = useState<BuilderPrescription>(defaultPrescription());
 
   useEffect(() => {
     if (isOpen) {
@@ -66,7 +60,6 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
       setTierTab('All');
       setSelectedId(null);
       setMovement(defaultMovement());
-      setPrescription(defaultPrescription());
     }
   }, [isOpen]);
 
@@ -81,8 +74,7 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
 
   const selectCanonical = (ex: CanonicalExercise) => {
     setSelectedId(ex.id);
-    setMovement(m => ({ ...m, baseName: ex.name, liftCategory: ex.liftCategory, tier: ex.tier }));
-    setPrescription(p => ({ ...p, baselineE1RM: ex.baselineE1RM }));
+    setMovement(m => ({ ...m, baseName: ex.name, liftCategory: ex.liftCategory, tier: ex.tier, baselineE1RM: ex.baselineE1RM }));
   };
 
   const createCustom = () => {
@@ -95,7 +87,7 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
 
   const commit = () => {
     if (!canCommit) return;
-    onCommit(buildExercise(movement, prescription));
+    onCommit(buildExercise(movement));
     onClose();
   };
 
@@ -113,7 +105,7 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, movement, prescription, selectedId]);
+  }, [isOpen, movement, selectedId]);
 
   if (!isOpen) return null;
 
@@ -315,155 +307,31 @@ export function WorkoutBuilder({ isOpen, onClose, onCommit }: WorkoutBuilderProp
           </div>
         </div>
 
-        {/* Footer: structured prescription injector */}
-        <div className="shrink-0 border-t border-white/10 p-3 flex flex-col gap-2 bg-ink-900">
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366] mr-1">Prescription</span>
-            {PRESCRIPTION_MODES.map(m => (
-              <Chip
-                key={m.id}
-                active={prescription.mode === m.id}
-                onClick={() => setPrescription(p => ({ ...p, mode: m.id as PrescriptionMode }))}
-                testId={`builder-mode-${m.id}`}
-              >
-                {m.label}
-              </Chip>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-end gap-3">
-            {prescription.mode !== 'AMRAP' && prescription.mode !== 'TOP_SET_BACKDOWN' && (
-              <NumberField
-                label="Sets"
-                testId="builder-sets"
-                value={prescription.sets}
-                step={1}
-                min={1}
-                onChange={v => setPrescription(p => ({ ...p, sets: v }))}
-              />
-            )}
-            <NumberField
-              label="Reps"
-              testId="builder-reps"
-              value={prescription.reps}
-              step={1}
-              min={1}
-              onChange={v => setPrescription(p => ({ ...p, reps: v }))}
-            />
-            <NumberField
-              label={prescription.mode === 'PERCENTAGE' ? 'Target %' : 'Target RPE'}
-              testId="builder-intensity"
-              value={prescription.intensityValue}
-              step={prescription.mode === 'PERCENTAGE' ? 1 : 0.5}
-              min={0}
-              onChange={v => setPrescription(p => ({ ...p, intensityValue: v }))}
-            />
-            {prescription.mode === 'TOP_SET_BACKDOWN' && (
-              <>
-                <NumberField
-                  label="Backdowns"
-                  testId="builder-backdown-sets"
-                  value={prescription.backdownSets}
-                  step={1}
-                  min={0}
-                  onChange={v => setPrescription(p => ({ ...p, backdownSets: v }))}
-                />
-                <NumberField
-                  label="Drop %"
-                  testId="builder-backdown-drop"
-                  value={prescription.backdownDropPct}
-                  step={1}
-                  min={0}
-                  onChange={v => setPrescription(p => ({ ...p, backdownDropPct: v }))}
-                />
-              </>
-            )}
-            <NumberField
-              label="Baseline e1RM"
-              testId="builder-baseline"
-              value={prescription.baselineE1RM}
-              step={2.5}
-              min={0}
-              onChange={v => setPrescription(p => ({ ...p, baselineE1RM: v }))}
-            />
-          </div>
-
-          <div
-            className="text-[11px] font-mono text-[#AEAEB2] bg-ink-800 border border-white/10 rounded px-2 py-1.5"
-            data-testid="builder-preview"
-          >
-            {prescriptionPreview(prescription)}
-          </div>
-
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] text-[#636366]">Esc to cancel · Ctrl+Enter to add</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-8 px-3 rounded text-xs bg-[#161616] border border-white/10 text-[#AEAEB2] hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={commit}
-                disabled={!canCommit}
-                data-testid="builder-commit"
-                className="h-8 px-3 rounded text-xs bg-mac-blue text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Add to session
-              </button>
-            </div>
+        {/* Footer: commit the chosen movement (sets are authored in the exercise card) */}
+        <div className="shrink-0 border-t border-white/10 p-3 flex items-center justify-between gap-2 bg-ink-900">
+          <span className="text-[10px] text-[#636366]">
+            Choose the movement · set prescription is built in the exercise card · Esc cancel · Ctrl+Enter add
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 px-3 rounded text-xs bg-[#161616] border border-white/10 text-[#AEAEB2] hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={commit}
+              disabled={!canCommit}
+              data-testid="builder-commit"
+              className="h-8 px-3 rounded text-xs bg-mac-blue text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Add to session
+            </button>
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  onChange,
-  step,
-  min,
-  testId,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  step: number;
-  min: number;
-  testId?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366]">{label}</span>
-      <div className="flex items-center">
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(min, Number((value - step).toFixed(2))))}
-          className="h-8 w-6 rounded-l bg-[#161616] border border-white/10 text-[#AEAEB2] hover:text-white"
-        >
-          −
-        </button>
-        <input
-          type="number"
-          value={Number.isFinite(value) ? value : ''}
-          step={step}
-          data-testid={testId}
-          onChange={e => onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
-          className="h-8 w-14 bg-[#0C0F0F] border-y border-white/10 text-center text-xs text-white focus:outline-none focus:border-mac-blue"
-        />
-        <button
-          type="button"
-          onClick={() => onChange(Number((value + step).toFixed(2)))}
-          className="h-8 w-6 rounded-r bg-[#161616] border border-white/10 text-[#AEAEB2] hover:text-white"
-        >
-          +
-        </button>
-      </div>
-    </label>
   );
 }

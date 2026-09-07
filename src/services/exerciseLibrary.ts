@@ -1,12 +1,14 @@
 /**
- * Canonical exercise database and structured prescription compiler for the
- * Workout Builder (design.md §6.2 / §7.3). All prescriptions are produced as
- * structured numeric SetData — never parsed from freeform text — so the
- * backend fatigue engine (INOL / ACWR / e1RM) stays canonical.
+ * Canonical exercise database for the Workout Builder (design.md §6.2 / §7.3).
+ *
+ * The builder chooses the MOVEMENT only (name, category, tier, tempo, ROM,
+ * gear). Set-by-set prescription is authored afterward inside the exercise
+ * card. A single structured starter set is injected so the movement is
+ * immediately loggable; all training values stay numeric so the backend
+ * fatigue engine (INOL / ACWR / e1RM) remains canonical.
  */
 
 import { ExerciseData, SetData } from '../types';
-import { calculateCapacityScaledWeight } from './mathEngine';
 
 export type LiftCategory = 'Squat' | 'Bench' | 'Deadlift' | 'Other';
 export type Tier = 'Comp' | 'Variation' | 'Accessory';
@@ -50,15 +52,6 @@ export const ROM_OPTIONS: RomOption[] = [
 
 export const GEAR_OPTIONS: string[] = ['Beltless', 'Bands', 'Chains', 'Wraps/Sleeves', 'SlingShot'];
 
-export type PrescriptionMode = 'RPE_TARGET' | 'PERCENTAGE' | 'AMRAP' | 'TOP_SET_BACKDOWN';
-
-export const PRESCRIPTION_MODES: { id: PrescriptionMode; label: string }[] = [
-  { id: 'RPE_TARGET', label: 'RPE Target' },
-  { id: 'PERCENTAGE', label: 'Percentage' },
-  { id: 'AMRAP', label: 'AMRAP' },
-  { id: 'TOP_SET_BACKDOWN', label: 'Top Set + Backdown' },
-];
-
 export const CANONICAL_EXERCISES: CanonicalExercise[] = [
   // Competition lifts
   { id: 'comp-squat', name: 'Competition Squat', liftCategory: 'Squat', tier: 'Comp', baselineE1RM: 200 },
@@ -93,18 +86,7 @@ export interface BuilderMovement {
   tempoId: string;
   romId: string;
   gear: string[];
-}
-
-export interface BuilderPrescription {
-  mode: PrescriptionMode;
-  sets: number;
-  reps: number;
-  /** RPE value (RPE_TARGET/AMRAP/TOP_SET_BACKDOWN) or percentage of e1RM (PERCENTAGE). */
-  intensityValue: number;
-  /** TOP_SET_BACKDOWN only: number of backdown sets after the top set. */
-  backdownSets: number;
-  /** TOP_SET_BACKDOWN only: positive percent load drop applied to backdown sets. */
-  backdownDropPct: number;
+  /** Anchor e1RM (kg) carried onto the starter set so the card can scale loads. */
   baselineE1RM: number;
 }
 
@@ -116,18 +98,7 @@ export function defaultMovement(searchSeed = ''): BuilderMovement {
     tempoId: 'standard',
     romId: 'full',
     gear: [],
-  };
-}
-
-export function defaultPrescription(baselineE1RM = 150): BuilderPrescription {
-  return {
-    mode: 'RPE_TARGET',
-    sets: 3,
-    reps: 3,
-    intensityValue: 8,
-    backdownSets: 2,
-    backdownDropPct: 5,
-    baselineE1RM,
+    baselineE1RM: 150,
   };
 }
 
@@ -170,92 +141,27 @@ function tagsFor(movement: BuilderMovement): string[] {
 }
 
 /**
- * Produces the structured, numeric set list for a prescription. Weights are
- * derived from the baseline e1RM via the shared capacity-scaling math so the
- * planned load is real, not a freeform string.
+ * Builds an ExerciseData block for the chosen movement with a single blank,
+ * structured starter set. The coach authors the actual set prescription
+ * (reps / intensity / weight, add / remove sets) inside the exercise card.
  */
-export function compilePrescriptionSets(idBase: string, p: BuilderPrescription): SetData[] {
-  const baseline = p.baselineE1RM > 0 ? p.baselineE1RM : 150;
-  const reps = Math.max(1, Math.round(p.reps));
-
-  const makeSet = (
-    index: number,
-    label: string,
-    intensityType: 'RPE' | 'PERCENT',
-    targetValue: number,
-    adjustmentPct: number,
-    isTop: boolean,
-    note?: string,
-  ): SetData => ({
-    id: `${idBase}-s${index}`,
-    label,
-    plannedWeight: calculateCapacityScaledWeight(baseline, intensityType, targetValue, reps, adjustmentPct),
-    plannedReps: reps,
-    plannedRpe: intensityType === 'RPE' ? targetValue : null,
-    intensity_type: intensityType,
-    target_value: targetValue,
-    adjustment_pct: adjustmentPct,
+export function buildExercise(movement: BuilderMovement): ExerciseData {
+  const idBase = `e-cust-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const baseline = movement.baselineE1RM > 0 ? movement.baselineE1RM : 150;
+  const starterSet: SetData = {
+    id: `${idBase}-s1`,
+    label: 'Set 1',
+    plannedWeight: null,
+    plannedReps: null,
+    plannedRpe: null,
+    intensity_type: 'RPE',
     baseline_e1rm: baseline,
-    isTop,
-    isAuto: !isTop,
+    isTop: true,
+    isAuto: false,
     actual: null,
     reps: null,
     executedRpe: null,
-    ...(note ? { note } : {}),
-  });
-
-  if (p.mode === 'AMRAP') {
-    const rpe = p.intensityValue > 0 ? p.intensityValue : 9;
-    return [makeSet(1, 'AMRAP', 'RPE', rpe, 0, true, 'AMRAP')];
-  }
-
-  if (p.mode === 'TOP_SET_BACKDOWN') {
-    const rpe = p.intensityValue > 0 ? p.intensityValue : 8;
-    const sets: SetData[] = [makeSet(1, 'Top Set', 'RPE', rpe, 0, true)];
-    const drop = -Math.abs(p.backdownDropPct) / 100;
-    const backdownCount = Math.max(0, Math.round(p.backdownSets));
-    for (let i = 0; i < backdownCount; i++) {
-      sets.push(makeSet(i + 2, 'Backdown', 'RPE', rpe, drop, false, `-${Math.abs(p.backdownDropPct)}% drop`));
-    }
-    return sets;
-  }
-
-  // Straight sets: RPE_TARGET or PERCENTAGE
-  const intensityType: 'RPE' | 'PERCENT' = p.mode === 'PERCENTAGE' ? 'PERCENT' : 'RPE';
-  const setCount = Math.max(1, Math.round(p.sets));
-  const sets: SetData[] = [];
-  for (let i = 0; i < setCount; i++) {
-    sets.push(makeSet(i + 1, i === 0 ? 'Top Set' : 'Working Set', intensityType, p.intensityValue, 0, i === 0));
-  }
-  return sets;
-}
-
-/** Human-readable, read-only preview lines of the compiled prescription. */
-export function prescriptionPreview(p: BuilderPrescription): string {
-  const sets = compilePrescriptionSets('preview', p);
-  const intensityLabel = (s: SetData) =>
-    s.intensity_type === 'PERCENT' ? `${s.target_value}%` : `RPE ${s.target_value}`;
-
-  if (p.mode === 'AMRAP') {
-    const s = sets[0];
-    return `1 × AMRAP @ ${intensityLabel(s)} → target ${s.plannedWeight}kg`;
-  }
-  if (p.mode === 'TOP_SET_BACKDOWN') {
-    const top = sets[0];
-    const back = sets[1];
-    const topLine = `Top: 1 × ${top.plannedReps} @ ${intensityLabel(top)} → ${top.plannedWeight}kg`;
-    if (!back) return topLine;
-    return `${topLine}   Backdown: ${sets.length - 1} × ${back.plannedReps} @ -${Math.abs(p.backdownDropPct)}% → ${back.plannedWeight}kg`;
-  }
-  const s = sets[0];
-  return `${sets.length} × ${s.plannedReps} @ ${intensityLabel(s)} → ${s.plannedWeight}kg each`;
-}
-
-/** Builds a complete ExerciseData block ready to inject into a workout. */
-export function buildExercise(movement: BuilderMovement, prescription: BuilderPrescription): ExerciseData {
-  const idBase = `e-cust-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const sets = compilePrescriptionSets(idBase, prescription);
-  const topSet = sets.find(s => s.isTop) || sets[0];
+  };
   return {
     id: idBase,
     title: composeExerciseName(movement),
@@ -263,8 +169,8 @@ export function buildExercise(movement: BuilderMovement, prescription: BuilderPr
     tier: movement.tier,
     liftCategory: movement.liftCategory,
     tags: tagsFor(movement),
-    top: topSet ? `${topSet.plannedWeight}kg x ${topSet.plannedReps}` : '—',
+    top: '—',
     vol: '—',
-    sets,
+    sets: [starterSet],
   };
 }
