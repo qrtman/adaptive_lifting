@@ -10,6 +10,10 @@ test('logs weight, reps, and RPE then updates e1RM, INOL, and tonnage', async ({
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Secondary Deadlift, Secondary Bench' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Rx/ }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'e1RM' }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'INOL' }).first()).toBeVisible();
 
   await fillLogCell(page, 'cell-e-3-2-1-reps-0', 3);
   await fillLogCell(page, 'cell-e-3-2-1-executedRpe-0', 8);
