@@ -63,7 +63,6 @@ export function AddSessionDialog({
   const [assignedMicrocycleId, setAssignedMicrocycleId] = useState(
     inferMicrocycleId(seedDate, microcycles, sourceMicrocycleId),
   );
-  const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const sessionsByDate = useMemo(() => {
@@ -89,7 +88,6 @@ export function AddSessionDialog({
     setMonthIndex(parsed.getUTCMonth());
     setDate(nextSeed);
     setAssignedMicrocycleId(inferMicrocycleId(nextSeed, microcycles, sourceMicrocycleId));
-    setTitle('');
     setError(null);
   }, [open, source, sourceMicrocycleId, initialDate, microcycles]);
 
@@ -114,16 +112,11 @@ export function AddSessionDialog({
       setError('Assign a microcycle.');
       return;
     }
-    const name = title.trim();
-    if (!name) {
-      setError('Name the session.');
-      return;
-    }
     const workout: WorkoutData = {
       id: newWorkoutId(),
       date,
       dayLabel: '',
-      title: name,
+      title: '',
       tonnage: 0,
       delta: 0,
       color: 'mac-blue',
@@ -148,7 +141,7 @@ export function AddSessionDialog({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, date, assignedMicrocycleId, title, onClose]);
+  }, [open, date, assignedMicrocycleId, onClose]);
 
   if (!open) return null;
 
@@ -257,16 +250,6 @@ export function AddSessionDialog({
             {date}
             {assignedMicro ? ` · ${assignedMicro.weekName}` : ' · assign a microcycle'}
           </p>
-          <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-[#636366]">
-            Title
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Secondary Squat, Accessories"
-              data-testid="add-session-title"
-              className="h-8 px-2 bg-[#161616] border border-white/10 text-sm text-white normal-case tracking-normal placeholder:text-[#636366]"
-            />
-          </label>
           {error ? (
             <p role="alert" className="text-xs text-[#FF453A]">
               {error}

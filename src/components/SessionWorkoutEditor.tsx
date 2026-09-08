@@ -43,7 +43,7 @@ export function SessionWorkoutEditor({
       <div className="px-2 h-8 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="text-sm text-white truncate">
-            {workout.dayLabel} · {workout.title}
+            {workout.title ? `${workout.dayLabel} · ${workout.title}` : workout.dayLabel}
           </h3>
           <span className="text-[10px] text-[#AEAEB2] shrink-0">{workout.status}</span>
           <p

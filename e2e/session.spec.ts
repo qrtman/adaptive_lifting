@@ -103,9 +103,8 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   await expect(page.getByText('Assign microcycle')).toBeVisible();
   await page.getByTestId('assign-micro-micro-3').click();
   await page.getByTestId('session-day-2026-09-17').click();
-  await page.getByTestId('add-session-title').fill('Accessories');
   await page.getByTestId('create-session').click();
-  await expect(page.getByRole('heading', { name: 'D2 · Accessories' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'D2', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'D1 · Primary Squat, Primary Bench' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'D3 · Secondary Deadlift, Secondary Bench' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'D4 · Secondary Squat, Tertiary Bench' })).toBeVisible();
