@@ -123,6 +123,7 @@ export function inferOwnedWorkoutIds(
   cached: MicrocycleData[],
 ): string[] {
   const sourceWorkouts = new Map<string, string>();
+  const sourceMicroIds = new Set(source.map((micro) => micro.id));
   for (const micro of source) {
     for (const workout of micro.workouts) {
       sourceWorkouts.set(workout.id, JSON.stringify(workout));
@@ -131,6 +132,7 @@ export function inferOwnedWorkoutIds(
 
   const owned: string[] = [];
   for (const micro of cached) {
+    if (!sourceMicroIds.has(micro.id)) continue;
     for (const workout of micro.workouts) {
       const fromSource = sourceWorkouts.get(workout.id);
       if (fromSource === undefined || fromSource !== JSON.stringify(workout)) {

@@ -15,6 +15,7 @@ import {
   planSharesStructure,
   readStoredPlan,
   reconcileImportedPlan,
+  inferOwnedWorkoutIds,
   writeStoredPlan,
 } from '../services/planStore';
 import {
@@ -128,16 +129,22 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       const usable =
         stored && planSharesStructure(imported.microcycles, stored.microcycles) ? stored : null;
       const version = planVersion(imported.microcycles);
-      const plan = !usable
+      const tracked = usable
+        ? usable.ownedWorkoutIds.length > 0
+          ? usable
+          : {
+              ...usable,
+              ownedWorkoutIds: inferOwnedWorkoutIds(imported.microcycles, usable.microcycles),
+            }
+        : null;
+      const plan = !tracked
         ? imported.microcycles
-        : usable.planVersion === version
-          ? usable.microcycles
-          : reconcileImportedPlan(imported.microcycles, usable);
+        : reconcileImportedPlan(imported.microcycles, tracked);
       planMeta.current = {
         athleteId,
         source: 'imported',
         planVersion: version,
-        ownedWorkoutIds: new Set(usable?.ownedWorkoutIds ?? []),
+        ownedWorkoutIds: new Set(tracked?.ownedWorkoutIds ?? []),
       };
       hydrated.current = true;
       setMicrocycles(plan);

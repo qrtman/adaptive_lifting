@@ -109,3 +109,42 @@ test('each athlete keeps their own cached plan', async ({ page }) => {
   expect(stored.planVersion).toBeTruthy();
   expect(await readPlanSnapshot(page, 'microcycles')).toBeNull();
 });
+
+test('a leftover unowned week is stripped from an imported plan on reload', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'sessions',
+    al_active_athlete_id: ATHLETE,
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('sessions-week-header-z-w6')).toBeVisible();
+
+  const stored = await readPlanSnapshot(page, PLAN_SNAPSHOT);
+  stored.microcycles = [
+    ...stored.microcycles,
+    {
+      id: 'micro-1',
+      weekName: 'Microcycle 01',
+      focus: 'Leftover',
+      status: 'ACTIVE',
+      workouts: [
+        {
+          id: 'w-1-1',
+          date: '2026-09-02',
+          dayLabel: 'D1',
+          title: 'Primary Squat',
+          tonnage: 0,
+          delta: 0,
+          color: 'gray',
+          status: 'PLANNED',
+          exercises: [],
+        },
+      ],
+    },
+  ];
+  await writePlanSnapshot(page, PLAN_SNAPSHOT, stored);
+
+  await page.reload();
+  await expect(page.getByTestId('sessions-week-header-z-w6')).toBeVisible();
+  await expect(page.getByTestId('sessions-week-header-micro-1')).toHaveCount(0);
+});

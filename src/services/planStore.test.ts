@@ -158,6 +158,16 @@ describe('reconcileImportedPlan', () => {
     expect(reconcileImportedPlan(source, cached).map((row) => row.id)).toEqual(['m1', 'm2']);
   });
 
+  it('drops leftover weeks that are not in the import and were never edited', () => {
+    const cached = storedPlan(
+      [micro('m1', [workout('d1', 200)]), micro('micro-1', [workout('w-1-1', 100)])],
+      [],
+    );
+    const source = [micro('m1', [workout('d1', 200)])];
+
+    expect(reconcileImportedPlan(source, cached).map((row) => row.id)).toEqual(['m1']);
+  });
+
   it('keeps logged work from a week the import dropped, and drops the rest', () => {
     const cached = storedPlan(
       [micro('m1', [workout('d1', 200)]), micro('m2', [workout('d3', 210, 212.5), workout('d4', 90)])],
@@ -179,10 +189,17 @@ describe('inferOwnedWorkoutIds', () => {
     expect(inferOwnedWorkoutIds(source, cached)).toEqual(['d1']);
   });
 
-  it('claims sessions the import does not have', () => {
+  it('claims sessions the import does not have, when they sit in an imported week', () => {
     const source = [micro('m1', [workout('d1', 200)])];
     const cached = [micro('m1', [workout('d1', 200), workout('d9', 150)])];
 
     expect(inferOwnedWorkoutIds(source, cached)).toEqual(['d9']);
+  });
+
+  it('does not claim leftover weeks that are not in the import', () => {
+    const source = [micro('m1', [workout('d1', 200)])];
+    const cached = [micro('m1', [workout('d1', 200)]), micro('micro-1', [workout('w-1-1', 100)])];
+
+    expect(inferOwnedWorkoutIds(source, cached)).toEqual([]);
   });
 });
