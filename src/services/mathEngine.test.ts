@@ -5,6 +5,7 @@ import {
   calculateDOTS,
   calculateE1RM,
   calculateINOL,
+  anchorE1RMFromPrescription,
   peakPrecedingLoggedE1RM,
   roundToCompetitionPlates,
 } from './mathEngine';
@@ -44,6 +45,13 @@ describe('shared math vectors', () => {
       expect(jumps.suggested_second).toBe(row.suggested_second);
       expect(jumps.third_ceiling).toBe(row.third_ceiling);
     }
+  });
+});
+
+describe('anchorE1RMFromPrescription', () => {
+  it('derives the anchor from set 1 Rx, not from a stored baseline', () => {
+    expect(Math.round(anchorE1RMFromPrescription(137.5, 1, 5, 'RPE'))).toBe(160);
+    expect(anchorE1RMFromPrescription(80, 1, 50, 'PERCENT')).toBe(160);
   });
 });
 

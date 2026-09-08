@@ -3,11 +3,9 @@ import { ArrowRight, Trash2, Copy, Maximize2, Minimize2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { 
-  calculateCapacityScaledWeight, 
   calculateE1RM, 
   calculateINOL,
-  calculateWeightFromE1RM,
-  peakPrecedingLoggedE1RM,
+  anchorE1RMFromPrescription,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 
@@ -33,40 +31,16 @@ export const ExerciseCard = ({
   const recalculatePresetsAndSugs = (setArray: any[]) => {
     if (setArray.length === 0) return setArray;
 
-    // Use Set 0 baseline_e1rm as the primary anchor
-    const primaryAnchor = setArray[0].baseline_e1rm !== undefined ? trainingOrZero(setArray[0].baseline_e1rm) : 150;
+    const first = setArray[0];
+    const isPercent = (first.intensity_type || 'RPE') === 'PERCENT';
+    const anchor = anchorE1RMFromPrescription(
+      first.plannedWeight,
+      first.plannedReps,
+      isPercent ? first.target_value : (first.plannedRpe ?? first.target_value),
+      first.intensity_type || 'RPE',
+    );
 
     return setArray.map((s, index) => {
-      // Find the most recent E1RM from logged preceding sets
-      let prevLogE1RM = 0;
-      for (let j = index - 1; j >= 0; j--) {
-        const prevSet = setArray[j];
-        const prevW = trainingOrZero(prevSet.actual);
-        const prevR = trainingIntOrZero(prevSet.reps);
-        const prevRp = trainingOrZero(prevSet.executedRpe);
-        const calcPrev = calculateE1RM(prevW, prevR, prevRp);
-        if (calcPrev > 0) {
-          prevLogE1RM = calcPrev;
-          break;
-        }
-      }
-
-      // Determine the active baseline E1RM for this set's prescription calculations:
-      const activeE1RM = index === 0
-        ? primaryAnchor
-        : (prevLogE1RM > 0 ? prevLogE1RM : primaryAnchor);
-
-      // Recalculate planned weight (prescribed weight) using the active E1RM
-      const repsVal = trainingInt(s.plannedReps) || 4;
-      const computedWeight = calculateCapacityScaledWeight(
-        activeE1RM,
-        s.intensity_type || "RPE",
-        s.target_value !== undefined ? s.target_value : 8,
-        repsVal,
-        s.adjustment_pct !== undefined ? s.adjustment_pct : 0
-      );
-
-      // Log suggested weight (if auto-scale applies for log side)
       let suggestedWeight = s.suggestedWeight;
       const anchorWeight = trainingOrZero(setArray[0].actual ?? setArray[0].plannedWeight);
       if (anchorWeight > 0 && index > 0 && s.isAuto) {
@@ -76,9 +50,8 @@ export const ExerciseCard = ({
 
       return {
         ...s,
-        baseline_e1rm: activeE1RM,
+        baseline_e1rm: anchor,
         suggestedWeight,
-        plannedWeight: computedWeight > 0 ? computedWeight : trainingNumber(s.plannedWeight)
       };
     });
   };
@@ -91,13 +64,8 @@ export const ExerciseCard = ({
       const plannedReps = trainingInt(s.plannedReps) ?? (plannedRepsMatch ? trainingInt(plannedRepsMatch[1]) : null);
       const plannedRpe = trainingNumber(s.plannedRpe ?? s.rpe);
       const plannedWeight = trainingNumber(s.plannedWeight) ?? (plannedWeightMatch ? trainingNumber(plannedWeightMatch[1]) : null);
-
-      const repsVal = plannedReps || 4;
       const rpeVal = plannedRpe || 8;
       const weightVal = plannedWeight || 100;
-
-      const calculatedBase = calculateE1RM(weightVal, repsVal, rpeVal);
-      const baseline_e1rm = s.baseline_e1rm !== undefined ? s.baseline_e1rm : (calculatedBase > 0 ? calculatedBase : 150);
 
       const intensity_type = s.intensity_type || "RPE";
       const target_value = s.target_value !== undefined 
@@ -113,7 +81,6 @@ export const ExerciseCard = ({
         plannedWeight: plannedWeight ?? (weightVal > 0 ? weightVal : 137.5),
         plannedReps: plannedReps ?? 4,
         plannedRpe: intensity_type === "RPE" ? target_value : null,
-        baseline_e1rm,
         intensity_type,
         target_value,
         adjustment_pct,
@@ -207,23 +174,12 @@ export const ExerciseCard = ({
     >
       <div className="flex items-center gap-1">
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
-        {roleMode === 'coach' && sets[0] ? (
-          <EditablePerformanceCell
-            value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
-            onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
-            placeholder="150"
-            fieldKey={`${id}-baseline_e1rm`}
-            label="Baseline e1RM"
-            step={5}
-            variant="transparent"
-            widthClass="w-10"
-            rowIndex={0}
-          />
-        ) : (
-          <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
-            {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
-          </span>
-        )}
+        <span
+          data-testid={`exercise-anchor-e1rm-${id}`}
+          className="text-xs font-mono tabular-nums text-[#AEAEB2]"
+        >
+          {sets[0]?.baseline_e1rm > 0 ? Math.round(sets[0].baseline_e1rm) : '—'}
+        </span>
       </div>
       <div className="flex items-center gap-1">
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
@@ -300,18 +256,6 @@ export const ExerciseCard = ({
                 : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
 
-              const prevLogE1RM = peakPrecedingLoggedE1RM(sets, i);
-
-              const targetReps = trainingIntOrZero(set.plannedReps);
-              const targetRpe = trainingOrZero(set.plannedRpe);
-              let suggestedPrescribedWeight = null;
-              if (targetReps > 0 && targetRpe > 0 && prevLogE1RM > 0) {
-                const calcW = calculateWeightFromE1RM(prevLogE1RM, targetReps, targetRpe);
-                if (calcW > 0) {
-                  suggestedPrescribedWeight = Math.round(calcW * 4) / 4;
-                }
-              }
-
               const actualWt = trainingOrZero(set.actual);
               const plannedWt = trainingOrZero(set.plannedWeight);
               const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
@@ -347,16 +291,6 @@ export const ExerciseCard = ({
                               });
                             }}
                           />
-                          {suggestedPrescribedWeight && suggestedPrescribedWeight !== trainingOrZero(set.plannedWeight) && (
-                            <button
-                              type="button"
-                              onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
-                              className="h-6 px-0.5 text-[10px] text-amber-400"
-                              title="Suggested from top/peak logged e1RM"
-                            >
-                              {suggestedPrescribedWeight}
-                            </button>
-                          )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">

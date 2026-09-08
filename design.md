@@ -101,6 +101,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Exercise card chrome | e1RM, Vol, and `+ Set` sit on the **right** of the exercise row. The lift name stays left; the set table stays in the middle. |
 | Rx %adj | `%adj` is its own column on the right of Rx, immediately before copy-to-log. Do not wash set rows orange/green from logged vs prescribed RPE; the Δ column already shows the difference. |
 | Logged e1RM at RPE < 6 | Invert the same intensity % used to prescribe. A 137.5 × 1 @ 5 logged as written recovers the 160 anchor (display rounds to 160). Do not return bar weight. |
+| Anchor e1RM | Derived from **set 1 Rx** (planned kg × reps @ RPE or %). Do not reverse-prescribe from an edited e1RM. No orange suggested kg on Rx. |
 | Add Session | Coach picks **any calendar day** and assigns a **microcycle**. Title is optional and is not part of create. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
 
 ---

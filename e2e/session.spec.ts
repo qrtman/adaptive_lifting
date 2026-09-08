@@ -62,6 +62,9 @@ test('wide session pane places exercise name beside working sets', async ({ page
   expect(wideToolbar).toBeTruthy();
   expect(wideHeading!.x).toBeLessThan(wideTable!.x - 40);
   expect(wideToolbar!.x).toBeGreaterThan(wideTable!.x);
+  await expect(session.getByTestId('exercise-anchor-e1rm-e-3-1-1')).toBeVisible();
+  await expect(page.locator('#cell-e-3-1-1-baseline_e1rm-0')).toHaveCount(0);
+  await expect(session.getByTestId('exercise-card-e-3-1-1').locator('.text-amber-400')).toHaveCount(0);
   const adjHeader = session.getByTestId('exercise-card-e-3-1-1').getByRole('columnheader', { name: '%adj' });
   const copyBtn = session.getByTestId('exercise-card-e-3-1-1').getByTitle('Copy prescription to log').first();
   const adjBox = await adjHeader.boundingBox();

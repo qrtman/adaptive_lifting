@@ -51,6 +51,24 @@ export function calculateE1RM(weight: number, reps: number, rpe: number): number
   return Math.round((weight / denominator) * 100) / 100;
 }
 
+/** Anchor e1RM from set 1 prescription, not from an edited baseline. */
+export function anchorE1RMFromPrescription(
+  weight: number | null | undefined,
+  reps: number | null | undefined,
+  rpeOrPct: number | null | undefined,
+  intensityType: string = 'RPE',
+): number {
+  const w = trainingOrZero(weight);
+  const r = trainingIntOrZero(reps);
+  if (w <= 0 || r <= 0) return 0;
+  if (intensityType === 'PERCENT') {
+    const pct = trainingOrZero(rpeOrPct);
+    if (pct <= 0) return 0;
+    return Math.round((w / (pct / 100)) * 100) / 100;
+  }
+  return calculateE1RM(w, r, trainingOrZero(rpeOrPct));
+}
+
 export function calculateINOL(reps: number, intensityPct: number): number {
   if (intensityPct >= 100.0) return reps * 1.0;
   if (intensityPct <= 0) return 0;
