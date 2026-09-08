@@ -10,6 +10,12 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
     al_active_microcycle_id: 'micro-3',
   });
   await page.goto('/');
+  const weekHeader = page.getByTestId('sessions-week-header-micro-3');
+  await expect(weekHeader).toContainText('Microcycle 03');
+  await expect(weekHeader).toContainText('ACTIVE');
+  await expect(weekHeader).not.toContainText(/36,?500/);
+  await expect(weekHeader).not.toContainText('SQ 160');
+  await expect(weekHeader).not.toContainText('BP 95');
   await expect(page.getByRole('heading', { name: 'D2 · Secondary Deadlift, Secondary Bench' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /D1 ·/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /D3 ·/ })).toBeVisible();

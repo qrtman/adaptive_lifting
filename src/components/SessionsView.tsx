@@ -230,19 +230,37 @@ export function SessionsView({
 
               let peakSquat = 0;
               let peakBench = 0;
-              
-              micro.workouts.forEach(w => {
-                w.exercises.forEach(ex => {
-                  const val = parseFloat(ex.top || '0');
-                  if (ex.title.toLowerCase().includes('squat')) {
-                    if (val > peakSquat) peakSquat = val;
-                  } else if (ex.title.toLowerCase().includes('bench')) {
-                    if (val > peakBench) peakBench = val;
-                  }
+              let weekTonnage = 0;
+              if (!isExpanded) {
+                weekTonnage = micro.workouts.reduce((acc, w) => acc + w.tonnage, 0);
+                micro.workouts.forEach(w => {
+                  w.exercises.forEach(ex => {
+                    const val = parseFloat(ex.top || '0');
+                    if (ex.title.toLowerCase().includes('squat')) {
+                      if (val > peakSquat) peakSquat = val;
+                    } else if (ex.title.toLowerCase().includes('bench')) {
+                      if (val > peakBench) peakBench = val;
+                    }
+                  });
                 });
-              });
+              }
 
               const visibleWorkouts = micro.workouts.filter(w => workoutPassesFilter(w, filter));
+              const weekIdentity = (
+                <>
+                  <h4 className="text-sm text-white">{micro.weekName}</h4>
+                  <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
+                </>
+              );
+              const weekScanMetrics = !isExpanded ? (
+                <>
+                  <span className="font-mono text-[11px] text-[#AEAEB2]">
+                    {weekTonnage.toLocaleString()}kg
+                  </span>
+                  {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
+                  {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
+                </>
+              ) : null;
 
               return (
                 <div
@@ -255,21 +273,24 @@ export function SessionsView({
                   }`} />
 
                   <div className="flex flex-wrap items-center justify-between gap-2">
+                    {isCollapsedOther ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isCollapsedOther) setExpanded(micro.id);
-                      }}
+                      onClick={() => setExpanded(micro.id)}
                       className="flex items-center gap-2 min-w-0 text-left"
                     >
-                      <h4 className="text-sm text-white">{micro.weekName}</h4>
-                      <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
-                      <span className="font-mono text-[11px] text-[#AEAEB2]">
-                        {micro.workouts.reduce((acc, w) => acc + w.tonnage, 0).toLocaleString()}kg
-                      </span>
-                      {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
-                      {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
+                      {weekIdentity}
+                      {weekScanMetrics}
                     </button>
+                    ) : (
+                    <div
+                      data-testid={`sessions-week-header-${micro.id}`}
+                      className="flex items-center gap-2 min-w-0"
+                    >
+                      {weekIdentity}
+                      {weekScanMetrics}
+                    </div>
+                    )}
                     <div className="flex items-center gap-1 shrink-0">
                       {isExpanded && roleMode === 'coach' && (
                         <button

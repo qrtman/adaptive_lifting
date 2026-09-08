@@ -104,6 +104,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Logged e1RM at RPE < 6 | Invert the same intensity % used to prescribe. A 137.5 × 1 @ 5 logged as written recovers the 160 anchor (display rounds to 160). Do not return bar weight. |
 | Anchor e1RM | Derived from **set 1 Rx** (planned kg × reps @ RPE or %). Do not reverse-prescribe from an edited e1RM. No orange suggested kg on Rx. |
 | Add Session | Coach picks **any calendar day** and assigns a **microcycle**. Title is optional and is not part of create. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
+| Maximized microcycle header | Week chrome is **name, status, Session, Minimize** only. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live e1RM, Vol, and INOL stay on the exercise cards. |
 
 ---
 
@@ -1287,6 +1288,8 @@ There is no picker step for Mode / Sets / Reps / RPE / kg. After the lift is add
 ##### 7.3.3.1 Exercise card set table
 
 Prescription editing happens in the session exercise card Rx / Log columns, not in the Add Exercise overlay. Logged e1RM sits in the e1RM column. Δ (**% only**, no kg) vs the most recent preceding logged e1RM sits to the **right of that value**. Set 1 has no Δ. There is no separate Δ column. **INOL** is the sum of each set's INOL and sits on the right chrome next to Vol. There is no per-set INOL column.
+
+When a microcycle is maximized, the week header is name, status, Session, and Minimize only. Stored week tonnage and SQ/BP peaks parsed from `ex.top` are not shown there.
 
 ##### 7.3.3.2 Set Deletion Confirmation Dialog Spec
 
