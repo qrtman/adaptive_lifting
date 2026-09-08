@@ -111,7 +111,7 @@ export const ExerciseCard = ({
         ...s,
         plannedWeight: plannedWeight ?? (weightVal > 0 ? weightVal : 137.5),
         plannedReps: plannedReps ?? 4,
-        plannedRpe: intensity_type === "RPE" ? target_value : (plannedRpe ?? 8),
+        plannedRpe: intensity_type === "RPE" ? target_value : null,
         baseline_e1rm,
         intensity_type,
         target_value,
@@ -160,10 +160,11 @@ export const ExerciseCard = ({
 
   const syncTarget = (index: number) => {
     const set = sets[index];
-    updateSet(index, { 
+    const isPercent = set.intensity_type === "PERCENT";
+    updateSet(index, {
       actual: trainingNumber(set.plannedWeight),
       reps: trainingInt(set.plannedReps),
-      executedRpe: trainingNumber(set.plannedRpe),
+      executedRpe: isPercent ? null : trainingNumber(set.plannedRpe ?? set.target_value),
       isAuto: false
     });
   };
@@ -279,15 +280,21 @@ export const ExerciseCard = ({
               </tr>
             )}
             {sets.map((set, i) => {
+              const isPercent = (set.intensity_type || "RPE") === "PERCENT";
               const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
-              const e1RM = calculateE1RM(weight, reps, rpe);
-              const intensityPct = e1RM > 0 ? (weight / e1RM) * 100 : 0;
+              const percentTarget = trainingOrZero(set.target_value);
+              const e1RM = isPercent
+                ? (weight > 0 && percentTarget > 0 ? weight / (percentTarget / 100) : 0)
+                : calculateE1RM(weight, reps, rpe);
+              const intensityPct = isPercent
+                ? percentTarget
+                : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
               
-              const isOvershoot = rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
-              const isUndershoot = rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
+              const isOvershoot = !isPercent && rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
+              const isUndershoot = !isPercent && rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
               
               const rowHighlight = isOvershoot 
                 ? 'bg-orange-500/10' 
@@ -325,7 +332,7 @@ export const ExerciseCard = ({
 
               const actualRp = trainingOrZero(set.executedRpe);
               const targetRpVal = trainingOrZero(set.plannedRpe);
-              const rpeDelta = actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
+              const rpeDelta = !isPercent && actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
 
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
@@ -338,12 +345,19 @@ export const ExerciseCard = ({
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
                             weight={set.plannedWeight}
-                            onChange={(updates) => updateSet(i, {
-                              plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
-                              intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
-                              target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
-                              plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
-                            })}
+                            onChange={(updates) => {
+                              const nextType = updates.intensityType !== undefined ? updates.intensityType : set.intensity_type;
+                              const nextTarget = updates.targetValue !== undefined ? updates.targetValue : set.target_value;
+                              const switchingToPercent = nextType === "PERCENT";
+                              updateSet(i, {
+                                plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
+                                intensity_type: nextType,
+                                target_value: nextTarget,
+                                plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight,
+                                plannedRpe: switchingToPercent ? null : nextTarget,
+                                ...(switchingToPercent ? { executedRpe: null } : {})
+                              });
+                            }}
                           />
                           {suggestedPrescribedWeight && suggestedPrescribedWeight !== trainingOrZero(set.plannedWeight) && (
                             <button
@@ -418,6 +432,15 @@ export const ExerciseCard = ({
                         rowIndex={i}
                       />
                       {sep('@')}
+                      {isPercent ? (
+                        <span
+                          data-testid={`log-rpe-${set.id}`}
+                          className="w-8 h-6 flex items-center justify-center text-[10px] text-[#636366]"
+                          title="RPE is not used for % prescriptions"
+                        >
+                          —
+                        </span>
+                      ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.executedRpe)}
                         onChange={(val) => updateSet(i, { executedRpe: trainingNumber(val) })}
@@ -429,6 +452,7 @@ export const ExerciseCard = ({
                         step={0.5}
                         rowIndex={i}
                       />
+                      )}
                     </div>
                   </td>
                   <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
