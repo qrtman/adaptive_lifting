@@ -115,7 +115,8 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 
 Assembled from a declared catalog: a KPI strip (SQ/BP/DL e1RM, Vol, DOTS, ACWR), an INOL line, chart slots
 (e1RM / Tonnage / ACWR), attempts, and the AI coach panel. Loading, empty, and error states are visible.
-Prefer `liftCategory` over scanning exercise titles.
+Prefer `liftCategory` over scanning exercise titles. Trends come from the **selected athlete's logged sets**.
+Switching athletes rebuilds Insights in place. Do not load an unowned API or demo tree.
 
 There is exactly one analytics surface. Do not add a second one.
 

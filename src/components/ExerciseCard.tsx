@@ -278,6 +278,7 @@ export const ExerciseCard = ({
                     {roleMode === 'coach' ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
                           <PrescriptionEditor
+                            setId={set.id}
                             reps={set.plannedReps}
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}

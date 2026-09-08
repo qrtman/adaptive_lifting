@@ -12,7 +12,7 @@ import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { AddSessionDialog } from './AddSessionDialog';
-import { inferMicrocycleId } from '../services/workoutDays';
+import { firstPlanDate, inferMicrocycleId } from '../services/workoutDays';
 
 const getMondayOfDate = (dateStr: string) => {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -367,7 +367,7 @@ export function CalendarView({
               <button
                 type="button"
                 data-testid="add-session-calendar"
-                onClick={() => setAddingSessionDate(microcycles.find((m) => m.id === activeMicrocycleId)?.workouts[0]?.date ?? microcycles[0]?.workouts[0]?.date ?? '2026-09-01')}
+                onClick={() => setAddingSessionDate(firstPlanDate(microcycles))}
                 className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
               >
                 <Plus size={12} />

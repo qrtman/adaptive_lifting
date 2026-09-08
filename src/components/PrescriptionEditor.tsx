@@ -6,6 +6,7 @@ interface PrescriptionEditorProps {
   intensityType: string; // 'RPE' | 'PERCENT' | 'AMRAP'
   targetValue: number | null;
   weight: number | null;
+  setId?: string;
   onChange: (updates: { reps?: number | null; intensityType?: string; targetValue?: number; weight?: number | null }) => void;
 }
 
@@ -16,7 +17,7 @@ const Sep = ({ children }: { children: string }) => (
 );
 
 export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
-  reps, intensityType, targetValue, weight, onChange
+  reps, intensityType, targetValue, weight, setId, onChange
 }) => {
   return (
     <div className="flex items-center gap-0.5">
@@ -51,6 +52,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
       />
       <button
         type="button"
+        data-testid={setId ? `toggle-percent-${setId}` : 'toggle-percent'}
         onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
         className="h-6 px-0.5 text-[10px] text-[#AEAEB2] hover:text-white"
         title="Toggle RPE / %"

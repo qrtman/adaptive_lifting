@@ -159,7 +159,11 @@ a column on a set and is not modelled.
 - `PeriodizationContext` owns the selected athlete, the roster, the microcycle tree, and every mutation entry point.
 - On launch the context loads the roster, picks the last-used athlete (or the first athlete who has a plan),
   and shows that athlete's sessions. Switching athletes is a native select in the sidebar; it does not go
-  through Roster.
+  through Roster. A plan already loaded in this session swaps immediately from the in-memory cache. The first
+  load of an athlete waits for that athlete's IndexedDB snapshot and does not clear the previous tree until
+  the next one is ready.
+- Insights KPIs and charts are derived from the selected athlete's in-memory microcycles (`trendsFromMicrocycles`),
+  not from `GET /api/microcycles`.
 - Plans are cached per athlete via `planStore.ts` as `plan:<athleteId>`, recording schema, source
   (`imported` / `api` / `local`), a content fingerprint, and which sessions were edited in the app. A changed
   import reconciles on load and keeps edited sessions. A cached plan that does not share structure with the

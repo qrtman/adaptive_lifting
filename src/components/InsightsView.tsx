@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
+import { usePeriodization } from '../contexts/PeriodizationContext';
 import { LiftFilter } from './LiftFilter';
 import { InsightKpiStrip } from './insights/InsightKpiStrip';
 import {
@@ -14,12 +15,12 @@ import {
   constructInolLine,
   constructInsightKpis,
   filterTrends,
+  trendsFromMicrocycles,
 } from '../insights/construct';
 
 export function InsightsView() {
-  const [trends, setTrends] = useState<TrendPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { microcycles, rosterReady, activeAthlete } = usePeriodization();
+  const trends = useMemo(() => trendsFromMicrocycles(microcycles), [microcycles]);
   const [activeChart, setActiveChart] = useState<InsightChartId>('e1rm');
   const [selectedLift, setSelectedLift] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [timeRange, setTimeRange] = useState<'All' | '30d' | '90d'>('All');
@@ -53,19 +54,6 @@ export function InsightsView() {
   };
 
   useEffect(() => {
-    async function loadTrends() {
-      try {
-        const data = await apiService.fetchTrends();
-        setTrends(data);
-        setLoadError(null);
-      } catch (err) {
-        console.error('Failed to load trends data', err);
-        setLoadError('Could not load Insights. Retry from Sessions after a logged set.');
-      } finally {
-        setLoading(false);
-      }
-    }
-
     async function loadAnalytics() {
       setLoadingAnalytics(true);
       try {
@@ -81,7 +69,6 @@ export function InsightsView() {
       }
     }
 
-    loadTrends();
     loadAnalytics();
   }, []);
 
@@ -506,12 +493,14 @@ export function InsightsView() {
           </div>
         </div>
 
-        {loading ? (
+        { !rosterReady ? (
           <p className="px-1 text-xs text-[#AEAEB2]">Loading…</p>
-        ) : loadError ? (
-          <p role="alert" className="px-1 text-xs text-red-400">{loadError}</p>
         ) : trends.length === 0 ? (
-          <p className="px-1 text-xs text-[#AEAEB2]">No logged sets yet. Complete a session to seed e1RM and tonnage.</p>
+          <p data-testid="insights-empty" className="px-1 text-xs text-[#AEAEB2]">
+            {activeAthlete
+              ? `No logged sets for ${activeAthlete.name} yet.`
+              : 'No logged sets yet. Complete a session to seed e1RM and tonnage.'}
+          </p>
         ) : (
           <>
             {INSIGHT_LAYOUT.map((section) => {

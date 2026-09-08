@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { WorkoutData } from '../types';
-import { inferMicrocycleId, insertWorkoutChronologically, formatDateSpan, workoutDateSpan } from './workoutDays';
+import {
+  inferMicrocycleId,
+  insertWorkoutChronologically,
+  formatDateSpan,
+  workoutDateSpan,
+  firstPlanDate,
+  firstUsableDate,
+} from './workoutDays';
 
 function session(id: string, date: string, dayLabel: string): WorkoutData {
   return {
@@ -93,5 +100,40 @@ describe('inferMicrocycleId', () => {
 
   it('falls back when the date is outside every microcycle', () => {
     expect(inferMicrocycleId('2026-10-01', micros, 'micro-3')).toBe('micro-3');
+  });
+
+  it('ignores weeks whose sessions have no calendar date', () => {
+    const mixed = [
+      {
+        id: 'undated',
+        weekName: 'Week A',
+        focus: 'Base',
+        status: 'ACTIVE' as const,
+        workouts: [session('u1', '', 'D1'), session('u2', '', 'D2')],
+      },
+      ...micros,
+    ];
+    expect(inferMicrocycleId('2026-09-17', mixed, 'undated')).toBe('micro-3');
+  });
+});
+
+describe('firstUsableDate', () => {
+  it('skips blank and non-ISO values', () => {
+    expect(firstUsableDate(['', '  ', 'not-a-date', '2026-09-17'])).toBe('2026-09-17');
+    expect(firstUsableDate(['', null, undefined])).toBe('2026-09-01');
+  });
+});
+
+describe('firstPlanDate', () => {
+  it('returns the fallback when every session is undated', () => {
+    expect(firstPlanDate([
+      {
+        id: 'w1',
+        weekName: 'Week 1',
+        focus: 'Base',
+        status: 'ACTIVE',
+        workouts: [session('a', '', 'D1')],
+      },
+    ])).toBe('2026-09-01');
   });
 });

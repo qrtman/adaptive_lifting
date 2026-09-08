@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { inferMicrocycleId } from '../services/workoutDays';
+import { firstUsableDate, inferMicrocycleId } from '../services/workoutDays';
 import { MicrocycleData, WorkoutData } from '../types';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -55,7 +55,7 @@ export function AddSessionDialog({
   onCreate: (workout: WorkoutData, microcycleId: string) => void;
 }) {
   const source = microcycles.find((m) => m.id === sourceMicrocycleId);
-  const seedDate = initialDate || source?.workouts[0]?.date || '2026-09-01';
+  const seedDate = firstUsableDate([initialDate, source?.workouts[0]?.date]);
   const seed = parseUtc(seedDate);
   const [year, setYear] = useState(seed.getUTCFullYear());
   const [monthIndex, setMonthIndex] = useState(seed.getUTCMonth());
@@ -82,7 +82,7 @@ export function AddSessionDialog({
 
   useEffect(() => {
     if (!open) return;
-    const nextSeed = initialDate ?? source?.workouts[0]?.date ?? '2026-09-01';
+    const nextSeed = firstUsableDate([initialDate, source?.workouts[0]?.date]);
     const parsed = parseUtc(nextSeed);
     setYear(parsed.getUTCFullYear());
     setMonthIndex(parsed.getUTCMonth());

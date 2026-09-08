@@ -5,6 +5,7 @@ import {
   constructInsightKpis,
   filterTrends,
   peakE1RM,
+  trendsFromMicrocycles,
 } from './construct';
 
 const points = [
@@ -52,5 +53,67 @@ describe('constructAttemptPreview', () => {
     const preview = constructAttemptPreview(200, 'squat_dl');
     expect(preview.second).toContain('kg');
     expect(preview.third).toContain('kg');
+  });
+});
+
+describe('trendsFromMicrocycles', () => {
+  it('uses logged kg×reps and a calendar date when the session date is blank', () => {
+    const trends = trendsFromMicrocycles([
+      {
+        id: 'w1',
+        weekName: 'Week 1',
+        focus: 'Base',
+        status: 'COMPLETED',
+        workouts: [
+          {
+            id: 'd1',
+            date: '',
+            dayLabel: 'D1',
+            title: 'Squat',
+            tonnage: 150,
+            delta: 0,
+            color: 'mac-green',
+            status: 'COMPLETED',
+            exercises: [
+              {
+                id: 'e1',
+                title: 'Primary Squat',
+                variation: 'Low Bar',
+                liftCategory: 'Squat',
+                tags: ['Squat'],
+                top: '150kg',
+                vol: '150kg',
+                sets: [
+                  {
+                    id: 's1',
+                    label: 'Top',
+                    plannedWeight: 150,
+                    plannedReps: 1,
+                    plannedRpe: 8,
+                    actual: 150,
+                    reps: 1,
+                    executedRpe: 8,
+                    isTop: true,
+                  },
+                  {
+                    id: 's2',
+                    label: 'Set 2',
+                    plannedWeight: 140,
+                    plannedReps: 3,
+                    plannedRpe: 7,
+                    isTop: false,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(trends).toHaveLength(1);
+    expect(trends[0].weight).toBe(150);
+    expect(trends[0].volume).toBe(150);
+    expect(trends[0].liftCategory).toBe('Squat');
+    expect(trends[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

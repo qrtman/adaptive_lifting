@@ -99,9 +99,9 @@ test('percent prescriptions copy weight and reps without RPE', async ({ page }) 
   await page.goto('/');
   await page.getByTestId('sessions-expand-z-w3').click();
   const session = page.getByTestId('sessions-card-z-w3-d1');
-  await session.getByTitle('Toggle RPE / %').nth(1).click();
-  await session.getByTitle('Copy prescription to log').nth(1).click();
-  await expect(session.getByTestId(/log-rpe-/).nth(1)).toHaveText('—');
+  await session.locator('[data-testid^="toggle-percent-"]').first().click();
+  await session.getByTitle('Copy prescription to log').first().click();
+  await expect(session.locator('[data-testid^="log-rpe-"]').first()).toHaveText('—');
 });
 
 test('coach can add a session on any calendar day', async ({ page }) => {
@@ -111,6 +111,7 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   });
   await page.goto('/');
   await page.getByTestId('sessions-expand-z-w3').click();
+  await expect(page.getByTestId('add-session-z-w3')).toBeVisible();
   await page.getByTestId('add-session-z-w3').click();
   await expect(page.getByTestId('add-session-dialog')).toBeVisible();
   await page.getByTestId('assign-micro-z-w3').click();
@@ -128,6 +129,8 @@ test('coach can add a catalog exercise into a session', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('sessions-expand-z-w3').click();
   const session = page.getByTestId('sessions-card-z-w3-d1');
+  await session.getByTestId('session-complete-z-w3-d1').click();
+  await expect(session.getByTestId('add-exercise-z-w3-d1')).toBeVisible();
   await session.getByTestId('add-exercise-z-w3-d1').click();
   await expect(page.getByTestId('add-exercise-dialog')).toBeVisible();
   await page.getByTestId('catalog-ssb').click();

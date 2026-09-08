@@ -10,11 +10,13 @@ test.describe('calendar drag and drop', () => {
     await page.goto('/');
     await page.getByTestId('nav-calendar').click();
     await expect(page.getByTestId('athlete-switcher')).toBeVisible();
+    await expect(page.getByTestId('add-session-calendar')).toBeVisible();
   });
 
   test('adds a session and moves it within the same week', async ({ page }) => {
-    await page.getByTestId('calendar-day-2026-09-02').click();
+    await page.getByTestId('add-session-calendar').click();
     await expect(page.getByTestId('add-session-dialog')).toBeVisible();
+    await page.getByTestId('session-day-2026-09-02').click();
     await page.getByTestId('assign-micro-z-w3').click();
     await page.getByTestId('create-session').click();
 
@@ -27,14 +29,16 @@ test.describe('calendar drag and drop', () => {
   });
 
   test('rejects a drop across a microcycle week boundary', async ({ page }) => {
-    await page.getByTestId('calendar-day-2026-09-02').click();
+    await page.getByTestId('add-session-calendar').click();
+    await page.getByTestId('session-day-2026-09-02').click();
     await page.getByTestId('assign-micro-z-w3').click();
     await page.getByTestId('create-session').click();
     const first = page.getByTestId('calendar-day-2026-09-02').locator('[data-testid^="workout-card-"]');
     await expect(first).toBeVisible();
     const firstId = await first.getAttribute('data-testid');
 
-    await page.getByTestId('calendar-day-2026-09-16').click();
+    await page.getByTestId('add-session-calendar').click();
+    await page.getByTestId('session-day-2026-09-16').click();
     await page.getByTestId('assign-micro-z-w4').click();
     await page.getByTestId('create-session').click();
     await expect(page.getByTestId('calendar-day-2026-09-16').locator('[data-testid^="workout-card-"]')).toBeVisible();

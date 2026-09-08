@@ -92,6 +92,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const mesocycles = INITIAL_MESOCYCLE;
 
   const planMeta = useRef<PlanMeta>(EMPTY_META);
+  const planCache = useRef(new Map<string, {
+    microcycles: MicrocycleData[];
+    source: PlanSource;
+    planVersion: string | null;
+    ownedWorkoutIds: string[];
+  }>());
   const hydrated = useRef(false);
   const selectGeneration = useRef(0);
 
@@ -135,6 +141,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       };
       hydrated.current = true;
       setMicrocycles(plan);
+      planCache.current.set(athleteId, {
+        microcycles: plan,
+        source: 'imported',
+        planVersion: version,
+        ownedWorkoutIds: Array.from(planMeta.current.ownedWorkoutIds),
+      });
       const remembered = getUiPref(UI_KEYS.activeWorkoutId);
       const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
       if (focus || !known) focusPlan(plan);
@@ -148,11 +160,18 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
     };
     hydrated.current = true;
-    setMicrocycles(stored?.microcycles ?? []);
-    if (stored?.microcycles?.length) {
+    const plan = stored?.microcycles ?? [];
+    setMicrocycles(plan);
+    planCache.current.set(athleteId, {
+      microcycles: plan,
+      source: planMeta.current.source,
+      planVersion: planMeta.current.planVersion,
+      ownedWorkoutIds: Array.from(planMeta.current.ownedWorkoutIds),
+    });
+    if (plan.length) {
       const remembered = getUiPref(UI_KEYS.activeWorkoutId);
-      const known = stored.microcycles.some((micro) => micro.workouts.some((w) => w.id === remembered));
-      if (focus || !known) focusPlan(stored.microcycles);
+      const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
+      if (focus || !known) focusPlan(plan);
     } else {
       setActiveMicrocycleId(null);
       setActiveWorkoutId(null);
@@ -215,6 +234,14 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated.current) return;
     const meta = planMeta.current;
+    if (meta.athleteId) {
+      planCache.current.set(meta.athleteId, {
+        microcycles,
+        source: meta.source,
+        planVersion: meta.planVersion,
+        ownedWorkoutIds: Array.from(meta.ownedWorkoutIds),
+      });
+    }
     if (meta.source === 'imported' && microcycles.length === 0) return;
     void writeStoredPlan({
       schema: PLAN_SCHEMA,
@@ -396,10 +423,43 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     setMicrocycles([]);
   };
 
+  const paintAthletePlan = (
+    athleteId: string,
+    cached: {
+      microcycles: MicrocycleData[];
+      source: PlanSource;
+      planVersion: string | null;
+      ownedWorkoutIds: string[];
+    },
+    focus: boolean,
+  ) => {
+    planMeta.current = {
+      athleteId,
+      source: cached.source,
+      planVersion: cached.planVersion,
+      ownedWorkoutIds: new Set(cached.ownedWorkoutIds),
+    };
+    hydrated.current = true;
+    setMicrocycles(cached.microcycles);
+    if (cached.microcycles.length) {
+      if (focus) focusPlan(cached.microcycles);
+    } else {
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+    }
+  };
+
   const selectAthlete = (athleteId: string) => {
+    if (athleteId === activeAthleteId) return;
     const generation = ++selectGeneration.current;
     setActiveAthleteId(athleteId);
     setUiPref(UI_KEYS.activeAthleteId, athleteId);
+
+    const cached = planCache.current.get(athleteId);
+    if (cached) {
+      paintAthletePlan(athleteId, cached, true);
+      return;
+    }
 
     void (async () => {
       const imported = importedPlanFor(athleteId);

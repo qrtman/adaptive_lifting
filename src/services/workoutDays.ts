@@ -1,5 +1,33 @@
 import { MicrocycleData, WorkoutData } from '../types';
 
+export const FALLBACK_SESSION_DATE = '2026-09-01';
+
+export function isIsoDate(value: string | null | undefined): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+export function firstUsableDate(
+  candidates: Array<string | null | undefined>,
+  fallback = FALLBACK_SESSION_DATE,
+): string {
+  for (const value of candidates) {
+    if (isIsoDate(value)) return value;
+  }
+  return fallback;
+}
+
+export function firstPlanDate(
+  microcycles: MicrocycleData[],
+  fallback = FALLBACK_SESSION_DATE,
+): string {
+  for (const micro of microcycles) {
+    for (const workout of micro.workouts) {
+      if (isIsoDate(workout.date)) return workout.date;
+    }
+  }
+  return fallback;
+}
+
 function parseUtc(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d));
@@ -24,7 +52,7 @@ function dayIndex(label: string): number {
 }
 
 export function workoutDateSpan(workouts: WorkoutData[]): { start: string; end: string } | null {
-  const dates = workouts.map((w) => w.date).filter(Boolean).sort();
+  const dates = workouts.map((w) => w.date).filter(isIsoDate).sort();
   if (dates.length === 0) return null;
   return { start: dates[0], end: dates[dates.length - 1] };
 }
@@ -57,15 +85,17 @@ export function inferMicrocycleId(
   if (occupying.length === 1) return occupying[0].id;
 
   const spanning = microcycles.filter((m) => {
-    if (m.workouts.length === 0) return false;
-    const dates = m.workouts.map((w) => w.date).sort();
+    const dates = m.workouts.map((w) => w.date).filter(isIsoDate).sort();
+    if (dates.length === 0) return false;
     return date >= dates[0] && date <= dates[dates.length - 1];
   });
   if (spanning.length === 1) return spanning[0].id;
 
+  if (!isIsoDate(date)) return fallbackId;
+  const targetMonday = mondayOf(date);
   const sameWeek = microcycles.filter((m) => {
-    const mondays = new Set(m.workouts.map((w) => mondayOf(w.date)));
-    return mondays.has(mondayOf(date));
+    const mondays = new Set(m.workouts.map((w) => w.date).filter(isIsoDate).map(mondayOf));
+    return mondays.has(targetMonday);
   });
   if (sameWeek.length === 1) return sameWeek[0].id;
 
