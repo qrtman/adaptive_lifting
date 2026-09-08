@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { ExerciseData, WorkoutData } from '../types';
+import { WorkoutData } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
+import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { SessionWorkoutEditor } from './SessionWorkoutEditor';
+import TelegramSessionTerminal from './mobile/TelegramSessionTerminal';
 
 interface SessionsViewProps {
-  onViewSession: (workout: WorkoutData, microId: string) => void;
   filter: LiftFilterValue;
   onFilterChange: (value: LiftFilterValue) => void;
 }
@@ -17,26 +19,6 @@ function liftAbbrev(title: string): string {
   if (t.includes('bench')) return 'BP';
   if (t.includes('dead')) return 'DL';
   return title.slice(0, 3).toUpperCase();
-}
-
-function liftColor(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('squat')) return 'text-[#007aff]';
-  if (t.includes('bench')) return 'text-[#54e083]';
-  if (t.includes('dead')) return 'text-[#F5A623]';
-  return 'text-[#AEAEB2]';
-}
-
-function setLine(ex: ExerciseData): { planned: string; logged: string | null } {
-  const set = ex.sets[0];
-  const planned = `${set?.plannedWeight ?? '—'}×${set?.plannedReps ?? '—'}@${set?.plannedRpe ?? '—'}`;
-  if (set?.actual != null && Number(set.actual) > 0) {
-    return {
-      planned,
-      logged: `${set.actual}×${set.reps ?? '—'}@${set.executedRpe ?? '—'}`,
-    };
-  }
-  return { planned, logged: null };
 }
 
 function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
@@ -51,10 +33,10 @@ function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
 }
 
 export function SessionsView({
-  onViewSession,
   filter,
   onFilterChange,
 }: SessionsViewProps) {
+  const { roleMode, setRoleMode } = useAuth();
   const {
     microcycles,
     activeMicrocycleId,
@@ -124,12 +106,19 @@ export function SessionsView({
     return () => cancelAnimationFrame(rAnimFrame);
   }, []);
 
+  const openWorkout = (workout: WorkoutData, microId: string) => {
+    setActiveWorkoutId(workout.id);
+    setActiveMicrocycleId(microId);
+    setExpanded(microId);
+  };
+
   useEffect(() => {
     if (!expandedMicroId) return;
-    const el = microRefs.current[expandedMicroId];
-    if (el) {
+    const sessionEl = activeWorkoutId ? document.getElementById(`session-${activeWorkoutId}`) : null;
+    const target = sessionEl ?? microRefs.current[expandedMicroId];
+    if (target) {
       requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
   }, [expandedMicroId]);
@@ -186,17 +175,48 @@ export function SessionsView({
         <div className="space-y-2 pb-8">
           <div className="h-7 px-1 flex items-center justify-between gap-2">
             <LiftFilter value={filter} onChange={onFilterChange} />
-            {isMaximized && (
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => setExpanded(null)}
-                className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                onClick={() => setRoleMode('coach')}
+                className={`h-7 px-2 text-[11px] ${
+                  roleMode === 'coach' ? 'text-white' : 'text-[#AEAEB2]'
+                }`}
               >
-                <Minimize2 size={12} />
-                Show all weeks
+                Coach
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setRoleMode('athlete')}
+                className={`h-7 px-2 text-[11px] ${
+                  roleMode === 'athlete' ? 'text-white' : 'text-[#AEAEB2]'
+                }`}
+              >
+                Athlete
+              </button>
+              {isMaximized && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(null)}
+                  className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                >
+                  <Minimize2 size={12} />
+                  Show all weeks
+                </button>
+              )}
+            </div>
           </div>
+
+          {roleMode === 'athlete' ? (
+            <div className="flex flex-col items-center justify-center py-6 w-full border border-white/10 p-4">
+              <p className="text-xs font-mono text-[#636366] mb-4">Telegram Mini App</p>
+              <div className="w-[390px] max-w-full h-[844px] bg-black rounded-[48px] border-[12px] border-[#20201f] overflow-hidden relative flex flex-col">
+                <div className="flex-1 overflow-hidden pt-6">
+                  <TelegramSessionTerminal />
+                </div>
+              </div>
+            </div>
+          ) : (
 
           <div className="flex flex-col gap-3 border-l border-white/10 pl-4 relative">
             {microcycles.map((micro, idx) => {
@@ -263,59 +283,19 @@ export function SessionsView({
                       {visibleWorkouts.length} sessions · Maximize to open
                     </p>
                   ) : isExpanded ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                      {visibleWorkouts.map(w => {
-                        const isWorkoutActive = activeWorkoutId === w.id;
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => onViewSession(w, micro.id)}
+                    <div className="flex flex-col">
+                      {visibleWorkouts.length === 0 ? (
+                        <p className="px-2 py-3 text-xs text-[#636366]">No sessions match this filter.</p>
+                      ) : (
+                        visibleWorkouts.map((w) => (
+                          <SessionWorkoutEditor
                             key={w.id}
-                            data-testid={`sessions-card-${w.id}`}
-                            className={`text-left border rounded p-2 flex flex-col gap-1 hover:border-white/20 ${
-                              isWorkoutActive
-                                ? 'bg-[#161616] border-[#007AFF]/50'
-                                : 'bg-[#161616] border-white/10'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2 h-6">
-                              <span className="text-xs text-white truncate">
-                                {w.dayLabel} · {w.title}
-                              </span>
-                              <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
-                                {w.status} · {w.tonnage}kg
-                              </span>
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                              {w.exercises.map(ex => {
-                                const { planned, logged } = setLine(ex);
-                                return (
-                                  <div
-                                    key={ex.id}
-                                    className="flex items-center gap-2 font-mono text-[11px] leading-tight min-h-5"
-                                  >
-                                    <span className={`${liftColor(ex.title)} w-6 shrink-0`}>
-                                      {liftAbbrev(ex.title)}
-                                    </span>
-                                    <span className="text-white truncate flex-1 min-w-0" title={ex.title}>
-                                      {ex.title}
-                                    </span>
-                                    <span className="text-[#AEAEB2] shrink-0">{planned}</span>
-                                    <span className={`shrink-0 ${logged ? 'text-white' : 'text-[#636366]'}`}>
-                                      {logged ?? '—'}
-                                    </span>
-                                    {ex.top && ex.top !== '—' && (
-                                      <span className="text-[#AEAEB2] shrink-0 w-12 text-right">
-                                        {String(ex.top).split(' ')[0]}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </button>
-                        );
-                      })}
+                            workout={w}
+                            microcycleId={micro.id}
+                            roleMode={roleMode}
+                          />
+                        ))
+                      )}
                     </div>
                   ) : (
                     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -324,7 +304,7 @@ export function SessionsView({
                         return (
                           <button
                             type="button"
-                            onClick={() => onViewSession(w, micro.id)}
+                            onClick={() => openWorkout(w, micro.id)}
                             key={w.id}
                             className={`
                               text-left bg-[#161616] border border-white/10 rounded px-2 py-1 min-w-[220px] w-[220px] flex-shrink-0 hover:border-white/20 leading-none
@@ -358,6 +338,7 @@ export function SessionsView({
               );
             })}
           </div>
+          )}
         </div>
       </div>
     </div>
