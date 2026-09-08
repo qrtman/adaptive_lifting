@@ -127,7 +127,7 @@ export function SessionWorkoutEditor({
       <AddExerciseDialog
         open={addingExercise}
         onClose={() => setAddingExercise(false)}
-        onInject={(exercise) => addExercise(workout.id, microcycleId, exercise)}
+        onAdd={(exercise) => addExercise(workout.id, microcycleId, exercise)}
       />
     </section>
   );

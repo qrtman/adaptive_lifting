@@ -107,7 +107,7 @@ test('coach can add a session on an open day', async ({ page }) => {
   await expect(page.getByText('No exercises programmed.')).toBeVisible();
 });
 
-test('coach can inject a catalog exercise into a session', async ({ page }) => {
+test('coach can add a catalog exercise into a session', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',
     al_dashboard_mode: 'sessions',
@@ -120,8 +120,9 @@ test('coach can inject a catalog exercise into a session', async ({ page }) => {
   await session.getByTestId('add-exercise-w-3-2').click();
   await expect(page.getByTestId('add-exercise-dialog')).toBeVisible();
   await page.getByTestId('catalog-ssb').click();
-  await expect(page.getByTestId('prescription-preview')).toHaveText('3×5 @ 8 RPE');
-  await page.getByTestId('inject-exercise').click();
+  await expect(page.getByTestId('add-exercise-dialog').getByText('RPE TARGET')).toHaveCount(0);
+  await expect(page.getByTestId('add-exercise-dialog').getByText('TOP SET BACKDOWN')).toHaveCount(0);
+  await page.getByTestId('add-exercise-confirm').click();
   await expect(session.getByRole('heading', { name: 'SSB Squat' })).toBeVisible();
   await expect(session.getByText('Secondary Squat').first()).toBeVisible();
 });

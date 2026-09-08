@@ -678,8 +678,8 @@ Workouts are constrained within their parent microcycle:
 
 Before a microcycle can be templated, the baseline sessions must be authored. The UI flow enforces a structured hierarchy to ensure data integrity:
 1. **Initialize Workout:** Coach creates a workout on a specific day (e.g., "Day 1").
-2. **Add Exercises (Compound Lifts):** Coach selects an exercise from the canonical database. This automatically pulls and links standard lift categories and tags.
-3. **Set Prescription Engine:** The system supports a multi-modal prescription syntax, allowing coaches to define loading parameters using Autoregulated (RPE), Percentage-based (% of e1RM / 1RM), or Open-ended (AMRAP) logic. This syntax is parsed by the backend to project expected tonnage and fatigue.
+2. **Add Exercises (Compound Lifts):** Coach selects an exercise from the canonical database (name, `lift_category`, `tier`). The Add Exercise overlay does not collect set prescriptions.
+3. **Set Prescription Engine (exercise card):** After the lift is on the session, the coach edits structured Rx cells on the exercise card (kg × reps @ RPE or %). `+ Set` appends rows. Display strings such as `1x3 @ RPE 8` are previews of those cells, not a Mode picker in Add Exercise.
    - **Autoregulated (Top Set + Backdowns):** e.g., `1x3 @ RPE 8`, followed by `3x3 @ 5% fatigue drop`. Maximizes physiological precision by adjusting to daily readiness.
    - **Percentage-based (Straight Sets):** e.g., `4x5 @ 75%`. Utilizes classic periodization models for predictable, rigid progression.
    - **Open-ended (AMRAP):** e.g., `1xAMRAP @ 80%`. "As Many Reps As Possible." Frequently used as a microcycle testing protocol to recalculate e1RM ceilings without exposing the athlete to maximal loading risk.
@@ -696,7 +696,7 @@ Prescription examples shown in the UI are display strings. Persisted prescriptio
 }
 ```
 
-Supported `mode` values are `RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN`, and `HYBRID`. The backend may render a human-readable prescription string from structured fields, but it must not parse business-critical instructions from freeform text.
+Supported `mode` values are persistence envelopes for set structure (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN`, `HYBRID`). They are not Add Exercise overlay controls. The backend may render a human-readable prescription string from structured fields, but it must not parse business-critical instructions from freeform text.
 
 ### 7.8 Microcycle Templating & Block Generation
 

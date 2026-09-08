@@ -10,6 +10,7 @@
 ## Table of Contents
 
 0. [Implementation Directives](#0-implementation-directives)
+   * 0.5 [Product Overrides (living)](#05-product-overrides-living)
 1. [Design Intent & Principles](#1-design-intent--principles)
 2. [Product Surfaces & Scale](#2-product-surfaces--scale)
 3. [Visual System & Surface Tokens](#3-visual-system--surface-tokens)
@@ -88,6 +89,16 @@ If implementation context is missing, assume:
 | Integrations | Disconnected until explicitly linked |
 | Offline state | Allowed for logging; publish/export requires network |
 | Role conflict | Prefer least privilege and show read-only UI |
+
+### 0.5 Product Overrides (living)
+
+When a later section of this file conflicts with this list, **this list wins**, and the later section must be edited in the same change.
+
+| Override | Rule |
+| :--- | :--- |
+| Add Exercise | Catalog + identity only (search, base name, variation, category, tier). Do **not** put prescription Mode (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN`, `HYBRID`), Sets, Reps, RPE, %, or kg controls in the Add Exercise overlay. |
+| Prescription editing | kg × reps @ RPE or % is edited on the **exercise card** set table after the lift is added (`PrescriptionEditor` inline in each Rx cell, `+ Set` on the card). |
+| Add Session | Coach picks an open day and a title. No prescription step. |
 
 ---
 
@@ -701,7 +712,7 @@ The Athletes Roster workspace functions as the primary operational console for c
 * **Default State**: Modal centered in viewport on viewports `>= 1024px`. Background elements are visible but dimmed by an absolute scrim overlay.
 * **Maximized State (Dynamic Space Reclamation)**: On compact screen boundaries or landscape tablet layouts (`< 1024px`), the modal transitions to a full-screen sheet overlay (`100%` viewport width & height, `0px` border-radius), maximizing input form sizing and avoiding vertical list clipping.
 
-The desktop Workout Builder uses a **two-pane split dialog layout** to allow coaches to search the canonical exercise database, customize movement modifications (Tempo, ROM, Gear), and write structured set prescriptions in a single, high-velocity workflow.
+The desktop Add Exercise dialog uses a **two-pane split layout** so coaches can search the canonical exercise database and set lift identity (name, category, tier). Structured set prescriptions are **not** authored in this overlay; they are edited on the exercise card after the lift is added.
 
 #### 6.2.1 Desktop Exercise Selector & Custom Builder Split Dialog Layout
 
@@ -714,23 +725,18 @@ The desktop Workout Builder uses a **two-pane split dialog layout** to allow coa
 | +-------------------------------------------------------------+ | Category:  [Squat]* [Bench]... |
 | | [Comp Lifts] | [Variations]* | [Accessories] | [Custom Lifts] | | Tier:      [Comp] [Var]* [Acc] |
 | +-------------------------------------------------------------+ |                                |
-|                                                                 | Tempo Mod:                     |
-| Mapped Results list (dense, click to select):                   | [Standard] [Paused]* [Slow Ecc]|
-| +-------------------------------------------------------------+ | ROM Setup:                     |
-| | [ Squat ] Competition Squat                     (Tier: Comp)| | [Full ROM]* [Deficit] [Pin]    |
+|                                                                 | Variation: [ Pause Squat     ] |
+| Mapped Results list (dense, click to select):                   |                                |
+| +-------------------------------------------------------------+ | Sets, kg, reps, and RPE are    |
+| | [ Squat ] Competition Squat                     (Tier: Comp)| | edited on the exercise card.   |
 | +-------------------------------------------------------------+ |                                |
-| | [ Squat ] Pause Squat                           (Var)       | | Accommodating & Support Gear:  |
-| +-------------------------------------------------------------+ | [✓] Beltless *active*          |
-|                                                                 | [ ] Bands                      |
-| Custom Creator Button:                                          | [ ] Chains                     |
+| | [ Squat ] Pause Squat                           (Var)       | |                                |
 | +-------------------------------------------------------------+ |                                |
-| | | [+] Create Custom "Squat Variation A"                       | | Compiled:                      |
-| +-------------------------------------------------------------+ | "[Beltless] Pause Squat (320)" |
+| Custom Creator Button:                                          |                                |
+| +-------------------------------------------------------------+ |                                |
+| | [+] Create Custom "Squat Variation A"                       | |                                |
 +-----------------------------------------------------------------+--------------------------------+
-| Structured Prescription Injector Footer:                                                         |
-| Mode: [TOP_SET_BACKDOWN]*  Top: 1 x 3 @ 8.0 RPE  Backdown: 3 x 3 @ 5% load drop                  |
-|                                                                                                  |
-| Keyboard: [Esc] Cancel                                           [Ctrl+Enter] Commit and Inject  |
+| Keyboard: [Esc] Cancel                                           [Ctrl+Enter] Add                |
 +==================================================================================================+
 ```
 
@@ -738,18 +744,12 @@ The desktop Workout Builder uses a **two-pane split dialog layout** to allow coa
 * **Unified Database & Custom Parameter Mapping:** The desktop right configurator pane mirrors the exact custom parameters of the mobile client, utilizing identical HSL tag selectors for:
   * **Lift Category:** `Squat`, `Bench`, `Deadlift`, `Other` (to ensure 100% mathematical parity in INOL and ACWR models).
   * **Tiering:** `Comp`, `Variation`, `Accessory`.
-  * **Tempo Toggles:** `Standard (1-0-1)`, `Paused (3-2-0)`, `Slow Eccentric (3-0-0)`, `Isometric (1-3-1)`, and custom string inputs.
-  * **ROM Setup:** `Full ROM`, `Deficit`, `Pin/Board Blocked`, `Partial`.
-  * **Accommodating Resistance & Support Equipment Checklist:** Multi-select checkbox grid categorizing:
-    * **Accommodating Resistance (Strength Curve Modifiers)**: `Bands` (elastic resistance), `Chains` (variable link weight).
-    * **Support Equipment & Gear Extras (Leverage Modifiers)**: `Beltless` (abdominal wall tracking), `Wraps/Sleeves` (heavy joint supports), `SlingShot` (overload bench assistance).
-* **Structured Prescription Injector (Footer):** Integrates the prescription builder directly into the adding drawer:
-  * The coach selects the loading mode (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN` (featuring auto-computed Load Drop / Fatigue Limits), `HYBRID`) and sets target reps, sets, and intensities *before* injection.
-  * Displays the read-only preview string compiled live. Tapping `[Ctrl+Enter]` saves the custom movement parameters, templates the planned set structure, and injects the exercise block directly into the microcycle calendar day in a single action, saving the coach from multi-screen hopping.
+  * Tempo, ROM, and gear modifiers remain identity metadata when present; they do not open a prescription-mode footer.
+* **No prescription injector in Add Exercise:** Do not render Mode (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN`, `HYBRID`), Sets, Reps, RPE, %, or kg fields in this overlay. After `[ Add ]`, the new exercise block appears in the session with a blank set row. The coach edits kg × reps @ RPE or % on the exercise card (`+ Set` adds rows).
 * **Keyboard Bindings:**
-  * `Esc`: Immediately cancels, closes the overlay, and returns focus to the active calendar grid block.
-  * `Tab` / `Shift-Tab`: Cyclically rotates focus across inputs, segmented toggles, and checklists.
-  * `Ctrl+Enter`: Submits form, validates parameters, and injects the new exercise block.
+  * `Esc`: Immediately cancels, closes the overlay, and returns focus to the active session.
+  * `Tab` / `Shift-Tab`: Cyclically rotates focus across inputs and segmented toggles.
+  * `Ctrl+Enter`: Adds the exercise block (identity only) to the end of the session.
 * **Database Micro-Previews:** Hovering over any item in the Left results list displays a floating micro-panel containing the selected athlete's trailing e1RM peak trend line and most recent logged sets history, allowing the coach to make precise programming decisions based on real-time fatigue curves.
 
 ### 6.3 Meet Day Planner & Attempt Selector Table
@@ -1152,12 +1152,12 @@ The mobile logging console is structured as a unified, chronological, top-down w
 * **Layout Model**: Flex columns container (`display: flex; flex-direction: column; align-items: stretch;`).
 * **Section Divisions**:
   * **Step 1 (Picker)**: Search bar consumes fixed `48px` vertical bounds; result list occupies scrollable list space (`flex: 1 1 auto; overflow-y: auto;`).
-  * **Step 2 (Builder)**: Segmented toggles for categories, tempos, ROM splits, and checkbox equipment matrices.
-  * **Step 3 (Sets Configuration)**: Dense table mapping individual set entries with inline deletion buttons.
+  * **Step 2 (Builder)**: Segmented toggles for category and tier.
+  * After Add: exercise card set table (not a drawer step).
 
 ##### State Transitions (Default vs. Maximized)
 * **Default State**: Picker drawer is collapsed or hidden. Bottom action bar shows `[ Add Exercise ]` option.
-* **Maximized State (Drawer Entrance)**: Bottom sheet transitions up (`180ms ease-out` sliding from screen bottom). Left/right sliding sub-panes transition horizontally (`150ms ease-in-out` translateX splits) when stepping through Picker -> Custom Builder -> Set Editor, preventing vertical layout resizing.
+* **Maximized State (Drawer Entrance)**: Bottom sheet transitions up (`180ms ease-out` sliding from screen bottom). Left/right sliding sub-panes transition horizontally (`150ms ease-in-out` translateX splits) when stepping through Picker -> Custom Builder, then Add closes the drawer.
 
 When an athlete or coach needs to modify the workout on the fly, tapping `[ Add Exercise ]` on the sticky action bottom bar triggers the multi-step exercise integration flow:
 
@@ -1170,10 +1170,9 @@ graph TD
     Filter -- No --> Custom["Select [ [+] Create Custom '...' ]"]
     Custom --> Builder["Slide-in Custom Builder Pane"]
     Builder --> Define["Define: Category & Tier Class"]
-    Select --> Vol["Set Quick Sets & Reps Volume"]
-    Define --> Vol
-    Vol --> Confirm["Click [ Confirm Add ]"]
-    Confirm --> Inject["Inject at End of Timeline (LexoRank)"]
+    Select --> Confirm["Click [ Add ]"]
+    Define --> Confirm
+    Confirm --> Inject["Append at End of Timeline (LexoRank)"]
     Inject --> AutoScroll["Auto-Scroll & Focus New Set 1"]
 ```
 
@@ -1271,34 +1270,18 @@ Selecting `"Create Custom"` slides in a secondary nested sub-pane from the right
     * `Wraps / Sleeves` (Knee wraps / heavy elbow sleeves).
     * `SlingShot` (Bench overload modifier).
 * **Dynamic Compiler Name Preview:** Renders in a dedicated read-only block (`--ok-surface-3` with 1px border highlighted in `--ok-blue`). The UI engine dynamically combines the selected parameters to display the compiled canonical name string (e.g. `"[Beltless] [Deficit] Pause Squat (3-2-0)"`) so the user can verify the formatting before proceeding.
-* **Navigation Stepper:** The `"Continue"` button (touch boundary `48px x 48px`, background `--ok-blue`) advances the drawer to Step 3 (Quick sets/reps volume set).
+* **Navigation Stepper:** The `"Add"` button (touch boundary `48px x 48px`, background `--ok-blue`) appends the lift to the session. Prescription volume is not collected in this drawer.
 
-#### 7.3.3 Step 3: Quick Sets & Reps Volume Set
-After choosing or creating a movement, the picker transitions to a quick volume definition card which builds the prescription set-by-set (with no sliders allowed):
-* **Set-by-Set Editor Table**: Lists each set individually. The athlete/coach specifies target reps and RPE/Weight intensity for each individual set row.
-* **Row Deletion (`[x]` trigger)**: Each set row features a high-contrast delete trigger `[x]` at the right edge. Tapping `[x]` triggers a confirmation popup modal before deletion, ensuring no accidental loss.
-* **Sets Manager controls**: An inline button `[ (+) Add Set ]` adds a new set row to the bottom of the table.
-* **Direct adjustments**: Uses `+` / `-` buttons for fine-tuning reps and target intensities directly on a set-by-set basis without slider interfaces.
+#### 7.3.3 Prescriptions live on the exercise card
+There is no picker step for Mode / Sets / Reps / RPE / kg. After the lift is added, the **exercise card** is the prescription surface:
+* **Set-by-Set Editor Table**: Each set row is kg × reps @ RPE or %.
+* **Row Deletion**: Each set row has a delete control at the right edge.
+* **Sets Manager**: `[ + Set ]` on the exercise card appends a row.
+* **Direct adjustments**: Inline numeric cells (and mobile steppers), no sliders, no Add Exercise footer.
 
-##### 7.3.3.1 Step 3 Layout Diagram: Quick Sets & Reps Volume Set
+##### 7.3.3.1 Exercise card set table
 
-```
-| +======================================================================+ |
-| | [<-] Back   Prescription Builder (Step 3 of 4)                       | |
-| |                                                                      | |
-| | Prescribed Sets (Set-by-Set Configuration - No Sliders):             | |
-| | +------------------------------------------------------------------+ | |
-| | | SET 1:  [  5 Reps ] [-] [+]   [ 8.0 RPE ] [-] [+]   [x] Delete   | | |
-| | +------------------------------------------------------------------+ | |
-| | | SET 2:  [  5 Reps ] [-] [+]   [ 8.0 RPE ] [-] [+]   [x] Delete   | | |
-| | | SET 3:  [  5 Reps ] [-] [+]   [ 8.5 RPE ] [-] [+]   [x] Delete   | | |
-| | +------------------------------------------------------------------+ | |
-| |                                                                      | |
-| | [ (+) Add Set ]                                                      | |
-| |                                                                      | |
-| |                               [ CONTINUE ]                           | |
-| +======================================================================+ |
-```
+Prescription editing happens in the session exercise card Rx / Log columns, not in the Add Exercise overlay.
 
 ##### 7.3.3.2 Set Deletion Confirmation Dialog Spec
 
@@ -1315,11 +1298,12 @@ When a user taps `[x] Delete` on any set row, a focused modal dialog is displaye
 +==========================================================================+
 ```
 
-#### 7.3.4 Step 4: Append & Scroll Anchor
-Tapping `[ Confirm Add ]` (minimum target size `48px x 48px`, background `--ok-blue` active) executes the following sequence:
+#### 7.3.4 Append & Scroll Anchor
+Tapping `[ Add ]` (minimum target size `48px x 48px`, background `--ok-blue` active) executes the following sequence:
 1. **Optimistic Rank Calculation:** Generates an optimistic fractional sort rank string (`lexo_rank` positioned chronologically at the end of the existing exercise list).
-2. **Timeline Injection:** Closes the bottom sheet, generates the new exercise block containing the targeted planned sets, and appends it to the bottom of the scrollable timeline workout feed.
-3. **Viewport Focus Sync:** Viewport programmatically triggers a smooth ease-out scroll to the bottom of the timeline feed and expands the first planned set row inline, immediately placing the weight stepper input in active focus.
+2. **Timeline append:** Closes the overlay and appends the new exercise block (blank set row) to the session.
+3. **Viewport Focus Sync:** Viewport programmatically triggers a smooth ease-out scroll to the new exercise card so the coach can edit kg × reps @ RPE on the card.
+
 
 ---
 
@@ -1768,7 +1752,8 @@ Every React component must strictly satisfy these data parameters and lifecycle 
 | `RiskBadge` | `state`, `label`, `icon`, `description` | neutral, success, warning, danger | tooltip on desktop | Mapped to **Section 6.1.3.2**. Inline label + icon status container. Margin `--space-1` (4px). Color WCAG AA/AAA guidelines. |
 | `WorkoutCalendar` | `microcycles`, `workouts`, `locks`, `activeAthlete` | loading, empty, dragging, rejected, locked | create workout, move within boundary | Mapped to **Section 6.1.2**. 7-Column CSS Grid. Min-width budget: `960px` (Microcycle View), `1024px` (Month View) to prevent card truncation. |
 | `WorkoutLockBanner` | `holder`, `expiresAt`, `mode`, `canRelease`, `canReopen` | locked by me, locked by other, expired, completed | release, reopen | Mapped to **Section 6.1.2.1 & 10.1**. Overlay alert block. Full cell width width block, height dynamic. |
-| `PrescriptionEditor` | structured prescription JSON, exercise metadata | draft, valid, invalid, readonly | edit mode, validate, save | Mapped to **Section 6.2**. Centered overlay modal layout. Width: `90vw` (min `800px`, max `1200px`), height: `85dvh`. Transitions to `100%` viewport on compact screen dimensions. |
+| `PrescriptionEditor` | structured kg × reps @ RPE or % fields on a set row | draft, valid, invalid, readonly | edit Rx cell, toggle RPE/% | Inline in the exercise card Rx column. Not an Add Exercise overlay. |
+| `AddExerciseDialog` | catalog query, selected lift, category, tier | empty search, catalog match, custom, validation error | search, select, create custom, add, cancel | Mapped to **Section 6.2** as identity-only picker. No Mode/Sets/Reps/RPE/kg footer. |
 | `ExerciseReorderList` | ordered entities with `lexo_rank` | normal, dragging, syncing, conflict | reorder, undo local reorder | Mapped to **Section 6.1.2.1**. Drag-and-drop vertical list constrained strictly within active microcycle grid columns. |
 | `SetLogPanel` | active set, previous sets, unit preference, sync state | hydrated, offline, pending, accepted, rejected, locked | log set, edit allowed fields, add note | Mapped to **Section 7.1**. Mobile vertical feed chronological card. Height: `40px` collapsed, `260px` expanded inline. Touch targets min `48px x 48px`, gaps `12px` to prevent fat-finger skews. |
 | `SyncQueueBadge` | queue counts by state | empty, pending, syncing, failed | open queue detail, retry failed | Mapped to **Section 7.1 & 10.1**. Header inline badge. Max-width `120px`, height `24px` compact. |

@@ -1,64 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CatalogCategory, CatalogEntry, CatalogTier, EXERCISE_CATALOG, catalogMatches } from '../data/exerciseCatalog';
-import {
-  DEFAULT_PRESCRIPTION,
-  StructuredPrescription,
-  buildSetsFromPrescription,
-  prescriptionIsValid,
-  prescriptionPreview,
-} from '../services/prescriptionSets';
-import { ExerciseData } from '../types';
+import { ExerciseData, SetData } from '../types';
 
 const TIERS: Array<CatalogTier | 'All'> = ['All', 'Comp', 'Variation', 'Accessory'];
 const CATEGORIES: CatalogCategory[] = ['Squat', 'Bench', 'Deadlift', 'Other'];
-const MODES: StructuredPrescription['mode'][] = [
-  'RPE_TARGET',
-  'PERCENTAGE',
-  'AMRAP',
-  'TOP_SET_BACKDOWN',
-  'HYBRID',
-];
 
 function newEntityId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function NumberField({
-  label,
-  value,
-  onChange,
-  step = 1,
-  min = 0,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  step?: number;
-  min?: number;
-}) {
-  return (
-    <label className="flex flex-col gap-0.5 text-[10px] uppercase tracking-wider text-[#636366]">
-      {label}
-      <input
-        type="number"
-        value={Number.isFinite(value) ? value : ''}
-        step={step}
-        min={min}
-        onChange={(e) => onChange(e.target.value === '' ? min : Number(e.target.value))}
-        className="h-8 w-16 bg-[#161616] border border-white/10 px-1.5 text-xs font-mono text-white"
-      />
-    </label>
-  );
+function blankSet(exerciseId: string): SetData {
+  return {
+    id: `${exerciseId}-s1`,
+    label: 'Set 1',
+    plannedWeight: null,
+    plannedReps: null,
+    plannedRpe: null,
+    actual: null,
+    reps: null,
+    executedRpe: null,
+  };
 }
 
 export function AddExerciseDialog({
   open,
   onClose,
-  onInject,
+  onAdd,
 }: {
   open: boolean;
   onClose: () => void;
-  onInject: (exercise: ExerciseData) => void;
+  onAdd: (exercise: ExerciseData) => void;
 }) {
   const [query, setQuery] = useState('');
   const [tierFilter, setTierFilter] = useState<CatalogTier | 'All'>('All');
@@ -67,7 +38,6 @@ export function AddExerciseDialog({
   const [variation, setVariation] = useState('');
   const [tier, setTier] = useState<CatalogTier>('Variation');
   const [liftCategory, setLiftCategory] = useState<CatalogCategory>('Squat');
-  const [prescription, setPrescription] = useState<StructuredPrescription>(DEFAULT_PRESCRIPTION);
   const [error, setError] = useState<string | null>(null);
 
   const matches = useMemo(() => {
@@ -86,7 +56,6 @@ export function AddExerciseDialog({
     setVariation('');
     setTier('Variation');
     setLiftCategory('Squat');
-    setPrescription(DEFAULT_PRESCRIPTION);
     setError(null);
   }, [open]);
 
@@ -109,23 +78,13 @@ export function AddExerciseDialog({
     setError(null);
   };
 
-  const patch = (updates: Partial<StructuredPrescription>) => {
-    setPrescription((prev) => ({ ...prev, ...updates }));
-  };
-
-  const inject = () => {
+  const add = () => {
     const heading = (tier === 'Accessory' ? title : variation || title).trim();
     if (!heading) {
-      setError('Name the lift before injecting.');
-      return;
-    }
-    const invalid = prescriptionIsValid(prescription);
-    if (invalid) {
-      setError(invalid);
+      setError('Name the lift before adding.');
       return;
     }
     const id = newEntityId('ex');
-    const sets = buildSetsFromPrescription(id, prescription);
     const exercise: ExerciseData = {
       id,
       title: title.trim() || heading,
@@ -135,9 +94,9 @@ export function AddExerciseDialog({
       tags: [tier, liftCategory],
       top: '—',
       vol: '—',
-      sets,
+      sets: [blankSet(id)],
     };
-    onInject(exercise);
+    onAdd(exercise);
     onClose();
   };
 
@@ -150,7 +109,7 @@ export function AddExerciseDialog({
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        inject();
+        add();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -176,7 +135,7 @@ export function AddExerciseDialog({
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 border-b border-white/10">
+        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2">
           <div className="min-h-0 flex flex-col border-b md:border-b-0 md:border-r border-white/10">
             <div className="p-2 flex flex-col gap-2 shrink-0">
               <input
@@ -279,84 +238,28 @@ export function AddExerciseDialog({
                 ))}
               </div>
             </div>
+            {error ? (
+              <p role="alert" className="text-xs text-[#FF453A]">
+                {error}
+              </p>
+            ) : (
+              <p className="text-xs text-[#636366]">Sets, kg, reps, and RPE are edited on the exercise card after adding.</p>
+            )}
           </div>
         </div>
 
-        <div className="shrink-0 p-3 flex flex-col gap-2 border-t border-white/10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Mode</span>
-            {MODES.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => patch({ mode })}
-                className={`h-7 px-2 text-[11px] ${prescription.mode === mode ? 'text-white' : 'text-[#AEAEB2] hover:text-white'}`}
-              >
-                {mode.replaceAll('_', ' ')}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            {(prescription.mode === 'RPE_TARGET' || prescription.mode === 'PERCENTAGE') && (
-              <>
-                <NumberField label="Sets" value={prescription.sets} min={1} onChange={(sets) => patch({ sets })} />
-                <NumberField label="Reps" value={prescription.reps} min={1} onChange={(reps) => patch({ reps })} />
-                {prescription.mode === 'RPE_TARGET' ? (
-                  <NumberField label="RPE" value={prescription.target_rpe} step={0.5} onChange={(target_rpe) => patch({ target_rpe })} />
-                ) : (
-                  <NumberField label="%" value={prescription.percent} onChange={(percent) => patch({ percent })} />
-                )}
-              </>
-            )}
-            {prescription.mode === 'AMRAP' && (
-              <NumberField label="%" value={prescription.percent} onChange={(percent) => patch({ percent })} />
-            )}
-            {prescription.mode === 'TOP_SET_BACKDOWN' && (
-              <>
-                <NumberField label="Top reps" value={prescription.top_reps} min={1} onChange={(top_reps) => patch({ top_reps })} />
-                <NumberField label="Top RPE" value={prescription.top_rpe} step={0.5} onChange={(top_rpe) => patch({ top_rpe })} />
-                <NumberField label="Backdown sets" value={prescription.backdown_sets} min={0} onChange={(backdown_sets) => patch({ backdown_sets })} />
-                <NumberField label="Backdown reps" value={prescription.backdown_reps} min={1} onChange={(backdown_reps) => patch({ backdown_reps })} />
-                <NumberField label="Drop %" value={prescription.fatigue_drop_percent} onChange={(fatigue_drop_percent) => patch({ fatigue_drop_percent })} />
-              </>
-            )}
-            {prescription.mode === 'HYBRID' && (
-              <>
-                <NumberField label="Top reps" value={prescription.top_reps} min={1} onChange={(top_reps) => patch({ top_reps })} />
-                <NumberField label="Top RPE" value={prescription.top_rpe} step={0.5} onChange={(top_rpe) => patch({ top_rpe })} />
-                <NumberField label="Vol sets" value={prescription.volume_sets} min={0} onChange={(volume_sets) => patch({ volume_sets })} />
-                <NumberField label="Vol reps" value={prescription.volume_reps} min={1} onChange={(volume_reps) => patch({ volume_reps })} />
-                <NumberField label="Vol %" value={prescription.volume_percent} onChange={(volume_percent) => patch({ volume_percent })} />
-              </>
-            )}
-            <NumberField
-              label="kg"
-              value={prescription.weight ?? 0}
-              step={2.5}
-              onChange={(weight) => patch({ weight: weight > 0 ? weight : null })}
-            />
-          </div>
-          <p className="text-xs font-mono text-[#AEAEB2]" data-testid="prescription-preview">
-            {prescriptionPreview(prescription)}
-          </p>
-          {error ? (
-            <p role="alert" className="text-xs text-[#FF453A]">
-              {error}
-            </p>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="h-8 px-3 text-[11px] text-[#AEAEB2] hover:text-white">
-              Cancel
-            </button>
-            <button
-              type="button"
-              data-testid="inject-exercise"
-              onClick={inject}
-              className="h-8 px-3 text-[11px] bg-[#007AFF] text-white"
-            >
-              Inject
-            </button>
-          </div>
+        <div className="shrink-0 p-3 flex justify-end gap-2 border-t border-white/10">
+          <button type="button" onClick={onClose} className="h-8 px-3 text-[11px] text-[#AEAEB2] hover:text-white">
+            Cancel
+          </button>
+          <button
+            type="button"
+            data-testid="add-exercise-confirm"
+            onClick={add}
+            className="h-8 px-3 text-[11px] bg-[#007AFF] text-white"
+          >
+            Add
+          </button>
         </div>
       </div>
     </div>
