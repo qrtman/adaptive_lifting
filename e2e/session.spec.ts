@@ -118,7 +118,7 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   await page.getByTestId('session-day-2026-09-17').click();
   await page.getByTestId('create-session').click();
   await expect(page.getByTestId('add-session-dialog')).toHaveCount(0);
-  await expect(page.getByText('2026-09-17')).toBeVisible();
+  await expect(page.locator('[data-testid^="session-date-"]', { hasText: '2026-09-17' })).toBeVisible();
 });
 
 test('coach can add a catalog exercise into a session', async ({ page }) => {

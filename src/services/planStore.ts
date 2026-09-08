@@ -37,17 +37,26 @@ function looksLikePlan(microcycles: unknown): microcycles is MicrocycleData[] {
 /** Narrow an untrusted snapshot payload, so a stale or corrupt record is ignored. */
 export function asStoredPlan(raw: unknown): StoredPlan | null {
   if (!raw || typeof raw !== 'object') return null;
-  const candidate = raw as Partial<StoredPlan> & { source?: string };
+  const candidate = raw as {
+    schema?: unknown;
+    athleteId?: string | null;
+    source?: unknown;
+    planVersion?: string | null;
+    ownedWorkoutIds?: unknown;
+    microcycles?: unknown;
+  };
   if (candidate.schema !== PLAN_SCHEMA) return null;
   if (!looksLikePlan(candidate.microcycles)) return null;
   // Pre-athlete snapshots used source 'seed'. They are unowned and must not load.
   if (candidate.source === 'seed') return null;
+  const source: PlanSource =
+    candidate.source === 'imported' || candidate.source === 'api' || candidate.source === 'local'
+      ? candidate.source
+      : 'local';
   return {
     schema: PLAN_SCHEMA,
     athleteId: candidate.athleteId ?? null,
-    source: candidate.source === 'imported' || candidate.source === 'api' || candidate.source === 'local'
-      ? candidate.source
-      : 'local',
+    source,
     planVersion: candidate.planVersion ?? null,
     ownedWorkoutIds: Array.isArray(candidate.ownedWorkoutIds) ? candidate.ownedWorkoutIds : [],
     microcycles: candidate.microcycles,
