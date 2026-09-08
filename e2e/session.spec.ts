@@ -49,14 +49,18 @@ test('wide session pane places exercise name beside working sets', async ({ page
   const session = page.getByTestId('sessions-card-w-3-1');
   const heading = session.getByRole('heading', { name: 'Low Bar Competition' });
   const table = session.locator('table').first();
+  const toolbar = session.getByTestId('exercise-toolbar-e-3-1-1');
   await heading.scrollIntoViewIfNeeded();
 
   await page.setViewportSize({ width: 1440, height: 900 });
   const wideHeading = await heading.boundingBox();
   const wideTable = await table.boundingBox();
+  const wideToolbar = await toolbar.boundingBox();
   expect(wideHeading).toBeTruthy();
   expect(wideTable).toBeTruthy();
+  expect(wideToolbar).toBeTruthy();
   expect(wideHeading!.x).toBeLessThan(wideTable!.x - 40);
+  expect(wideToolbar!.x).toBeGreaterThan(wideTable!.x);
   expect(Math.abs(wideHeading!.y - wideTable!.y)).toBeLessThan(48);
 
   await page.setViewportSize({ width: 700, height: 900 });

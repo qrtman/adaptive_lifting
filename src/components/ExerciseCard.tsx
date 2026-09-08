@@ -200,7 +200,10 @@ export const ExerciseCard = ({
   );
 
   const toolbar = (
-    <div className="flex items-center gap-x-2 gap-y-0.5 shrink-0 flex-wrap">
+    <div
+      data-testid={`exercise-toolbar-${id}`}
+      className="flex items-center gap-x-2 gap-y-0.5 shrink-0 flex-wrap @min-[36rem]:flex-col @min-[36rem]:items-end @min-[36rem]:gap-1"
+    >
       <div className="flex items-center gap-1">
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
         {roleMode === 'coach' && sets[0] ? (
@@ -246,17 +249,14 @@ export const ExerciseCard = ({
   return (
     <div className="@container border-b border-white/10" data-testid={`exercise-card-${id}`}>
       {expanded ? (
-      <div className="px-2 py-1 flex flex-col @min-[36rem]:flex-row @min-[36rem]:items-start gap-x-3 gap-y-1">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[36rem]:w-44 @min-[36rem]:shrink-0 @min-[36rem]:flex-col @min-[36rem]:items-stretch @min-[36rem]:gap-1">
-        <div className="flex items-baseline gap-2 min-w-0 @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0 @min-[36rem]:w-full">
+      <div className="px-2 py-1 flex flex-wrap @min-[36rem]:flex-nowrap items-start gap-x-3 gap-y-1">
+      <div className="flex items-baseline gap-2 min-w-0 flex-1 @min-[36rem]:w-44 @min-[36rem]:flex-none @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0">
           <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:leading-6 @min-[36rem]:whitespace-normal">{headingName}</h4>
           {supportingLabel ? (
             <span className="text-xs text-[#AEAEB2] truncate @min-[36rem]:whitespace-normal">{supportingLabel}</span>
           ) : null}
         </div>
-        {toolbar}
-      </div>
-      <div className="overflow-x-auto min-w-0 w-full @min-[36rem]:flex-1">
+      <div className="overflow-x-auto min-w-0 w-full @min-[36rem]:flex-1 @min-[36rem]:w-auto order-last @min-[36rem]:order-none">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-white/5">
@@ -501,6 +501,7 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      {toolbar}
       </div>
       ) : (
         <>
