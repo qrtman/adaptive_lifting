@@ -257,11 +257,18 @@ export const ExerciseCard = ({
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
 
               const actualWt = trainingOrZero(set.actual);
-              const plannedWt = trainingOrZero(set.plannedWeight);
-              const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
-              const actualRp = trainingOrZero(set.executedRpe);
-              const targetRpVal = trainingOrZero(set.plannedRpe);
-              const rpeDelta = !isPercent && actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
+              const rxE1RM = anchorE1RMFromPrescription(
+                set.plannedWeight,
+                set.plannedReps,
+                isPercent ? set.target_value : (set.plannedRpe ?? set.target_value),
+                set.intensity_type || 'RPE',
+              );
+              const loggedE1RM = isPercent
+                ? (actualWt > 0 && percentTarget > 0 ? actualWt / (percentTarget / 100) : 0)
+                : calculateE1RM(actualWt, trainingIntOrZero(set.reps), trainingOrZero(set.executedRpe));
+              const e1rmDelta = loggedE1RM > 0 && rxE1RM > 0
+                ? Math.round(loggedE1RM) - Math.round(rxE1RM)
+                : null;
               const adjPct = set.adjustment_pct !== undefined
                 ? Math.round(set.adjustment_pct * 100)
                 : (set.dropPercent !== undefined ? Math.round(set.dropPercent) : 0);
@@ -387,9 +394,8 @@ export const ExerciseCard = ({
                       )}
                     </div>
                   </td>
-                  <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
-                    {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
-                    {rpeDelta !== null ? ` ${rpeDelta > 0 ? '+' : ''}${rpeDelta}r` : ''}
+                  <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`} data-testid={`set-delta-${set.id}`}>
+                    {e1rmDelta !== null ? `${e1rmDelta > 0 ? '+' : ''}${e1rmDelta}` : '—'}
                   </td>
                   <td className={`${td} font-mono tabular-nums text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-white' : 'text-[#636366]'}>
