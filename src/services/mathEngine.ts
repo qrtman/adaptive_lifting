@@ -264,6 +264,64 @@ export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number)
   return Math.max(0, e1RM * denominator);
 }
 
+export type LoggedSetForE1RM = {
+  actual?: unknown;
+  reps?: unknown;
+  executedRpe?: unknown;
+  intensity_type?: string;
+  target_value?: unknown;
+};
+
+/** Logged e1RM only. Unlogged sets (no actual kg) return 0. Percent sets invert target %. */
+export function loggedSetE1RM(set: LoggedSetForE1RM): number {
+  const weight = trainingOrZero(set.actual);
+  if (weight <= 0) return 0;
+  if ((set.intensity_type || 'RPE') === 'PERCENT') {
+    const pct = trainingOrZero(set.target_value);
+    if (pct <= 0) return 0;
+    return Math.round((weight / (pct / 100)) * 100) / 100;
+  }
+  return calculateE1RM(weight, trainingIntOrZero(set.reps), trainingOrZero(set.executedRpe));
+}
+
+export type PrecedingE1RMDelta = {
+  kg: number;
+  pct: number;
+};
+
+/**
+ * Δ vs the most recent preceding logged e1RM (skip unlogged rows).
+ * Set 1 and any set without a prior logged e1RM have no Δ.
+ */
+export function precedingLoggedE1RMDelta(
+  sets: LoggedSetForE1RM[],
+  index: number,
+): PrecedingE1RMDelta | null {
+  const current = loggedSetE1RM(sets[index] ?? {});
+  if (current <= 0) return null;
+
+  let previous = 0;
+  for (let j = index - 1; j >= 0; j--) {
+    const prior = loggedSetE1RM(sets[j]);
+    if (prior > 0) {
+      previous = prior;
+      break;
+    }
+  }
+  if (previous <= 0) return null;
+
+  const kg = Math.round(current) - Math.round(previous);
+  const prevRounded = Math.round(previous);
+  const pct = Math.round((kg / prevRounded) * 1000) / 10;
+  return { kg, pct };
+}
+
+export function formatPrecedingE1RMDelta(delta: PrecedingE1RMDelta): string {
+  const kg = `${delta.kg > 0 ? '+' : ''}${delta.kg}`;
+  const pct = `${delta.pct > 0 ? '+' : ''}${delta.pct.toFixed(1)}%`;
+  return `${kg} ${pct}`;
+}
+
 /** Daily e1RM for later-set suggestions: top set if logged, else peak preceding log. Backdowns do not re-anchor. */
 export function peakPrecedingLoggedE1RM(
   sets: Array<{ actual?: unknown; reps?: unknown; executedRpe?: unknown; isTop?: boolean }>,

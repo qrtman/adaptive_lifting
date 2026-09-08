@@ -6,7 +6,9 @@ import {
   calculateE1RM,
   calculateINOL,
   anchorE1RMFromPrescription,
+  formatPrecedingE1RMDelta,
   peakPrecedingLoggedE1RM,
+  precedingLoggedE1RMDelta,
   roundToCompetitionPlates,
 } from './mathEngine';
 
@@ -52,6 +54,43 @@ describe('anchorE1RMFromPrescription', () => {
   it('derives the anchor from set 1 Rx, not from a stored baseline', () => {
     expect(Math.round(anchorE1RMFromPrescription(137.5, 1, 5, 'RPE'))).toBe(160);
     expect(anchorE1RMFromPrescription(80, 1, 50, 'PERCENT')).toBe(160);
+  });
+});
+
+describe('precedingLoggedE1RMDelta', () => {
+  const sets = [
+    { actual: 160, reps: 1, executedRpe: 8.5 },
+    { actual: 152.5, reps: 3, executedRpe: 7.5 },
+    { actual: null, reps: null, executedRpe: null },
+    { actual: 152.5, reps: 3, executedRpe: 8 },
+    { actual: 80, reps: 1, executedRpe: null, intensity_type: 'PERCENT', target_value: 50 },
+  ];
+
+  it('has no Δ on set 1', () => {
+    expect(precedingLoggedE1RMDelta(sets, 0)).toBeNull();
+  });
+
+  it('compares to the most recent preceding logged e1RM as kg and %', () => {
+    const first = Math.round(calculateE1RM(160, 1, 8.5));
+    const second = Math.round(calculateE1RM(152.5, 3, 7.5));
+    const delta = precedingLoggedE1RMDelta(sets, 1);
+    expect(delta).toEqual({
+      kg: second - first,
+      pct: Math.round(((second - first) / first) * 1000) / 10,
+    });
+    expect(formatPrecedingE1RMDelta(delta!)).toBe(`+${second - first} +${delta!.pct.toFixed(1)}%`);
+  });
+
+  it('skips unlogged rows when looking back', () => {
+    const second = Math.round(calculateE1RM(152.5, 3, 7.5));
+    const fourth = Math.round(calculateE1RM(152.5, 3, 8));
+    expect(precedingLoggedE1RMDelta(sets, 2)).toBeNull();
+    expect(precedingLoggedE1RMDelta(sets, 3)?.kg).toBe(fourth - second);
+  });
+
+  it('inverts percent prescriptions for the lookback', () => {
+    const fourth = Math.round(calculateE1RM(152.5, 3, 8));
+    expect(precedingLoggedE1RMDelta(sets, 4)?.kg).toBe(160 - fourth);
   });
 });
 

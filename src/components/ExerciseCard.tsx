@@ -6,6 +6,8 @@ import {
   calculateE1RM, 
   calculateINOL,
   anchorE1RMFromPrescription,
+  formatPrecedingE1RMDelta,
+  precedingLoggedE1RMDelta,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 
@@ -228,7 +230,6 @@ export const ExerciseCard = ({
               <span className="text-[#AEAEB2]">Log</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
             </th>
-            <th className={th}>Δ</th>
             <th className={th}>e1RM</th>
             <th className={th}>INOL</th>
             <th className={`${th} w-10`} aria-label="Set actions" />
@@ -237,7 +238,7 @@ export const ExerciseCard = ({
         <tbody>
             {sets.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-2 py-3 text-xs text-[#636366]">
+                <td colSpan={8} className="px-2 py-3 text-xs text-[#636366]">
                   No sets programmed.
                 </td>
               </tr>
@@ -256,19 +257,7 @@ export const ExerciseCard = ({
                 : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
 
-              const actualWt = trainingOrZero(set.actual);
-              const rxE1RM = anchorE1RMFromPrescription(
-                set.plannedWeight,
-                set.plannedReps,
-                isPercent ? set.target_value : (set.plannedRpe ?? set.target_value),
-                set.intensity_type || 'RPE',
-              );
-              const loggedE1RM = isPercent
-                ? (actualWt > 0 && percentTarget > 0 ? actualWt / (percentTarget / 100) : 0)
-                : calculateE1RM(actualWt, trainingIntOrZero(set.reps), trainingOrZero(set.executedRpe));
-              const e1rmDelta = loggedE1RM > 0 && rxE1RM > 0
-                ? Math.round(loggedE1RM) - Math.round(rxE1RM)
-                : null;
+              const e1rmDelta = precedingLoggedE1RMDelta(sets, i);
               const adjPct = set.adjustment_pct !== undefined
                 ? Math.round(set.adjustment_pct * 100)
                 : (set.dropPercent !== undefined ? Math.round(set.dropPercent) : 0);
@@ -394,12 +383,16 @@ export const ExerciseCard = ({
                       )}
                     </div>
                   </td>
-                  <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`} data-testid={`set-delta-${set.id}`}>
-                    {e1rmDelta !== null ? `${e1rmDelta > 0 ? '+' : ''}${e1rmDelta}` : '—'}
-                  </td>
                   <td className={`${td} font-mono tabular-nums text-[11px]`} data-testid={`set-metrics-${set.id}`}>
-                    <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-white' : 'text-[#636366]'}>
-                      {e1RM > 0 ? Math.round(e1RM) : '—'}
+                    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                      <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-white' : 'text-[#636366]'}>
+                        {e1RM > 0 ? Math.round(e1RM) : '—'}
+                      </span>
+                      {e1rmDelta !== null ? (
+                        <span data-testid={`set-delta-${set.id}`} className="text-[10px] text-[#AEAEB2]">
+                          {formatPrecedingE1RMDelta(e1rmDelta)}
+                        </span>
+                      ) : null}
                     </span>
                   </td>
                   <td className={`${td} font-mono tabular-nums text-[11px]`}>
