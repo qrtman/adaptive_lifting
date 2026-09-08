@@ -8,8 +8,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CSV_PATH = ROOT / "src/data/zahar-block-3.1.csv"
-OUT_PATH = ROOT / "src/data/zaharBlock31.json"
+CSV_PATH = ROOT / "src/data/fixtures/zahar-block-3.1.csv"
+OUT_PATH = ROOT / "src/data/fixtures/zaharBlock31.json"
 
 SKIP_NAMES = {
     "",

@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { ZAHAR_ATHLETE_ID, ZAHAR_BLOCK_31, isImportedLocalPlan, planForAthlete } from './zaharBlock';
+import { ZAHAR_BLOCK_31 } from './zaharBlock31';
+
+/**
+ * Fixture integrity only: does the offline CSV conversion still produce the kg,
+ * reps and RPE the coach actually recorded? These numbers describe one athlete's
+ * sample data, never product behaviour — mechanism lives in athletePlans and
+ * planStore tests.
+ */
+
+const MICROCYCLES = ZAHAR_BLOCK_31.microcycles;
 
 function setsOf(weekId: string, day: string, title: string) {
-  const week = ZAHAR_BLOCK_31.find((micro) => micro.id === weekId);
+  const week = MICROCYCLES.find((micro) => micro.id === weekId);
   const workout = week?.workouts.find((row) => row.dayLabel === day);
   const exercise = workout?.exercises.find((row) => row.title === title);
   return exercise?.sets ?? [];
 }
 
-describe('Zahar Block 3.1 CSV conversion', () => {
+describe('Block 3.1 CSV conversion fixture', () => {
   it('uses week 3 D1 executed kg/reps/RPE from the CSV, not invented waves', () => {
     const dl = setsOf('z-w3', 'D1', 'Sumo deadlift');
     expect(dl.map((set) => set.actual)).toEqual([185, 157.5, 150, 150]);
@@ -33,7 +42,7 @@ describe('Zahar Block 3.1 CSV conversion', () => {
   });
 
   it('keeps 10-12 as a rep-range note, not a calendar date', () => {
-    const week = ZAHAR_BLOCK_31.find((micro) => micro.id === 'z-w3');
+    const week = MICROCYCLES.find((micro) => micro.id === 'z-w3');
     for (const workout of week?.workouts ?? []) {
       expect(workout.date).toBe('');
     }
@@ -49,11 +58,5 @@ describe('Zahar Block 3.1 CSV conversion', () => {
     const dl = setsOf('z-w6', 'D1', 'Sumo deadlift');
     expect(dl.map((set) => set.actual)).toEqual([190, 177.5, 150, 150]);
     expect(dl.map((set) => set.executedRpe)).toEqual([7, 6, 5, 5]);
-  });
-
-  it('maps only Zahar to that plan', () => {
-    expect(planForAthlete(ZAHAR_ATHLETE_ID)?.length).toBe(4);
-    expect(planForAthlete('athlete-other')).toBeNull();
-    expect(isImportedLocalPlan(ZAHAR_BLOCK_31)).toBe(true);
   });
 });

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { planForAthlete } from '../data/zaharBlock';
+import { importedPlanFor } from '../data/athletePlans';
 import { addLocalAthlete, loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
 
 interface CoachDashboardViewProps {
@@ -22,6 +22,7 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
   const [selectedAthlete, setSelectedAthlete] = useState<LocalAthlete | null>(null);
   const { loadAthletePlan } = usePeriodization();
   const [openError, setOpenError] = useState<string | null>(null);
+  const importedPlan = importedPlanFor(selectedAthlete?.id);
 
   // Powerlifting Analytics state
   const [analytics, setAnalytics] = useState<any>(null);
@@ -196,7 +197,7 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
                   value={addName}
                   onChange={(e) => setAddName(e.target.value)}
                   className="min-h-10 bg-[#161616] border border-white/10 px-3 text-white"
-                  placeholder="Zahar"
+                  placeholder="Athlete name"
                 />
               </label>
               <label className="text-xs text-[#AEAEB2] flex flex-col gap-1">
@@ -253,13 +254,13 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
                   {' · '}DL {selectedAthlete.peakE1RM.deadlift ?? '—'}
                 </p>
               </div>
-              {planForAthlete(selectedAthlete.id) ? (
+              {importedPlan ? (
                 <button
                   data-testid="open-athlete-block"
                   onClick={handleOpenBlock}
                   className="bg-mac-blue hover:bg-blue-600 text-white rounded-xl px-4 py-2 text-sm font-bold flex items-center gap-2"
                 >
-                  Open Block 3.1
+                  Open {importedPlan.blockName}
                 </button>
               ) : (
                 <p className="text-xs text-zinc-500 max-w-[14rem] text-right">

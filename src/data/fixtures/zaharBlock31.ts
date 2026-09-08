@@ -1,13 +1,19 @@
 import payload from './zaharBlock31.json';
+import type { ImportedPlan } from '../athletePlans';
 import {
   ExerciseData,
+  LocalAthlete,
   MicrocycleData,
   SetData,
   WorkoutData,
   WorkoutStatus,
-} from '../types';
+} from '../../types';
 
-/** Structured Block 3.1 loaded from the one-time CSV conversion JSON. Not a runtime CSV parser. */
+/**
+ * Fixture: one real athlete's block, converted offline by
+ * `scripts/convert-zahar-block.py`. This is sample data, not specification —
+ * nothing outside this directory may branch on the athlete or the block name.
+ */
 export const ZAHAR_ATHLETE_ID = 'athlete-zahar';
 
 type CsvSet = {
@@ -184,13 +190,25 @@ function toMicrocycle(week: CsvWeek): MicrocycleData {
   };
 }
 
-export const ZAHAR_BLOCK_31: MicrocycleData[] = (payload as { weeks: CsvWeek[] }).weeks.map(toMicrocycle);
+const MICROCYCLES: MicrocycleData[] = (payload as { weeks: CsvWeek[] }).weeks.map(toMicrocycle);
 
-export function planForAthlete(athleteId: string): MicrocycleData[] | null {
-  if (athleteId === ZAHAR_ATHLETE_ID) return ZAHAR_BLOCK_31;
-  return null;
-}
+export const ZAHAR_BLOCK_31: ImportedPlan = {
+  athleteId: ZAHAR_ATHLETE_ID,
+  blockName: 'Block 3.1',
+  microcycles: MICROCYCLES,
+};
 
-export function isImportedLocalPlan(microcycles: MicrocycleData[]): boolean {
-  return microcycles.some((micro) => micro.id.startsWith('z-w'));
-}
+/** Week 5 executed top singles, as numeric e1RM rather than parsed Rx text. */
+export const ZAHAR_ATHLETE: LocalAthlete = {
+  id: ZAHAR_ATHLETE_ID,
+  name: 'Zahar',
+  email: null,
+  currentBlock: ZAHAR_BLOCK_31.blockName,
+  activeMicrocycles: 1,
+  peakE1RM: {
+    squat: 191.1,
+    bench: 135.6,
+    deadlift: 231.5,
+  },
+  linked: false,
+};

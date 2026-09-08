@@ -124,6 +124,20 @@ export interface MicrocycleData {
   workouts: WorkoutData[];
 }
 
+export interface LocalAthlete {
+  id: string;
+  name: string;
+  email: string | null;
+  currentBlock: string | null;
+  activeMicrocycles: number;
+  peakE1RM: {
+    squat: number | null;
+    bench: number | null;
+    deadlift: number | null;
+  };
+  linked: boolean;
+}
+
 export interface MesocycleData {
   id: string;
   name: string;

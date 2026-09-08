@@ -1,35 +1,10 @@
+import { SEEDED_ATHLETES } from '../data/fixtures/seededRoster';
+import type { LocalAthlete } from '../types';
 import { getSnapshot, saveSnapshot } from './db';
 
-export type LocalAthlete = {
-  id: string;
-  name: string;
-  email: string | null;
-  currentBlock: string | null;
-  activeMicrocycles: number;
-  peakE1RM: {
-    squat: number | null;
-    bench: number | null;
-    deadlift: number | null;
-  };
-  linked: boolean;
-};
+export type { LocalAthlete };
 
 const SNAPSHOT_ID = 'coach-local-roster';
-
-/** Week 5 executed top singles from Zahar Block 3.1 (numeric e1RM, not parsed Rx). */
-export const ZAHAR_ATHLETE: LocalAthlete = {
-  id: 'athlete-zahar',
-  name: 'Zahar',
-  email: null,
-  currentBlock: 'Block 3.1',
-  activeMicrocycles: 1,
-  peakE1RM: {
-    squat: 191.1,
-    bench: 135.6,
-    deadlift: 231.5,
-  },
-  linked: false,
-};
 
 export function mergeRoster(
   remote: Array<{ id: string; email?: string; activeMicrocycles?: number }>,
@@ -59,8 +34,8 @@ export async function loadLocalRoster(): Promise<LocalAthlete[]> {
   if (Array.isArray(stored) && stored.length > 0) {
     return stored as LocalAthlete[];
   }
-  await saveSnapshot(SNAPSHOT_ID, [ZAHAR_ATHLETE]);
-  return [ZAHAR_ATHLETE];
+  await saveSnapshot(SNAPSHOT_ID, SEEDED_ATHLETES);
+  return SEEDED_ATHLETES;
 }
 
 export async function addLocalAthlete(athlete: Omit<LocalAthlete, 'id' | 'linked'>): Promise<LocalAthlete[]> {
