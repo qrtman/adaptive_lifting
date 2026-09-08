@@ -17,6 +17,9 @@ describe('Zahar Block 3.1 CSV conversion', () => {
     expect(dl.map((set) => set.plannedWeight)).toEqual([185, 157.5, 152.5, 152.5]);
     expect(dl.map((set) => set.plannedRpe)).toEqual([6, 5.5, 5, 5]);
     expect(dl[0]?.isTop).toBe(true);
+    const squat = setsOf('z-w3', 'D2', 'Low Bar Squat');
+    expect(squat[0]?.actual).toBe(165);
+    expect(squat[0]?.executedRpe).toBe(6);
   });
 
   it('uses week 5 D1 deadlift top single 210 × 1 @ 7.5', () => {
