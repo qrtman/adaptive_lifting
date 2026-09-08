@@ -25,13 +25,6 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
 
   await expect(page.getByRole('columnheader', { name: /Rx/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: '%adj' }).first()).toBeVisible();
-  const adjHeader = session.getByRole('columnheader', { name: '%adj' });
-  const copyBtn = session.getByTitle('Copy prescription to log').first();
-  const adjBox = await adjHeader.boundingBox();
-  const copyBox = await copyBtn.boundingBox();
-  expect(adjBox).toBeTruthy();
-  expect(copyBox).toBeTruthy();
-  expect(adjBox!.x).toBeLessThan(copyBox!.x);
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'e1RM' }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'INOL' }).first()).toBeVisible();
@@ -69,6 +62,13 @@ test('wide session pane places exercise name beside working sets', async ({ page
   expect(wideToolbar).toBeTruthy();
   expect(wideHeading!.x).toBeLessThan(wideTable!.x - 40);
   expect(wideToolbar!.x).toBeGreaterThan(wideTable!.x);
+  const adjHeader = session.getByRole('columnheader', { name: '%adj' });
+  const copyBtn = session.getByTitle('Copy prescription to log').first();
+  const adjBox = await adjHeader.boundingBox();
+  const copyBox = await copyBtn.boundingBox();
+  expect(adjBox).toBeTruthy();
+  expect(copyBox).toBeTruthy();
+  expect(adjBox!.x).toBeLessThan(copyBox!.x);
   expect(Math.abs(wideHeading!.y - wideTable!.y)).toBeLessThan(48);
 
   await page.setViewportSize({ width: 700, height: 900 });
