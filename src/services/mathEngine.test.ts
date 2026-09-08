@@ -5,6 +5,8 @@ import {
   calculateDOTS,
   calculateE1RM,
   calculateINOL,
+  exerciseSetINOL,
+  sumExerciseINOL,
   anchorE1RMFromPrescription,
   formatPrecedingE1RMDelta,
   peakPrecedingLoggedE1RM,
@@ -54,6 +56,30 @@ describe('anchorE1RMFromPrescription', () => {
   it('derives the anchor from set 1 Rx, not from a stored baseline', () => {
     expect(Math.round(anchorE1RMFromPrescription(137.5, 1, 5, 'RPE'))).toBe(160);
     expect(anchorE1RMFromPrescription(80, 1, 50, 'PERCENT')).toBe(160);
+  });
+});
+
+describe('sumExerciseINOL', () => {
+  it('sums per-set INOL and ignores empty rows', () => {
+    const sets = [
+      { actual: 160, reps: 1, executedRpe: 8.5 },
+      { actual: 152.5, reps: 3, executedRpe: 7.5 },
+      { actual: null, reps: null, executedRpe: null },
+      { actual: 152.5, reps: 3, executedRpe: 8 },
+    ];
+    const expected =
+      exerciseSetINOL(sets[0]) + exerciseSetINOL(sets[1]) + exerciseSetINOL(sets[3]);
+    expect(sumExerciseINOL(sets)).toBe(Math.round(expected * 100) / 100);
+    expect(exerciseSetINOL(sets[2])).toBe(0);
+  });
+
+  it('uses percent intensity for PERCENT prescriptions', () => {
+    expect(exerciseSetINOL({
+      actual: 80,
+      reps: 5,
+      intensity_type: 'PERCENT',
+      target_value: 80,
+    })).toBe(calculateINOL(5, 80));
   });
 });
 

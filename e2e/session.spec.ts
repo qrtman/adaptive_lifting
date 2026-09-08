@@ -27,13 +27,15 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
   await expect(page.getByRole('columnheader', { name: '%adj' }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'e1RM' }).first()).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'INOL' }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'INOL' })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'Δ' })).toHaveCount(0);
 
   const squatCard = page.getByTestId('exercise-card-e-3-1-1');
   await expect(squatCard.getByTestId('set-delta-s-3-1-1a')).toHaveCount(0);
   await expect(squatCard.getByTestId('set-delta-s-3-1-1b')).toHaveText('+4.8%');
   await expect(squatCard.getByTestId('set-delta-s-3-1-1c')).toHaveText('-1.7%');
+  await expect(squatCard.getByTestId('exercise-inol-e-3-1-1')).toHaveText('0.69');
+  await expect(squatCard.getByTestId('set-inol-s-3-1-1a')).toHaveCount(0);
   const e1rmBox = await squatCard.getByTestId('set-e1rm-s-3-1-1b').boundingBox();
   const deltaBox = await squatCard.getByTestId('set-delta-s-3-1-1b').boundingBox();
   expect(e1rmBox).toBeTruthy();
@@ -45,7 +47,8 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
   await fillLogCell(page, 'cell-e-3-2-1-actual-weight-0', 190);
 
   await expect(page.getByTestId('set-e1rm-s-3-2-1a')).toHaveText('216');
-  await expect(page.getByTestId('set-inol-s-3-2-1a')).toContainText('0.25');
+  await expect(page.getByTestId('exercise-inol-e-3-2-1')).toHaveText('0.25');
+  await expect(page.getByTestId('set-inol-s-3-2-1a')).toHaveCount(0);
   await expect(page.getByTestId('workout-tonnage')).toContainText('570');
 });
 

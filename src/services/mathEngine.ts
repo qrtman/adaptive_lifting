@@ -75,6 +75,36 @@ export function calculateINOL(reps: number, intensityPct: number): number {
   return Math.round((reps / (100.0 - intensityPct)) * 100) / 100;
 }
 
+export type LoggedSetForINOL = {
+  actual?: unknown;
+  suggestedWeight?: unknown;
+  reps?: unknown;
+  executedRpe?: unknown;
+  intensity_type?: string;
+  target_value?: unknown;
+};
+
+/** Per-set INOL using logged kg when present, else suggested kg. */
+export function exerciseSetINOL(set: LoggedSetForINOL): number {
+  const isPercent = (set.intensity_type || 'RPE') === 'PERCENT';
+  const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
+  const reps = trainingIntOrZero(set.reps);
+  if (weight <= 0 || reps <= 0) return 0;
+  if (isPercent) {
+    const pct = trainingOrZero(set.target_value);
+    if (pct <= 0) return 0;
+    return calculateINOL(reps, pct);
+  }
+  const e1RM = calculateE1RM(weight, reps, trainingOrZero(set.executedRpe));
+  if (e1RM <= 0) return 0;
+  return calculateINOL(reps, (weight / e1RM) * 100);
+}
+
+export function sumExerciseINOL(sets: LoggedSetForINOL[]): number {
+  const total = sets.reduce((acc, set) => acc + exerciseSetINOL(set), 0);
+  return Math.round(total * 100) / 100;
+}
+
 export function calculateDOTS(gender: string, bodyweight: number, total: number): number {
   if (bodyweight <= 0 || total <= 0) return 0;
 

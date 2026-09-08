@@ -4,10 +4,10 @@ import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { 
   calculateE1RM, 
-  calculateINOL,
   anchorE1RMFromPrescription,
   formatPrecedingE1RMDelta,
   precedingLoggedE1RMDelta,
+  sumExerciseINOL,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 
@@ -140,6 +140,7 @@ export const ExerciseCard = ({
   };
 
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual ?? s.suggestedWeight) * trainingIntOrZero(s.reps)), 0);
+  const totalInol = sumExerciseINOL(sets);
 
   const addSet = () => {
     updateAndPropagate([...sets, {
@@ -187,6 +188,15 @@ export const ExerciseCard = ({
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
         <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
       </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-[#636366]">INOL</span>
+        <span
+          data-testid={`exercise-inol-${id}`}
+          className="text-xs font-mono tabular-nums text-[#AEAEB2]"
+        >
+          {totalInol > 0 ? totalInol.toFixed(2) : '—'}
+        </span>
+      </div>
       {expanded && (
         <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
           + Set
@@ -231,14 +241,13 @@ export const ExerciseCard = ({
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
             </th>
             <th className={th}>e1RM</th>
-            <th className={th}>INOL</th>
             <th className={`${th} w-10`} aria-label="Set actions" />
           </tr>
         </thead>
         <tbody>
             {sets.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-2 py-3 text-xs text-[#636366]">
+                <td colSpan={7} className="px-2 py-3 text-xs text-[#636366]">
                   No sets programmed.
                 </td>
               </tr>
@@ -252,10 +261,6 @@ export const ExerciseCard = ({
               const e1RM = isPercent
                 ? (weight > 0 && percentTarget > 0 ? weight / (percentTarget / 100) : 0)
                 : calculateE1RM(weight, reps, rpe);
-              const intensityPct = isPercent
-                ? percentTarget
-                : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
-              const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
 
               const e1rmDelta = precedingLoggedE1RMDelta(sets, i);
               const adjPct = set.adjustment_pct !== undefined
@@ -393,14 +398,6 @@ export const ExerciseCard = ({
                           {formatPrecedingE1RMDelta(e1rmDelta)}
                         </span>
                       ) : null}
-                    </span>
-                  </td>
-                  <td className={`${td} font-mono tabular-nums text-[11px]`}>
-                    <span
-                      data-testid={`set-inol-${set.id}`}
-                      className={inol > 0 ? 'text-[#AEAEB2]' : 'text-[#636366]'}
-                    >
-                      {inol > 0 ? inol.toFixed(2) : '—'}
                     </span>
                   </td>
                   <td className={td}>
