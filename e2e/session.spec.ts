@@ -24,6 +24,14 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
   await page.getByTestId('exercise-expand-e-3-1-1').click();
 
   await expect(page.getByRole('columnheader', { name: /Rx/ }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: '%adj' }).first()).toBeVisible();
+  const adjHeader = session.getByRole('columnheader', { name: '%adj' });
+  const copyBtn = session.getByTitle('Copy prescription to log').first();
+  const adjBox = await adjHeader.boundingBox();
+  const copyBox = await copyBtn.boundingBox();
+  expect(adjBox).toBeTruthy();
+  expect(copyBox).toBeTruthy();
+  expect(adjBox!.x).toBeLessThan(copyBox!.x);
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'e1RM' }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'INOL' }).first()).toBeVisible();

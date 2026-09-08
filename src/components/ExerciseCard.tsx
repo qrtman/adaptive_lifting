@@ -265,6 +265,7 @@ export const ExerciseCard = ({
               <span className="text-[#AEAEB2]">Rx</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
             </th>
+            <th className={`${th} text-right`}>%adj</th>
             <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
             <th className={`${th} pl-3 border-l border-white/5`}>
               <span className="text-[#AEAEB2]">Log</span>
@@ -279,7 +280,7 @@ export const ExerciseCard = ({
         <tbody>
             {sets.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-2 py-3 text-xs text-[#636366]">
+                <td colSpan={9} className="px-2 py-3 text-xs text-[#636366]">
                   No sets programmed.
                 </td>
               </tr>
@@ -297,17 +298,7 @@ export const ExerciseCard = ({
                 ? percentTarget
                 : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
-              
-              const isOvershoot = !isPercent && rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
-              const isUndershoot = !isPercent && rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
-              
-              const rowHighlight = isOvershoot 
-                ? 'bg-orange-500/10' 
-                : isUndershoot 
-                  ? 'bg-mac-green/10' 
-                  : set.isTop ? 'bg-mac-blue/5' : 'hover:bg-white/[0.01]';
 
-              // e1rm from log performance of previous sets
               let prevLogE1RM = 0;
               for (let j = i - 1; j >= 0; j--) {
                 const prevSet = sets[j];
@@ -334,13 +325,15 @@ export const ExerciseCard = ({
               const actualWt = trainingOrZero(set.actual);
               const plannedWt = trainingOrZero(set.plannedWeight);
               const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
-
               const actualRp = trainingOrZero(set.executedRpe);
               const targetRpVal = trainingOrZero(set.plannedRpe);
               const rpeDelta = !isPercent && actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
+              const adjPct = set.adjustment_pct !== undefined
+                ? Math.round(set.adjustment_pct * 100)
+                : (set.dropPercent !== undefined ? Math.round(set.dropPercent) : 0);
 
               return (
-                <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
+                <tr key={`${i}-${set.label}`} className="group hover:bg-white/[0.01]">
                   <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
                   <td className={`${td} pr-3`}>
                     {roleMode === 'coach' ? (
@@ -374,20 +367,6 @@ export const ExerciseCard = ({
                               {suggestedPrescribedWeight}
                             </button>
                           )}
-                          <EditablePerformanceCell
-                            value={displayTrainingValue(set.adjustment_pct !== undefined ? Math.round(set.adjustment_pct * 100) : 0)}
-                            onChange={(val) => {
-                              const rawPct = trainingOrZero(val);
-                              updateSet(i, { adjustment_pct: rawPct / 100, dropPercent: rawPct });
-                            }}
-                            placeholder="0"
-                            fieldKey={`${id}-adjustment_pct`}
-                            label="Fatigue / Modifier"
-                            widthClass="w-8"
-                            step={1}
-                            rowIndex={i}
-                          />
-                          <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
@@ -397,6 +376,30 @@ export const ExerciseCard = ({
                           {sep('@')}
                           <span>{set.target_value}{set.intensity_type === "PERCENT" ? "%" : " RPE"}</span>
                       </div>
+                    )}
+                  </td>
+                  <td className={`${td} text-right`}>
+                    {roleMode === 'coach' ? (
+                      <div className="flex items-center justify-end gap-0.5" data-testid={`set-adj-${set.id}`}>
+                        <EditablePerformanceCell
+                          value={displayTrainingValue(adjPct)}
+                          onChange={(val) => {
+                            const rawPct = trainingOrZero(val);
+                            updateSet(i, { adjustment_pct: rawPct / 100, dropPercent: rawPct });
+                          }}
+                          placeholder="0"
+                          fieldKey={`${id}-adjustment_pct`}
+                          label="%adj"
+                          widthClass="w-8"
+                          step={1}
+                          rowIndex={i}
+                        />
+                        <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
+                      </div>
+                    ) : (
+                      <span data-testid={`set-adj-${set.id}`} className="font-mono text-[11px] tabular-nums text-[#AEAEB2]">
+                        {adjPct}%
+                      </span>
                     )}
                   </td>
                   <td className={`${td} px-1`}>
