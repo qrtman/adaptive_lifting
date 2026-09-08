@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
+import { addLocalAthlete, loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
 
 export const CoachDashboardView: React.FC = () => {
-  const [roster, setRoster] = useState<any[]>([]);
+  const [roster, setRoster] = useState<LocalAthlete[]>([]);
+  const [addName, setAddName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState(getUiPref(UI_KEYS.email) || '');
   const [linkSuccess, setLinkSuccess] = useState('');
 
   // Drill-down state
-  const [selectedAthlete, setSelectedAthlete] = useState<any | null>(null);
+  const [selectedAthlete, setSelectedAthlete] = useState<LocalAthlete | null>(null);
   const [showPushModal, setShowPushModal] = useState(false);
   const [pushTemplate, setPushTemplate] = useState('Hypertrophy Block (4 Weeks)');
   const [isPushing, setIsPushing] = useState(false);
@@ -44,19 +48,41 @@ export const CoachDashboardView: React.FC = () => {
   }, []);
 
   const fetchRoster = async () => {
+    const local = await loadLocalRoster();
+    let remote: Array<{ id: string; email?: string; activeMicrocycles?: number }> = [];
     try {
-      const data = await apiService.fetchRoster();
-      setRoster(data);
-      // Update selected athlete data if viewing one
-      if (selectedAthlete) {
-        const updated = data.find((a: any) => a.id === selectedAthlete.id);
-        if (updated) setSelectedAthlete(updated);
-      }
+      remote = await apiService.fetchRoster();
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
+    const next = mergeRoster(remote, local);
+    setRoster(next);
+    if (selectedAthlete) {
+      const updated = next.find((a) => a.id === selectedAthlete.id);
+      if (updated) setSelectedAthlete(updated);
+    }
+    setLoading(false);
+  };
+
+  const handleAddAthlete = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = addName.trim();
+    if (!name) {
+      setAddError('Name is required.');
+      return;
+    }
+    setAddError(null);
+    const next = await addLocalAthlete({
+      name,
+      email: addEmail.trim() || null,
+      currentBlock: null,
+      activeMicrocycles: 0,
+      peakE1RM: { squat: null, bench: null, deadlift: null },
+    });
+    setRoster(mergeRoster([], next));
+    setAddName('');
+    setAddEmail('');
+    await fetchRoster();
   };
 
   const copyLinkCode = () => {
@@ -106,7 +132,7 @@ export const CoachDashboardView: React.FC = () => {
           </h1>
         </div>
         <p className="text-zinc-400 text-sm">
-          {selectedAthlete ? `Managing programming for ${selectedAthlete.email}` : 'Managing your roster and program deployment.'}
+          {selectedAthlete ? `Managing programming for ${selectedAthlete.name}` : 'Managing your roster and program deployment.'}
         </p>
       </div>
 
@@ -122,34 +148,32 @@ export const CoachDashboardView: React.FC = () => {
                 <span className="h-6 w-6 border-2 border-mac-blue border-t-transparent rounded-full animate-spin" />
               </div>
             ) : roster.length === 0 ? (
-              <div className="text-center py-10 bg-zinc-950 rounded-2xl border border-zinc-800">
-                <span className="material-symbols-outlined text-zinc-600 text-4xl mb-2">group_off</span>
-                <p className="text-zinc-400 text-sm font-bold">No athletes linked yet.</p>
-                <p className="text-zinc-600 text-xs mt-1">Share your link code to onboard athletes.</p>
+              <div className="text-center py-10 border border-white/10">
+                <p className="text-sm text-[#AEAEB2]">No athletes on this roster.</p>
+                <p className="text-xs text-[#636366] mt-1">Add a name, or share the invite code so an athlete can link an account.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-1" data-testid="roster-list">
                 {roster.map((athlete) => (
-                  <div 
-                    key={athlete.id} 
+                  <button
+                    type="button"
+                    key={athlete.id}
+                    data-testid={`roster-athlete-${athlete.id}`}
                     onClick={() => setSelectedAthlete(athlete)}
-                    className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between hover:border-mac-blue/50 transition-colors cursor-pointer"
+                    className="w-full border-b border-white/10 px-2 py-3 flex items-center justify-between text-left hover:bg-white/[0.02]"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-mac-blue/20 text-mac-blue flex items-center justify-center font-bold">
-                        {athlete.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm">{athlete.email}</h3>
-                        <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
-                          {athlete.activeMicrocycles} Active Block{athlete.activeMicrocycles !== 1 ? 's' : ''}
-                        </p>
-                      </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm text-white truncate">{athlete.name}</h3>
+                      <p className="text-[10px] text-[#AEAEB2] mt-0.5">
+                        {athlete.currentBlock ? `${athlete.currentBlock} · ` : ''}
+                        {athlete.linked ? 'Linked account' : 'Local identity'}
+                        {athlete.email ? ` · ${athlete.email}` : ''}
+                      </p>
                     </div>
-                    <button className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors">
-                      <span className="material-symbols-outlined text-[16px] text-zinc-400">chevron_right</span>
-                    </button>
-                  </div>
+                    <span className="text-[11px] font-mono text-[#AEAEB2] shrink-0">
+                      {athlete.activeMicrocycles} block{athlete.activeMicrocycles !== 1 ? 's' : ''}
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -159,8 +183,40 @@ export const CoachDashboardView: React.FC = () => {
           <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
             <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4">Onboarding Tools</h2>
             
-            <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 p-4">
-              <p className="text-xs text-zinc-400 mb-2">Your Coach Link Code:</p>
+            <form
+              onSubmit={handleAddAthlete}
+              className="border border-white/10 p-3 mb-4 flex flex-col gap-2"
+              data-testid="add-athlete-form"
+            >
+              <p className="text-[10px] uppercase tracking-wider text-[#636366]">Add athlete</p>
+              <label className="text-xs text-[#AEAEB2] flex flex-col gap-1">
+                Name
+                <input
+                  data-testid="add-athlete-name"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  className="min-h-10 bg-[#161616] border border-white/10 px-3 text-white"
+                  placeholder="Zahar"
+                />
+              </label>
+              <label className="text-xs text-[#AEAEB2] flex flex-col gap-1">
+                Email (optional until they link)
+                <input
+                  data-testid="add-athlete-email"
+                  type="email"
+                  value={addEmail}
+                  onChange={(e) => setAddEmail(e.target.value)}
+                  className="min-h-10 bg-[#161616] border border-white/10 px-3 text-white"
+                  placeholder="athlete@example.com"
+                />
+              </label>
+              {addError ? <p role="alert" className="text-xs text-[#FF453A]">{addError}</p> : null}
+              <button type="submit" data-testid="add-athlete-submit" className="h-10 px-3 text-sm text-white bg-[#007AFF]">
+                Add to roster
+              </button>
+            </form>
+            <div className="border border-white/10 p-3">
+              <p className="text-xs text-[#AEAEB2] mb-2">Coach invite code</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-black rounded-lg px-3 py-2 text-sm text-mac-blue border border-zinc-800">
                   {userEmail}
@@ -186,9 +242,15 @@ export const CoachDashboardView: React.FC = () => {
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#75ff9e] to-transparent opacity-50" />
             <div className="flex justify-between items-start">
               <div>
-                <h2 className="text-xl font-bold">{selectedAthlete.email}</h2>
+                <h2 className="text-xl font-bold">{selectedAthlete.name}</h2>
                 <p className="text-sm text-zinc-400 mt-1">
-                  Currently executing {selectedAthlete.activeMicrocycles} active microcycles.
+                  {selectedAthlete.currentBlock ? `${selectedAthlete.currentBlock}. ` : ''}
+                  {selectedAthlete.linked ? selectedAthlete.email : 'Local identity — invite code still required to link an account.'}
+                </p>
+                <p className="text-[11px] font-mono text-[#AEAEB2] mt-2">
+                  SQ {selectedAthlete.peakE1RM.squat ?? '—'}
+                  {' · '}BP {selectedAthlete.peakE1RM.bench ?? '—'}
+                  {' · '}DL {selectedAthlete.peakE1RM.deadlift ?? '—'}
                 </p>
               </div>
               <button 
@@ -365,7 +427,7 @@ export const CoachDashboardView: React.FC = () => {
                       Target Athlete
                     </label>
                     <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 text-sm font-medium text-zinc-300">
-                      {selectedAthlete?.email}
+                      {selectedAthlete?.name}
                     </div>
                   </div>
                   

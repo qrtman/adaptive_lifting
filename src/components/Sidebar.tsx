@@ -6,7 +6,7 @@ import type { DashboardMode } from './AppShell';
 const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
   { mode: 'calendar', label: 'Calendar', testId: 'nav-calendar' },
   { mode: 'sessions', label: 'Sessions' },
-  { mode: 'roster', label: 'Roster' },
+  { mode: 'roster', label: 'Roster', testId: 'nav-roster' },
   { mode: 'insights', label: 'Insights', testId: 'nav-insights' },
 ];
 
