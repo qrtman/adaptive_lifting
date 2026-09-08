@@ -18,6 +18,6 @@ test('roster lists Zahar as a local athlete identity', async ({ page }) => {
   await expect(page.getByText('DL 231.5')).toBeVisible();
   await expect(page.getByTestId('open-athlete-block')).toBeVisible();
   await page.getByTestId('open-athlete-block').click();
-  await expect(page.getByText('Sumo deadlift')).toBeVisible();
-  await expect(page.getByText('Week 6')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'D1 · Sumo deadlift, Paused bench' })).toBeVisible();
+  await expect(page.getByTestId('sessions-week-header-z-w6')).toContainText('Week 6');
 });
