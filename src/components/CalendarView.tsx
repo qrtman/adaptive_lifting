@@ -3,12 +3,16 @@ import {
   ChevronLeft, 
   ChevronRight, 
   AlertTriangle,
+  Plus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
+import { useAuth } from '../contexts/AuthContext';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { AddSessionDialog } from './AddSessionDialog';
+import { inferMicrocycleId } from '../services/workoutDays';
 
 const getMondayOfDate = (dateStr: string) => {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -34,8 +38,10 @@ export function CalendarView({
   filter,
   onFilterChange,
 }: CalendarViewProps) {
-  const { microcycles, mesocycles, setMicrocycles } = usePeriodization();
+  const { microcycles, mesocycles, setMicrocycles, addWorkout, activeMicrocycleId } = usePeriodization();
+  const { roleMode } = useAuth();
   const onUpdateWorkouts = setMicrocycles;
+  const [addingSessionDate, setAddingSessionDate] = useState<string | null>(null);
   // Navigation states (we start in September 2026)
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(8); // September is 8 (0-indexed)
@@ -356,7 +362,20 @@ export function CalendarView({
               <ChevronRight size={16} />
             </button>
           </div>
-          <LiftFilter value={filter} onChange={onFilterChange} />
+          <div className="flex items-center gap-1">
+            {roleMode === 'coach' && (
+              <button
+                type="button"
+                data-testid="add-session-calendar"
+                onClick={() => setAddingSessionDate(microcycles.find((m) => m.id === activeMicrocycleId)?.workouts[0]?.date ?? microcycles[0]?.workouts[0]?.date ?? '2026-09-01')}
+                className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+              >
+                <Plus size={12} />
+                Session
+              </button>
+            )}
+            <LiftFilter value={filter} onChange={onFilterChange} />
+          </div>
         </div>
 
         {boundaryLockVisible && (
@@ -488,6 +507,10 @@ export function CalendarView({
                                 data-testid={`calendar-day-${dateStr}`}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, dateStr)}
+                                onClick={() => {
+                                  if (roleMode !== 'coach' || !cell.isCurrentMonth) return;
+                                  setAddingSessionDate(dateStr);
+                                }}
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative group cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
                                 } ${
@@ -808,6 +831,22 @@ export function CalendarView({
           </div>
         )}
       </AnimatePresence>
+      {addingSessionDate ? (
+        <AddSessionDialog
+          open
+          onClose={() => setAddingSessionDate(null)}
+          sourceMicrocycleId={inferMicrocycleId(
+            addingSessionDate,
+            microcycles,
+            activeMicrocycleId ?? microcycles[0]?.id ?? '',
+          )}
+          initialDate={addingSessionDate}
+          microcycles={microcycles}
+          onCreate={(workout, microcycleId) => {
+            addWorkout(microcycleId, workout);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

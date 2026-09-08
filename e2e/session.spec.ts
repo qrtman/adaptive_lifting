@@ -100,11 +100,15 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('add-session-micro-3').click();
   await expect(page.getByTestId('add-session-dialog')).toBeVisible();
-  await page.getByTestId('session-day-2026-09-14').click();
+  await expect(page.getByText('Assign microcycle')).toBeVisible();
+  await page.getByTestId('assign-micro-micro-3').click();
+  await page.getByTestId('session-day-2026-09-17').click();
   await page.getByTestId('add-session-title').fill('Accessories');
   await page.getByTestId('create-session').click();
-  await expect(page.getByRole('heading', { name: 'D4 · Accessories' })).toBeVisible();
-  await expect(page.getByText('No exercises programmed.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'D2 · Accessories' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'D1 · Primary Squat, Primary Bench' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'D3 · Secondary Deadlift, Secondary Bench' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'D4 · Secondary Squat, Tertiary Bench' })).toBeVisible();
 });
 
 test('coach can add a catalog exercise into a session', async ({ page }) => {

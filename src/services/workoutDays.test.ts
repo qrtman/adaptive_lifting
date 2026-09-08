@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest';
+import { WorkoutData } from '../types';
+import { inferMicrocycleId, insertWorkoutChronologically } from './workoutDays';
+
+function session(id: string, date: string, dayLabel: string): WorkoutData {
+  return {
+    id,
+    date,
+    dayLabel,
+    title: dayLabel,
+    tonnage: 0,
+    delta: 0,
+    color: 'mac-blue',
+    status: 'PLANNED',
+    exercises: [],
+  };
+}
+
+describe('insertWorkoutChronologically', () => {
+  it('inserts between D1 and D2 as D2 and increments later days', () => {
+    const existing = [
+      session('w1', '2026-09-16', 'D1'),
+      session('w2', '2026-09-18', 'D2'),
+      session('w3', '2026-09-20', 'D3'),
+    ];
+    const inserted = session('w-new', '2026-09-17', '');
+    const next = insertWorkoutChronologically(existing, inserted);
+    expect(next.map((w) => [w.id, w.dayLabel])).toEqual([
+      ['w1', 'D1'],
+      ['w-new', 'D2'],
+      ['w2', 'D3'],
+      ['w3', 'D4'],
+    ]);
+  });
+
+  it('appends after the last date as the next D label', () => {
+    const existing = [
+      session('w1', '2026-09-16', 'D1'),
+      session('w2', '2026-09-18', 'D2'),
+    ];
+    const inserted = session('w-new', '2026-09-21', '');
+    const next = insertWorkoutChronologically(existing, inserted);
+    expect(next.map((w) => [w.id, w.dayLabel])).toEqual([
+      ['w1', 'D1'],
+      ['w2', 'D2'],
+      ['w-new', 'D3'],
+    ]);
+  });
+});
+
+describe('inferMicrocycleId', () => {
+  const micros = [
+    {
+      id: 'micro-1',
+      weekName: 'Microcycle 1',
+      focus: 'Primary',
+      status: 'COMPLETED' as const,
+      workouts: [session('a', '2026-09-02', 'D1'), session('b', '2026-09-04', 'D2')],
+    },
+    {
+      id: 'micro-3',
+      weekName: 'Microcycle 3',
+      focus: 'Volume',
+      status: 'ACTIVE' as const,
+      workouts: [
+        session('c', '2026-09-16', 'D1'),
+        session('d', '2026-09-18', 'D2'),
+        session('e', '2026-09-20', 'D3'),
+      ],
+    },
+  ];
+
+  it('assigns the microcycle that already owns the gap date', () => {
+    expect(inferMicrocycleId('2026-09-17', micros, 'micro-1')).toBe('micro-3');
+  });
+
+  it('falls back when the date is outside every microcycle', () => {
+    expect(inferMicrocycleId('2026-10-01', micros, 'micro-3')).toBe('micro-3');
+  });
+});

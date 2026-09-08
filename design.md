@@ -98,7 +98,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | :--- | :--- |
 | Add Exercise | Catalog + identity only (search, base name, variation, category, tier). Do **not** put prescription Mode (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN`, `HYBRID`), Sets, Reps, RPE, %, or kg controls in the Add Exercise overlay. |
 | Prescription editing | kg × reps @ RPE or % is edited on the **exercise card** set table after the lift is added (`PrescriptionEditor` inline in each Rx cell, `+ Set` on the card). |
-| Add Session | Coach picks **any calendar day** and a title. Occupied days stay selectable and show existing session labels. No prescription step. |
+| Add Session | Coach picks **any calendar day**, assigns a **microcycle**, and a title. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
 
 ---
 

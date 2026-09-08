@@ -4,6 +4,7 @@ import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
+import { insertWorkoutChronologically } from '../services/workoutDays';
 import {
   INITIAL_MICROCYCLES,
   INITIAL_MESOCYCLE,
@@ -178,16 +179,18 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   };
 
   const addWorkout = (microcycleId: string, workout: WorkoutData) => {
+    let labeled: WorkoutData = workout;
     setMicrocycles((prev) =>
       prev.map((m) => {
         if (m.id !== microcycleId) return m;
-        const workouts = [...m.workouts, workout].sort((a, b) => a.date.localeCompare(b.date));
+        const workouts = insertWorkoutChronologically(m.workouts, workout);
+        labeled = workouts.find((w) => w.id === workout.id) ?? workout;
         return { ...m, workouts };
       })
     );
     setActiveWorkoutId(workout.id);
     setActiveMicrocycleId(microcycleId);
-    void queueMutation(workout.id, 'Workout', workout.id, { workout });
+    void queueMutation(workout.id, 'Workout', workout.id, { workout: labeled });
   };
 
   const finishSession = async (

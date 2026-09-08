@@ -20,6 +20,7 @@ These rules are always active:
 - Do not invent architecture that conflicts with `architecture.md`.
 - Do not invent UI patterns that conflict with `design.md`. If the user overrides a design rule, update `design.md` section **0.5 Product Overrides** and the matching later section in the same change.
 - Do not put prescription Mode (`RPE_TARGET`, `PERCENTAGE`, `AMRAP`, `TOP_SET_BACKDOWN`, `HYBRID`), Sets, Reps, RPE, %, or kg controls in Add Exercise. Edit Rx on the exercise card after the lift is added.
+- Do not invent D-labels. Add Session assigns a **microcycle** and labels days chronologically in that microcycle (`D1`, `D2`, …). Inserting between D1 and D2 becomes D2; later days increment.
 - Do not build a marketing landing page unless explicitly requested.
 - Do not make Telegram chat commands the primary mobile UI. Telegram is a Telegram Mini App launched from the bot, with bot messages as entry points, reminders, alerts, and fallback commands.
 - Do not use Google Sheets as canonical storage. Sheets is one-way publish/export unless a future import-review workflow is explicitly requested.
