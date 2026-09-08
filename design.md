@@ -105,7 +105,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Anchor e1RM | Derived from **set 1 Rx** (planned kg × reps @ RPE or %). Do not reverse-prescribe from an edited e1RM. No orange suggested kg on Rx. |
 | Add Session | Coach picks **any calendar day** and assigns a **microcycle**. Title is optional and is not part of create. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
 | Maximized microcycle header | Week chrome is **name, status, start–end dates** (from session calendar dates), Session, and Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL stay on the exercise cards. |
-| Session block | Each session is a distinct block: heading with D-label, **calendar date**, and title; **End of Dn** footer with Complete/Reopen after the last exercise. Stacked sessions must not read as one undifferentiated list. |
+| Insights | Assembled from a declared catalog: KPI strip (SQ/BP/DL e1RM, Vol, DOTS, ACWR), INOL line, chart slots (e1RM / Tonnage / ACWR), attempts, AI coach. Loading, empty, and error states are visible. Prefer `liftCategory` over title scanning. |
 
 ---
 
@@ -872,6 +872,8 @@ When athletes log their gym execution sets in real-time, details are pushed inst
 * **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Reclaimed horizontal space (`240px`) stretches the line graphs horizontally. Plot resolution scales up to wider layouts, revealing individual week markers and secondary overlay parameters without visual crowdedness.
 
 The Analytics Diagnostics Engine provides coaches with a high-density, mathematical workspace to assess training stress, rolling strength peaks, and cumulative microcycle fatigue metrics.
+
+The Insights tab is **assembled from a catalog** (`INSIGHT_LAYOUT`, `INSIGHT_CHARTS`, KPI constructors). Adding a metric means extending the catalog and a constructor, not copying a new ad-hoc strip. Loading, empty, and error states stay visible.
 
 ```
 +==================================================================================================+

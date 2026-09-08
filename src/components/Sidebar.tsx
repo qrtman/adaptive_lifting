@@ -7,7 +7,7 @@ const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
   { mode: 'calendar', label: 'Calendar', testId: 'nav-calendar' },
   { mode: 'sessions', label: 'Sessions' },
   { mode: 'roster', label: 'Roster' },
-  { mode: 'insights', label: 'Insights' },
+  { mode: 'insights', label: 'Insights', testId: 'nav-insights' },
 ];
 
 const OPS: { mode: DashboardMode; label: string }[] = [

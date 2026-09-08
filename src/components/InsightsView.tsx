@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { LiftFilter } from './LiftFilter';
-
-interface TrendPoint {
-  date: string;
-  exercise: string;
-  variation: string;
-  weight: number;
-  reps: number;
-  rpe: number;
-  e1rm: number;
-  volume: number;
-}
+import { InsightKpiStrip } from './insights/InsightKpiStrip';
+import {
+  INSIGHT_CHARTS,
+  INSIGHT_LAYOUT,
+  type InsightChartId,
+  type InsightSection,
+  type TrendPoint,
+  classifyLift,
+  constructAcwrStatus,
+  constructAttemptPreview,
+  constructInolLine,
+  constructInsightKpis,
+  filterTrends,
+} from '../insights/construct';
 
 export function InsightsView() {
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeChart, setActiveChart] = useState<'e1rm' | 'tonnage' | 'acwr'>('e1rm');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeChart, setActiveChart] = useState<InsightChartId>('e1rm');
   const [selectedLift, setSelectedLift] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [timeRange, setTimeRange] = useState<'All' | '30d' | '90d'>('All');
   
@@ -53,8 +57,10 @@ export function InsightsView() {
       try {
         const data = await apiService.fetchTrends();
         setTrends(data);
+        setLoadError(null);
       } catch (err) {
         console.error('Failed to load trends data', err);
+        setLoadError('Could not load Insights. Retry from Sessions after a logged set.');
       } finally {
         setLoading(false);
       }
@@ -80,125 +86,11 @@ export function InsightsView() {
   }, []);
 
   // Filter trends based on movement and time range
-  const getFilteredData = () => {
-    let result = [...trends];
-
-    // 1. Time range filter
-    if (timeRange !== 'All') {
-      const limitDate = new Date();
-      limitDate.setDate(limitDate.getDate() - (timeRange === '30d' ? 30 : 90));
-      const limitStr = limitDate.toISOString().split('T')[0];
-      result = result.filter(p => p.date >= limitStr);
-    }
-
-    // 2. Lift classification
-    if (selectedLift !== 'All') {
-      result = result.filter(p => {
-        const title = p.exercise.toLowerCase();
-        if (selectedLift === 'Squat') return title.includes('squat');
-        if (selectedLift === 'Bench') return title.includes('bench');
-        if (selectedLift === 'Deadlift') return title.includes('dead');
-        return true;
-      });
-    }
-
-    return result;
-  };
-
-  const filteredTrends = getFilteredData();
-
-  // --- Dynamic Math Computations ---
-  
-  // Peak e1RM values
-  const getPeakE1RM = (liftType: 'squat' | 'bench' | 'dead') => {
-    const points = trends.filter(p => p.exercise.toLowerCase().includes(liftType));
-    if (points.length === 0) return 0;
-    return Math.max(...points.map(p => p.e1rm));
-  };
-
-  const peakSquat = getPeakE1RM('squat');
-  const peakBench = getPeakE1RM('bench');
-  const peakDeadlift = getPeakE1RM('dead');
-
-  // Cumulative volume
-  const cumulativeVolume = trends.reduce((acc, p) => acc + p.volume, 0);
-
-  // CNS stress fatigue assessment based on recent tonnage deltas
-  // CNS stress fatigue assessment based on recent tonnage deltas
-  const getCNSAnalysis = () => {
-    if (analytics && analytics.fatigue_metrics) {
-      const acwr = analytics.fatigue_metrics.acute_chronic_ratio;
-      
-      let status = 'Balanced';
-      let textClass = 'text-[#007AFF]';
-      let description = `ACWR ${acwr}`;
-      
-      if (acwr < 0.8) {
-        status = 'Under-training';
-        textClass = 'text-amber-400';
-        description = `ACWR ${acwr} low`;
-      } else if (acwr > 1.5) {
-        status = 'Danger';
-        textClass = 'text-red-500';
-        description = `ACWR ${acwr} high`;
-      } else if (acwr > 1.3) {
-        status = 'Elevated';
-        textClass = 'text-orange-500';
-        description = `ACWR ${acwr} elevated`;
-      }
-      
-      return { status, class: textClass, description };
-    }
-
-    // Group trends by date to get daily tonnages
-    const dailyTonnageMap: Record<string, number> = {};
-    trends.forEach(p => {
-      dailyTonnageMap[p.date] = (dailyTonnageMap[p.date] || 0) + p.volume;
-    });
-
-    const dates = Object.keys(dailyTonnageMap).sort();
-    if (dates.length < 2) {
-      return {
-        status: 'Baseline',
-        class: 'text-amber-400',
-        description: 'Need more sessions for ACWR'
-      };
-    }
-
-    // Get last 3 completed training days
-    const recentDates = dates.slice(-3);
-    const deltas: number[] = [];
-    for (let i = 1; i < recentDates.length; i++) {
-      const prev = dailyTonnageMap[recentDates[i-1]];
-      const curr = dailyTonnageMap[recentDates[i]];
-      deltas.push(curr - prev);
-    }
-
-    // Sum recent deltas
-    const netDelta = deltas.reduce((acc, d) => acc + d, 0);
-
-    if (netDelta > 1200) {
-      return {
-        status: 'Rising load',
-        class: 'text-[#34C759]',
-        description: `Δ ${Math.round(netDelta)}kg`
-      };
-    } else if (netDelta < -1500) {
-      return {
-        status: 'Fatigue',
-        class: 'text-orange-500',
-        description: `Δ ${Math.round(netDelta)}kg`
-      };
-    } else {
-      return {
-        status: 'Balanced',
-        class: 'text-[#007AFF]',
-        description: `Δ ${Math.round(netDelta)}kg`
-      };
-    }
-  };
-
-  const cnsAssessment = getCNSAnalysis();
+  const filteredTrends = filterTrends(trends, timeRange, selectedLift);
+  const kpis = constructInsightKpis(trends, analytics);
+  const cnsAssessment = constructAcwrStatus(trends, analytics);
+  const inolLine = constructInolLine(analytics);
+  const attemptPreview = constructAttemptPreview(attemptPlannerInput, attemptPlannerProfile);
 
   // --- SVG Layout & Point Scaling Helper ---
   
@@ -210,8 +102,8 @@ export function InsightsView() {
   const paddingBottom = 32;
 
   // Process data points specifically for daily peak e1RM chart
-  const getDailyPeakPoints = (liftType: 'squat' | 'bench' | 'dead') => {
-    const liftPoints = filteredTrends.filter(p => p.exercise.toLowerCase().includes(liftType));
+  const getDailyPeakPoints = (liftType: 'Squat' | 'Bench' | 'Deadlift') => {
+    const liftPoints = filteredTrends.filter(p => classifyLift(p.exercise, p.liftCategory) === liftType);
     
     // Group by date, taking the maximum e1RM of that date
     const dailyMax: Record<string, TrendPoint> = {};
@@ -226,9 +118,9 @@ export function InsightsView() {
       .map(date => dailyMax[date]);
   };
 
-  const squatPeaks = getDailyPeakPoints('squat');
-  const benchPeaks = getDailyPeakPoints('bench');
-  const deadPeaks = getDailyPeakPoints('dead');
+  const squatPeaks = getDailyPeakPoints('Squat');
+  const benchPeaks = getDailyPeakPoints('Bench');
+  const deadPeaks = getDailyPeakPoints('Deadlift');
 
   // Aggregate daily tonnages for Tonnage Bar Chart
   const getDailyTonnages = () => {
@@ -508,57 +400,22 @@ export function InsightsView() {
     });
   };
 
-  return (
-    <div className="flex-1 overflow-y-auto p-2 bg-[#0A0A0A]">
-      <div className="space-y-2 pb-8">
-        <div className="h-7 flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <h2 className="text-sm text-white">Insights</h2>
-            <span className="text-[11px] text-[#AEAEB2] truncate">e1RM · tonnage · ACWR · DOTS</span>
-          </div>
-          <div className="flex items-center gap-0.5 shrink-0">
-            {(['All', '90d', '30d'] as const).map((range) => (
-              <button
-                key={range}
-                type="button"
-                onClick={() => setTimeRange(range)}
-                className={`px-2 h-7 text-xs rounded ${
-                  timeRange === range ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
-                }`}
-              >
-                {range === 'All' ? 'All' : range}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {loading ? (
-          <p className="px-1 text-xs text-[#AEAEB2]">Loading…</p>
-        ) : trends.length === 0 ? (
-          <p className="px-1 text-xs text-[#AEAEB2]">No logged sets yet. Complete a session to seed e1RM and tonnage.</p>
-        ) : (
-          <>
-            <div className="px-1 h-7 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono border-b border-white/10">
-              <span className="text-[#AEAEB2]">SQ <span className="text-white">{peakSquat > 0 ? Math.round(peakSquat) : '—'}</span></span>
-              <span className="text-[#AEAEB2]">BP <span className="text-white">{peakBench > 0 ? Math.round(peakBench) : '—'}</span></span>
-              <span className="text-[#AEAEB2]">DL <span className="text-white">{peakDeadlift > 0 ? Math.round(peakDeadlift) : '—'}</span></span>
-              <span className="text-[#AEAEB2]">Vol <span className="text-white">{(cumulativeVolume / 1000).toFixed(1)}t</span></span>
-              <span className="text-[#AEAEB2]">DOTS <span className="text-white">{analytics?.dots_score > 0 ? analytics.dots_score : '—'}</span></span>
-              <span className={`ml-auto ${cnsAssessment.class}`}>
-                {analytics?.fatigue_metrics?.acute_chronic_ratio != null
-                  ? `ACWR ${analytics.fatigue_metrics.acute_chronic_ratio}`
-                  : cnsAssessment.status}
-              </span>
-            </div>
-
-            {analytics?.fatigue_metrics && (
-              <p className="px-1 text-[10px] text-[#AEAEB2] font-mono">
-                INOL W · SQ {analytics.fatigue_metrics.weekly_inol_squat} · BP {analytics.fatigue_metrics.weekly_inol_bench} · DL {analytics.fatigue_metrics.weekly_inol_deadlift}
-                <span className={`ml-2 ${cnsAssessment.class}`}>{cnsAssessment.status}</span>
-              </p>
-            )}
-
-            <div className="border-b border-white/10 px-1 py-1">
+  const renderSection = (section: InsightSection) => {
+    if (section === 'kpis') {
+      return <InsightKpiStrip key="kpis" kpis={kpis} />;
+    }
+    if (section === 'inol') {
+      if (!inolLine) return null;
+      return (
+        <p key="inol" data-testid="insight-inol-line" className="px-1 text-[10px] text-[#AEAEB2] font-mono">
+          {inolLine}
+          <span className={`ml-2 ${cnsAssessment.className}`}>{cnsAssessment.status}</span>
+        </p>
+      );
+    }
+    if (section === 'ai') {
+      return (
+            <div key="ai" className="border-b border-white/10 px-1 py-1">
               <div className="h-7 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-[#AEAEB2]">AI coach</span>
                 <button
@@ -593,24 +450,86 @@ export function InsightsView() {
                 </div>
               )}
             </div>
+      );
+    }
+    if (section === 'attempts') {
+      return (
+            <div key="attempts" className="px-1 py-1 border-b border-white/10">
+              <div className="h-7 flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] text-[#AEAEB2]">Attempts</span>
+                <input
+                  type="number"
+                  value={attemptPlannerInput}
+                  onChange={(e) => setAttemptPlannerInput(parseFloat(e.target.value) || 0)}
+                  className="w-20 h-7 px-2 text-xs font-mono bg-[#161616] border border-white/10 rounded text-white"
+                />
+                <select
+                  value={attemptPlannerProfile}
+                  onChange={(e) => setAttemptPlannerProfile(e.target.value as 'squat_dl'|'bench')}
+                  className="h-7 px-2 text-xs bg-[#161616] border border-white/10 rounded text-white"
+                >
+                  <option value="squat_dl">SQ / DL</option>
+                  <option value="bench">BP</option>
+                </select>
+                <span data-testid="insight-attempt-preview" className="text-[11px] font-mono text-[#AEAEB2]">
+                  2nd <span className="text-white">{attemptPreview.second}</span>
+                  {' · '}3rd <span className="text-white">{attemptPreview.third}</span>
+                </span>
+              </div>
+            </div>
+      );
+    }
+    return null;
+  };
 
-            <div className="border-b border-white/10">
+  return (
+    <div data-testid="insights-root" className="flex-1 overflow-y-auto p-2 bg-[#0A0A0A]">
+      <div className="space-y-2 pb-8">
+        <div className="h-7 flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-sm text-white">Insights</h2>
+            <span className="text-[11px] text-[#AEAEB2] truncate">e1RM · tonnage · ACWR · DOTS</span>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            {(['All', '90d', '30d'] as const).map((range) => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setTimeRange(range)}
+                className={`px-2 h-7 text-xs rounded ${
+                  timeRange === range ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                }`}
+              >
+                {range === 'All' ? 'All' : range}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="px-1 text-xs text-[#AEAEB2]">Loading…</p>
+        ) : loadError ? (
+          <p role="alert" className="px-1 text-xs text-red-400">{loadError}</p>
+        ) : trends.length === 0 ? (
+          <p className="px-1 text-xs text-[#AEAEB2]">No logged sets yet. Complete a session to seed e1RM and tonnage.</p>
+        ) : (
+          <>
+            {INSIGHT_LAYOUT.map((section) => {
+              if (section === 'chart') {
+                return (
+            <div key="chart" className="border-b border-white/10">
               <div className="h-7 px-1 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-0.5">
-                  {([
-                    ['e1rm', 'e1RM'],
-                    ['tonnage', 'Tonnage'],
-                    ['acwr', 'ACWR'],
-                  ] as const).map(([key, label]) => (
+                  {INSIGHT_CHARTS.map((chart) => (
                     <button
-                      key={key}
+                      key={chart.id}
                       type="button"
-                      onClick={() => { setActiveChart(key); setHoveredPoint(null); }}
+                      onClick={() => { setActiveChart(chart.id); setHoveredPoint(null); }}
                       className={`px-2 h-7 text-xs rounded ${
-                        activeChart === key ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                        activeChart === chart.id ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
                       }`}
                     >
-                      {label}
+                      {chart.label}
                     </button>
                   ))}
                 </div>
@@ -811,41 +730,10 @@ export function InsightsView() {
                 </div>
               )}
             </div>
-
-            <div className="px-1 py-1 border-b border-white/10">
-              <div className="h-7 flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] text-[#AEAEB2]">Attempts</span>
-                <input
-                  type="number"
-                  value={attemptPlannerInput}
-                  onChange={(e) => setAttemptPlannerInput(parseFloat(e.target.value) || 0)}
-                  className="w-20 h-7 px-2 text-xs font-mono bg-[#161616] border border-white/10 rounded text-white"
-                />
-                <select
-                  value={attemptPlannerProfile}
-                  onChange={(e) => setAttemptPlannerProfile(e.target.value as 'squat_dl'|'bench')}
-                  className="h-7 px-2 text-xs bg-[#161616] border border-white/10 rounded text-white"
-                >
-                  <option value="squat_dl">SQ / DL</option>
-                  <option value="bench">BP</option>
-                </select>
-                {(() => {
-                  const first = attemptPlannerInput || 0;
-                  const minSec = Math.round((first * 1.075) / 2.5) * 2.5;
-                  let maxSec = Math.round((first * 1.10) / 2.5) * 2.5;
-                  if (minSec >= maxSec) maxSec = minSec + 2.5;
-                  const ceiling = attemptPlannerProfile === 'squat_dl'
-                    ? Math.round((maxSec * 1.10) / 2.5) * 2.5
-                    : maxSec + 10;
-                  return (
-                    <span className="text-[11px] font-mono text-[#AEAEB2]">
-                      2nd <span className="text-white">{minSec}–{maxSec}</span>
-                      {' · '}3rd <span className="text-white">{ceiling}</span>
-                    </span>
-                  );
-                })()}
-              </div>
-            </div>
+                );
+              }
+              return renderSection(section);
+            })}
           </>
         )}
       </div>

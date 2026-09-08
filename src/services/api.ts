@@ -277,6 +277,7 @@ export const apiService = {
                   date: w.date,
                   exercise: e.title,
                   variation: e.variation,
+                  liftCategory: e.liftCategory,
                   weight: weightVal,
                   reps: repsVal,
                   rpe: rpeVal,
