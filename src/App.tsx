@@ -87,7 +87,7 @@ export default function App() {
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
                 ) : dashboardMode === 'roster' ? (
-                  <CoachDashboardView />
+                  <CoachDashboardView onOpenSessions={() => setDashboardMode('sessions')} />
                 ) : (
                   <div className="flex flex-col gap-4 p-4 w-full overflow-y-auto">
                     <TelegramLinkPanel />

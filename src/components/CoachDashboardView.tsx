@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
+import { usePeriodization } from '../contexts/PeriodizationContext';
+import { planForAthlete } from '../data/zaharBlock';
 import { addLocalAthlete, loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
 
-export const CoachDashboardView: React.FC = () => {
+interface CoachDashboardViewProps {
+  onOpenSessions: () => void;
+}
+
+export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSessions }) => {
   const [roster, setRoster] = useState<LocalAthlete[]>([]);
   const [addName, setAddName] = useState('');
   const [addEmail, setAddEmail] = useState('');
@@ -14,10 +20,8 @@ export const CoachDashboardView: React.FC = () => {
 
   // Drill-down state
   const [selectedAthlete, setSelectedAthlete] = useState<LocalAthlete | null>(null);
-  const [showPushModal, setShowPushModal] = useState(false);
-  const [pushTemplate, setPushTemplate] = useState('Hypertrophy Block (4 Weeks)');
-  const [isPushing, setIsPushing] = useState(false);
-  const [pushSuccess, setPushSuccess] = useState('');
+  const { loadAthletePlan } = usePeriodization();
+  const [openError, setOpenError] = useState<string | null>(null);
 
   // Powerlifting Analytics state
   const [analytics, setAnalytics] = useState<any>(null);
@@ -26,15 +30,18 @@ export const CoachDashboardView: React.FC = () => {
   const [attemptPlannerProfile, setAttemptPlannerProfile] = useState<'squat_dl'|'bench'>('squat_dl');
 
   useEffect(() => {
-    if (selectedAthlete) {
-      fetchAnalytics();
+    if (selectedAthlete?.linked) {
+      void fetchAnalytics(selectedAthlete.id);
+    } else {
+      setAnalytics(null);
+      setLoadingAnalytics(false);
     }
   }, [selectedAthlete]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (athleteId: string) => {
     setLoadingAnalytics(true);
     try {
-      const data = await apiService.fetchAnalyticsTrends(selectedAthlete.id);
+      const data = await apiService.fetchAnalyticsTrends(athleteId);
       setAnalytics(data);
     } catch (err) {
       console.error(err);
@@ -91,24 +98,15 @@ export const CoachDashboardView: React.FC = () => {
     setTimeout(() => setLinkSuccess(''), 3000);
   };
 
-  const handlePushProgram = async () => {
+  const handleOpenBlock = () => {
     if (!selectedAthlete) return;
-    setIsPushing(true);
-    setPushSuccess('');
-    try {
-      await apiService.pushProgramming(selectedAthlete.id, pushTemplate);
-      setPushSuccess('Program pushed successfully!');
-      setTimeout(() => {
-        setShowPushModal(false);
-        setPushSuccess('');
-      }, 2000);
-      await fetchRoster(); // Refresh stats
-    } catch (err) {
-      console.error('Failed to push program', err);
-      alert('Failed to push programming');
-    } finally {
-      setIsPushing(false);
+    const opened = loadAthletePlan(selectedAthlete.id);
+    if (!opened) {
+      setOpenError('No imported block for this athlete.');
+      return;
     }
+    setOpenError(null);
+    onOpenSessions();
   };
 
   return (
@@ -132,7 +130,9 @@ export const CoachDashboardView: React.FC = () => {
           </h1>
         </div>
         <p className="text-zinc-400 text-sm">
-          {selectedAthlete ? `Managing programming for ${selectedAthlete.name}` : 'Managing your roster and program deployment.'}
+          {selectedAthlete
+            ? `Athlete identity and current block for ${selectedAthlete.name}`
+            : 'Roster identities. Open an imported block on Sessions — there is no template deploy.'}
         </p>
       </div>
 
@@ -253,13 +253,19 @@ export const CoachDashboardView: React.FC = () => {
                   {' · '}DL {selectedAthlete.peakE1RM.deadlift ?? '—'}
                 </p>
               </div>
-              <button 
-                onClick={() => setShowPushModal(true)}
-                className="bg-mac-blue hover:bg-blue-600 text-white rounded-xl px-4 py-2 text-sm font-bold transition-all shadow-[0_0_20px_rgba(0,122,255,0.3)] hover:shadow-[0_0_30px_rgba(0,122,255,0.5)] flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
-                Push Program
-              </button>
+              {planForAthlete(selectedAthlete.id) ? (
+                <button
+                  data-testid="open-athlete-block"
+                  onClick={handleOpenBlock}
+                  className="bg-mac-blue hover:bg-blue-600 text-white rounded-xl px-4 py-2 text-sm font-bold flex items-center gap-2"
+                >
+                  Open Block 3.1
+                </button>
+              ) : (
+                <p className="text-xs text-zinc-500 max-w-[14rem] text-right">
+                  Identity only. No imported block to open.
+                </p>
+              )}
             </div>
           </div>
 
@@ -394,83 +400,14 @@ export const CoachDashboardView: React.FC = () => {
             </div>
           ) : (
              <div className="text-center p-10 bg-zinc-950/50 rounded-3xl border border-zinc-900">
-               <p className="text-zinc-500">Analytics could not be generated. Ensure athlete has logged data.</p>
+               <p className="text-zinc-500">
+                 {selectedAthlete.linked
+                   ? 'Analytics could not be generated. Ensure athlete has logged data.'
+                   : 'Local identity. Open the imported block on Sessions. Analytics need a linked account.'}
+               </p>
+               {openError && <p className="text-red-400 text-sm mt-2">{openError}</p>}
              </div>
           )}
-        </div>
-      )}
-
-      {/* Push Programming Modal */}
-      {showPushModal && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-3xl w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300">
-            <div className="p-6 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/30">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <span className="material-symbols-outlined text-mac-blue">send</span>
-                Deploy Program
-              </h3>
-              <button onClick={() => setShowPushModal(false)} className="text-zinc-500 hover:text-white">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {pushSuccess ? (
-                <div className="bg-[#75ff9e]/10 border border-[#75ff9e]/30 rounded-xl p-4 text-center">
-                  <span className="material-symbols-outlined text-[#75ff9e] text-4xl mb-2">check_circle</span>
-                  <p className="text-[#75ff9e] font-bold">{pushSuccess}</p>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-2 block">
-                      Target Athlete
-                    </label>
-                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 text-sm font-medium text-zinc-300">
-                      {selectedAthlete?.name}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-2 block">
-                      Select Template
-                    </label>
-                    <select 
-                      value={pushTemplate}
-                      onChange={(e) => setPushTemplate(e.target.value)}
-                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-mac-blue appearance-none"
-                    >
-                      <option value="Hypertrophy Block (4 Weeks)">Hypertrophy Block (4 Weeks)</option>
-                      <option value="Peaking Block (3 Weeks)">Peaking Block (3 Weeks)</option>
-                      <option value="Base Building (6 Weeks)">Base Building (6 Weeks)</option>
-                    </select>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {!pushSuccess && (
-              <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/30 flex gap-3">
-                <button 
-                  onClick={() => setShowPushModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm font-bold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handlePushProgram}
-                  disabled={isPushing}
-                  className="flex-1 py-3 rounded-xl bg-mac-blue hover:bg-blue-600 text-sm font-bold transition-colors flex justify-center items-center gap-2"
-                >
-                  {isPushing ? (
-                    <span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    'Deploy'
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       )}
 

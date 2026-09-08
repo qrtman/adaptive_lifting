@@ -106,7 +106,8 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Add Session | Coach picks **any calendar day** and assigns a **microcycle**. Title is optional and is not part of create. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
 | Maximized microcycle header | Week chrome is **name, status, start–end dates** (from session calendar dates), Session, and Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL stay on the exercise cards. |
 | Insights | Assembled from a declared catalog: KPI strip (SQ/BP/DL e1RM, Vol, DOTS, ACWR), INOL line, chart slots (e1RM / Tonnage / ACWR), attempts, AI coach. Loading, empty, and error states are visible. Prefer `liftCategory` over title scanning. |
-| Roster add athlete | Coach can add an athlete **identity** (name, optional email) to the roster. Spreadsheet/CSV snippets are not canonical storage and are **not** parsed into prescriptions. Account linking still uses the invite code. |
+| Roster add athlete | Coach can add an athlete **identity** (name, optional email) to the roster. Account linking still uses the invite code. |
+| Roster open block | Roster does **not** deploy a fake template (`Push Program` / `seed_db`). **Open Block 3.1** loads a one-time structured conversion of Zahar’s CSV into Sessions microcycles. Spreadsheet/CSV is not live storage and is not parsed at runtime. Athletes without an imported block stay identity-only. |
 
 ---
 

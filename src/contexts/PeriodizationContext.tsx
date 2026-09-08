@@ -3,8 +3,9 @@ import { apiService } from '../services/api';
 import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
-import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
+import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { insertWorkoutChronologically } from '../services/workoutDays';
+import { isImportedLocalPlan, planForAthlete } from '../data/zaharBlock';
 import {
   INITIAL_MICROCYCLES,
   INITIAL_MESOCYCLE,
@@ -37,6 +38,7 @@ interface PeriodizationState {
     scope?: { workoutId?: string; microcycleId?: string }
   ) => Promise<void>;
   resetPlan: () => Promise<void>;
+  loadAthletePlan: (athleteId: string) => boolean;
 }
 
 const PeriodizationContext = createContext<PeriodizationState | null>(null);
@@ -68,23 +70,31 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         console.warn('Failed to evict old synced mutations on launch:', err);
       }
 
+      let cached: MicrocycleData[] | null = null;
       try {
-        const cached = await getSnapshot('microcycles');
-        if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].workouts) {
+        const snapshot = await getSnapshot('microcycles');
+        if (snapshot && Array.isArray(snapshot) && snapshot.length > 0 && snapshot[0].workouts) {
+          cached = snapshot as MicrocycleData[];
           setMicrocycles(cached);
         }
       } catch (err) {
         console.error('Failed to hydrate workout data from IndexedDB:', err);
       }
 
-      try {
-        const meso = await apiService.getMesocycle();
-        if (meso && meso.microcycles) {
-          setMicrocycles(meso.microcycles);
-          await saveSnapshot('microcycles', meso.microcycles);
+      const keepLocalPlan =
+        isImportedLocalPlan(cached ?? []) ||
+        planForAthlete(getUiPref(UI_KEYS.activeAthleteId) ?? '') != null;
+
+      if (!keepLocalPlan) {
+        try {
+          const meso = await apiService.getMesocycle();
+          if (meso && meso.microcycles) {
+            setMicrocycles(meso.microcycles);
+            await saveSnapshot('microcycles', meso.microcycles);
+          }
+        } catch (err) {
+          console.warn('Failed to refresh mesocycle from backend (offline fallback active):', err);
         }
-      } catch (err) {
-        console.warn('Failed to refresh mesocycle from backend (offline fallback active):', err);
       }
     };
     hydrateAndEvict();
@@ -231,8 +241,23 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPlan = async () => {
+    removeUiPref(UI_KEYS.activeAthleteId);
     const next = await apiService.resetMicrocycles();
     setMicrocycles(next);
+  };
+
+  const loadAthletePlan = (athleteId: string): boolean => {
+    const plan = planForAthlete(athleteId);
+    if (!plan || plan.length === 0) return false;
+    setUiPref(UI_KEYS.activeAthleteId, athleteId);
+    setMicrocycles(plan);
+    const current = plan.find((micro) => micro.status === 'ACTIVE') ?? plan[plan.length - 1];
+    const firstWorkout = current.workouts[0];
+    setActiveMicrocycleId(current.id);
+    setUiPref(UI_KEYS.sessionsExpandedMicro, current.id);
+    if (firstWorkout) setActiveWorkoutId(firstWorkout.id);
+    void saveSnapshot('microcycles', plan);
+    return true;
   };
 
   return (
@@ -252,6 +277,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         addWorkout,
         finishSession,
         resetPlan,
+        loadAthletePlan,
       }}
     >
       {children}
