@@ -62,8 +62,8 @@ test('wide session pane places exercise name beside working sets', async ({ page
   expect(wideToolbar).toBeTruthy();
   expect(wideHeading!.x).toBeLessThan(wideTable!.x - 40);
   expect(wideToolbar!.x).toBeGreaterThan(wideTable!.x);
-  const adjHeader = session.getByRole('columnheader', { name: '%adj' });
-  const copyBtn = session.getByTitle('Copy prescription to log').first();
+  const adjHeader = session.getByTestId('exercise-card-e-3-1-1').getByRole('columnheader', { name: '%adj' });
+  const copyBtn = session.getByTestId('exercise-card-e-3-1-1').getByTitle('Copy prescription to log').first();
   const adjBox = await adjHeader.boundingBox();
   const copyBox = await copyBtn.boundingBox();
   expect(adjBox).toBeTruthy();
