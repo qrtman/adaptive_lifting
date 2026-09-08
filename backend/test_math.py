@@ -22,7 +22,8 @@ def test_e1rm_calculations():
     assert calculate_e1rm_linear_decay(100, 0, 8.0) == 0.0, "Zero reps guard failed"
     
     # 2. RPE boundaries
-    assert calculate_e1rm_linear_decay(100, 5, 5.5) == 100.0, "RPE < 6.0 fallback failed"
+    assert calculate_e1rm_linear_decay(137.5, 1, 5.0) == 159.7, "RPE 5 should invert prescribed intensity, not return bar weight"
+    assert calculate_e1rm_linear_decay(100, 5, 5.5) == 130.94, "RPE < 6.0 should invert prescription intensity"
     assert calculate_e1rm_linear_decay(100, 13, 8.0) == 100.0, "Reps > 12 fallback failed"
     
     # 3. Standard e1RM projection: 100kg x 1 rep @ RPE 10 -> 100.0kg

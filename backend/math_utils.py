@@ -1,17 +1,49 @@
 import math
 from typing import Dict, List
 
+# Mirrors src/services/mathEngine.ts getRpePercentage / RPE_CHART.
+RPE_CHART: Dict[int, Dict[float, float]] = {
+    1:  {10: 1.00, 9.5: 0.978, 9: 0.955, 8.5: 0.932, 8: 0.91, 7.5: 0.892, 7: 0.875, 6.5: 0.858, 6: 0.841},
+    2:  {10: 0.955, 9.5: 0.939, 9: 0.922, 8.5: 0.901, 8: 0.88, 7.5: 0.862, 7: 0.85, 6.5: 0.833, 6: 0.816},
+    3:  {10: 0.922, 9.5: 0.907, 9: 0.892, 8.5: 0.874, 8: 0.855, 7.5: 0.837, 7: 0.82, 6.5: 0.803, 6: 0.786},
+    4:  {10: 0.892, 9.5: 0.877, 9: 0.862, 8.5: 0.844, 8: 0.825, 7.5: 0.807, 7: 0.79, 6.5: 0.773, 6: 0.756},
+    5:  {10: 0.863, 9.5: 0.848, 9: 0.833, 8.5: 0.815, 8: 0.796, 7.5: 0.778, 7: 0.76, 6.5: 0.743, 6: 0.726},
+    6:  {10: 0.833, 9.5: 0.818, 9: 0.803, 8.5: 0.785, 8: 0.767, 7.5: 0.748, 7: 0.73, 6.5: 0.713, 6: 0.696},
+    7:  {10: 0.803, 9.5: 0.788, 9: 0.772, 8.5: 0.754, 8: 0.736, 7.5: 0.718, 7: 0.70, 6.5: 0.683, 6: 0.665},
+    8:  {10: 0.772, 9.5: 0.757, 9: 0.741, 8.5: 0.723, 8: 0.705, 7.5: 0.688, 7: 0.67, 6.5: 0.653, 6: 0.635},
+    9:  {10: 0.741, 9.5: 0.726, 9: 0.71, 8.5: 0.692, 8: 0.674, 7.5: 0.657, 7: 0.64, 6.5: 0.622, 6: 0.605},
+    10: {10: 0.710, 9.5: 0.695, 9: 0.679, 8.5: 0.661, 8: 0.643, 7.5: 0.626, 7: 0.61, 6.5: 0.592, 6: 0.575},
+}
+
+
+def get_rpe_percentage(reps: float, rpe: float) -> float:
+    if reps <= 0 or rpe <= 0:
+        return 0.0
+    rounded_reps = int(round(reps))
+    rounded_rpe = round(rpe * 2) / 2
+    chart_row = RPE_CHART.get(rounded_reps)
+    if chart_row is not None and rounded_rpe in chart_row:
+        return chart_row[rounded_rpe]
+    effective_reps = reps + (10 - rpe)
+    if effective_reps <= 0:
+        return 1.0
+    return max(0.0, 1.0278 - 0.0278 * effective_reps)
+
+
 def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
     """
-    e1RM = Weight / (1 - 0.03 * (10 - RPE + Reps - 1))
-    Only calculate if RPE >= 6.0 and Reps <= 12.
-    For reps > 6, we apply a constraint (as requested) to cap the metabolic drop-off.
-    We cap the effective drop to max 25% to prevent absurd 1RM projections on high-rep sets.
+    e1RM = Weight / (1 - 0.03 * (10 - RPE + Reps - 1)) when RPE >= 6 and reps <= 12.
+    RPE < 6 inverts the same intensity % used to prescribe (get_rpe_percentage).
     """
     if weight <= 0 or reps <= 0:
         return 0.0
-    if rpe < 6.0 or reps > 12:
-        return weight # Fallback: return raw weight if outside bounds
+    if reps > 12:
+        return weight
+    if rpe < 6.0:
+        pct = get_rpe_percentage(reps, rpe)
+        if pct <= 0:
+            return weight
+        return round(weight / pct, 2)
         
     effective_drop_pct = 0.03 * (10 - rpe + reps - 1)
     

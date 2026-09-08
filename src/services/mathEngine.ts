@@ -35,7 +35,12 @@ export function getRpePercentage(reps: number, rpe: number): number {
 /** Mirrors calculate_e1rm_linear_decay in backend/math_utils.py */
 export function calculateE1RM(weight: number, reps: number, rpe: number): number {
   if (weight <= 0 || reps <= 0) return 0;
-  if (rpe < 6.0 || reps > 12) return weight;
+  if (reps > 12) return weight;
+  if (rpe < 6.0) {
+    const pct = getRpePercentage(reps, rpe);
+    if (pct <= 0) return weight;
+    return Math.round((weight / pct) * 100) / 100;
+  }
 
   let effectiveDropPct = 0.03 * (10 - rpe + reps - 1);
   if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
@@ -227,7 +232,10 @@ export function calculateCapacityScaledWeight(
 /** Inverse of calculateE1RM linear decay, for prescription preview. */
 export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number): number {
   if (!e1RM || !reps || !rpe) return 0;
-  if (rpe < 6.0 || reps > 12) return e1RM;
+  if (reps > 12) return e1RM;
+  if (rpe < 6.0) {
+    return Math.max(0, e1RM * getRpePercentage(reps, rpe));
+  }
 
   let effectiveDropPct = 0.03 * (10 - rpe + reps - 1);
   if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;

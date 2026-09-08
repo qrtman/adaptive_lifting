@@ -16,6 +16,10 @@ describe('shared math vectors', () => {
     }
   });
 
+  it('recovers the anchor e1RM when a prescribed RPE 5 single is logged as written', () => {
+    expect(Math.round(calculateE1RM(137.5, 1, 5))).toBe(160);
+  });
+
   it('matches backend INOL cases', () => {
     for (const row of vectors.inol) {
       expect(calculateINOL(row.reps, row.intensity_pct)).toBe(row.expected);

@@ -2,7 +2,8 @@
   "e1rm": [
     { "weight": 0, "reps": 5, "rpe": 8, "expected": 0 },
     { "weight": 100, "reps": 0, "rpe": 8, "expected": 0 },
-    { "weight": 100, "reps": 5, "rpe": 5.5, "expected": 100 },
+    { "weight": 100, "reps": 5, "rpe": 5.5, "expected": 130.94 },
+    { "weight": 137.5, "reps": 1, "rpe": 5, "expected": 159.7 },
     { "weight": 100, "reps": 13, "rpe": 8, "expected": 100 },
     { "weight": 100, "reps": 1, "rpe": 10, "expected": 100 },
     { "weight": 100, "reps": 5, "rpe": 9, "expected": 117.65 },

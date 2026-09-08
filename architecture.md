@@ -308,7 +308,7 @@ $$\text{e1RM} = \frac{\text{Weight}}{1.0 - \text{Effective Drop \%}}$$
 
 #### 6.2.1 Boundary Constraints & Guards
 - **Null Inputs**: If `weight <= 0` or `reps <= 0`, return `0.0`.
-- **Reliability Fallback**: If `RPE < 6.0` or `reps > 12`, e1RM calculations are physiologically unreliable. The calculator must bypass linear decay and return the raw `weight` as a safe fallback.
+- **Reliability Fallback**: If `reps > 12`, return the raw `weight`. If `RPE < 6.0`, invert the same intensity % used to prescribe (`getRpePercentage` / RPE chart, else `1.0278 - 0.0278 × Effective Reps`) so a set logged as prescribed recovers the anchor e1RM. Do not return raw weight: that collapses technique singles (e.g. 137.5 × 1 @ 5 from a 160 e1RM) to bar weight.
 - **Metabolic Drop-off Cap**: For high-rep sets (e.g., backoffs), the linear decay is capped to prevent absurdly inflated 1RM projections. If `Effective Drop % > 0.25`, the value is constrained to `0.25` (representing a maximum 25% drop).
 - **Zero-Division Guard**: If `denominator <= 0.1` (where `denominator = 1.0 - Effective Drop %`), the calculation is aborted, and the raw `weight` is returned.
 
@@ -1143,7 +1143,7 @@ Shared formula fixtures live in `tests/math_vectors.json` and are consumed by bo
 
 | Test Area | Key Scenarios |
 | :--- | :--- |
-| e1RM calculation | RPE 10, RPE 6, RPE < 6 fallback, high-rep cap, zero weight, zero reps |
+| e1RM calculation | RPE 10, RPE 6, RPE < 6 prescription inverse, high-rep cap, zero weight, zero reps |
 | INOL calculation | Standard intensity, 100% intensity cap, zero intensity |
 | DOTS coefficient | Male coefficients, female coefficients, zero bodyweight guard |
 | Attempt Calculator | Correct rounding to 2.5kg, non-overlapping 2nd/3rd ranges |
