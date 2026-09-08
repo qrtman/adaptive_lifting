@@ -318,10 +318,6 @@ class LogSetRequest(BaseModel):
     readiness: Optional[int] = None
     hrv: Optional[float] = None
 
-class PushProgramRequest(BaseModel):
-    athleteId: str
-    template: str
-
 # --- Powerlifting Math Helpers ---
 # Canonical formulas live in math_utils.py (calculate_e1rm / calculate_e1rm_linear_decay).
 
@@ -760,22 +756,6 @@ def get_roster(db: Session = Depends(get_db), current_user: User = Depends(get_c
                 "activeMicrocycles": len(microcycles)
             })
     return athletes
-
-@app.post("/api/coach/push-program")
-def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "COACH":
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
-    rel = db.query(CoachingRelationship).filter(
-        CoachingRelationship.coach_id == current_user.id,
-        CoachingRelationship.athlete_id == req.athleteId
-    ).first()
-    
-    if not rel:
-        raise HTTPException(status_code=403, detail="Not authorized to push to this athlete")
-        
-    seed_db(db, req.athleteId, clear_existing=False)
-    return {"status": "success", "message": f"Program {req.template} deployed successfully"}
 
 def get_visible_microcycles(db: Session, current_user: User):
     if current_user.role == "COACH":

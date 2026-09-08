@@ -107,7 +107,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Maximized microcycle header | Week chrome is **name, status, start–end dates** (from session calendar dates), Session, and Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL stay on the exercise cards. |
 | Insights | Assembled from a declared catalog: KPI strip (SQ/BP/DL e1RM, Vol, DOTS, ACWR), INOL line, chart slots (e1RM / Tonnage / ACWR), attempts, AI coach. Loading, empty, and error states are visible. Prefer `liftCategory` over title scanning. |
 | Roster add athlete | Coach can add an athlete **identity** (name, optional email) to the roster. Account linking still uses the invite code. |
-| Roster open block | Roster does **not** deploy a fake template (`Push Program` / `seed_db`). **Open Block 3.1** loads a one-time structured conversion of Zahar’s CSV into Sessions microcycles. Spreadsheet/CSV is not live storage and is not parsed at runtime. Athletes without an imported block stay identity-only. |
+| Roster open block | Roster does **not** deploy a fake template. **Open Block 3.1** loads a one-time structured conversion of Zahar’s CSV (planned kg × reps @ RPE and executed kg × reps @ RPE). `10-12` / `10~12` are **rep ranges**, not dates. Session dates are omitted when the CSV has none. Spreadsheet/CSV is not live storage and is not parsed at runtime. |
 
 ---
 

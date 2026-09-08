@@ -329,20 +329,6 @@ export const apiService = {
     return data;
   },
 
-  async pushProgramming(athleteId: string, template: string) {
-    const response = await fetch(`${BACKEND_URL}/api/coach/push-program`, {
-      method: 'POST',
-      headers: getHeaders(),
-      credentials: 'include',
-      body: JSON.stringify({ athleteId, template })
-    });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to push program');
-    }
-    return await response.json();
-  },
-
   async fetchRoster() {
     const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('Failed to fetch roster');

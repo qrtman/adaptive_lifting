@@ -1,0 +1,2235 @@
+{
+  "weeks": [
+    {
+      "id": "z-w3",
+      "weekName": "Week 3",
+      "focus": "Block 3.1",
+      "days": [
+        {
+          "dayLabel": "D1",
+          "exercises": [
+            {
+              "title": "deadlift sumo",
+              "variation": "",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 185.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 185.0,
+                  "reps": 1.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 157.5,
+                  "weightNote": null,
+                  "dropPercent": -5.0,
+                  "actual": 157.5,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 152.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 150.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 117.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 120.0,
+                  "reps": 1.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 4.0,
+                  "executedRpe": 6.5
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 102.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 102.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                }
+              ]
+            },
+            {
+              "title": "incline smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 9.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 9.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "hip adduction+abduction",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "humstring curls",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D2",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "low bar",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 162.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 165.0,
+                  "reps": 1.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 147.5,
+                  "weightNote": null,
+                  "dropPercent": -2.0,
+                  "actual": 147.5,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 142.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 140.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "larsen press",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 92.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 92.5,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 95.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 92.5,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 92.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 92.5,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "seated smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "lateral raises",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 10.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D3",
+          "exercises": [
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 107.5,
+                  "weightNote": "107.5~110",
+                  "dropPercent": null,
+                  "actual": 110.0,
+                  "reps": 3.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 107.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 107.5,
+                  "reps": 3.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 107.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 107.5,
+                  "reps": 3.0,
+                  "executedRpe": 8.0
+                }
+              ]
+            },
+            {
+              "title": "deadlift",
+              "variation": "sumo paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 160.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 160.0,
+                  "reps": 4.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 152.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 152.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 152.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 152.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "triceps pushdown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D4",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "ssb high bar paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 6.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 5.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 95.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 95.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                }
+              ]
+            },
+            {
+              "title": "leg press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "leg extesion",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "z-w4",
+      "weekName": "Week 4",
+      "focus": "Block 3.1",
+      "days": [
+        {
+          "dayLabel": "D1",
+          "exercises": [
+            {
+              "title": "deadlift sumo",
+              "variation": "",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 190.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 190.0,
+                  "reps": 1.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 167.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 170.0,
+                  "reps": 4.0,
+                  "executedRpe": 7.5
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 160.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 160.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.5,
+                  "plannedWeight": 122.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 122.5,
+                  "reps": 1.0,
+                  "executedRpe": 8.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 102.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 102.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                }
+              ]
+            },
+            {
+              "title": "incline smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 9.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 9.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "hip adduction+abduction",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "humstring curls",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D2",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "low bar",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 167.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 170.0,
+                  "reps": 1.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 147.5,
+                  "weightNote": null,
+                  "dropPercent": -2.0,
+                  "actual": 150.0,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 145.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 142.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "larsen press",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 97.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 97.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 95.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 95.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 95.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                }
+              ]
+            },
+            {
+              "title": "seated smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "lateral raises",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 10.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D3",
+          "exercises": [
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.5,
+                  "plannedWeight": 112.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 112.5,
+                  "reps": 3.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 110.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 110.0,
+                  "reps": 3.0,
+                  "executedRpe": 8.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 3.0,
+                  "executedRpe": 6.0
+                }
+              ]
+            },
+            {
+              "title": "deadlift",
+              "variation": "sumo paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 160.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 170.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 170.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 170.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 170.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 170.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.5
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "triceps pushdown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D4",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "ssb high bar paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 102.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 102.5,
+                  "reps": 5.0,
+                  "executedRpe": 5.5
+                }
+              ]
+            },
+            {
+              "title": "leg press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "leg extesion",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "z-w5",
+      "weekName": "Week 5",
+      "focus": "Block 3.1",
+      "days": [
+        {
+          "dayLabel": "D1",
+          "exercises": [
+            {
+              "title": "deadlift sumo",
+              "variation": "",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 8.0,
+                  "plannedWeight": 195.0,
+                  "weightNote": "195~200",
+                  "dropPercent": null,
+                  "actual": 210.0,
+                  "reps": 1.0,
+                  "executedRpe": 7.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 187.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 180.0,
+                  "reps": 4.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 177.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 175.0,
+                  "reps": 4.0,
+                  "executedRpe": 6.5
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 8.5,
+                  "plannedWeight": 125.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 125.0,
+                  "reps": 1.0,
+                  "executedRpe": 8.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.5,
+                  "plannedWeight": 112.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 110.0,
+                  "reps": 4.0,
+                  "executedRpe": 8.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 4.0,
+                  "executedRpe": 6.5
+                }
+              ]
+            },
+            {
+              "title": "incline smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 9.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 9.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "hip adduction+abduction",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "humstring curls",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D2",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "low bar",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 8.0,
+                  "plannedWeight": 177.5,
+                  "weightNote": "177.5~182.5",
+                  "dropPercent": null,
+                  "actual": 182.5,
+                  "reps": 1.0,
+                  "executedRpe": 9.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 152.5,
+                  "weightNote": null,
+                  "dropPercent": -2.0,
+                  "actual": 152.5,
+                  "reps": 4.0,
+                  "executedRpe": 8.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 145.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 145.0,
+                  "reps": 4.0,
+                  "executedRpe": 7.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "larsen press",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 97.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 97.5,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 97.5,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "seated smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "lateral raises",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 10.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D3",
+          "exercises": [
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 8.5,
+                  "plannedWeight": 115.0,
+                  "weightNote": "115~117.5",
+                  "dropPercent": null,
+                  "actual": 117.5,
+                  "reps": 3.0,
+                  "executedRpe": 10.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": -2.0,
+                  "actual": 105.0,
+                  "reps": 3.0,
+                  "executedRpe": 6.5
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 3.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 107.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 3.0,
+                  "executedRpe": 6.5
+                }
+              ]
+            },
+            {
+              "title": "deadlift",
+              "variation": "sumo paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.5,
+                  "plannedWeight": 170.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 170.0,
+                  "reps": 4.0,
+                  "executedRpe": 7.5
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 162.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 160.0,
+                  "reps": 4.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 155.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 152.5,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "triceps pushdown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D4",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "ssb high bar paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 7.0,
+                  "plannedWeight": 110.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 110.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 6.0,
+                  "plannedWeight": 110.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 110.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 107.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 5.0,
+                  "executedRpe": 6.0
+                }
+              ]
+            },
+            {
+              "title": "leg press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "leg extesion",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "z-w6",
+      "weekName": "Week 6",
+      "focus": "Block 3.1 pivot",
+      "days": [
+        {
+          "dayLabel": "D1",
+          "exercises": [
+            {
+              "title": "deadlift sumo",
+              "variation": "",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 190.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 190.0,
+                  "reps": 1.0,
+                  "executedRpe": 7.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 177.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 177.5,
+                  "reps": 1.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 150.0,
+                  "weightNote": null,
+                  "dropPercent": -5.0,
+                  "actual": 150.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 115.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 115.0,
+                  "reps": 1.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 107.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 107.5,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 4.0,
+                  "executedRpe": 6.0
+                }
+              ]
+            },
+            {
+              "title": "incline smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "hip adduction+abduction",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "humstring curls",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D2",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "ssb high bar paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 6.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 105.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 105.0,
+                  "reps": 6.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 6.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": -5.0,
+                  "actual": 100.0,
+                  "reps": 7.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 6.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 102.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 7.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "2 finger closer grip",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 97.5,
+                  "weightNote": "97.5",
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 3,
+                  "plannedReps": 5.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 5.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "lateral raises",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "rear delt fly",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D3",
+          "exercises": [
+            {
+              "title": "squat",
+              "variation": "low bar",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 1.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 160.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 160.0,
+                  "reps": 1.0,
+                  "executedRpe": 6.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 137.5,
+                  "weightNote": null,
+                  "dropPercent": -2.0,
+                  "actual": 137.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 130.0,
+                  "weightNote": null,
+                  "dropPercent": -5.0,
+                  "actual": 130.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "bench press",
+              "variation": "comp paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.5,
+                  "plannedWeight": 102.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 102.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": -2.0,
+                  "actual": 100.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 2,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 100.0,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 100.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "leg press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "leg extesion",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 2,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 5.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "seated smith press",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "dayLabel": "D4",
+          "exercises": [
+            {
+              "title": "deadlift",
+              "variation": "sumo paused",
+              "accessory": false,
+              "sets": [
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 157.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 160.0,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 152.5,
+                  "weightNote": null,
+                  "dropPercent": -5.0,
+                  "actual": 152.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                },
+                {
+                  "copies": 1,
+                  "plannedReps": 4.0,
+                  "repsNote": null,
+                  "plannedRpe": 5.0,
+                  "plannedWeight": 152.5,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": 152.5,
+                  "reps": 4.0,
+                  "executedRpe": 5.0
+                }
+              ]
+            },
+            {
+              "title": "horizontal pull/t bar row",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "triceps pushdown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10~12",
+                  "plannedRpe": 7.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            },
+            {
+              "title": "vertical pulldown",
+              "variation": "Accessory",
+              "accessory": true,
+              "sets": [
+                {
+                  "copies": 3,
+                  "plannedReps": 10.0,
+                  "repsNote": "10-12",
+                  "plannedRpe": 6.0,
+                  "plannedWeight": null,
+                  "weightNote": null,
+                  "dropPercent": null,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
