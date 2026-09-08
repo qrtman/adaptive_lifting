@@ -40,7 +40,7 @@ comparison, and immediate workload visibility over presentation.
 | Telegram Mini App | Athlete | Telegram-native logging | **Not built** as a frontend route. Backend endpoints exist |
 | Standalone athlete mobile PWA | Athlete | Offline gym logging | **Not built** as its own installable surface |
 
-Default coach landing is **Sessions**, not a dashboard.
+Default coach landing is **Sessions for the selected athlete**. There is no schedule that is not attached to an athlete.
 
 ---
 
@@ -100,7 +100,10 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 | Decision | Rule |
 | :--- | :--- |
 | Add athlete | The coach adds an athlete **identity** (name, optional email). Account linking is separate. |
-| Open block | Roster never deploys a fake template. An athlete with an imported block gets an `Open block` action **labelled from that block's own name**, which navigates to Sessions showing their plan. An athlete without one shows identity only. |
+| Athlete switcher | Native `<select>` in the sidebar. Changing it swaps Sessions, Calendar, and Insights to that athlete in place. No extra screen. |
+| Roster row | Clicking a name **selects that athlete and opens Sessions**. An athlete without a block lands on the empty Sessions state. Roster does not go through an overview or an Open-block button. |
+| Open block | Removed as a separate step. Selecting the athlete is enough. |
+| Unowned seed plan | There is no workout schedule that is not attached to an athlete. Do not restore a demo microcycle tree as a fallback. |
 | Imported blocks | Structured data converted offline. A spreadsheet or CSV is never live storage and is never parsed at runtime. Rep ranges such as `10-12` stay rep ranges, not dates. Session dates stay empty when the source has none. |
 | Freshness | A cached plan records its athlete, source, and version, and reconciles **automatically** on load, keeping logged sets. Never ask the coach to re-open or re-import to pick up fresh data. |
 | Discarding work | Only Reset plan discards logged work, and it says so before doing it. |
@@ -143,8 +146,7 @@ as raw hex inline rather than through tokens.
 | Warning | `#F5A623` | Pending, caution |
 | Danger | `#FF453A` | Errors, rejected, revoked |
 
-Known debt: `CoachDashboardView.tsx` still uses an unrelated chart palette (`#E74C3C`, `#2ECC71`, `#9B59B6`,
-`#3498DB`) and rounded translucent panels that conflict with §3.1. Fix on the next substantive edit to that file.
+Known debt: Roster still uses rounded translucent panels that conflict with §3.1. Fix on the next substantive edit to that file.
 
 ### 4.2 Typography
 
@@ -201,15 +203,15 @@ Accurate as of the current code. Each entry names the file so you can check it.
 
 | Surface | File | What it does | Required states |
 | :--- | :--- | :--- | :--- |
-| App shell | `AppShell.tsx`, `Sidebar.tsx` | Fixed sidebar nav (Calendar, Sessions, Roster, Insights, Integrations, Security), account block, Reset plan. Shows a status strip at the top of the main column when offline or when mutations are queued. | offline, queued mutations, authenticated |
-| Sessions | `SessionsView.tsx` | Primary coach surface. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; add session. | loading, empty, filtered-empty, maximized, collapsed |
+| App shell | `AppShell.tsx`, `Sidebar.tsx` | Fixed sidebar nav, native athlete `<select>`, account block, Reset plan. Status strip when offline or queued. | offline, queued mutations, authenticated, no athletes |
+| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; add session. | loading, empty (no athlete / no sessions), filtered-empty, maximized, collapsed |
 | Session block | `SessionWorkoutEditor.tsx` | One session: heading with D-label, date, status and tonnage; exercise cards; End of Dn footer with Complete/Reopen. | planned, in progress, completed, read-only |
 | Exercise card | `ExerciseCard.tsx` | Identity and anchor e1RM left, set table middle, Vol/INOL/`+ Set` right. Rx, `%adj`, copy-to-log, Log, e1RM with Δ. | empty sets, logged, read-only |
 | Prescription editor | `PrescriptionEditor.tsx` | Inline structured Rx per set cell. | draft, valid, invalid, read-only |
 | Add exercise | `AddExerciseDialog.tsx` | Identity-only catalog picker. | empty search, matches, custom, validation error |
 | Add session | `AddSessionDialog.tsx` | Month calendar day picker plus microcycle assignment. | day selected, microcycle required, occupied day |
 | Calendar | `CalendarView.tsx` | Month grid, drag to reschedule within a microcycle, add session. | loading, empty, dragging, rejected cross-microcycle drop |
-| Roster | `CoachDashboardView.tsx` | Roster list, add athlete, athlete detail with peak e1RM, open block, analytics panel. | loading, empty roster, identity only, imported block, analytics unavailable |
+| Roster | `CoachDashboardView.tsx` | Roster list and add-athlete form. A row selects that athlete and opens Sessions. | loading, empty roster |
 | Insights | `InsightsView.tsx`, `insights/InsightKpiStrip.tsx`, `src/insights/construct.ts` | KPI strip, INOL line, chart slots, attempts, AI coach. | loading, empty, error |
 | Conflict review | `ConflictReviewCard.tsx` | Local versus server values with a resolution choice. Surfaced from `SyncContext`. | reviewable, read-only, resolved |
 | Security | `SecurityView.tsx` | Devices and sessions with revoke. | loading, empty, active, revoking |
@@ -247,7 +249,7 @@ Colour is never the only signal. Pair it with an icon or text.
 - `set` for an execution row.
 - `publish` for Google Sheets, never "sync", because Sheets is not canonical.
 - `connect` / `disconnect` for integrations, never "install".
-- Name the action: `Open Block 3.1`, `Complete session`, `Publish to Sheets` — never `Submit` or `OK`.
+- Name the action: `Complete session`, `Publish to Sheets` — never `Submit` or `OK`.
 - Error copy explains the fix. Backend codes go in expandable detail.
 
 This document does not specify exact microcopy strings. Strings live in the components; a document that
@@ -264,7 +266,7 @@ Described here so nobody re-invents them by accident, and so nobody builds them 
 - **Microcycle calendar view** as an alternative to the month grid, with expand-all-sets and per-day INOL.
 - **Collapsible sidebar** (240 → 60 → 0px) and the space-reclamation behaviour that depends on it.
 - **SSE live telemetry panel.** The backend broadcasts; no frontend subscribes.
-- **Meet day planner** as a dedicated surface. Attempt maths exists inside Insights and Roster.
+- **Meet day planner** as a dedicated surface. Attempt maths exists inside Insights.
 - **Volume and intensity profile** and **movement variation drill-down** analytics tabs.
 - **Audit event table.** The backend endpoint exists; `SecurityView` shows devices and sessions only.
 - **Standalone athlete mobile PWA** and the chronological cross-exercise logging feed.
@@ -274,7 +276,6 @@ Described here so nobody re-invents them by accident, and so nobody builds them 
   currently aggregate, in the shell status strip.
 - **Workout lock UI.** See `WorkoutLockBanner.tsx` above.
 - **Exercise reorder by drag** with `lexo_rank`.
-- **Athlete switcher** in the shell. Athletes are switched through Roster.
 - **Light theme.** Dark only.
 
 ---
@@ -306,6 +307,7 @@ Check what applies to the change you made.
 - [ ] Prescription uses structured controls, never parsed text.
 - [ ] Metrics use the canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Cached athlete data refreshed itself; nothing asked the user to re-open or re-import.
+- [ ] Sessions, Calendar, and Insights show the selected athlete. Switching athletes does not require Roster.
 
 **Integrations**
 

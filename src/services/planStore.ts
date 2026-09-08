@@ -6,13 +6,13 @@ export const PLAN_SCHEMA = 1;
 /** Pre-schema snapshot: a bare MicrocycleData[] shared by every athlete. */
 export const LEGACY_PLAN_SNAPSHOT_ID = 'microcycles';
 
-export type PlanSource = 'imported' | 'api' | 'seed';
+export type PlanSource = 'imported' | 'api' | 'local';
 
 export interface StoredPlan {
   schema: number;
   athleteId: string | null;
   source: PlanSource;
-  /** Fingerprint of the import this copy was built from. Null for api and seed plans. */
+  /** Fingerprint of the import this copy was built from. Null for api and local plans. */
   planVersion: string | null;
   /**
    * Sessions edited in the app. They are the athlete's work, so a refreshed
@@ -37,17 +37,28 @@ function looksLikePlan(microcycles: unknown): microcycles is MicrocycleData[] {
 /** Narrow an untrusted snapshot payload, so a stale or corrupt record is ignored. */
 export function asStoredPlan(raw: unknown): StoredPlan | null {
   if (!raw || typeof raw !== 'object') return null;
-  const candidate = raw as Partial<StoredPlan>;
+  const candidate = raw as Partial<StoredPlan> & { source?: string };
   if (candidate.schema !== PLAN_SCHEMA) return null;
   if (!looksLikePlan(candidate.microcycles)) return null;
+  // Pre-athlete snapshots used source 'seed'. They are unowned and must not load.
+  if (candidate.source === 'seed') return null;
   return {
     schema: PLAN_SCHEMA,
     athleteId: candidate.athleteId ?? null,
-    source: candidate.source ?? 'seed',
+    source: candidate.source === 'imported' || candidate.source === 'api' || candidate.source === 'local'
+      ? candidate.source
+      : 'local',
     planVersion: candidate.planVersion ?? null,
     ownedWorkoutIds: Array.isArray(candidate.ownedWorkoutIds) ? candidate.ownedWorkoutIds : [],
     microcycles: candidate.microcycles,
   };
+}
+
+export function planSharesStructure(source: MicrocycleData[], cached: MicrocycleData[]): boolean {
+  const sourceIds = new Set(source.flatMap((micro) => [micro.id, ...micro.workouts.map((w) => w.id)]));
+  return cached.some(
+    (micro) => sourceIds.has(micro.id) || micro.workouts.some((workout) => sourceIds.has(workout.id)),
+  );
 }
 
 /**
@@ -161,7 +172,10 @@ export async function migrateLegacyPlanSnapshot(
     console.error('Failed to read the legacy plan snapshot:', err);
     return null;
   }
-  if (!looksLikePlan(legacy)) return null;
+  if (!looksLikePlan(legacy)) {
+    if (legacy != null) await clearSnapshot(LEGACY_PLAN_SNAPSHOT_ID);
+    return null;
+  }
 
   const existing = await readStoredPlan(athleteId);
   if (existing) {
@@ -169,10 +183,16 @@ export async function migrateLegacyPlanSnapshot(
     return existing;
   }
 
+  // The shared snapshot was the unowned seed. Never attach it to an athlete.
+  if (!source || !planSharesStructure(source, legacy)) {
+    await clearSnapshot(LEGACY_PLAN_SNAPSHOT_ID);
+    return null;
+  }
+
   const migrated: StoredPlan = {
     schema: PLAN_SCHEMA,
     athleteId,
-    source: source ? 'imported' : 'seed',
+    source: 'imported',
     planVersion: null,
     ownedWorkoutIds: source ? inferOwnedWorkoutIds(source, legacy) : [],
     microcycles: legacy,

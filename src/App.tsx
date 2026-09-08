@@ -55,7 +55,7 @@ export default function App() {
         setDashboardMode(mode);
       }}
       onResetPlan={async () => {
-        if (window.confirm('Reset plan? This clears logged sets and restores the seed microcycles.')) {
+        if (window.confirm("Reset this athlete's plan? Logged sets are cleared. An imported block is restored as shipped.")) {
           await resetPlan();
           window.location.reload();
         }

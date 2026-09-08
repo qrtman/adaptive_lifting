@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MicrocycleData } from '../types';
-import { athleteIdsWithImportedPlan, importedPlanFor, planVersion } from './athletePlans';
+import { athleteIdsWithImportedPlan, importedPlanFor, pickActiveAthlete, planVersion } from './athletePlans';
 
 function plan(topKg: number): MicrocycleData[] {
   return [
@@ -82,5 +82,38 @@ describe('planVersion', () => {
 
   it('changes when any training value changes, so no one has to bump it by hand', () => {
     expect(planVersion(plan(200))).not.toBe(planVersion(plan(202.5)));
+  });
+});
+
+describe('pickActiveAthlete', () => {
+  const withPlan = {
+    id: athleteIdsWithImportedPlan()[0],
+    name: 'Has Plan',
+    email: null,
+    currentBlock: 'Block A',
+    activeMicrocycles: 1,
+    peakE1RM: { squat: null, bench: null, deadlift: null },
+    linked: false,
+  };
+  const extra = {
+    id: 'athlete-extra',
+    name: 'Extra',
+    email: null,
+    currentBlock: null,
+    activeMicrocycles: 0,
+    peakE1RM: { squat: null, bench: null, deadlift: null },
+    linked: false,
+  };
+
+  it('returns null for an empty roster', () => {
+    expect(pickActiveAthlete([], 'athlete-extra')).toBeNull();
+  });
+
+  it('keeps the preferred athlete when they are still on the roster', () => {
+    expect(pickActiveAthlete([withPlan, extra], extra.id)?.id).toBe(extra.id);
+  });
+
+  it('falls back to the first athlete who has a plan', () => {
+    expect(pickActiveAthlete([extra, withPlan], 'gone')?.id).toBe(withPlan.id);
   });
 });

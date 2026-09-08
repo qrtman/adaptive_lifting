@@ -4,7 +4,7 @@ import { readPlanSnapshot, signInCoach, writePlanSnapshot } from './helpers';
 const ATHLETE = 'athlete-zahar';
 const PLAN_SNAPSHOT = `plan:${ATHLETE}`;
 
-test('roster opens an athlete block under its own name', async ({ page }) => {
+test('roster click opens that athlete on Sessions', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',
     al_dashboard_mode: 'roster',
@@ -15,17 +15,12 @@ test('roster opens an athlete block under its own name', async ({ page }) => {
   const athlete = page.getByTestId(`roster-athlete-${ATHLETE}`);
   await expect(athlete).toBeVisible();
   await athlete.click();
-
-  // The action is labelled from the athlete's block, not a constant in the view.
-  const open = page.getByTestId('open-athlete-block');
-  await expect(open).toHaveText('Open Block 3.1');
-  await open.click();
-
+  await expect(page.getByTestId('open-athlete-block')).toHaveCount(0);
   await expect(page.getByTestId('sessions-week-header-z-w6')).toContainText('Week 6');
   await expect(page.getByTestId('exercise-card-z-w6-d1-e1')).toContainText('190');
 });
 
-test('an athlete without an imported block shows identity only', async ({ page }) => {
+test('an athlete without a block opens an empty Sessions view', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',
     al_dashboard_mode: 'roster',
@@ -39,7 +34,32 @@ test('an athlete without an imported block shows identity only', async ({ page }
   const added = page.getByTestId('roster-list').getByText('Second Athlete');
   await expect(added).toBeVisible();
   await added.click();
-  await expect(page.getByTestId('open-athlete-block')).toHaveCount(0);
+  await expect(page.getByTestId('sessions-empty')).toBeVisible();
+});
+
+test('switching athletes in the sidebar swaps sessions in place', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'sessions',
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('sessions-week-header-z-w6')).toBeVisible();
+
+  await page.getByTestId('nav-roster').click();
+  await page.getByTestId('add-athlete-name').fill('Second Athlete');
+  await page.getByTestId('add-athlete-submit').click();
+  await expect(page.getByTestId('roster-list').getByText('Second Athlete')).toBeVisible();
+
+  await page.getByTestId('nav-sessions').click();
+  const switcher = page.getByTestId('athlete-switcher');
+  await expect(switcher).toBeVisible();
+  const optionValue = await switcher.locator('option', { hasText: 'Second Athlete' }).getAttribute('value');
+  expect(optionValue).toBeTruthy();
+  await switcher.selectOption(optionValue!);
+  await expect(page.getByTestId('sessions-empty')).toBeVisible();
+
+  await switcher.selectOption(ATHLETE);
+  await expect(page.getByTestId('sessions-week-header-z-w6')).toBeVisible();
 });
 
 test('a changed import reconciles on reload without reopening the block', async ({ page }) => {
@@ -51,9 +71,6 @@ test('a changed import reconciles on reload without reopening the block', async 
   await page.goto('/');
   await expect(page.getByTestId('sessions-week-header-z-w6')).toBeVisible();
 
-  // Stand in for the offline conversion changing under a cached plan: D1 is
-  // edited here so it must survive, D2 is untouched so it must refresh, and
-  // week 6 is missing from the cache so the import must restore it.
   const stored = await readPlanSnapshot(page, PLAN_SNAPSHOT);
   expect(stored).toBeTruthy();
   stored.planVersion = 'stale';

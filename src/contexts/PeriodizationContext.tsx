@@ -5,18 +5,19 @@ import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { insertWorkoutChronologically } from '../services/workoutDays';
-import { importedPlanFor, planVersion } from '../data/athletePlans';
+import { importedPlanFor, pickActiveAthlete, planVersion } from '../data/athletePlans';
+import { loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
 import {
   PLAN_SCHEMA,
   PlanSource,
   clearStoredPlan,
   migrateLegacyPlanSnapshot,
+  planSharesStructure,
   readStoredPlan,
   reconcileImportedPlan,
   writeStoredPlan,
 } from '../services/planStore';
 import {
-  INITIAL_MICROCYCLES,
   INITIAL_MESOCYCLE,
   WorkoutData,
   MicrocycleData,
@@ -29,6 +30,12 @@ interface PeriodizationState {
   microcycles: MicrocycleData[];
   setMicrocycles: (next: MicrocycleData[] | ((prev: MicrocycleData[]) => MicrocycleData[])) => void;
   mesocycles: MesocycleData[];
+  athletes: LocalAthlete[];
+  rosterReady: boolean;
+  activeAthleteId: string | null;
+  activeAthlete: LocalAthlete | undefined;
+  selectAthlete: (athleteId: string) => void;
+  refreshRoster: () => Promise<void>;
   activeWorkoutId: string | null;
   setActiveWorkoutId: (id: string | null) => void;
   activeMicrocycleId: string | null;
@@ -47,7 +54,6 @@ interface PeriodizationState {
     scope?: { workoutId?: string; microcycleId?: string }
   ) => Promise<void>;
   resetPlan: () => Promise<void>;
-  loadAthletePlan: (athleteId: string) => boolean;
 }
 
 /** Provenance for the plan currently in memory, so every write lands on the right key. */
@@ -58,9 +64,9 @@ type PlanMeta = {
   ownedWorkoutIds: Set<string>;
 };
 
-const SEED_META: PlanMeta = {
+const EMPTY_META: PlanMeta = {
   athleteId: null,
-  source: 'seed',
+  source: 'local',
   planVersion: null,
   ownedWorkoutIds: new Set(),
 };
@@ -76,24 +82,26 @@ export function usePeriodization(): PeriodizationState {
 }
 
 export function PeriodizationProvider({ children }: { children: ReactNode }) {
-  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>(INITIAL_MICROCYCLES);
-  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(() => {
-    return getUiPref(UI_KEYS.activeWorkoutId) || 'w-3-1';
-  });
-  const [activeMicrocycleId, setActiveMicrocycleId] = useState<string | null>(() => {
-    return getUiPref(UI_KEYS.activeMicrocycleId) || 'micro-3';
-  });
+  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>([]);
+  const [athletes, setAthletes] = useState<LocalAthlete[]>([]);
+  const [rosterReady, setRosterReady] = useState(false);
+  const [activeAthleteId, setActiveAthleteId] = useState<string | null>(() => getUiPref(UI_KEYS.activeAthleteId));
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(() => getUiPref(UI_KEYS.activeWorkoutId));
+  const [activeMicrocycleId, setActiveMicrocycleId] = useState<string | null>(() => getUiPref(UI_KEYS.activeMicrocycleId));
 
   const mesocycles = INITIAL_MESOCYCLE;
 
-  const planMeta = useRef<PlanMeta>(SEED_META);
-  /** Blocks the persistence effect until hydration knows which key to write to. */
+  const planMeta = useRef<PlanMeta>(EMPTY_META);
   const hydrated = useRef(false);
+  const selectGeneration = useRef(0);
 
-  /** Point the UI at a plan's live week, used when the remembered ids are not in it. */
   const focusPlan = (plan: MicrocycleData[]) => {
     const current = plan.find((micro) => micro.status === 'ACTIVE') ?? plan[plan.length - 1];
-    if (!current) return;
+    if (!current) {
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+      return;
+    }
     setActiveMicrocycleId(current.id);
     setUiPref(UI_KEYS.sessionsExpandedMicro, current.id);
     const first = current.workouts[0];
@@ -102,6 +110,64 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
   const markWorkoutEdited = (workoutId: string) => {
     planMeta.current.ownedWorkoutIds.add(workoutId);
+  };
+
+  const applyResolvedPlan = (
+    athleteId: string,
+    imported: ReturnType<typeof importedPlanFor>,
+    stored: Awaited<ReturnType<typeof readStoredPlan>>,
+    focus: boolean,
+  ) => {
+    if (imported) {
+      const usable =
+        stored && planSharesStructure(imported.microcycles, stored.microcycles) ? stored : null;
+      const version = planVersion(imported.microcycles);
+      const plan = !usable
+        ? imported.microcycles
+        : usable.planVersion === version
+          ? usable.microcycles
+          : reconcileImportedPlan(imported.microcycles, usable);
+      planMeta.current = {
+        athleteId,
+        source: 'imported',
+        planVersion: version,
+        ownedWorkoutIds: new Set(usable?.ownedWorkoutIds ?? []),
+      };
+      hydrated.current = true;
+      setMicrocycles(plan);
+      const remembered = getUiPref(UI_KEYS.activeWorkoutId);
+      const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
+      if (focus || !known) focusPlan(plan);
+      return;
+    }
+
+    planMeta.current = {
+      athleteId,
+      source: stored?.source === 'imported' || stored?.source === 'api' ? stored.source : 'local',
+      planVersion: stored?.planVersion ?? null,
+      ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
+    };
+    hydrated.current = true;
+    setMicrocycles(stored?.microcycles ?? []);
+    if (stored?.microcycles?.length) {
+      const remembered = getUiPref(UI_KEYS.activeWorkoutId);
+      const known = stored.microcycles.some((micro) => micro.workouts.some((w) => w.id === remembered));
+      if (focus || !known) focusPlan(stored.microcycles);
+    } else {
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+    }
+  };
+
+  const loadRoster = async (): Promise<LocalAthlete[]> => {
+    const local = await loadLocalRoster();
+    let remote: Array<{ id: string; email?: string; activeMicrocycles?: number }> = [];
+    try {
+      remote = await apiService.fetchRoster();
+    } catch (err) {
+      console.warn('Failed to refresh roster from backend:', err);
+    }
+    return mergeRoster(remote, local);
   };
 
   useEffect(() => {
@@ -114,54 +180,30 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         console.warn('Failed to evict old synced mutations on launch:', err);
       }
 
-      const imported = importedPlanFor(getUiPref(UI_KEYS.activeAthleteId));
-      const scopeId = imported?.athleteId ?? null;
-
-      await migrateLegacyPlanSnapshot(scopeId, imported?.microcycles ?? null);
-      const stored = await readStoredPlan(scopeId);
+      const roster = await loadRoster();
       if (cancelled) return;
+      setAthletes(roster);
 
-      if (imported) {
-        const version = planVersion(imported.microcycles);
-        // A changed import reconciles itself here. Nobody has to re-open the block.
-        const plan = !stored
-          ? imported.microcycles
-          : stored.planVersion === version
-            ? stored.microcycles
-            : reconcileImportedPlan(imported.microcycles, stored);
-
-        planMeta.current = {
-          athleteId: scopeId,
-          source: 'imported',
-          planVersion: version,
-          ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
-        };
+      const athlete = pickActiveAthlete(roster, getUiPref(UI_KEYS.activeAthleteId));
+      if (!athlete) {
+        await migrateLegacyPlanSnapshot(null, null);
+        planMeta.current = EMPTY_META;
         hydrated.current = true;
-        setMicrocycles(plan);
-
-        const remembered = getUiPref(UI_KEYS.activeWorkoutId);
-        const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
-        if (!known) focusPlan(plan);
+        setActiveAthleteId(null);
+        setMicrocycles([]);
+        setRosterReady(true);
         return;
       }
 
-      planMeta.current = {
-        athleteId: null,
-        source: stored?.source ?? 'seed',
-        planVersion: null,
-        ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
-      };
-      hydrated.current = true;
-      if (stored) setMicrocycles(stored.microcycles);
+      setActiveAthleteId(athlete.id);
+      setUiPref(UI_KEYS.activeAthleteId, athlete.id);
 
-      try {
-        const meso = await apiService.getMesocycle();
-        if (cancelled || !meso?.microcycles) return;
-        planMeta.current = { ...planMeta.current, source: 'api' };
-        setMicrocycles(meso.microcycles);
-      } catch (err) {
-        console.warn('Failed to refresh mesocycle from backend (offline fallback active):', err);
-      }
+      const imported = importedPlanFor(athlete.id);
+      await migrateLegacyPlanSnapshot(athlete.id, imported?.microcycles ?? null);
+      const stored = await readStoredPlan(athlete.id);
+      if (cancelled) return;
+      applyResolvedPlan(athlete.id, imported, stored, false);
+      setRosterReady(true);
     };
 
     void hydrate();
@@ -173,6 +215,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated.current) return;
     const meta = planMeta.current;
+    if (meta.source === 'imported' && microcycles.length === 0) return;
     void writeStoredPlan({
       schema: PLAN_SCHEMA,
       athleteId: meta.athleteId,
@@ -324,7 +367,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
   /** The only path that deliberately throws away logged work. */
   const resetPlan = async () => {
-    const imported = importedPlanFor(planMeta.current.athleteId);
+    const athleteId = planMeta.current.athleteId;
+    const imported = importedPlanFor(athleteId);
     if (imported) {
       await clearStoredPlan(imported.athleteId);
       planMeta.current = {
@@ -338,43 +382,45 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    removeUiPref(UI_KEYS.activeAthleteId);
+    if (athleteId) {
+      await clearStoredPlan(athleteId);
+      planMeta.current = { athleteId, source: 'local', planVersion: null, ownedWorkoutIds: new Set() };
+      setMicrocycles([]);
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+      return;
+    }
+
     await clearStoredPlan(null);
-    planMeta.current = { athleteId: null, source: 'api', planVersion: null, ownedWorkoutIds: new Set() };
-    const next = await apiService.resetMicrocycles();
-    setMicrocycles(next);
+    planMeta.current = EMPTY_META;
+    setMicrocycles([]);
   };
 
-  /**
-   * Open an athlete's block. This is navigation: it shows their saved plan and
-   * keeps every logged set. Use resetPlan to go back to the import as shipped.
-   */
-  const loadAthletePlan = (athleteId: string): boolean => {
-    const imported = importedPlanFor(athleteId);
-    if (!imported) return false;
+  const selectAthlete = (athleteId: string) => {
+    const generation = ++selectGeneration.current;
+    setActiveAthleteId(athleteId);
     setUiPref(UI_KEYS.activeAthleteId, athleteId);
 
     void (async () => {
+      const imported = importedPlanFor(athleteId);
       const stored = await readStoredPlan(athleteId);
-      const version = planVersion(imported.microcycles);
-      const plan = !stored
-        ? imported.microcycles
-        : stored.planVersion === version
-          ? stored.microcycles
-          : reconcileImportedPlan(imported.microcycles, stored);
-
-      planMeta.current = {
-        athleteId,
-        source: 'imported',
-        planVersion: version,
-        ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
-      };
-      hydrated.current = true;
-      setMicrocycles(plan);
-      focusPlan(plan);
+      if (generation !== selectGeneration.current) return;
+      applyResolvedPlan(athleteId, imported, stored, true);
     })();
+  };
 
-    return true;
+  const refreshRoster = async () => {
+    const roster = await loadRoster();
+    setAthletes(roster);
+    if (activeAthleteId && !roster.some((row) => row.id === activeAthleteId)) {
+      const next = pickActiveAthlete(roster, null);
+      if (next) selectAthlete(next.id);
+      else {
+        setActiveAthleteId(null);
+        removeUiPref(UI_KEYS.activeAthleteId);
+        setMicrocycles([]);
+      }
+    }
   };
 
   return (
@@ -383,6 +429,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         microcycles,
         setMicrocycles,
         mesocycles,
+        athletes,
+        rosterReady,
+        activeAthleteId,
+        activeAthlete: athletes.find((row) => row.id === activeAthleteId),
+        selectAthlete,
+        refreshRoster,
         activeWorkoutId,
         setActiveWorkoutId,
         activeMicrocycleId,
@@ -394,7 +446,6 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         addWorkout,
         finishSession,
         resetPlan,
-        loadAthletePlan,
       }}
     >
       {children}

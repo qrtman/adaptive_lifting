@@ -1,4 +1,4 @@
-import { MicrocycleData } from '../types';
+import { LocalAthlete, MicrocycleData } from '../types';
 import { ZAHAR_BLOCK_31 } from './fixtures/zaharBlock31';
 
 /**
@@ -37,4 +37,17 @@ export function importedPlanFor(athleteId: string | null | undefined): ImportedP
 
 export function athleteIdsWithImportedPlan(): string[] {
   return IMPORTED_PLANS.map((plan) => plan.athleteId);
+}
+
+/** Last-used athlete if they are still on the roster, otherwise the first athlete who has a plan. */
+export function pickActiveAthlete(
+  roster: LocalAthlete[],
+  preferredId: string | null | undefined,
+): LocalAthlete | null {
+  if (roster.length === 0) return null;
+  if (preferredId) {
+    const preferred = roster.find((row) => row.id === preferredId);
+    if (preferred) return preferred;
+  }
+  return roster.find((row) => importedPlanFor(row.id)) ?? roster[0];
 }

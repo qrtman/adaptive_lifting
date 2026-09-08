@@ -47,6 +47,7 @@ export function SessionsView({
     activeWorkoutId,
     setActiveWorkoutId,
     addWorkout,
+    activeAthlete,
   } = usePeriodization();
   const [addingSessionFor, setAddingSessionFor] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +56,7 @@ export function SessionsView({
 
   const [observedIdx, setObservedIdx] = useState<number>(() => {
     const activeIdx = microcycles.findIndex(m => m.id === activeMicrocycleId);
-    return activeIdx !== -1 ? activeIdx : 2;
+    return activeIdx !== -1 ? activeIdx : 0;
   });
 
   const [expandedMicroId, setExpandedMicroId] = useState<string | null>(() => {
@@ -75,6 +76,16 @@ export function SessionsView({
       removeUiPref(UI_KEYS.sessionsExpandedMicro);
     }
   };
+
+  useEffect(() => {
+    if (expandedMicroId && microcycles.some((m) => m.id === expandedMicroId)) return;
+    const saved = getUiPref(UI_KEYS.sessionsExpandedMicro);
+    if (saved && microcycles.some((m) => m.id === saved)) {
+      setExpandedMicroId(saved);
+      return;
+    }
+    setExpandedMicroId(null);
+  }, [microcycles, expandedMicroId]);
 
   useEffect(() => {
     if (hasRestoredRef.current) return;
@@ -220,6 +231,14 @@ export function SessionsView({
                   <TelegramSessionTerminal />
                 </div>
               </div>
+            </div>
+          ) : microcycles.length === 0 ? (
+            <div className="border border-white/10 px-3 py-8" data-testid="sessions-empty">
+              <p className="text-sm text-[#AEAEB2]">
+                {activeAthlete
+                  ? `No sessions for ${activeAthlete.name}.`
+                  : 'No athlete selected. Add one on Roster.'}
+              </p>
             </div>
           ) : (
 

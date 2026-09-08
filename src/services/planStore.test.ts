@@ -5,6 +5,7 @@ import {
   StoredPlan,
   asStoredPlan,
   inferOwnedWorkoutIds,
+  planSharesStructure,
   planSnapshotId,
   reconcileImportedPlan,
 } from './planStore';
@@ -89,6 +90,27 @@ describe('asStoredPlan', () => {
     });
     expect(parsed?.ownedWorkoutIds).toEqual([]);
     expect(parsed?.planVersion).toBeNull();
+  });
+
+  it('rejects an unowned seed snapshot so it cannot load as an athlete plan', () => {
+    expect(
+      asStoredPlan({
+        schema: PLAN_SCHEMA,
+        athleteId: null,
+        source: 'seed',
+        microcycles: [micro('micro-1', [workout('w-1-1', 200)])],
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('planSharesStructure', () => {
+  it('detects that the unowned seed is not the same plan as an imported block', () => {
+    expect(planSharesStructure([micro('z-w3', [workout('z-w3-d1', 185)])], [micro('micro-1', [workout('w-1-1', 200)])])).toBe(false);
+  });
+
+  it('matches when week or session ids overlap', () => {
+    expect(planSharesStructure([micro('m1', [workout('d1', 200)])], [micro('m1', [workout('d1', 205)])])).toBe(true);
   });
 });
 

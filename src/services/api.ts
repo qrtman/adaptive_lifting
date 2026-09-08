@@ -1,4 +1,4 @@
-import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
+import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
 import { getSnapshot, saveSnapshot } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
@@ -76,7 +76,7 @@ async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
   } catch (err) {
     console.warn('IndexedDB snapshot read failed.', err);
   }
-  return INITIAL_MICROCYCLES;
+  return [];
 }
 
 async function saveOfflineMicrocycles(data: MicrocycleData[]): Promise<void> {
@@ -204,8 +204,8 @@ export const apiService = {
         console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
       }
     }
-    await saveOfflineMicrocycles(INITIAL_MICROCYCLES);
-    return INITIAL_MICROCYCLES;
+    await saveOfflineMicrocycles([]);
+    return [];
   },
 
   /**

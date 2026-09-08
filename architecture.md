@@ -22,8 +22,9 @@ backend.
 
 The important thing to understand before changing anything: **the frontend runs local-first and the backend is
 opt-in.** `src/services/api.ts` reads `VITE_BACKEND_URL`, which defaults to `''`. With no backend configured,
-the app hydrates from IndexedDB, falls back to seed data, and every metric on screen is computed in the
-browser. Most development and all end-to-end tests run in that mode.
+the app hydrates the selected athlete's plan from IndexedDB (and from the imported-plan registry when
+that cache is empty or stale). There is no unowned demo schedule. Every metric on screen is computed in the
+browser unless a backend is wired. Most development and all end-to-end tests run in that mode.
 
 ---
 
@@ -81,7 +82,7 @@ browser. Most development and all end-to-end tests run in that mode.
 | Offline store | `src/services/db.ts` | IndexedDB `adaptive_lifting_db` with `snapshots`, `mutations`, `tombstones`, `metadata` |
 | Plan cache | `src/services/planStore.ts` | Per-athlete versioned plan snapshots with provenance |
 | Sync queue | `src/services/sync_engine.ts` | Debounced flush, 2000ms |
-| API client | `src/services/api.ts` | Real fetch when `VITE_BACKEND_URL` is set, otherwise IndexedDB and seed data |
+| API client | `src/services/api.ts` | Real fetch when `VITE_BACKEND_URL` is set, otherwise IndexedDB. Offline fallback is empty, never an unowned seed tree. |
 | Backend | `backend/main.py` | FastAPI, SQLAlchemy, SQLite at `backend/database.sqlite` |
 | Integrations | `backend/integrations.py` | Telegram and Google Sheets routers |
 | SSE | `backend/sse_broadcaster.py` | Backend broadcasts committed domain events |
@@ -155,11 +156,15 @@ a column on a set and is not modelled.
 
 **Built**
 
-- `PeriodizationContext` owns the microcycle tree and every mutation entry point.
+- `PeriodizationContext` owns the selected athlete, the roster, the microcycle tree, and every mutation entry point.
+- On launch the context loads the roster, picks the last-used athlete (or the first athlete who has a plan),
+  and shows that athlete's sessions. Switching athletes is a native select in the sidebar; it does not go
+  through Roster.
 - Plans are cached per athlete via `planStore.ts` as `plan:<athleteId>`, recording schema, source
-  (`imported` / `api` / `seed`), a content fingerprint, and which sessions were edited in the app. A changed
-  import reconciles on load and keeps edited sessions. The pre-schema shared `microcycles` snapshot migrates
-  forward automatically.
+  (`imported` / `api` / `local`), a content fingerprint, and which sessions were edited in the app. A changed
+  import reconciles on load and keeps edited sessions. A cached plan that does not share structure with the
+  import (the old unowned seed) is discarded, not merged. The pre-schema shared `microcycles` snapshot is
+  dropped unless it already belongs to that athlete's import.
 - `sync_engine.ts` queues mutations with ids and flushes on a 2000ms debounce.
 - `SyncContext` surfaces queue state and conflicts; `ConflictReviewCard` presents a resolution choice.
 - `evictOldSyncedData()` prunes acked and rejected mutations older than 28 days.
@@ -362,6 +367,7 @@ exists.
 | Emit SSE from committed domain events | Live telemetry must never show data that later rolls back | Backend only |
 | Cache plans per athlete with provenance and a content version | A shared unversioned snapshot went stale and could only be fixed by a destructive manual re-import | Yes |
 | Resolve athlete plans through a registry | Athlete-specific branching spread one import across the whole codebase | Yes |
+| Every schedule belongs to an athlete | An unowned demo microcycle tree sat in Sessions and forced a Roster detour | Yes — frontend. Backend `GET /api/microcycles` still returns a demo tree; the client no longer loads it. |
 | Enforce microcycle boundary locks on client and server | Workload metrics break if workouts cross week boundaries | Client only |
 | Session-backed JWT revocation | Logout and device revocation need server-side invalidation | **No** — see §9 |
 | Tombstones for soft deletes | Prevents resurrecting deleted records from offline edits | Columns only |
