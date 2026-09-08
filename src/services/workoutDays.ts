@@ -23,6 +23,18 @@ function dayIndex(label: string): number {
   return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
 }
 
+export function workoutDateSpan(workouts: WorkoutData[]): { start: string; end: string } | null {
+  const dates = workouts.map((w) => w.date).filter(Boolean).sort();
+  if (dates.length === 0) return null;
+  return { start: dates[0], end: dates[dates.length - 1] };
+}
+
+export function formatDateSpan(span: { start: string; end: string } | null): string {
+  if (!span) return '—';
+  if (span.start === span.end) return span.start;
+  return `${span.start} – ${span.end}`;
+}
+
 export function insertWorkoutChronologically(
   workouts: WorkoutData[],
   workout: WorkoutData,

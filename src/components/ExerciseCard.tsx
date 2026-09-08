@@ -170,12 +170,13 @@ export const ExerciseCard = ({
     <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">{ch}</span>
   );
 
-  const toolbar = (
-    <div
-      data-testid={`exercise-toolbar-${id}`}
-      className="flex items-center gap-x-2 gap-y-0.5 shrink-0 flex-wrap @min-[36rem]:flex-col @min-[36rem]:items-end @min-[36rem]:gap-1"
-    >
-      <div className="flex items-center gap-1">
+  const identity = (
+    <div className="flex items-baseline gap-2 min-w-0 flex-1 @min-[36rem]:w-44 @min-[36rem]:flex-none @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0">
+      <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:leading-6 @min-[36rem]:whitespace-normal">{headingName}</h4>
+      {supportingLabel ? (
+        <span className="text-xs text-[#AEAEB2] truncate @min-[36rem]:whitespace-normal">{supportingLabel}</span>
+      ) : null}
+      <div className="flex items-center gap-1 mt-0.5">
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
         <span
           data-testid={`exercise-anchor-e1rm-${id}`}
@@ -184,6 +185,14 @@ export const ExerciseCard = ({
           {sets[0]?.baseline_e1rm > 0 ? Math.round(sets[0].baseline_e1rm) : '—'}
         </span>
       </div>
+    </div>
+  );
+
+  const toolbar = (
+    <div
+      data-testid={`exercise-toolbar-${id}`}
+      className="flex items-center gap-x-2 gap-y-0.5 shrink-0 flex-wrap @min-[36rem]:flex-col @min-[36rem]:items-end @min-[36rem]:gap-1"
+    >
       <div className="flex items-center gap-1">
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
         <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
@@ -219,12 +228,7 @@ export const ExerciseCard = ({
     <div className="@container border-b border-white/10" data-testid={`exercise-card-${id}`}>
       {expanded ? (
       <div className="px-2 py-1 flex flex-wrap @min-[36rem]:flex-nowrap items-start gap-x-3 gap-y-1">
-      <div className="flex items-baseline gap-2 min-w-0 flex-1 @min-[36rem]:w-44 @min-[36rem]:flex-none @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0">
-          <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:leading-6 @min-[36rem]:whitespace-normal">{headingName}</h4>
-          {supportingLabel ? (
-            <span className="text-xs text-[#AEAEB2] truncate @min-[36rem]:whitespace-normal">{supportingLabel}</span>
-          ) : null}
-        </div>
+      {identity}
       <div className="overflow-x-auto min-w-0 w-full @min-[36rem]:flex-1 @min-[36rem]:w-auto order-last @min-[36rem]:order-none">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
@@ -429,12 +433,7 @@ export const ExerciseCard = ({
       ) : (
         <>
           <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <div className="flex items-baseline gap-2 min-w-0">
-              <h4 className="text-lg leading-7 text-white truncate">{headingName}</h4>
-              {supportingLabel ? (
-                <span className="text-xs text-[#AEAEB2] truncate">{supportingLabel}</span>
-              ) : null}
-            </div>
+            {identity}
             {toolbar}
           </div>
           <p className="px-2 pb-2 text-[10px] text-[#636366]">

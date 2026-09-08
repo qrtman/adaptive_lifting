@@ -31,20 +31,46 @@ export function SessionWorkoutEditor({
   const isActive = activeWorkoutId === workout.id;
   const [addingExercise, setAddingExercise] = useState(false);
 
+  const completeControl = roleMode === 'coach' ? (
+    <button
+      type="button"
+      data-testid={`session-complete-${workout.id}`}
+      onClick={() =>
+        finishSession(completed ? 'IN_PROGRESS' : 'COMPLETED', {
+          workoutId: workout.id,
+          microcycleId,
+        })
+      }
+      className={`h-7 px-2 text-[11px] rounded shrink-0 ${
+        completed
+          ? 'text-[#AEAEB2] hover:text-white'
+          : 'bg-[#34C759] text-black'
+      }`}
+    >
+      {completed ? 'Reopen' : 'Complete'}
+    </button>
+  ) : null;
+
   return (
     <section
       id={`session-${workout.id}`}
       data-testid={`sessions-card-${workout.id}`}
-      className="border-b border-white/10"
+      className="border-b-2 border-white/20 pb-2"
       onFocusCapture={() => {
         if (!isActive) setActiveWorkoutId(workout.id);
       }}
     >
-      <div className="px-2 h-8 flex items-center justify-between gap-2">
+      <div className="px-2 min-h-8 py-1 flex items-center justify-between gap-2 border-b border-white/10">
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="text-sm text-white truncate">
             {workout.title ? `${workout.dayLabel} · ${workout.title}` : workout.dayLabel}
           </h3>
+          <span
+            data-testid={`session-date-${workout.id}`}
+            className="font-mono text-[11px] text-[#AEAEB2] shrink-0"
+          >
+            {workout.date}
+          </span>
           <span className="text-[10px] text-[#AEAEB2] shrink-0">{workout.status}</span>
           <p
             data-testid={isActive ? 'workout-tonnage' : `workout-tonnage-${workout.id}`}
@@ -68,24 +94,6 @@ export function SessionWorkoutEditor({
                 Exercise
               </button>
             )
-          )}
-          {roleMode === 'coach' && (
-            <button
-              type="button"
-              onClick={() =>
-                finishSession(completed ? 'IN_PROGRESS' : 'COMPLETED', {
-                  workoutId: workout.id,
-                  microcycleId,
-                })
-              }
-              className={`h-7 px-2 text-[11px] rounded shrink-0 ${
-                completed
-                  ? 'text-[#AEAEB2] hover:text-white'
-                  : 'bg-[#34C759] text-black'
-              }`}
-            >
-              {completed ? 'Reopen' : 'Complete'}
-            </button>
           )}
         </div>
       </div>
@@ -124,6 +132,17 @@ export function SessionWorkoutEditor({
           />
         </>
       )}
+
+      <div
+        data-testid={`session-end-${workout.id}`}
+        className="px-2 min-h-8 mt-1 flex items-center justify-between gap-2"
+      >
+        <span className="text-[10px] uppercase tracking-wider text-[#636366]">
+          End of {workout.dayLabel}
+        </span>
+        {completeControl}
+      </div>
+
       <AddExerciseDialog
         open={addingExercise}
         onClose={() => setAddingExercise(false)}

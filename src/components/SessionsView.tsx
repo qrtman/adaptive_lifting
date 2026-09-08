@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Plus } from 'lucide-react';
 import { WorkoutData } from '../types';
+import { formatDateSpan, workoutDateSpan } from '../services/workoutDays';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
@@ -250,6 +251,12 @@ export function SessionsView({
                 <>
                   <h4 className="text-sm text-white">{micro.weekName}</h4>
                   <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
+                  <span
+                    data-testid={`sessions-week-dates-${micro.id}`}
+                    className="font-mono text-[11px] text-[#AEAEB2]"
+                  >
+                    {formatDateSpan(workoutDateSpan(micro.workouts))}
+                  </span>
                 </>
               );
               const weekScanMetrics = !isExpanded ? (
@@ -321,7 +328,7 @@ export function SessionsView({
                       {visibleWorkouts.length} sessions · Maximize to open
                     </p>
                   ) : isExpanded ? (
-                    <div className="flex flex-col">
+                    <div className="flex flex-col gap-4">
                       {visibleWorkouts.length === 0 ? (
                         <p className="px-2 py-3 text-xs text-[#636366]">No sessions match this filter.</p>
                       ) : (

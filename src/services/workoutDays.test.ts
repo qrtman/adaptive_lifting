@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WorkoutData } from '../types';
-import { inferMicrocycleId, insertWorkoutChronologically } from './workoutDays';
+import { inferMicrocycleId, insertWorkoutChronologically, formatDateSpan, workoutDateSpan } from './workoutDays';
 
 function session(id: string, date: string, dayLabel: string): WorkoutData {
   return {
@@ -45,6 +45,23 @@ describe('insertWorkoutChronologically', () => {
       ['w2', 'D2'],
       ['w-new', 'D3'],
     ]);
+  });
+});
+
+describe('workoutDateSpan', () => {
+  it('uses the first and last workout dates', () => {
+    const span = workoutDateSpan([
+      session('w1', '2026-09-20', 'D3'),
+      session('w2', '2026-09-16', 'D1'),
+      session('w3', '2026-09-18', 'D2'),
+    ]);
+    expect(span).toEqual({ start: '2026-09-16', end: '2026-09-20' });
+    expect(formatDateSpan(span)).toBe('2026-09-16 – 2026-09-20');
+  });
+
+  it('shows a single date when the week has one session', () => {
+    expect(formatDateSpan(workoutDateSpan([session('w1', '2026-09-16', 'D1')]))).toBe('2026-09-16');
+    expect(formatDateSpan(workoutDateSpan([]))).toBe('—');
   });
 });
 
