@@ -1,5 +1,8 @@
+import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { ExerciseCard } from './ExerciseCard';
 import { AccessoryLedger } from './AccessoryLedger';
+import { AddExerciseDialog } from './AddExerciseDialog';
 import {
   WorkoutData,
   isWorkoutCompleted,
@@ -18,6 +21,7 @@ export function SessionWorkoutEditor({
 }) {
   const {
     updateExerciseSets,
+    addExercise,
     finishSession,
     activeWorkoutId,
     setActiveWorkoutId,
@@ -25,6 +29,7 @@ export function SessionWorkoutEditor({
   const { main, accessories } = splitWorkoutExercises(workout.exercises);
   const completed = isWorkoutCompleted(workout.status);
   const isActive = activeWorkoutId === workout.id;
+  const [addingExercise, setAddingExercise] = useState(false);
 
   return (
     <section
@@ -48,24 +53,41 @@ export function SessionWorkoutEditor({
             {workout.tonnage}kg
           </p>
         </div>
-        {roleMode === 'coach' && (
-          <button
-            type="button"
-            onClick={() =>
-              finishSession(completed ? 'IN_PROGRESS' : 'COMPLETED', {
-                workoutId: workout.id,
-                microcycleId,
-              })
-            }
-            className={`h-7 px-2 text-[11px] rounded shrink-0 ${
-              completed
-                ? 'text-[#AEAEB2] hover:text-white'
-                : 'bg-[#34C759] text-black'
-            }`}
-          >
-            {completed ? 'Reopen' : 'Complete'}
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {roleMode === 'coach' && (
+            completed ? (
+              <span className="text-[10px] text-[#636366]">Reopen to add exercises</span>
+            ) : (
+              <button
+                type="button"
+                data-testid={`add-exercise-${workout.id}`}
+                onClick={() => setAddingExercise(true)}
+                className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+              >
+                <Plus size={12} />
+                Exercise
+              </button>
+            )
+          )}
+          {roleMode === 'coach' && (
+            <button
+              type="button"
+              onClick={() =>
+                finishSession(completed ? 'IN_PROGRESS' : 'COMPLETED', {
+                  workoutId: workout.id,
+                  microcycleId,
+                })
+              }
+              className={`h-7 px-2 text-[11px] rounded shrink-0 ${
+                completed
+                  ? 'text-[#AEAEB2] hover:text-white'
+                  : 'bg-[#34C759] text-black'
+              }`}
+            >
+              {completed ? 'Reopen' : 'Complete'}
+            </button>
+          )}
+        </div>
       </div>
 
       {main.length === 0 && accessories.length === 0 ? (
@@ -102,6 +124,11 @@ export function SessionWorkoutEditor({
           />
         </>
       )}
+      <AddExerciseDialog
+        open={addingExercise}
+        onClose={() => setAddingExercise(false)}
+        onInject={(exercise) => addExercise(workout.id, microcycleId, exercise)}
+      />
     </section>
   );
 }

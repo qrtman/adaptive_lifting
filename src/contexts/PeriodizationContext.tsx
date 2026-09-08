@@ -11,6 +11,7 @@ import {
   MicrocycleData,
   MesocycleData,
   WorkoutStatus,
+  ExerciseData,
 } from '../types';
 
 interface PeriodizationState {
@@ -28,6 +29,8 @@ interface PeriodizationState {
     updatedSets: any[],
     scope?: { workoutId?: string; microcycleId?: string }
   ) => void;
+  addExercise: (workoutId: string, microcycleId: string, exercise: ExerciseData) => void;
+  addWorkout: (microcycleId: string, workout: WorkoutData) => void;
   finishSession: (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -158,6 +161,35 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     void queueMutation(workoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
   };
 
+  const addExercise = (workoutId: string, microcycleId: string, exercise: ExerciseData) => {
+    setMicrocycles((prev) =>
+      prev.map((m) => {
+        if (m.id !== microcycleId) return m;
+        return {
+          ...m,
+          workouts: m.workouts.map((w) => {
+            if (w.id !== workoutId) return w;
+            return { ...w, exercises: [...w.exercises, exercise] };
+          }),
+        };
+      })
+    );
+    void queueMutation(workoutId, 'Exercise', exercise.id, { exercise });
+  };
+
+  const addWorkout = (microcycleId: string, workout: WorkoutData) => {
+    setMicrocycles((prev) =>
+      prev.map((m) => {
+        if (m.id !== microcycleId) return m;
+        const workouts = [...m.workouts, workout].sort((a, b) => a.date.localeCompare(b.date));
+        return { ...m, workouts };
+      })
+    );
+    setActiveWorkoutId(workout.id);
+    setActiveMicrocycleId(microcycleId);
+    void queueMutation(workout.id, 'Workout', workout.id, { workout });
+  };
+
   const finishSession = async (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -213,6 +245,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         activeMicro,
         activeWorkout,
         updateExerciseSets,
+        addExercise,
+        addWorkout,
         finishSession,
         resetPlan,
       }}

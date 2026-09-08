@@ -244,7 +244,7 @@ export const ExerciseCard = ({
   );
 
   return (
-    <div className="@container border-b border-white/10">
+    <div className="@container border-b border-white/10" data-testid={`exercise-card-${id}`}>
       {expanded ? (
       <div className="px-2 py-1 flex flex-col @min-[36rem]:flex-row @min-[36rem]:items-start gap-x-3 gap-y-1">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[36rem]:w-44 @min-[36rem]:shrink-0 @min-[36rem]:flex-col @min-[36rem]:items-stretch @min-[36rem]:gap-1">

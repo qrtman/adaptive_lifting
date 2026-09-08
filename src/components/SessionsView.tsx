@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Plus } from 'lucide-react';
 import { WorkoutData } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { SessionWorkoutEditor } from './SessionWorkoutEditor';
+import { AddSessionDialog } from './AddSessionDialog';
 import TelegramSessionTerminal from './mobile/TelegramSessionTerminal';
 
 interface SessionsViewProps {
@@ -23,6 +24,7 @@ function liftAbbrev(title: string): string {
 
 function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
   if (filter === 'All') return true;
+  if (w.exercises.length === 0) return true;
   const hasSquat = w.exercises.some(e => e.title.toLowerCase().includes('squat'));
   const hasBench = w.exercises.some(e => e.title.toLowerCase().includes('bench'));
   const hasDeadlift = w.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
@@ -43,7 +45,9 @@ export function SessionsView({
     setActiveMicrocycleId,
     activeWorkoutId,
     setActiveWorkoutId,
+    addWorkout,
   } = usePeriodization();
+  const [addingSessionFor, setAddingSessionFor] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const hasRestoredRef = useRef(false);
@@ -266,16 +270,29 @@ export function SessionsView({
                       {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
                       {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
                     </button>
-                    <button
-                      type="button"
-                      data-testid={`sessions-expand-${micro.id}`}
-                      onClick={() => setExpanded(isExpanded ? null : micro.id)}
-                      className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1 shrink-0"
-                      title={isExpanded ? 'Minimize week' : 'Maximize week'}
-                    >
-                      {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                      {isExpanded ? 'Minimize' : 'Maximize'}
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isExpanded && roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          data-testid={`add-session-${micro.id}`}
+                          onClick={() => setAddingSessionFor(micro.id)}
+                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        >
+                          <Plus size={12} />
+                          Session
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        data-testid={`sessions-expand-${micro.id}`}
+                        onClick={() => setExpanded(isExpanded ? null : micro.id)}
+                        className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        title={isExpanded ? 'Minimize week' : 'Maximize week'}
+                      >
+                        {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                        {isExpanded ? 'Minimize' : 'Maximize'}
+                      </button>
+                    </div>
                   </div>
 
                   {isCollapsedOther ? (
@@ -341,6 +358,14 @@ export function SessionsView({
           )}
         </div>
       </div>
+      {addingSessionFor ? (
+        <AddSessionDialog
+          open
+          onClose={() => setAddingSessionFor(null)}
+          workouts={microcycles.find((m) => m.id === addingSessionFor)?.workouts ?? []}
+          onCreate={(workout) => addWorkout(addingSessionFor, workout)}
+        />
+      ) : null}
     </div>
   );
 }

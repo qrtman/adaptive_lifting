@@ -88,3 +88,40 @@ test('percent prescriptions copy weight and reps without RPE', async ({ page }) 
   await expect(page.locator('#cell-e-3-2-2-actual-weight-0')).toContainText('90');
   await expect(page.locator('#cell-e-3-2-2-reps-0')).toContainText('5');
 });
+
+test('coach can add a session on an open day', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'sessions',
+    al_sessions_expanded_micro: 'micro-3',
+    al_active_workout_id: 'w-3-2',
+    al_active_microcycle_id: 'micro-3',
+  });
+  await page.goto('/');
+  await page.getByTestId('add-session-micro-3').click();
+  await expect(page.getByTestId('add-session-dialog')).toBeVisible();
+  await page.getByTestId('session-slot-2026-09-14').click();
+  await page.getByTestId('add-session-title').fill('Accessories');
+  await page.getByTestId('create-session').click();
+  await expect(page.getByRole('heading', { name: 'D4 · Accessories' })).toBeVisible();
+  await expect(page.getByText('No exercises programmed.')).toBeVisible();
+});
+
+test('coach can inject a catalog exercise into a session', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'sessions',
+    al_sessions_expanded_micro: 'micro-3',
+    al_active_workout_id: 'w-3-2',
+    al_active_microcycle_id: 'micro-3',
+  });
+  await page.goto('/');
+  const session = page.getByTestId('sessions-card-w-3-2');
+  await session.getByTestId('add-exercise-w-3-2').click();
+  await expect(page.getByTestId('add-exercise-dialog')).toBeVisible();
+  await page.getByTestId('catalog-ssb').click();
+  await expect(page.getByTestId('prescription-preview')).toHaveText('3×5 @ 8 RPE');
+  await page.getByTestId('inject-exercise').click();
+  await expect(session.getByRole('heading', { name: 'SSB Squat' })).toBeVisible();
+  await expect(session.getByText('Secondary Squat').first()).toBeVisible();
+});
