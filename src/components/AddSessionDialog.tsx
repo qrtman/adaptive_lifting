@@ -55,7 +55,7 @@ export function AddSessionDialog({
   onCreate: (workout: WorkoutData, microcycleId: string) => void;
 }) {
   const source = microcycles.find((m) => m.id === sourceMicrocycleId);
-  const seedDate = initialDate ?? source?.workouts[0]?.date ?? '2026-09-01';
+  const seedDate = initialDate || source?.workouts[0]?.date || '2026-09-01';
   const seed = parseUtc(seedDate);
   const [year, setYear] = useState(seed.getUTCFullYear());
   const [monthIndex, setMonthIndex] = useState(seed.getUTCMonth());
