@@ -200,7 +200,7 @@ export const ExerciseCard = ({
   );
 
   const toolbar = (
-    <div className="flex items-center gap-3 shrink-0 flex-wrap">
+    <div className="flex items-center gap-x-2 gap-y-0.5 shrink-0 flex-wrap">
       <div className="flex items-center gap-1">
         <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
         {roleMode === 'coach' && sets[0] ? (
@@ -247,9 +247,9 @@ export const ExerciseCard = ({
     <div className="@container border-b border-white/10">
       {expanded ? (
       <div className="px-2 py-1 flex flex-col @min-[36rem]:flex-row @min-[36rem]:items-start gap-x-3 gap-y-1">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[36rem]:w-56 @min-[36rem]:shrink-0 @min-[36rem]:flex-col @min-[36rem]:items-start">
-        <div className="flex items-baseline gap-2 min-w-0 @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0.5 @min-[36rem]:w-full">
-          <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:whitespace-normal">{headingName}</h4>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[36rem]:w-44 @min-[36rem]:shrink-0 @min-[36rem]:flex-col @min-[36rem]:items-stretch @min-[36rem]:gap-1">
+        <div className="flex items-baseline gap-2 min-w-0 @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0 @min-[36rem]:w-full">
+          <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:leading-6 @min-[36rem]:whitespace-normal">{headingName}</h4>
           {supportingLabel ? (
             <span className="text-xs text-[#AEAEB2] truncate @min-[36rem]:whitespace-normal">{supportingLabel}</span>
           ) : null}
