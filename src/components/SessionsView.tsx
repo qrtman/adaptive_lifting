@@ -362,8 +362,12 @@ export function SessionsView({
         <AddSessionDialog
           open
           onClose={() => setAddingSessionFor(null)}
-          workouts={microcycles.find((m) => m.id === addingSessionFor)?.workouts ?? []}
-          onCreate={(workout) => addWorkout(addingSessionFor, workout)}
+          sourceMicrocycleId={addingSessionFor}
+          microcycles={microcycles}
+          onCreate={(workout, microcycleId) => {
+            addWorkout(microcycleId, workout);
+            setExpanded(microcycleId);
+          }}
         />
       ) : null}
     </div>

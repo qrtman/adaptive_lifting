@@ -89,7 +89,7 @@ test('percent prescriptions copy weight and reps without RPE', async ({ page }) 
   await expect(page.locator('#cell-e-3-2-2-reps-0')).toContainText('5');
 });
 
-test('coach can add a session on an open day', async ({ page }) => {
+test('coach can add a session on any calendar day', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',
     al_dashboard_mode: 'sessions',
@@ -100,7 +100,7 @@ test('coach can add a session on an open day', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('add-session-micro-3').click();
   await expect(page.getByTestId('add-session-dialog')).toBeVisible();
-  await page.getByTestId('session-slot-2026-09-14').click();
+  await page.getByTestId('session-day-2026-09-14').click();
   await page.getByTestId('add-session-title').fill('Accessories');
   await page.getByTestId('create-session').click();
   await expect(page.getByRole('heading', { name: 'D4 · Accessories' })).toBeVisible();

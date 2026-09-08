@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { WorkoutData } from '../types';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { MicrocycleData, WorkoutData } from '../types';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 
 function parseUtc(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
@@ -27,14 +32,35 @@ export function weekDatesForMicrocycle(workouts: WorkoutData[]): string[] {
   });
 }
 
-export function openSessionSlots(workouts: WorkoutData[]): Array<{ date: string; label: string }> {
-  const taken = new Set(workouts.map((w) => w.date));
-  return weekDatesForMicrocycle(workouts)
-    .map((date, index) => ({
-      date,
-      label: `${WEEKDAYS[index]} ${date.slice(8)}`,
-    }))
-    .filter((slot) => !taken.has(slot.date));
+export function microcycleIdForDate(
+  microcycles: MicrocycleData[],
+  date: string,
+  fallbackId: string
+): string {
+  for (const micro of microcycles) {
+    if (micro.workouts.some((w) => w.date === date)) return micro.id;
+  }
+  for (const micro of microcycles) {
+    if (weekDatesForMicrocycle(micro.workouts).includes(date)) return micro.id;
+  }
+  return fallbackId;
+}
+
+function monthCells(year: number, monthIndex: number): Array<{ date: string; inMonth: boolean; day: number }> {
+  const first = new Date(Date.UTC(year, monthIndex, 1));
+  const utcDay = first.getUTCDay();
+  const mondayOffset = utcDay === 0 ? -6 : 1 - utcDay;
+  const start = new Date(first);
+  start.setUTCDate(first.getUTCDate() + mondayOffset);
+  return Array.from({ length: 42 }, (_, i) => {
+    const cell = new Date(start);
+    cell.setUTCDate(start.getUTCDate() + i);
+    return {
+      date: formatUtc(cell),
+      inMonth: cell.getUTCMonth() === monthIndex,
+      day: cell.getUTCDate(),
+    };
+  });
 }
 
 function newWorkoutId(): string {
@@ -44,33 +70,59 @@ function newWorkoutId(): string {
 export function AddSessionDialog({
   open,
   onClose,
-  workouts,
+  sourceMicrocycleId,
+  microcycles,
   onCreate,
 }: {
   open: boolean;
   onClose: () => void;
-  workouts: WorkoutData[];
-  onCreate: (workout: WorkoutData) => void;
+  sourceMicrocycleId: string;
+  microcycles: MicrocycleData[];
+  onCreate: (workout: WorkoutData, microcycleId: string) => void;
 }) {
-  const slots = useMemo(() => openSessionSlots(workouts), [workouts]);
-  const [date, setDate] = useState('');
+  const source = microcycles.find((m) => m.id === sourceMicrocycleId);
+  const seedDate = source?.workouts[0]?.date ?? '2026-09-01';
+  const seed = parseUtc(seedDate);
+  const [year, setYear] = useState(seed.getUTCFullYear());
+  const [monthIndex, setMonthIndex] = useState(seed.getUTCMonth());
+  const [date, setDate] = useState(seedDate);
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, WorkoutData[]>();
+    for (const micro of microcycles) {
+      for (const workout of micro.workouts) {
+        const list = map.get(workout.date) ?? [];
+        list.push(workout);
+        map.set(workout.date, list);
+      }
+    }
+    return map;
+  }, [microcycles]);
+
+  const cells = useMemo(() => monthCells(year, monthIndex), [year, monthIndex]);
+
   useEffect(() => {
     if (!open) return;
-    setDate(slots[0]?.date ?? '');
+    const nextSeed = source?.workouts[0]?.date ?? '2026-09-01';
+    const parsed = parseUtc(nextSeed);
+    setYear(parsed.getUTCFullYear());
+    setMonthIndex(parsed.getUTCMonth());
+    setDate(nextSeed);
     setTitle('');
     setError(null);
-  }, [open, slots]);
+  }, [open, source]);
+
+  const shiftMonth = (delta: number) => {
+    const next = new Date(Date.UTC(year, monthIndex + delta, 1));
+    setYear(next.getUTCFullYear());
+    setMonthIndex(next.getUTCMonth());
+  };
 
   const create = () => {
-    if (slots.length === 0) {
-      setError('All days this week already have a session.');
-      return;
-    }
     if (!date) {
-      setError('Pick an open day.');
+      setError('Pick a day.');
       return;
     }
     const name = title.trim();
@@ -78,7 +130,9 @@ export function AddSessionDialog({
       setError('Name the session.');
       return;
     }
-    const dayNumber = workouts.length + 1;
+    const targetMicroId = microcycleIdForDate(microcycles, date, sourceMicrocycleId);
+    const target = microcycles.find((m) => m.id === targetMicroId);
+    const dayNumber = (target?.workouts.length ?? 0) + 1;
     const workout: WorkoutData = {
       id: newWorkoutId(),
       date,
@@ -90,7 +144,7 @@ export function AddSessionDialog({
       status: 'PLANNED',
       exercises: [],
     };
-    onCreate(workout);
+    onCreate(workout, targetMicroId);
     onClose();
   };
 
@@ -118,7 +172,7 @@ export function AddSessionDialog({
         role="dialog"
         aria-labelledby="add-session-title"
         data-testid="add-session-dialog"
-        className="w-full max-w-md bg-[#131313] border border-white/10 flex flex-col"
+        className="w-full max-w-xl bg-[#131313] border border-white/10 flex flex-col"
       >
         <div className="h-10 px-3 flex items-center justify-between border-b border-white/10">
           <h2 id="add-session-title" className="text-sm text-white">
@@ -129,38 +183,72 @@ export function AddSessionDialog({
           </button>
         </div>
         <div className="p-3 flex flex-col gap-3">
-          {slots.length === 0 ? (
-            <p className="text-xs text-[#636366]">All days this week already have a session.</p>
-          ) : (
-            <>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-[#636366] mb-1">Open day</p>
-                <div className="flex flex-wrap gap-1">
-                  {slots.map((slot) => (
-                    <button
-                      key={slot.date}
-                      type="button"
-                      data-testid={`session-slot-${slot.date}`}
-                      onClick={() => setDate(slot.date)}
-                      className={`h-7 px-2 text-[11px] ${date === slot.date ? 'text-white' : 'text-[#AEAEB2] hover:text-white'}`}
-                    >
-                      {slot.label}
-                    </button>
-                  ))}
-                </div>
+          <div className="h-8 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => shiftMonth(-1)}
+              className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <p className="text-sm text-white">
+              {MONTHS[monthIndex]} {year}
+            </p>
+            <button
+              type="button"
+              onClick={() => shiftMonth(1)}
+              className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+              aria-label="Next month"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-7">
+            {WEEKDAYS.map((day) => (
+              <div key={day} className="h-6 px-1 font-mono text-[10px] text-[#AEAEB2]">
+                {day}
               </div>
-              <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-[#636366]">
-                Title
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Secondary Squat, Accessories"
-                  data-testid="add-session-title"
-                  className="h-8 px-2 bg-[#161616] border border-white/10 text-sm text-white normal-case tracking-normal placeholder:text-[#636366]"
-                />
-              </label>
-            </>
-          )}
+            ))}
+            {cells.map((cell) => {
+              const existing = sessionsByDate.get(cell.date) ?? [];
+              const selected = date === cell.date;
+              return (
+                <button
+                  key={cell.date}
+                  type="button"
+                  data-testid={`session-day-${cell.date}`}
+                  onClick={() => {
+                    setDate(cell.date);
+                    setError(null);
+                  }}
+                  className={`min-h-14 p-1 text-left border ${
+                    selected ? 'border-[#007AFF]' : 'border-white/10'
+                  } ${cell.inMonth ? 'bg-[#131313]' : 'opacity-40'}`}
+                >
+                  <span className="font-mono text-[11px] text-[#AEAEB2]">
+                    {String(cell.day).padStart(2, '0')}
+                  </span>
+                  {existing.map((workout) => (
+                    <span key={workout.id} className="block truncate text-[9px] text-[#AEAEB2]">
+                      {workout.dayLabel}
+                    </span>
+                  ))}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs font-mono text-[#AEAEB2]">{date}</p>
+          <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-[#636366]">
+            Title
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Secondary Squat, Accessories"
+              data-testid="add-session-title"
+              className="h-8 px-2 bg-[#161616] border border-white/10 text-sm text-white normal-case tracking-normal placeholder:text-[#636366]"
+            />
+          </label>
           {error ? (
             <p role="alert" className="text-xs text-[#FF453A]">
               {error}
@@ -175,8 +263,7 @@ export function AddSessionDialog({
             type="button"
             data-testid="create-session"
             onClick={create}
-            disabled={slots.length === 0}
-            className="h-8 px-3 text-[11px] bg-[#007AFF] text-white disabled:opacity-40"
+            className="h-8 px-3 text-[11px] bg-[#007AFF] text-white"
           >
             Create
           </button>
