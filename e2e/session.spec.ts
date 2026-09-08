@@ -37,6 +37,37 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
   await expect(page.getByTestId('workout-tonnage')).toContainText('570');
 });
 
+test('wide session pane places exercise name beside working sets', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'sessions',
+    al_sessions_expanded_micro: 'micro-3',
+    al_active_workout_id: 'w-3-1',
+    al_active_microcycle_id: 'micro-3',
+  });
+  await page.goto('/');
+  const session = page.getByTestId('sessions-card-w-3-1');
+  const heading = session.getByRole('heading', { name: 'Low Bar Competition' });
+  const table = session.locator('table').first();
+  await heading.scrollIntoViewIfNeeded();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const wideHeading = await heading.boundingBox();
+  const wideTable = await table.boundingBox();
+  expect(wideHeading).toBeTruthy();
+  expect(wideTable).toBeTruthy();
+  expect(wideHeading!.x).toBeLessThan(wideTable!.x - 40);
+  expect(Math.abs(wideHeading!.y - wideTable!.y)).toBeLessThan(48);
+
+  await page.setViewportSize({ width: 700, height: 900 });
+  await heading.scrollIntoViewIfNeeded();
+  const stackedHeading = await heading.boundingBox();
+  const stackedTable = await table.boundingBox();
+  expect(stackedHeading).toBeTruthy();
+  expect(stackedTable).toBeTruthy();
+  expect(stackedHeading!.y + stackedHeading!.height).toBeLessThan(stackedTable!.y + 8);
+});
+
 test('percent prescriptions copy weight and reps without RPE', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',

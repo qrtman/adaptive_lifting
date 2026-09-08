@@ -246,17 +246,17 @@ export const ExerciseCard = ({
   return (
     <div className="@container border-b border-white/10">
       {expanded ? (
-      <div className="px-2 py-1 flex flex-col @min-[44rem]:flex-row @min-[44rem]:items-start gap-x-3 gap-y-1">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[44rem]:w-56 @min-[44rem]:shrink-0 @min-[44rem]:flex-col @min-[44rem]:items-start">
-        <div className="flex items-baseline gap-2 min-w-0 @min-[44rem]:flex-col @min-[44rem]:items-start @min-[44rem]:gap-0.5 @min-[44rem]:w-full">
-          <h4 className="text-lg leading-7 text-white truncate @min-[44rem]:whitespace-normal">{headingName}</h4>
+      <div className="px-2 py-1 flex flex-col @min-[36rem]:flex-row @min-[36rem]:items-start gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[36rem]:w-56 @min-[36rem]:shrink-0 @min-[36rem]:flex-col @min-[36rem]:items-start">
+        <div className="flex items-baseline gap-2 min-w-0 @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0.5 @min-[36rem]:w-full">
+          <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:whitespace-normal">{headingName}</h4>
           {supportingLabel ? (
-            <span className="text-xs text-[#AEAEB2] truncate @min-[44rem]:whitespace-normal">{supportingLabel}</span>
+            <span className="text-xs text-[#AEAEB2] truncate @min-[36rem]:whitespace-normal">{supportingLabel}</span>
           ) : null}
         </div>
         {toolbar}
       </div>
-      <div className="overflow-x-auto min-w-0 w-full @min-[44rem]:flex-1">
+      <div className="overflow-x-auto min-w-0 w-full @min-[36rem]:flex-1">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-white/5">
