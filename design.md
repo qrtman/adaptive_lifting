@@ -58,6 +58,8 @@ Do not build:
 - **No nested cards inside cards** (causes optical fatigue).
 - **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark aesthetic).
 - **No freeform text parsing** for prescriptions, set logging, or Sheets import.
+- **No real athlete's data as specification** — names, block labels, and logged kg/reps/RPE belong in fixtures, not in this document or in test assertions.
+- **No "re-open it again" recovery copy** for stale cached data (refresh automatically instead).
 - **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).
 - **No Telegram chat commands** as the primary mobile UI (Mini App WebView is canonical).
 - **No UI that hides sync state**, lock state, or rejected mutations.
@@ -107,7 +109,9 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Maximized microcycle header | Week chrome is **name, status, start–end dates** (from session calendar dates), Session, and Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL stay on the exercise cards. |
 | Insights | Assembled from a declared catalog: KPI strip (SQ/BP/DL e1RM, Vol, DOTS, ACWR), INOL line, chart slots (e1RM / Tonnage / ACWR), attempts, AI coach. Loading, empty, and error states are visible. Prefer `liftCategory` over title scanning. |
 | Roster add athlete | Coach can add an athlete **identity** (name, optional email) to the roster. Account linking still uses the invite code. |
-| Roster open block | Roster does **not** deploy a fake template. **Open Block 3.1** loads a one-time structured conversion of Zahar’s CSV (planned kg × reps @ RPE and executed kg × reps @ RPE). `10-12` / `10~12` are **rep ranges**, not dates. Session dates are omitted when the CSV has none. Spreadsheet/CSV is not live storage and is not parsed at runtime. |
+| Roster open block | Roster does **not** deploy a fake template. An athlete who has an **imported block** gets an `Open block` action labelled from that block's own name; it navigates to Sessions showing that athlete's plan. An athlete without one shows identity only. Imported blocks are structured data converted offline — a spreadsheet/CSV is never live storage and is never parsed at runtime. Rep ranges (`10-12`, `10~12`) stay rep ranges, not dates, and session dates stay empty when the source has none. |
+| Imported block freshness | A cached plan records its athlete, source, and version. When the source data changes, the cached plan reconciles **automatically** on load and **keeps logged sets**. Never ask the coach to re-open or re-import a block to pick up fresh data. Discarding logged work is a separate, explicitly labelled Reset action. |
+| Athlete data vs specification | A real athlete's name, block label, and logged numbers are **fixture data**, never product specification. This document describes capabilities generically. No section names a real athlete. |
 
 ---
 
@@ -663,7 +667,7 @@ The Athletes Roster workspace functions as the primary operational console for c
 +======================+===============================================================================================+
 ```
 
-Coach can add an athlete identity (name, optional email) to the roster. Spreadsheet or CSV training logs are not imported as prescriptions. Linked accounts still join through the invite code.
+Coach can add an athlete identity (name, optional email) to the roster. Spreadsheet or CSV training logs are not parsed at runtime as prescriptions; an imported block is structured data converted offline and attached to an athlete id. Linked accounts still join through the invite code.
 
 ##### 6.1.3.2 Athlete Detailed Analytics & Attempt Selection View
 
@@ -1896,5 +1900,7 @@ Reject or revise generated UI if it includes:
 - [ ] "Coming soon" placeholders for core flows.
 - [ ] Freeform workout prescription text boxes as the only input method.
 - [ ] Google Sheets import/edit as if it were already supported.
+- [ ] A real athlete's name or logged numbers written into this document or into test assertions.
+- [ ] Copy that tells the coach to re-open or re-import something to refresh stale local data.
 - [ ] Hidden sync/conflict/lock states.
 - [ ] Buttons with vague labels like "Submit" where a domain action exists.

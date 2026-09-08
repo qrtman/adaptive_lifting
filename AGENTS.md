@@ -25,6 +25,9 @@ These rules are always active:
 - Do not make Telegram chat commands the primary mobile UI. Telegram is a Telegram Mini App launched from the bot, with bot messages as entry points, reminders, alerts, and fallback commands.
 - Do not use Google Sheets as canonical storage. Sheets is one-way publish/export unless a future import-review workflow is explicitly requested.
 - Do not parse workout prescriptions from freeform text. Use structured prescription data.
+- Do not write a real athlete's data into `design.md`, `architecture.md`, or test assertions. Names, block labels, and logged kg/reps/RPE from a real import are **fixture data**, not product specification. Spec documents describe the capability generically. Tests assert the mechanism against neutral fixtures. Conversion fidelity for a real import is checked by one fixture-integrity test that lives beside the fixture in `src/data/fixtures/`.
+- Do not key application logic on a specific athlete, block name, or id prefix. Athlete-scoped data is resolved through a registry keyed by athlete id, so adding the next athlete is data, not code.
+- Do not make the user re-run an import to refresh stale local data. Cached plans carry provenance and a version and reconcile automatically. Discarding logged work is a separate, explicitly labeled action.
 - Do not hide offline, sync, conflict, lock, rejected, or session-revoked states.
 - Do not store numeric training values as strings.
 - Do not use `LocalStorage` for workout sync. Use IndexedDB mutation queues and snapshots.
@@ -219,6 +222,9 @@ If the generated result does any of the following, revise immediately:
 | Hides sync failures | Add per-row status and conflict review. |
 | Ignores locks/tombstones | Add disabled/read-only behavior and recovery copy. |
 | Adds generic gradients/glass | Use restrained dark operational UI from `design.md`. |
+| Writes a real athlete's name or numbers into spec docs or test assertions | Move the data to `src/data/fixtures/`, describe the capability generically in the spec, and assert the mechanism against a neutral fixture. |
+| Hardcodes one athlete, block, or id prefix in app logic | Resolve through the athlete-keyed registry so the next athlete is a data change. |
+| Tells the user to re-open or re-import to pick up fresh data | Version the cached plan and reconcile automatically without discarding logged sets. |
 
 ---
 
