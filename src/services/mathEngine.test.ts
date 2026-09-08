@@ -70,27 +70,30 @@ describe('precedingLoggedE1RMDelta', () => {
     expect(precedingLoggedE1RMDelta(sets, 0)).toBeNull();
   });
 
-  it('compares to the most recent preceding logged e1RM as kg and %', () => {
+  it('compares to the most recent preceding logged e1RM as % only', () => {
     const first = Math.round(calculateE1RM(160, 1, 8.5));
     const second = Math.round(calculateE1RM(152.5, 3, 7.5));
     const delta = precedingLoggedE1RMDelta(sets, 1);
     expect(delta).toEqual({
-      kg: second - first,
       pct: Math.round(((second - first) / first) * 1000) / 10,
     });
-    expect(formatPrecedingE1RMDelta(delta!)).toBe(`+${second - first} +${delta!.pct.toFixed(1)}%`);
+    expect(formatPrecedingE1RMDelta(delta!)).toBe(`+${delta!.pct.toFixed(1)}%`);
   });
 
   it('skips unlogged rows when looking back', () => {
     const second = Math.round(calculateE1RM(152.5, 3, 7.5));
     const fourth = Math.round(calculateE1RM(152.5, 3, 8));
     expect(precedingLoggedE1RMDelta(sets, 2)).toBeNull();
-    expect(precedingLoggedE1RMDelta(sets, 3)?.kg).toBe(fourth - second);
+    expect(precedingLoggedE1RMDelta(sets, 3)?.pct).toBe(
+      Math.round(((fourth - second) / second) * 1000) / 10,
+    );
   });
 
   it('inverts percent prescriptions for the lookback', () => {
     const fourth = Math.round(calculateE1RM(152.5, 3, 8));
-    expect(precedingLoggedE1RMDelta(sets, 4)?.kg).toBe(160 - fourth);
+    expect(precedingLoggedE1RMDelta(sets, 4)?.pct).toBe(
+      Math.round(((160 - fourth) / fourth) * 1000) / 10,
+    );
   });
 });
 

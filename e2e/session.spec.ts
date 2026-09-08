@@ -32,8 +32,8 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
 
   const squatCard = page.getByTestId('exercise-card-e-3-1-1');
   await expect(squatCard.getByTestId('set-delta-s-3-1-1a')).toHaveCount(0);
-  await expect(squatCard.getByTestId('set-delta-s-3-1-1b')).toHaveText('+8 +4.8%');
-  await expect(squatCard.getByTestId('set-delta-s-3-1-1c')).toHaveText('-3 -1.7%');
+  await expect(squatCard.getByTestId('set-delta-s-3-1-1b')).toHaveText('+4.8%');
+  await expect(squatCard.getByTestId('set-delta-s-3-1-1c')).toHaveText('-1.7%');
   const e1rmBox = await squatCard.getByTestId('set-e1rm-s-3-1-1b').boundingBox();
   const deltaBox = await squatCard.getByTestId('set-delta-s-3-1-1b').boundingBox();
   expect(e1rmBox).toBeTruthy();

@@ -100,7 +100,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Prescription editing | kg × reps @ RPE or % is edited on the **exercise card** set table after the lift is added (`PrescriptionEditor` inline in each Rx cell, `+ Set` on the card). |
 | Exercise card chrome | e1RM, Vol, and `+ Set` sit on the **right** of the exercise row. The lift name stays left; the set table stays in the middle. |
 | Rx %adj | `%adj` is its own column on the right of Rx, immediately before copy-to-log. Do not wash set rows orange/green from logged vs prescribed RPE. |
-| Set Δ | Δ sits to the **right of e1RM** as kg and % vs the **most recent preceding logged e1RM**. Set 1 has no Δ. |
+| Set Δ | Δ sits to the **right of e1RM** as **% only** vs the **most recent preceding logged e1RM**. No kg Δ. Set 1 has no Δ. |
 | Logged e1RM at RPE < 6 | Invert the same intensity % used to prescribe. A 137.5 × 1 @ 5 logged as written recovers the 160 anchor (display rounds to 160). Do not return bar weight. |
 | Anchor e1RM | Derived from **set 1 Rx** (planned kg × reps @ RPE or %). Do not reverse-prescribe from an edited e1RM. No orange suggested kg on Rx. |
 | Add Session | Coach picks **any calendar day** and assigns a **microcycle**. Title is optional and is not part of create. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
@@ -1286,7 +1286,7 @@ There is no picker step for Mode / Sets / Reps / RPE / kg. After the lift is add
 
 ##### 7.3.3.1 Exercise card set table
 
-Prescription editing happens in the session exercise card Rx / Log columns, not in the Add Exercise overlay. Logged e1RM sits in the e1RM column. Δ (kg and %) vs the most recent preceding logged e1RM sits to the **right of that value**. Set 1 has no Δ. There is no separate Δ column.
+Prescription editing happens in the session exercise card Rx / Log columns, not in the Add Exercise overlay. Logged e1RM sits in the e1RM column. Δ (**% only**, no kg) vs the most recent preceding logged e1RM sits to the **right of that value**. Set 1 has no Δ. There is no separate Δ column.
 
 ##### 7.3.3.2 Set Deletion Confirmation Dialog Spec
 

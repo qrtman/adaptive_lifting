@@ -285,12 +285,11 @@ export function loggedSetE1RM(set: LoggedSetForE1RM): number {
 }
 
 export type PrecedingE1RMDelta = {
-  kg: number;
   pct: number;
 };
 
 /**
- * Δ vs the most recent preceding logged e1RM (skip unlogged rows).
+ * % Δ vs the most recent preceding logged e1RM (skip unlogged rows).
  * Set 1 and any set without a prior logged e1RM have no Δ.
  */
 export function precedingLoggedE1RMDelta(
@@ -310,16 +309,14 @@ export function precedingLoggedE1RMDelta(
   }
   if (previous <= 0) return null;
 
-  const kg = Math.round(current) - Math.round(previous);
+  const currentRounded = Math.round(current);
   const prevRounded = Math.round(previous);
-  const pct = Math.round((kg / prevRounded) * 1000) / 10;
-  return { kg, pct };
+  const pct = Math.round(((currentRounded - prevRounded) / prevRounded) * 1000) / 10;
+  return { pct };
 }
 
 export function formatPrecedingE1RMDelta(delta: PrecedingE1RMDelta): string {
-  const kg = `${delta.kg > 0 ? '+' : ''}${delta.kg}`;
-  const pct = `${delta.pct > 0 ? '+' : ''}${delta.pct.toFixed(1)}%`;
-  return `${kg} ${pct}`;
+  return `${delta.pct > 0 ? '+' : ''}${delta.pct.toFixed(1)}%`;
 }
 
 /** Daily e1RM for later-set suggestions: top set if logged, else peak preceding log. Backdowns do not re-anchor. */
