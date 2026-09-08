@@ -199,59 +199,64 @@ export const ExerciseCard = ({
     <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">{ch}</span>
   );
 
+  const toolbar = (
+    <div className="flex items-center gap-3 shrink-0 flex-wrap">
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
+        {roleMode === 'coach' && sets[0] ? (
+          <EditablePerformanceCell
+            value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
+            onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
+            placeholder="150"
+            fieldKey={`${id}-baseline_e1rm`}
+            label="Baseline e1RM"
+            step={5}
+            variant="transparent"
+            widthClass="w-10"
+            rowIndex={0}
+          />
+        ) : (
+          <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+            {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
+        <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
+      </div>
+      {expanded && (
+        <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
+          + Set
+        </button>
+      )}
+      <button
+        type="button"
+        data-testid={`exercise-expand-${id}`}
+        onClick={() => setExpanded((open) => !open)}
+        className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+        title={expanded ? 'Minimize exercise' : 'Maximize exercise'}
+      >
+        {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        {expanded ? 'Minimize' : 'Maximize'}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="border-b border-white/10">
-      <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <h4 className="text-lg leading-7 text-white truncate">{headingName}</h4>
+    <div className="@container border-b border-white/10">
+      {expanded ? (
+      <div className="px-2 py-1 flex flex-col @min-[44rem]:flex-row @min-[44rem]:items-start gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[44rem]:w-56 @min-[44rem]:shrink-0 @min-[44rem]:flex-col @min-[44rem]:items-start">
+        <div className="flex items-baseline gap-2 min-w-0 @min-[44rem]:flex-col @min-[44rem]:items-start @min-[44rem]:gap-0.5 @min-[44rem]:w-full">
+          <h4 className="text-lg leading-7 text-white truncate @min-[44rem]:whitespace-normal">{headingName}</h4>
           {supportingLabel ? (
-            <span className="text-xs text-[#AEAEB2] truncate">{supportingLabel}</span>
+            <span className="text-xs text-[#AEAEB2] truncate @min-[44rem]:whitespace-normal">{supportingLabel}</span>
           ) : null}
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
-            {roleMode === 'coach' && sets[0] ? (
-              <EditablePerformanceCell
-                value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
-                onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
-                placeholder="150"
-                fieldKey={`${id}-baseline_e1rm`}
-                label="Baseline e1RM"
-                step={5}
-                variant="transparent"
-                widthClass="w-10"
-                rowIndex={0}
-              />
-            ) : (
-              <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
-                {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
-            <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
-          </div>
-          {expanded && (
-            <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
-              + Set
-            </button>
-          )}
-          <button
-            type="button"
-            data-testid={`exercise-expand-${id}`}
-            onClick={() => setExpanded((open) => !open)}
-            className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
-            title={expanded ? 'Minimize exercise' : 'Maximize exercise'}
-          >
-            {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-            {expanded ? 'Minimize' : 'Maximize'}
-          </button>
-        </div>
+        {toolbar}
       </div>
-      {expanded ? (
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto min-w-0 w-full @min-[44rem]:flex-1">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-white/5">
@@ -496,10 +501,22 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      </div>
       ) : (
-        <p className="px-2 pb-2 text-[10px] text-[#636366]">
-          {sets.length} {sets.length === 1 ? 'set' : 'sets'} · Maximize to open
-        </p>
+        <>
+          <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <h4 className="text-lg leading-7 text-white truncate">{headingName}</h4>
+              {supportingLabel ? (
+                <span className="text-xs text-[#AEAEB2] truncate">{supportingLabel}</span>
+              ) : null}
+            </div>
+            {toolbar}
+          </div>
+          <p className="px-2 pb-2 text-[10px] text-[#636366]">
+            {sets.length} {sets.length === 1 ? 'set' : 'sets'} · Maximize to open
+          </p>
+        </>
       )}
     </div>
   );
