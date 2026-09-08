@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Trash2, Copy } from 'lucide-react';
+import { ArrowRight, Trash2, Copy, Maximize2, Minimize2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { 
@@ -111,7 +111,7 @@ export const ExerciseCard = ({
         ...s,
         plannedWeight: plannedWeight ?? (weightVal > 0 ? weightVal : 137.5),
         plannedReps: plannedReps ?? 4,
-        plannedRpe: intensity_type === "RPE" ? target_value : (plannedRpe ?? 8),
+        plannedRpe: intensity_type === "RPE" ? target_value : null,
         baseline_e1rm,
         intensity_type,
         target_value,
@@ -160,10 +160,11 @@ export const ExerciseCard = ({
 
   const syncTarget = (index: number) => {
     const set = sets[index];
-    updateSet(index, { 
+    const isPercent = set.intensity_type === "PERCENT";
+    updateSet(index, {
       actual: trainingNumber(set.plannedWeight),
       reps: trainingInt(set.plannedReps),
-      executedRpe: trainingNumber(set.plannedRpe),
+      executedRpe: isPercent ? null : trainingNumber(set.plannedRpe ?? set.target_value),
       isAuto: false
     });
   };
@@ -183,53 +184,122 @@ export const ExerciseCard = ({
     }]);
   };
 
-  const td = "px-1 py-0 align-middle whitespace-nowrap";
+  const [expanded, setExpanded] = useState(true);
+
+  const isAccessory = tier === 'Accessory';
+  const headingName = isAccessory ? title : (variation || title);
+  const supportingName = isAccessory ? variation : title;
+  const supportingLabel = [isAccessory ? null : tier, supportingName]
+    .filter((part) => part && part !== headingName)
+    .join(' · ');
+
+  const td = "px-2 py-0.5 align-middle whitespace-nowrap";
+  const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[#636366] whitespace-nowrap";
+  const sep = (ch: string) => (
+    <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">{ch}</span>
+  );
+
+  const toolbar = (
+    <div className="flex items-center gap-x-2 gap-y-0.5 shrink-0 flex-wrap">
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
+        {roleMode === 'coach' && sets[0] ? (
+          <EditablePerformanceCell
+            value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
+            onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
+            placeholder="150"
+            fieldKey={`${id}-baseline_e1rm`}
+            label="Baseline e1RM"
+            step={5}
+            variant="transparent"
+            widthClass="w-10"
+            rowIndex={0}
+          />
+        ) : (
+          <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+            {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
+        <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
+      </div>
+      {expanded && (
+        <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
+          + Set
+        </button>
+      )}
+      <button
+        type="button"
+        data-testid={`exercise-expand-${id}`}
+        onClick={() => setExpanded((open) => !open)}
+        className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+        title={expanded ? 'Minimize exercise' : 'Maximize exercise'}
+      >
+        {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        {expanded ? 'Minimize' : 'Maximize'}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="border-b border-white/10 overflow-x-auto">
-      <div className="px-1 h-6 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h4 className="text-xs text-white truncate">{title}</h4>
-          <span className="text-[10px] text-[#AEAEB2] truncate">
-            {tier ? `${tier} · ${variation}` : variation}
-          </span>
-          {roleMode === 'coach' && sets[0] ? (
-            <EditablePerformanceCell
-              value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
-              onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
-              placeholder="150"
-              fieldKey={`${id}-baseline_e1rm`}
-              label="Baseline e1RM"
-              step={5}
-              variant="transparent"
-              widthClass="w-10"
-              rowIndex={0}
-            />
-          ) : (
-            <span className="text-[10px] font-mono text-[#AEAEB2]">
-              {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
-            </span>
-          )}
+    <div className="@container border-b border-white/10">
+      {expanded ? (
+      <div className="px-2 py-1 flex flex-col @min-[36rem]:flex-row @min-[36rem]:items-start gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0 w-full @min-[36rem]:w-44 @min-[36rem]:shrink-0 @min-[36rem]:flex-col @min-[36rem]:items-stretch @min-[36rem]:gap-1">
+        <div className="flex items-baseline gap-2 min-w-0 @min-[36rem]:flex-col @min-[36rem]:items-start @min-[36rem]:gap-0 @min-[36rem]:w-full">
+          <h4 className="text-lg leading-7 text-white truncate @min-[36rem]:leading-6 @min-[36rem]:whitespace-normal">{headingName}</h4>
+          {supportingLabel ? (
+            <span className="text-xs text-[#AEAEB2] truncate @min-[36rem]:whitespace-normal">{supportingLabel}</span>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] font-mono text-[#AEAEB2]">{totalVolume.toLocaleString()}kg</span>
-          <button type="button" onClick={addSet} className="text-[10px] text-[#AEAEB2] hover:text-white">
-            + Set
-          </button>
-        </div>
+        {toolbar}
       </div>
-      <table className="w-full text-left border-collapse min-w-[720px]">
+      <div className="overflow-x-auto min-w-0 w-full @min-[36rem]:flex-1">
+      <table className="text-left border-collapse w-max max-w-full">
+        <thead>
+          <tr className="border-b border-white/5">
+            <th className={`${th} w-6`}>#</th>
+            <th className={`${th} pr-3`}>
+              <span className="text-[#AEAEB2]">Rx</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
+            </th>
+            <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
+            <th className={`${th} pl-3 border-l border-white/5`}>
+              <span className="text-[#AEAEB2]">Log</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
+            </th>
+            <th className={th}>Δ</th>
+            <th className={th}>e1RM</th>
+            <th className={th}>INOL</th>
+            <th className={`${th} w-10`} aria-label="Set actions" />
+          </tr>
+        </thead>
         <tbody>
+            {sets.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-2 py-3 text-xs text-[#636366]">
+                  No sets programmed.
+                </td>
+              </tr>
+            )}
             {sets.map((set, i) => {
+              const isPercent = (set.intensity_type || "RPE") === "PERCENT";
               const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
-              const e1RM = calculateE1RM(weight, reps, rpe);
-              const intensityPct = e1RM > 0 ? (weight / e1RM) * 100 : 0;
+              const percentTarget = trainingOrZero(set.target_value);
+              const e1RM = isPercent
+                ? (weight > 0 && percentTarget > 0 ? weight / (percentTarget / 100) : 0)
+                : calculateE1RM(weight, reps, rpe);
+              const intensityPct = isPercent
+                ? percentTarget
+                : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
               
-              const isOvershoot = rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
-              const isUndershoot = rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
+              const isOvershoot = !isPercent && rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
+              const isUndershoot = !isPercent && rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
               
               const rowHighlight = isOvershoot 
                 ? 'bg-orange-500/10' 
@@ -267,12 +337,12 @@ export const ExerciseCard = ({
 
               const actualRp = trainingOrZero(set.executedRpe);
               const targetRpVal = trainingOrZero(set.plannedRpe);
-              const rpeDelta = actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
+              const rpeDelta = !isPercent && actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
 
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
-                  <td className={`${td} w-5 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
-                  <td className={td}>
+                  <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
+                  <td className={`${td} pr-3`}>
                     {roleMode === 'coach' ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
                           <PrescriptionEditor
@@ -280,12 +350,19 @@ export const ExerciseCard = ({
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
                             weight={set.plannedWeight}
-                            onChange={(updates) => updateSet(i, {
-                              plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
-                              intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
-                              target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
-                              plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
-                            })}
+                            onChange={(updates) => {
+                              const nextType = updates.intensityType !== undefined ? updates.intensityType : set.intensity_type;
+                              const nextTarget = updates.targetValue !== undefined ? updates.targetValue : set.target_value;
+                              const switchingToPercent = nextType === "PERCENT";
+                              updateSet(i, {
+                                plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
+                                intensity_type: nextType,
+                                target_value: nextTarget,
+                                plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight,
+                                plannedRpe: switchingToPercent ? null : nextTarget,
+                                ...(switchingToPercent ? { executedRpe: null } : {})
+                              });
+                            }}
                           />
                           {suggestedPrescribedWeight && suggestedPrescribedWeight !== trainingOrZero(set.plannedWeight) && (
                             <button
@@ -310,27 +387,44 @@ export const ExerciseCard = ({
                             step={1}
                             rowIndex={i}
                           />
-                          <button 
-                            type="button"
-                            onClick={() => syncTarget(i)}
-                            className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
-                            title="Copy prescription to log"
-                          >
-                            <ArrowRight size={12} />
-                          </button>
+                          <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 text-[11px] font-mono whitespace-nowrap">
-                          <span>{set.plannedReps} @ {set.target_value}{set.intensity_type === "PERCENT" ? "%" : "RPE"}</span>
-                          <span className="text-white">{set.plannedWeight}kg</span>
-                          <button type="button" onClick={() => syncTarget(i)} className="text-[#AEAEB2] hover:text-white">
-                            <ArrowRight size={12} />
-                          </button>
+                      <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
+                          <span className="text-white">{set.plannedWeight} kg</span>
+                          {sep('×')}
+                          <span>{set.plannedReps}</span>
+                          {sep('@')}
+                          <span>{set.target_value}{set.intensity_type === "PERCENT" ? "%" : " RPE"}</span>
                       </div>
                     )}
                   </td>
-                  <td className={td}>
+                  <td className={`${td} px-1`}>
+                    <button
+                      type="button"
+                      onClick={() => syncTarget(i)}
+                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+                      title="Copy prescription to log"
+                    >
+                      <ArrowRight size={12} />
+                    </button>
+                  </td>
+                  <td className={`${td} pl-3 border-l border-white/5`}>
                     <div className="flex items-center gap-0.5 whitespace-nowrap">
+                      <EditablePerformanceCell
+                        value={displayTrainingValue(set.actual)}
+                        onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
+                        placeholder="—"
+                        fieldKey={`${id}-actual-weight`}
+                        label="Log Weight"
+                        widthClass="w-12"
+                        isLogged={true}
+                        isAuto={set.isAuto}
+                        suggestedValue={set.suggestedWeight ? displayTrainingValue(Math.round(set.suggestedWeight * 4) / 4) : "0"}
+                        step={2.5}
+                        rowIndex={i}
+                      />
+                      {sep('×')}
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.reps)}
                         onChange={(val) => updateSet(i, { reps: trainingInt(val) })}
@@ -342,6 +436,16 @@ export const ExerciseCard = ({
                         step={1}
                         rowIndex={i}
                       />
+                      {sep('@')}
+                      {isPercent ? (
+                        <span
+                          data-testid={`log-rpe-${set.id}`}
+                          className="w-8 h-6 flex items-center justify-center text-[10px] text-[#636366]"
+                          title="RPE is not used for % prescriptions"
+                        >
+                          —
+                        </span>
+                      ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.executedRpe)}
                         onChange={(val) => updateSet(i, { executedRpe: trainingNumber(val) })}
@@ -353,32 +457,22 @@ export const ExerciseCard = ({
                         step={0.5}
                         rowIndex={i}
                       />
-                      <EditablePerformanceCell
-                        value={displayTrainingValue(set.actual)}
-                        onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
-                        placeholder="—"
-                        fieldKey={`${id}-actual-weight`}
-                        label="Log Weight"
-                        widthClass="w-10"
-                        isLogged={true}
-                        isAuto={set.isAuto}
-                        suggestedValue={set.suggestedWeight ? displayTrainingValue(Math.round(set.suggestedWeight * 4) / 4) : "0"}
-                        step={2.5}
-                        rowIndex={i}
-                      />
+                      )}
                     </div>
                   </td>
-                  <td className={`${td} font-mono text-[10px] text-[#AEAEB2]`}>
-                    {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : ''}
+                  <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
+                    {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
                     {rpeDelta !== null ? ` ${rpeDelta > 0 ? '+' : ''}${rpeDelta}r` : ''}
                   </td>
-                  <td className={`${td} font-mono text-[11px]`} data-testid={`set-metrics-${set.id}`}>
+                  <td className={`${td} font-mono tabular-nums text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-white' : 'text-[#636366]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
+                  </td>
+                  <td className={`${td} font-mono tabular-nums text-[11px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
-                      className="text-[#AEAEB2] ml-1"
+                      className={inol > 0 ? 'text-[#AEAEB2]' : 'text-[#636366]'}
                     >
                       {inol > 0 ? inol.toFixed(2) : '—'}
                     </span>
@@ -406,6 +500,24 @@ export const ExerciseCard = ({
             })}
         </tbody>
       </table>
+      </div>
+      </div>
+      ) : (
+        <>
+          <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <h4 className="text-lg leading-7 text-white truncate">{headingName}</h4>
+              {supportingLabel ? (
+                <span className="text-xs text-[#AEAEB2] truncate">{supportingLabel}</span>
+              ) : null}
+            </div>
+            {toolbar}
+          </div>
+          <p className="px-2 pb-2 text-[10px] text-[#636366]">
+            {sets.length} {sets.length === 1 ? 'set' : 'sets'} · Maximize to open
+          </p>
+        </>
+      )}
     </div>
   );
 };

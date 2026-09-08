@@ -23,8 +23,15 @@ interface PeriodizationState {
   setActiveMicrocycleId: (id: string | null) => void;
   activeMicro: MicrocycleData | undefined;
   activeWorkout: WorkoutData | undefined;
-  updateExerciseSets: (exerciseId: string, updatedSets: any[]) => void;
-  finishSession: (status: WorkoutStatus) => Promise<void>;
+  updateExerciseSets: (
+    exerciseId: string,
+    updatedSets: any[],
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => void;
+  finishSession: (
+    status: WorkoutStatus,
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => Promise<void>;
   resetPlan: () => Promise<void>;
 }
 
@@ -95,15 +102,22 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
   const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
-  const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+  const updateExerciseSets = (
+    exerciseId: string,
+    updatedSets: any[],
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => {
+    const workoutId = scope?.workoutId ?? activeWorkoutId;
+    if (!workoutId) return;
 
     setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
+      const inThisMicro = m.workouts.some(w => w.id === workoutId);
+      if (!inThisMicro) return m;
+      if (scope?.microcycleId && m.id !== scope.microcycleId) return m;
       return {
         ...m,
         workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
+          if (w.id !== workoutId) return w;
 
           const updatedExercises = w.exercises.map(ex => {
             if (ex.id !== exerciseId) return ex;
@@ -141,20 +155,26 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       };
     }));
 
-    void queueMutation(activeWorkoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
+    void queueMutation(workoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
   };
 
-  const finishSession = async (status: WorkoutStatus) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+  const finishSession = async (
+    status: WorkoutStatus,
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => {
+    const workoutId = scope?.workoutId ?? activeWorkoutId;
+    if (!workoutId) return;
 
     let updatedWorkoutData: WorkoutData | null = null;
 
     setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
+      const inThisMicro = m.workouts.some(w => w.id === workoutId);
+      if (!inThisMicro) return m;
+      if (scope?.microcycleId && m.id !== scope.microcycleId) return m;
       return {
         ...m,
         workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
+          if (w.id !== workoutId) return w;
           const newWorkout = {
             ...w,
             status,

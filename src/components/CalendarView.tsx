@@ -671,8 +671,8 @@ export function CalendarView({
 
               <p className="text-[11px] text-[#AEAEB2] leading-snug px-0.5">
                 {isWorkoutCompleted(selectedWorkout.workout.status) 
-                  ? "Logged session. Open logger to review or adjust sets."
-                  : "Focus brace and bar path. Open logger to record sets."}
+                  ? "Logged session. Open week to review or adjust sets."
+                  : "Focus brace and bar path. Open week to record sets."}
               </p>
             </div>
 
@@ -682,7 +682,7 @@ export function CalendarView({
                 onMouseDown={triggerHaptic}
                 className="flex-1 h-8 bg-[#007AFF] hover:bg-[#0066d6] text-white text-xs rounded"
               >
-                Open session
+                Open week
               </button>
               <button 
                 onClick={async () => {
