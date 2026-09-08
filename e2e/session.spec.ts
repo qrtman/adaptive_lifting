@@ -13,6 +13,16 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
   await expect(page.getByRole('heading', { name: 'D2 · Secondary Deadlift, Secondary Bench' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /D1 ·/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /D3 ·/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Low Bar Competition' })).toBeVisible();
+  await expect(page.getByText('Primary Squat').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Paused' })).toBeVisible();
+  await expect(page.getByText('Primary Bench').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Leg Press' })).toBeVisible();
+
+  await page.getByTestId('exercise-expand-e-3-1-1').click();
+  await expect(page.getByText('3 sets · Maximize to open')).toBeVisible();
+  await page.getByTestId('exercise-expand-e-3-1-1').click();
+
   await expect(page.getByRole('columnheader', { name: /Rx/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'e1RM' }).first()).toBeVisible();

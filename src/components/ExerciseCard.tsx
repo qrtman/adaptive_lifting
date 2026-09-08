@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Trash2, Copy } from 'lucide-react';
+import { ArrowRight, Trash2, Copy, Maximize2, Minimize2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { 
@@ -183,6 +183,15 @@ export const ExerciseCard = ({
     }]);
   };
 
+  const [expanded, setExpanded] = useState(true);
+
+  const isAccessory = tier === 'Accessory';
+  const headingName = isAccessory ? title : (variation || title);
+  const supportingName = isAccessory ? variation : title;
+  const supportingLabel = [isAccessory ? null : tier, supportingName]
+    .filter((part) => part && part !== headingName)
+    .join(' · ');
+
   const td = "px-2 py-0.5 align-middle whitespace-nowrap";
   const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[#636366] whitespace-nowrap";
   const sep = (ch: string) => (
@@ -193,10 +202,10 @@ export const ExerciseCard = ({
     <div className="border-b border-white/10">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-baseline gap-2 min-w-0">
-          <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
-          <span className="text-xs text-[#AEAEB2] truncate">
-            {tier ? `${tier} · ${variation}` : variation}
-          </span>
+          <h4 className="text-lg leading-7 text-white truncate">{headingName}</h4>
+          {supportingLabel ? (
+            <span className="text-xs text-[#AEAEB2] truncate">{supportingLabel}</span>
+          ) : null}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
@@ -223,11 +232,24 @@ export const ExerciseCard = ({
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
             <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
           </div>
-          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
-            + Set
+          {expanded && (
+            <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
+              + Set
+            </button>
+          )}
+          <button
+            type="button"
+            data-testid={`exercise-expand-${id}`}
+            onClick={() => setExpanded((open) => !open)}
+            className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+            title={expanded ? 'Minimize exercise' : 'Maximize exercise'}
+          >
+            {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            {expanded ? 'Minimize' : 'Maximize'}
           </button>
         </div>
       </div>
+      {expanded ? (
       <div className="overflow-x-auto">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
@@ -450,6 +472,11 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      ) : (
+        <p className="px-2 pb-2 text-[10px] text-[#636366]">
+          {sets.length} {sets.length === 1 ? 'set' : 'sets'} · Maximize to open
+        </p>
+      )}
     </div>
   );
 };
