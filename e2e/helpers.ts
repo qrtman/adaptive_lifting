@@ -9,6 +9,42 @@ export async function signInCoach(page: Page, prefs: Record<string, string> = {}
   }, prefs);
 }
 
+export async function readPlanSnapshot(page: Page, snapshotId: string): Promise<any> {
+  return page.evaluate(
+    (id) =>
+      new Promise((resolve, reject) => {
+        const open = indexedDB.open('adaptive_lifting_db');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const request = open.result
+            .transaction('snapshots', 'readonly')
+            .objectStore('snapshots')
+            .get(id);
+          request.onsuccess = () => resolve(request.result ? request.result.data : null);
+          request.onerror = () => reject(request.error);
+        };
+      }),
+    snapshotId,
+  );
+}
+
+export async function writePlanSnapshot(page: Page, snapshotId: string, data: unknown): Promise<void> {
+  await page.evaluate(
+    ({ id, payload }) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('adaptive_lifting_db');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const tx = open.result.transaction('snapshots', 'readwrite');
+          tx.objectStore('snapshots').put({ id, data: payload, updated_at: new Date().toISOString() });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    { id: snapshotId, payload: data },
+  );
+}
+
 export async function fillLogCell(page: Page, cellId: string, value: string | number) {
   await page.locator(`#${cellId}`).click();
   const input = page.locator('input').last();
