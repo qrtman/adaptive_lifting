@@ -100,6 +100,7 @@ When a later section of this file conflicts with this list, **this list wins**, 
 | Prescription editing | kg × reps @ RPE or % is edited on the **exercise card** set table after the lift is added (`PrescriptionEditor` inline in each Rx cell, `+ Set` on the card). |
 | Exercise card chrome | e1RM, Vol, and `+ Set` sit on the **right** of the exercise row. The lift name stays left; the set table stays in the middle. |
 | Rx %adj | `%adj` is its own column on the right of Rx, immediately before copy-to-log. Do not wash set rows orange/green from logged vs prescribed RPE; the Δ column already shows the difference. |
+| Rx e1RM suggest | Orange suggested kg is from the **top/peak logged e1RM** of earlier sets, not the last backdown. |
 | Add Session | Coach picks **any calendar day** and assigns a **microcycle**. Title is optional and is not part of create. Day labels (`D1`, `D2`, …) are chronological in that microcycle: inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. No prescription step. |
 
 ---

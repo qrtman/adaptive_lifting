@@ -6,7 +6,8 @@ import {
   calculateCapacityScaledWeight, 
   calculateE1RM, 
   calculateINOL,
-  calculateWeightFromE1RM 
+  calculateWeightFromE1RM,
+  peakPrecedingLoggedE1RM,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 
@@ -299,18 +300,7 @@ export const ExerciseCard = ({
                 : (e1RM > 0 ? (weight / e1RM) * 100 : 0);
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
 
-              let prevLogE1RM = 0;
-              for (let j = i - 1; j >= 0; j--) {
-                const prevSet = sets[j];
-                const prevW = trainingOrZero(prevSet.actual);
-                const prevR = trainingIntOrZero(prevSet.reps);
-                const prevRp = trainingOrZero(prevSet.executedRpe);
-                const calcPrev = calculateE1RM(prevW, prevR, prevRp);
-                if (calcPrev > 0) {
-                  prevLogE1RM = calcPrev;
-                  break;
-                }
-              }
+              const prevLogE1RM = peakPrecedingLoggedE1RM(sets, i);
 
               const targetReps = trainingIntOrZero(set.plannedReps);
               const targetRpe = trainingOrZero(set.plannedRpe);
@@ -362,7 +352,7 @@ export const ExerciseCard = ({
                               type="button"
                               onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
                               className="h-6 px-0.5 text-[10px] text-amber-400"
-                              title="Update prescription from logged e1RM"
+                              title="Suggested from top/peak logged e1RM"
                             >
                               {suggestedPrescribedWeight}
                             </button>

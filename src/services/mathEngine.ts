@@ -237,3 +237,23 @@ export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number)
 
   return Math.max(0, e1RM * denominator);
 }
+
+/** Daily e1RM for later-set suggestions: top set if logged, else peak preceding log. Backdowns do not re-anchor. */
+export function peakPrecedingLoggedE1RM(
+  sets: Array<{ actual?: unknown; reps?: unknown; executedRpe?: unknown; isTop?: boolean }>,
+  beforeIndex: number,
+): number {
+  let top = 0;
+  let peak = 0;
+  for (let j = 0; j < beforeIndex; j++) {
+    const e1rm = calculateE1RM(
+      trainingOrZero(sets[j].actual),
+      trainingIntOrZero(sets[j].reps),
+      trainingOrZero(sets[j].executedRpe),
+    );
+    if (e1rm <= 0) continue;
+    if (sets[j].isTop) top = Math.max(top, e1rm);
+    peak = Math.max(peak, e1rm);
+  }
+  return top > 0 ? top : peak;
+}

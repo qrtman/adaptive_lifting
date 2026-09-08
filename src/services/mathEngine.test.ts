@@ -5,6 +5,7 @@ import {
   calculateDOTS,
   calculateE1RM,
   calculateINOL,
+  peakPrecedingLoggedE1RM,
   roundToCompetitionPlates,
 } from './mathEngine';
 
@@ -39,5 +40,19 @@ describe('shared math vectors', () => {
       expect(jumps.suggested_second).toBe(row.suggested_second);
       expect(jumps.third_ceiling).toBe(row.third_ceiling);
     }
+  });
+});
+
+describe('peakPrecedingLoggedE1RM', () => {
+  it('keeps later-set suggestions on the top-set e1RM, not a lighter backdown', () => {
+    const sets = [
+      { actual: 135, reps: 1, executedRpe: 6, isTop: true },
+      { actual: 130, reps: 1, executedRpe: 6 },
+      { actual: 125, reps: 1, executedRpe: 6 },
+    ];
+    const top = calculateE1RM(135, 1, 6);
+    const backdown = calculateE1RM(130, 1, 6);
+    expect(peakPrecedingLoggedE1RM(sets, 2)).toBe(top);
+    expect(peakPrecedingLoggedE1RM(sets, 2)).not.toBe(backdown);
   });
 });
