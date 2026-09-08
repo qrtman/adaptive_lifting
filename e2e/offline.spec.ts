@@ -26,7 +26,7 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Secondary Deadlift, Secondary Bench' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Squat, Bench Press' })).toBeVisible();
 
   await context.setOffline(true);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'offline');

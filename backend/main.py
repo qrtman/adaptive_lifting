@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+import json
 import os
 
 from sqlalchemy.orm import Session
@@ -457,156 +458,51 @@ def format_microcycle(mc: Microcycle) -> dict:
 
 # --- Database Seeder ---
 
-INITIAL_SEEDS = [
-    {
-        "id": "micro-1",
-        "weekName": "Microcycle 01",
-        "focus": "Technical Proficiency / Baseline",
-        "status": "COMPLETED",
-        "active": False,
-        "workouts": [
-            {
-                "id": "w-1-1", "date": "2026-09-02", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 12400.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-1-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus",
-                        "top": "150kg x 1", "vol": "8,600kg",
-                        "sets": [
-                            {"id": "s-1-1-1a", "label": "Top Single", "planned": "150kg x 1", "plannedWeight": 150.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 150.0, "reps": 1, "executedRpe": 5.0},
-                            {"id": "s-1-1-1b", "label": "Main Set", "planned": "137.5kg x 4", "plannedWeight": 137.5, "plannedReps": 4, "plannedRpe": 6.0, "actual": 137.5, "reps": 4, "executedRpe": 6.0},
-                            {"id": "s-1-1-1c", "label": "Backdown", "planned": "127.5kg x 4", "plannedWeight": 127.5, "plannedReps": 4, "plannedRpe": 5.0, "note": "-5% Drop", "actual": 127.5, "reps": 4, "executedRpe": 5.0, "dropPercent": -5.0}
-                        ]
-                    },
-                    {
-                        "id": "e-1-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause",
-                        "top": "90kg x 3", "vol": "3,800kg",
-                        "sets": [
-                            {"id": "s-1-1-2a", "label": "Top Single", "plannedWeight": 90.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 90.0, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    },
-                    {
-                        "id": "a-1-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "120kg x 12", "vol": "4,320kg",
-                        "sets": [
-                            {"id": "a-1-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-1-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-1-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
-                        ]
-                    }
-                ],
-            },
-            {
-                "id": "w-1-2", "date": "2026-09-04", "dayLabel": "D2", "title": "Secondary Deadlift, Secondary Bench",
-                "tonnage": 8900.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-1-2-1", "title": "Secondary Deadlift", "variation": "Deficit Deadlift", "tags": "Patience off Floor",
-                        "top": "180kg x 3", "vol": "4,700kg",
-                        "sets": [
-                            {"id": "s-1-2-1a", "label": "Top Set", "planned": "180kg x 3", "plannedWeight": 180.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 180.0, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    },
-                    {
-                        "id": "e-1-2-2", "title": "Secondary Bench", "variation": "Spoto Press", "tags": "Hover Focus, Chest Activation",
-                        "top": "85kg x 5", "vol": "4,200kg",
-                        "sets": [
-                            {"id": "s-1-2-2a", "label": "Top Set", "planned": "85kg x 5", "plannedWeight": 85.0, "plannedReps": 5, "plannedRpe": 7.0, "isTop": True, "actual": 85.0, "reps": 5, "executedRpe": 7.0}
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "id": "micro-2",
-        "weekName": "Microcycle 02",
-        "focus": "Accumulation / Volume Expansion",
-        "status": "COMPLETED",
-        "active": False,
-        "workouts": [
-            {
-                "id": "w-2-1", "date": "2026-09-09", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 13200.0, "delta": 800.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-2-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Quads Drive",
-                        "top": "155kg x 1", "vol": "9,200kg",
-                        "sets": [
-                            {"id": "s-2-1-1a", "label": "Top Single", "planned": "155kg x 1", "plannedWeight": 155.0, "plannedReps": 1, "plannedRpe": 5.5, "isTop": True, "actual": 155.0, "reps": 1, "executedRpe": 5.5}
-                        ]
-                    },
-                    {
-                        "id": "e-2-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive",
-                        "top": "92.5kg x 3", "vol": "4,000kg",
-                        "sets": [
-                            {"id": "s-2-1-2a", "label": "Top Set", "planned": "92.5kg x 3", "plannedWeight": 92.5, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 92.5, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "id": "micro-3",
-        "weekName": "Microcycle 03",
-        "focus": "Threshold / Intensity Peak",
-        "status": "ACTIVE",
-        "active": True,
-        "workouts": [
-            {
-                "id": "w-3-1", "date": "2026-09-16", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 14100.0, "delta": 900.0, "color": "mac-blue", "status": "IN_PROGRESS",
-                "exercises": [
-                    {
-                        "id": "e-3-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus, Heel Drive",
-                        "top": "160kg x 1", "vol": "9,800kg",
-                        "sets": [
-                            {"id": "s-3-1-1a", "label": "Top Single", "planned": "160kg x 1", "plannedWeight": 160.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 160.0, "reps": 1, "executedRpe": 8.5},
-                            {"id": "s-3-1-1b", "label": "Main Set", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 6.5, "actual": 152.5, "reps": 3, "executedRpe": 7.5},
-                            {"id": "s-3-1-1c", "label": "Backdown", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 5.5, "note": "-5% Drop", "actual": 152.5, "reps": 3, "executedRpe": 8.0, "dropPercent": -5.0}
-                        ]
-                    },
-                    {
-                        "id": "e-3-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause, Shoulder Pin",
-                        "top": "95kg x 3", "vol": "4,300kg",
-                        "sets": [
-                            {"id": "s-3-1-2a", "label": "Top Single", "planned": "95kg x 3", "plannedWeight": 95.0, "plannedReps": 3, "plannedRpe": 5.0, "isTop": True, "actual": 95.0, "reps": 3, "executedRpe": 8.0},
-                            {"id": "s-3-1-2b", "label": "Main Set", "plannedWeight": 90.0, "plannedReps": 5, "plannedRpe": 6.0, "actual": 90.0, "reps": 5, "executedRpe": 7.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "120kg x 12", "vol": "4,320kg",
-                        "sets": [
-                            {"id": "a-3-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-3-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-3-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-2", "title": "Triceps Extension", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "—", "vol": "—",
-                        "sets": [
-                            {"id": "a-3-1-2-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
-                            {"id": "a-3-1-2-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
-                            {"id": "a-3-1-2-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-3", "title": "Lateral Raises", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "—", "vol": "—",
-                        "sets": [
-                            {"id": "a-3-1-3-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
-                            {"id": "a-3-1-3-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
-                            {"id": "a-3-1-3-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0}
-                        ]
-                    }
-                ],
-            }
-        ]
-    }
-]
+_PROFILE_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "data", "zaharAthleteProfile.json")
+
+def _load_zahar_seeds():
+    with open(_PROFILE_PATH, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    seeds = []
+    for mc in payload["microcycles"]:
+        workouts = []
+        for w in mc.get("workouts", []):
+            exercises = []
+            for e in w.get("exercises", []):
+                tags = e.get("tags") or []
+                exercises.append({
+                    "id": e["id"],
+                    "title": e["title"],
+                    "variation": e["variation"],
+                    "tier": e.get("tier", "Comp"),
+                    "lift_category": e.get("liftCategory", "Other"),
+                    "tags": ",".join(tags) if isinstance(tags, list) else (tags or ""),
+                    "top": e.get("top", "—"),
+                    "vol": e.get("vol", "—"),
+                    "sets": e.get("sets", []),
+                })
+            workouts.append({
+                "id": w["id"],
+                "date": w["date"],
+                "dayLabel": w["dayLabel"],
+                "title": w["title"],
+                "tonnage": float(w.get("tonnage") or 0),
+                "delta": float(w.get("delta") or 0),
+                "color": w.get("color", "gray"),
+                "status": w["status"],
+                "exercises": exercises,
+            })
+        seeds.append({
+            "id": mc["id"],
+            "weekName": mc["weekName"],
+            "focus": mc["focus"],
+            "status": mc["status"],
+            "active": bool(mc.get("active")),
+            "workouts": workouts,
+        })
+    return seeds
+
+INITIAL_SEEDS = _load_zahar_seeds()
 
 def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
     if clear_existing:

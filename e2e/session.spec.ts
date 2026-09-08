@@ -9,7 +9,7 @@ test('logs weight, reps, and RPE then updates e1RM, INOL, and tonnage', async ({
     al_active_microcycle_id: 'micro-3',
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Secondary Deadlift, Secondary Bench' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Squat, Bench Press' })).toBeVisible();
 
   await fillLogCell(page, 'cell-e-3-2-1-reps-0', 3);
   await fillLogCell(page, 'cell-e-3-2-1-executedRpe-0', 8);
@@ -17,5 +17,5 @@ test('logs weight, reps, and RPE then updates e1RM, INOL, and tonnage', async ({
 
   await expect(page.getByTestId('set-e1rm-s-3-2-1a')).toHaveText('216');
   await expect(page.getByTestId('set-inol-s-3-2-1a')).toContainText('0.25');
-  await expect(page.getByTestId('workout-tonnage')).toContainText('570');
+  await expect(page.getByTestId('workout-tonnage')).toContainText('4302.5');
 });

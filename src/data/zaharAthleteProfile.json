@@ -1,0 +1,4026 @@
+{
+  "athlete": {
+    "id": "athlete-zahar",
+    "name": "Zahar",
+    "email": "zahar@example.com",
+    "role": "ATHLETE",
+    "competitionLifts": {
+      "squat": {
+        "variation": "Low bar",
+        "peakE1rm": 189.87
+      },
+      "bench": {
+        "variation": "Competition paused",
+        "peakE1rm": 136.08
+      },
+      "deadlift": {
+        "variation": "Sumo",
+        "peakE1rm": 227.03
+      }
+    }
+  },
+  "mesocycle": {
+    "id": "meso-1",
+    "name": "Block 3.1",
+    "status": "ACTIVE",
+    "color": "#007AFF",
+    "startDate": "2026-09-01",
+    "endDate": "2026-09-28"
+  },
+  "microcycles": [
+    {
+      "id": "micro-1",
+      "weekName": "Microcycle 03",
+      "focus": "Block 3.1 \u00b7 Week 3",
+      "status": "COMPLETED",
+      "active": false,
+      "workouts": [
+        {
+          "id": "w-1-1",
+          "date": "2026-09-02",
+          "dayLabel": "D1",
+          "title": "Deadlift, Bench Press",
+          "tonnage": 3375.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-1-1-1",
+              "title": "Deadlift",
+              "variation": "Sumo",
+              "tier": "Comp",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo"
+              ],
+              "top": "185.0kg x 1",
+              "vol": "2,015kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 185.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 6.0,
+                  "actual": 185.0,
+                  "reps": 1,
+                  "executedRpe": 6.0,
+                  "isTop": true,
+                  "id": "s-1-1-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 157.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 157.5,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-1-1-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 150.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-1-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 150.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-1-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-1-1-2",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "120.0kg x 1",
+              "vol": "1,360kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 117.5,
+                  "plannedReps": 1,
+                  "plannedRpe": 6.5,
+                  "actual": 120.0,
+                  "reps": 1,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-1-1-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 105.0,
+                  "reps": 4,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-1-1-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-1-1-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-1-1-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-1-1-3",
+              "title": "Incline smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-3-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-1-1-4",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-1-1-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-5-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-1-1-6",
+              "title": "Hip adduction+abduction",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-6-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-6-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-1-1-7",
+              "title": "Hamstring curls",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-7-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-1-7-s2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-1-2",
+          "date": "2026-09-04",
+          "dayLabel": "D2",
+          "title": "Squat, Bench Press",
+          "tonnage": 3725.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-1-2-1",
+              "title": "Squat",
+              "variation": "Low bar",
+              "tier": "Comp",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "Low bar"
+              ],
+              "top": "165.0kg x 1",
+              "vol": "1,875kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 162.5,
+                  "plannedReps": 1,
+                  "plannedRpe": 6.0,
+                  "actual": 165.0,
+                  "reps": 1,
+                  "executedRpe": 6.0,
+                  "isTop": true,
+                  "id": "s-1-2-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 147.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 147.5,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "dropPercent": -2.0,
+                  "note": "-2% drop",
+                  "id": "s-1-2-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 142.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 140.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-2-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 142.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 140.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-2-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-1-2-2",
+              "title": "Bench Press",
+              "variation": "Larsen press",
+              "tier": "Variation",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Larsen press"
+              ],
+              "top": "92.5kg x 5",
+              "vol": "1,850kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 92.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 92.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": true,
+                  "id": "s-1-2-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 95.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 92.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-2-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 92.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.0,
+                  "actual": 92.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-2-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 92.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.0,
+                  "actual": 92.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-1-2-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-1-2-3",
+              "title": "Seated smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-2-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-2-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-2-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-1-2-4",
+              "title": "Lateral raises",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-2-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-2-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-2-4-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-1-3",
+          "date": "2026-09-05",
+          "dayLabel": "D3",
+          "title": "Bench Press, Deadlift",
+          "tonnage": 3157.5,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-1-3-1",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "110.0kg x 3",
+              "vol": "1,297kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.5,
+                  "actual": 110.0,
+                  "reps": 3,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "note": "Planned 107.5~110 kg",
+                  "id": "s-1-3-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.0,
+                  "actual": 107.5,
+                  "reps": 3,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-1-3-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.0,
+                  "actual": 107.5,
+                  "reps": 3,
+                  "executedRpe": 8.0,
+                  "isTop": false,
+                  "id": "s-1-3-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.0,
+                  "actual": 107.5,
+                  "reps": 3,
+                  "executedRpe": 8.0,
+                  "isTop": false,
+                  "id": "s-1-3-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-1-3-2",
+              "title": "Deadlift",
+              "variation": "Sumo paused",
+              "tier": "Variation",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo paused"
+              ],
+              "top": "160.0kg x 4",
+              "vol": "1,860kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 160.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 160.0,
+                  "reps": 4,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-1-3-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 152.5,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-1-3-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 152.5,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-1-3-2c"
+                }
+              ]
+            },
+            {
+              "id": "a-1-3-3",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-1-3-4",
+              "title": "Triceps pushdown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-1-3-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-3-5-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-1-4",
+          "date": "2026-09-06",
+          "dayLabel": "D4",
+          "title": "Squat",
+          "tonnage": 2050.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-1-4-1",
+              "title": "Squat",
+              "variation": "SSB high bar paused",
+              "tier": "Variation",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "SSB high bar paused"
+              ],
+              "top": "100.0kg x 6",
+              "vol": "2,050kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 7.0,
+                  "actual": 100.0,
+                  "reps": 6,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-1-4-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 7.0,
+                  "isTop": false,
+                  "id": "s-1-4-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 95.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 95.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-1-4-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 95.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 95.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-1-4-1d"
+                }
+              ]
+            },
+            {
+              "id": "a-1-4-2",
+              "title": "Leg press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-4-2-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-4-2-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-4-2-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-1-4-3",
+              "title": "Leg extension",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-4-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-1-4-3-s2"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "micro-2",
+      "weekName": "Microcycle 04",
+      "focus": "Block 3.1 \u00b7 Week 4",
+      "status": "COMPLETED",
+      "active": false,
+      "workouts": [
+        {
+          "id": "w-2-1",
+          "date": "2026-09-08",
+          "dayLabel": "D1",
+          "title": "Deadlift, Bench Press",
+          "tonnage": 3512.5,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-2-1-1",
+              "title": "Deadlift",
+              "variation": "Sumo",
+              "tier": "Comp",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo"
+              ],
+              "top": "190.0kg x 1",
+              "vol": "2,150kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 190.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 7.0,
+                  "actual": 190.0,
+                  "reps": 1,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-2-1-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 167.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 170.0,
+                  "reps": 4,
+                  "executedRpe": 7.5,
+                  "isTop": false,
+                  "id": "s-2-1-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 160.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 160.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-2-1-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 160.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 160.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-2-1-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-2-1-2",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "122.5kg x 1",
+              "vol": "1,362kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 122.5,
+                  "plannedReps": 1,
+                  "plannedRpe": 7.5,
+                  "actual": 122.5,
+                  "reps": 1,
+                  "executedRpe": 8.0,
+                  "isTop": true,
+                  "id": "s-2-1-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 105.0,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-1-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-2-1-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-2-1-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-2-1-3",
+              "title": "Incline smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-3-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-2-1-4",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-2-1-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-5-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-2-1-6",
+              "title": "Hip adduction+abduction",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-6-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-6-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-2-1-7",
+              "title": "Hamstring curls",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-7-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-1-7-s2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-2-2",
+          "date": "2026-09-09",
+          "dayLabel": "D2",
+          "title": "Squat, Bench Press",
+          "tonnage": 3835.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-2-2-1",
+              "title": "Squat",
+              "variation": "Low bar",
+              "tier": "Comp",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "Low bar"
+              ],
+              "top": "170.0kg x 1",
+              "vol": "1,910kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 167.5,
+                  "plannedReps": 1,
+                  "plannedRpe": 7.0,
+                  "actual": 170.0,
+                  "reps": 1,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-2-2-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 147.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 150.0,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "dropPercent": -2.0,
+                  "note": "-2% drop",
+                  "id": "s-2-2-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 145.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 142.5,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-2-2-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 145.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 142.5,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-2-2-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-2-2-2",
+              "title": "Bench Press",
+              "variation": "Larsen press",
+              "tier": "Variation",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Larsen press"
+              ],
+              "top": "100.0kg x 5",
+              "vol": "1,925kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 97.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.5,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 6.5,
+                  "isTop": true,
+                  "id": "s-2-2-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 97.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 95.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-2-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 95.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 95.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-2-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 95.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 95.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-2-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-2-2-3",
+              "title": "Seated smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-2-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-2-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-2-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-2-2-4",
+              "title": "Lateral raises",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-2-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-2-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-2-4-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-2-3",
+          "date": "2026-09-10",
+          "dayLabel": "D3",
+          "title": "Bench Press, Deadlift",
+          "tonnage": 3337.5,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-2-3-1",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "112.5kg x 3",
+              "vol": "1,297kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 112.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 7.5,
+                  "actual": 112.5,
+                  "reps": 3,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-2-3-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 110.0,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.5,
+                  "actual": 110.0,
+                  "reps": 3,
+                  "executedRpe": 8.0,
+                  "isTop": false,
+                  "id": "s-2-3-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.5,
+                  "actual": 105.0,
+                  "reps": 3,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-3-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 3,
+                  "plannedRpe": 6.5,
+                  "actual": 105.0,
+                  "reps": 3,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-3-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-2-3-2",
+              "title": "Deadlift",
+              "variation": "Sumo paused",
+              "tier": "Variation",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo paused"
+              ],
+              "top": "170.0kg x 4",
+              "vol": "2,040kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 160.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 170.0,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": true,
+                  "id": "s-2-3-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 170.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 170.0,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-2-3-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 170.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 170.0,
+                  "reps": 4,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-2-3-2c"
+                }
+              ]
+            },
+            {
+              "id": "a-2-3-3",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-2-3-4",
+              "title": "Triceps pushdown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-2-3-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-3-5-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-2-4",
+          "date": "2026-09-11",
+          "dayLabel": "D4",
+          "title": "Squat",
+          "tonnage": 2075.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-2-4-1",
+              "title": "Squat",
+              "variation": "SSB high bar paused",
+              "tier": "Variation",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "SSB high bar paused"
+              ],
+              "top": "105.0kg x 5",
+              "vol": "2,075kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 7.0,
+                  "actual": 105.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": true,
+                  "id": "s-2-4-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 105.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-2-4-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 5,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-2-4-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 5,
+                  "executedRpe": 5.5,
+                  "isTop": false,
+                  "id": "s-2-4-1d"
+                }
+              ]
+            },
+            {
+              "id": "a-2-4-2",
+              "title": "Leg press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-4-2-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-4-2-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-4-2-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-2-4-3",
+              "title": "Leg extension",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-4-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-2-4-3-s2"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "micro-3",
+      "weekName": "Microcycle 05",
+      "focus": "Block 3.1 \u00b7 Week 5",
+      "status": "ACTIVE",
+      "active": true,
+      "workouts": [
+        {
+          "id": "w-3-1",
+          "date": "2026-09-16",
+          "dayLabel": "D1",
+          "title": "Deadlift, Bench Press",
+          "tonnage": 3735.0,
+          "delta": 0.0,
+          "color": "mac-blue",
+          "status": "IN_PROGRESS",
+          "exercises": [
+            {
+              "id": "e-3-1-1",
+              "title": "Deadlift",
+              "variation": "Sumo",
+              "tier": "Comp",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo"
+              ],
+              "top": "210.0kg x 1",
+              "vol": "2,330kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 195.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 8.0,
+                  "actual": 210.0,
+                  "reps": 1,
+                  "executedRpe": 7.5,
+                  "isTop": true,
+                  "note": "Planned 195~200 kg",
+                  "id": "s-3-1-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 187.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 7.0,
+                  "actual": 180.0,
+                  "reps": 4,
+                  "executedRpe": 7.0,
+                  "isTop": false,
+                  "id": "s-3-1-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 177.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 175.0,
+                  "reps": 4,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-3-1-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 177.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 175.0,
+                  "reps": 4,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-3-1-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-3-1-2",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "125.0kg x 1",
+              "vol": "1,405kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 125.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 8.5,
+                  "actual": 125.0,
+                  "reps": 1,
+                  "executedRpe": 8.0,
+                  "isTop": true,
+                  "id": "s-3-1-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 112.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 7.5,
+                  "actual": 110.0,
+                  "reps": 4,
+                  "executedRpe": 8.0,
+                  "isTop": false,
+                  "id": "s-3-1-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 105.0,
+                  "reps": 4,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-3-1-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 105.0,
+                  "reps": 4,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-3-1-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-3-1-3",
+              "title": "Incline smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-3-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-3-1-4",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-3-1-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 9.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-5-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-3-1-6",
+              "title": "Hip adduction+abduction",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-6-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-6-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-3-1-7",
+              "title": "Hamstring curls",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-7-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-1-7-s2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-3-2",
+          "date": "2026-09-18",
+          "dayLabel": "D2",
+          "title": "Squat, Bench Press",
+          "tonnage": 3915.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-3-2-1",
+              "title": "Squat",
+              "variation": "Low bar",
+              "tier": "Comp",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "Low bar"
+              ],
+              "top": "182.5kg x 1",
+              "vol": "1,952kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 177.5,
+                  "plannedReps": 1,
+                  "plannedRpe": 8.0,
+                  "actual": 182.5,
+                  "reps": 1,
+                  "executedRpe": 9.0,
+                  "isTop": true,
+                  "note": "Planned 177.5~182.5 kg",
+                  "id": "s-3-2-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 7.0,
+                  "actual": 152.5,
+                  "reps": 4,
+                  "executedRpe": 8.0,
+                  "isTop": false,
+                  "dropPercent": -2.0,
+                  "note": "-2% drop",
+                  "id": "s-3-2-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 145.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 145.0,
+                  "reps": 4,
+                  "executedRpe": 7.0,
+                  "isTop": false,
+                  "id": "s-3-2-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 145.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 145.0,
+                  "reps": 4,
+                  "executedRpe": 7.0,
+                  "isTop": false,
+                  "id": "s-3-2-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-3-2-2",
+              "title": "Bench Press",
+              "variation": "Larsen press",
+              "tier": "Variation",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Larsen press"
+              ],
+              "top": "100.0kg x 5",
+              "vol": "1,962kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.5,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 6.5,
+                  "isTop": true,
+                  "id": "s-3-2-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 97.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 97.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-3-2-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 97.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-3-2-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 97.5,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-3-2-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-3-2-3",
+              "title": "Seated smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-2-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-2-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-2-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-3-2-4",
+              "title": "Lateral raises",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-2-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-2-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 10.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-2-4-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-3-3",
+          "date": "2026-09-19",
+          "dayLabel": "D3",
+          "title": "Bench Press, Deadlift",
+          "tonnage": 3227.5,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-3-3-1",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "117.5kg x 3",
+              "vol": "1,297kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 115.0,
+                  "plannedReps": 3,
+                  "plannedRpe": 8.5,
+                  "actual": 117.5,
+                  "reps": 3,
+                  "executedRpe": 10.0,
+                  "isTop": true,
+                  "note": "Planned 115~117.5 kg",
+                  "id": "s-3-3-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 3,
+                  "plannedRpe": 7.0,
+                  "actual": 105.0,
+                  "reps": 3,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "dropPercent": -2.0,
+                  "note": "-2% drop",
+                  "id": "s-3-3-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 7.0,
+                  "actual": 105.0,
+                  "reps": 3,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-3-3-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 3,
+                  "plannedRpe": 7.0,
+                  "actual": 105.0,
+                  "reps": 3,
+                  "executedRpe": 6.5,
+                  "isTop": false,
+                  "id": "s-3-3-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-3-3-2",
+              "title": "Deadlift",
+              "variation": "Sumo paused",
+              "tier": "Variation",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo paused"
+              ],
+              "top": "170.0kg x 4",
+              "vol": "1,930kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 170.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.5,
+                  "actual": 170.0,
+                  "reps": 4,
+                  "executedRpe": 7.5,
+                  "isTop": true,
+                  "id": "s-3-3-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 162.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 160.0,
+                  "reps": 4,
+                  "executedRpe": 7.0,
+                  "isTop": false,
+                  "id": "s-3-3-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 155.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 6.0,
+                  "actual": 152.5,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-3-3-2c"
+                }
+              ]
+            },
+            {
+              "id": "a-3-3-3",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-3-3-4",
+              "title": "Triceps pushdown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-3-3-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-3-5-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-3-4",
+          "date": "2026-09-20",
+          "dayLabel": "D4",
+          "title": "Squat",
+          "tonnage": 2150.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-3-4-1",
+              "title": "Squat",
+              "variation": "SSB high bar paused",
+              "tier": "Variation",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "SSB high bar paused"
+              ],
+              "top": "110.0kg x 5",
+              "vol": "2,150kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 110.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 7.0,
+                  "actual": 110.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": true,
+                  "id": "s-3-4-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 110.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 6.0,
+                  "actual": 110.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-3-4-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 105.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-3-4-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.5,
+                  "actual": 105.0,
+                  "reps": 5,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-3-4-1d"
+                }
+              ]
+            },
+            {
+              "id": "a-3-4-2",
+              "title": "Leg press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-4-2-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-4-2-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-4-2-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-3-4-3",
+              "title": "Leg extension",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-4-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-3-4-3-s2"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "micro-4",
+      "weekName": "Microcycle 06",
+      "focus": "Block 3.1 \u00b7 Week 6 pivot",
+      "status": "DRAFT",
+      "active": false,
+      "workouts": [
+        {
+          "id": "w-4-1",
+          "date": "2026-09-22",
+          "dayLabel": "D1",
+          "title": "Deadlift, Bench Press",
+          "tonnage": 2952.5,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-4-1-1",
+              "title": "Deadlift",
+              "variation": "Sumo",
+              "tier": "Comp",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo"
+              ],
+              "top": "190.0kg x 1",
+              "vol": "1,567kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 190.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 5.0,
+                  "actual": 190.0,
+                  "reps": 1,
+                  "executedRpe": 7.0,
+                  "isTop": true,
+                  "id": "s-4-1-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 177.5,
+                  "plannedReps": 1,
+                  "plannedRpe": 5.0,
+                  "actual": 177.5,
+                  "reps": 1,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-4-1-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 150.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 150.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-4-1-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 150.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 150.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-4-1-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-4-1-2",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "115.0kg x 1",
+              "vol": "1,385kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 115.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 5.5,
+                  "actual": 115.0,
+                  "reps": 1,
+                  "executedRpe": 5.0,
+                  "isTop": true,
+                  "id": "s-4-1-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 107.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 107.5,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-4-1-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 105.0,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-4-1-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 105.0,
+                  "reps": 4,
+                  "executedRpe": 6.0,
+                  "isTop": false,
+                  "id": "s-4-1-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-4-1-3",
+              "title": "Incline smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-3-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-4-1-4",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-4-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-4-1-5",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-5-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-4-1-6",
+              "title": "Hip adduction+abduction",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-6-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-6-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-4-1-7",
+              "title": "Hamstring curls",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-7-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-1-7-s2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-4-2",
+          "date": "2026-09-23",
+          "dayLabel": "D2",
+          "title": "Squat, Bench Press",
+          "tonnage": 4730.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-4-2-1",
+              "title": "Squat",
+              "variation": "SSB high bar paused",
+              "tier": "Variation",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "SSB high bar paused"
+              ],
+              "top": "105.0kg x 6",
+              "vol": "2,730kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 105.0,
+                  "plannedReps": 6,
+                  "plannedRpe": 5.0,
+                  "actual": 105.0,
+                  "reps": 6,
+                  "executedRpe": 5.0,
+                  "isTop": true,
+                  "id": "s-4-2-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 6,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 7,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-4-2-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 6,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 7,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-2-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 6,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 7,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-2-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-4-2-2",
+              "title": "Bench Press",
+              "variation": "2 finger closer grip",
+              "tier": "Variation",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "2 finger closer grip"
+              ],
+              "top": "100.0kg x 5",
+              "vol": "2,000kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 97.5,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": true,
+                  "note": "Planned 97.5~ kg",
+                  "id": "s-4-2-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-2-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-2-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 5,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 5,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-2-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-4-2-3",
+              "title": "Lateral raises",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-2-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-2-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-2-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-4-2-4",
+              "title": "Rear delt fly",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-2-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-2-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-2-4-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-4-3",
+          "date": "2026-09-24",
+          "dayLabel": "D3",
+          "title": "Squat, Bench Press",
+          "tonnage": 3360.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-4-3-1",
+              "title": "Squat",
+              "variation": "Low bar",
+              "tier": "Comp",
+              "liftCategory": "Squat",
+              "tags": [
+                "Squat",
+                "Low bar"
+              ],
+              "top": "160.0kg x 1",
+              "vol": "1,750kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 160.0,
+                  "plannedReps": 1,
+                  "plannedRpe": 5.0,
+                  "actual": 160.0,
+                  "reps": 1,
+                  "executedRpe": 6.0,
+                  "isTop": true,
+                  "id": "s-4-3-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 137.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 137.5,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -2.0,
+                  "note": "-2% drop",
+                  "id": "s-4-3-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 130.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 130.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-4-3-1c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 130.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 130.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-4-3-1d"
+                }
+              ]
+            },
+            {
+              "id": "e-4-3-2",
+              "title": "Bench Press",
+              "variation": "Competition paused",
+              "tier": "Comp",
+              "liftCategory": "Bench",
+              "tags": [
+                "Bench",
+                "Competition paused"
+              ],
+              "top": "102.5kg x 4",
+              "vol": "1,610kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 102.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.5,
+                  "actual": 102.5,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": true,
+                  "id": "s-4-3-2a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -2.0,
+                  "note": "-2% drop",
+                  "id": "s-4-3-2b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-3-2c"
+                },
+                {
+                  "label": "Set 4",
+                  "plannedWeight": 100.0,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 100.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-3-2d"
+                }
+              ]
+            },
+            {
+              "id": "a-4-3-3",
+              "title": "Leg press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-4-3-4",
+              "title": "Leg extension",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 5.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-4-s2"
+                }
+              ]
+            },
+            {
+              "id": "a-4-3-5",
+              "title": "Seated smith press",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-5-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-5-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-3-5-s3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "w-4-4",
+          "date": "2026-09-25",
+          "dayLabel": "D4",
+          "title": "Deadlift",
+          "tonnage": 1860.0,
+          "delta": 0.0,
+          "color": "mac-green",
+          "status": "COMPLETED",
+          "exercises": [
+            {
+              "id": "e-4-4-1",
+              "title": "Deadlift",
+              "variation": "Sumo paused",
+              "tier": "Variation",
+              "liftCategory": "Deadlift",
+              "tags": [
+                "Deadlift",
+                "Sumo paused"
+              ],
+              "top": "160.0kg x 4",
+              "vol": "1,860kg",
+              "sets": [
+                {
+                  "label": "Top Set",
+                  "plannedWeight": 157.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 160.0,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": true,
+                  "id": "s-4-4-1a"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 152.5,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "dropPercent": -5.0,
+                  "note": "-5% drop",
+                  "id": "s-4-4-1b"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": 152.5,
+                  "plannedReps": 4,
+                  "plannedRpe": 5.0,
+                  "actual": 152.5,
+                  "reps": 4,
+                  "executedRpe": 5.0,
+                  "isTop": false,
+                  "id": "s-4-4-1c"
+                }
+              ]
+            },
+            {
+              "id": "a-4-4-2",
+              "title": "Horizontal pull/t bar row",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-2-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-2-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-2-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-4-4-3",
+              "title": "Triceps pushdown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-3-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-3-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 7.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-3-s3"
+                }
+              ]
+            },
+            {
+              "id": "a-4-4-4",
+              "title": "Vertical pulldown",
+              "variation": "Accessory",
+              "tier": "Accessory",
+              "liftCategory": "Other",
+              "tags": [
+                "Accessory"
+              ],
+              "top": "\u2014",
+              "vol": "\u2014",
+              "sets": [
+                {
+                  "label": "Set 1",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-4-s1"
+                },
+                {
+                  "label": "Set 2",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-4-s2"
+                },
+                {
+                  "label": "Set 3",
+                  "plannedWeight": null,
+                  "plannedReps": 10,
+                  "plannedRpe": 6.0,
+                  "actual": null,
+                  "reps": null,
+                  "executedRpe": null,
+                  "isTop": false,
+                  "id": "a-4-4-4-s3"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

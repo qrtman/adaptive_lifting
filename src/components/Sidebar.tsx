@@ -1,6 +1,7 @@
 import { Calendar, BarChart3, Dumbbell, Link2, Settings, List } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import { ZAHAR_ATHLETE } from '../data/zaharAthleteProfile';
 import type { DashboardMode } from './AppShell';
 
 const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
@@ -69,6 +70,11 @@ export const Sidebar = ({
     <aside className="fixed left-0 top-0 h-screen w-[240px] min-w-[240px] max-w-[240px] bg-[#131313] border-r border-white/10 flex flex-col px-3 py-4 z-50">
       <div className="px-2 mb-4">
         <h1 className="text-xs font-semibold text-white tracking-wide uppercase">Adaptive Lifting</h1>
+        <p className="text-[11px] text-white mt-2">{ZAHAR_ATHLETE.name}</p>
+        <p className="text-[10px] text-[#AEAEB2] font-mono">
+          SQ {ZAHAR_ATHLETE.competitionLifts.squat.peakE1rm.toFixed(1)} · BP {ZAHAR_ATHLETE.competitionLifts.bench.peakE1rm.toFixed(1)} · DL {ZAHAR_ATHLETE.competitionLifts.deadlift.peakE1rm.toFixed(1)}
+        </p>
+        <p className="text-[10px] text-[#636366]">Block 3.1 · peak e1RM kg</p>
       </div>
 
       <nav className="flex-1 flex flex-col gap-4">
