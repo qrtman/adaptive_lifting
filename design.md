@@ -101,7 +101,7 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 
 | Decision | Rule |
 | :--- | :--- |
-| Add athlete | The coach adds an athlete **identity** (name, optional email). Account linking is separate. |
+| Add athlete | The coach adds an athlete **identity** (name, optional email). Account linking is separate. Duplicate names are rejected. |
 | Athlete switcher | Native `<select>` in the sidebar. Changing it swaps Sessions, Calendar, and Insights to that athlete in place. No extra screen. |
 | Roster row | Clicking a name **selects that athlete and opens Sessions**. An athlete without a block lands on the empty Sessions state. Roster does not go through an overview or an Open-block button. |
 | Open block | Removed as a separate step. Selecting the athlete is enough. |
@@ -149,7 +149,7 @@ as raw hex inline rather than through tokens.
 | Warning | `#F5A623` | Pending, caution |
 | Danger | `#FF453A` | Errors, rejected, revoked |
 
-Known debt: Roster still uses rounded translucent panels that conflict with §3.1. Fix on the next substantive edit to that file.
+Known debt: none on Roster chrome.
 
 ### 4.2 Typography
 
@@ -222,8 +222,7 @@ Accurate as of the current code. Each entry names the file so you can check it.
 | Athlete terminal | `mobile/TelegramSessionTerminal.tsx` | Athlete-mode set logging with exercise tabs. | active set, logged, offline |
 | Supporting | `LiftFilter.tsx`, `AccessoryLedger.tsx`, `EditablePerformanceCell.tsx`, `LoginView.tsx` | Filter, accessory grouping, spreadsheet cells, auth gate. | — |
 
-`WorkoutLockBanner.tsx` exists but nothing imports it. Either wire it into the lock flow or delete it; do not
-treat it as evidence that workout locking has a UI.
+`WorkoutLockBanner.tsx` was deleted. Workout locking has no UI until a lock acquire/renew/release flow exists.
 
 ---
 
@@ -276,7 +275,7 @@ Described here so nobody re-invents them by accident, and so nobody builds them 
 - **Scheduled Sheets publishing.** Publishing is manual.
 - **Per-set sync badges** (`PENDING` / `IN_FLIGHT` / `ACKED` / `REJECTED`) on individual set rows. Sync state is
   currently aggregate, in the shell status strip.
-- **Workout lock UI.** See `WorkoutLockBanner.tsx` above.
+- **Workout lock UI.** No acquire/renew/release flow and no banner.
 - **Exercise reorder by drag** with `lexo_rank`.
 - **Light theme.** Dark only.
 

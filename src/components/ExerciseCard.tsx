@@ -29,6 +29,7 @@ export const ExerciseCard = ({
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
   roleMode?: 'coach' | 'athlete',
+  key?: string | number,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => {
     if (setArray.length === 0) return setArray;

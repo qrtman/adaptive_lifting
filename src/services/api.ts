@@ -1,10 +1,12 @@
 import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
-import { getSnapshot, saveSnapshot } from './db';
+import { saveSnapshot } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 
-const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
+import { backendOrigin, backendPath } from './backendUrl';
+
+const BACKEND_URL = backendOrigin();
 
 /**
  * Recalculates metrics for a workout: exercise volumes, top single labels, and day's overall tonnage.
@@ -68,14 +70,6 @@ export function recalculateWorkoutMetrics(
 }
 
 async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
-  try {
-    const cached = await getSnapshot('microcycles');
-    if (cached && Array.isArray(cached) && cached[0]?.workouts) {
-      return cached;
-    }
-  } catch (err) {
-    console.warn('IndexedDB snapshot read failed.', err);
-  }
   return [];
 }
 
@@ -330,6 +324,7 @@ export const apiService = {
   },
 
   async fetchRoster() {
+    if (!BACKEND_URL) throw new Error('Backend is not configured.');
     const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('Failed to fetch roster');
     return await response.json();
@@ -339,7 +334,8 @@ export const apiService = {
    * Triggers a fetch call to download the CSV export blob.
    */
   async downloadExportCSV(liftCategory?: string, tier?: string): Promise<Blob> {
-    const baseUrl = BACKEND_URL || 'http://localhost:8000';
+    const baseUrl = BACKEND_URL;
+    if (!baseUrl) throw new Error('Backend is not configured.');
     let url = `${baseUrl}/api/export/csv`;
     const params = [];
     if (liftCategory) params.push(`lift_category=${encodeURIComponent(liftCategory)}`);
@@ -355,11 +351,30 @@ export const apiService = {
    * Triggers a fetch call to download the JSON export blob.
    */
   async downloadExportJSON(): Promise<Blob> {
-    const baseUrl = BACKEND_URL || 'http://localhost:8000';
+    const baseUrl = BACKEND_URL;
+    if (!baseUrl) throw new Error('Backend is not configured.');
     const url = `${baseUrl}/api/export/json`;
     const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('JSON export download failed');
     return await response.blob();
+  },
+
+  async updateMicrocycleBounds(microcycleId: string, startDate: string, endDate: string): Promise<void> {
+    const url = backendPath(`/api/microcycles/${microcycleId}/bounds`);
+    if (!url) return;
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ startDate, endDate }),
+      });
+      if (!response.ok && response.status !== 404) {
+        console.warn('Failed to persist microcycle dates on the backend.');
+      }
+    } catch (err) {
+      console.warn('Failed to persist microcycle dates on the backend.', err);
+    }
   },
 
   async logout() {

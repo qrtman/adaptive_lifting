@@ -55,7 +55,7 @@ browser unless a backend is wired. Most development and all end-to-end tests run
 1. **Numeric integrity.** Training values are numeric end to end. `src/services/numericTraining.ts` guards conversion.
 2. **Offline-tolerant logging.** Sessions can be logged with no network. Mutations queue in IndexedDB and flush later.
 3. **Chronological binding.** Every workout carries a `YYYY-MM-DD` date. Rescheduling must not break date assignment.
-4. **Microcycle boundary.** Workouts cannot move or be added outside that week's start–end dates. Dates are stored on the client microcycle, editable by the coach, and default to the ISO week of placed sessions when unset. Enforced client-side.
+4. **Microcycle boundary.** Workouts cannot move or be added outside that week's start–end dates. Dates are stored on the client microcycle and on the backend `microcycles.startDate` / `endDate` columns. Unset weeks default to the ISO week of placed sessions. The client enforces on drag/add; sync rejects `date` writes outside the range.
 5. **Kilograms canonical.** One storage unit regardless of display preference.
 6. **Idempotent sync.** Mutations carry ids so retries cannot duplicate logs.
 7. **LocalStorage is UI preferences only.** Workout trees live in IndexedDB.
@@ -87,12 +87,9 @@ browser unless a backend is wired. Most development and all end-to-end tests run
 | Integrations | `backend/integrations.py` | Telegram and Google Sheets routers |
 | SSE | `backend/sse_broadcaster.py` | Backend broadcasts committed domain events |
 
-**Known wiring debt.** `VITE_BACKEND_URL` is honoured only by `src/services/api.ts`. `sync_engine.ts`,
-`LoginView.tsx`, `SecurityView.tsx`, `TelegramLinkPanel.tsx`, and `SheetsPublishPanel.tsx` hardcode
-`http://localhost:8000`, so they break anywhere but a local dev machine. There is no Vite dev proxy.
+**Built.** Frontend fetches go through `src/services/backendUrl.ts` (`VITE_BACKEND_URL`). When that origin is empty the app stays local-first and does not call localhost. There is no Vite dev proxy.
 
-**Not built.** No frontend subscribes to SSE. There is no service or repository layer in the backend; request
-handling and business logic both live in `main.py`, apart from `sync_service.py` and `integrations.py`.
+**Not built.** No frontend subscribes to SSE. Request handling still lives mostly in `main.py`. Microcycle date/copy logic is in `backend/microcycle_ops.py`.
 
 ---
 
@@ -124,10 +121,11 @@ handling and business logic both live in `main.py`, apart from `sync_service.py`
 | `integration_outbox` | Retryable outbound jobs | Yes |
 | `sheet_publications` | Publish records | Model only; publishing goes through the outbox |
 
-**Partly built.** The backend `microcycles` table has no start or end date columns. The client stores
-optional `startDate` / `endDate` on `MicrocycleData` and persists them in the athlete plan snapshot.
-Unset weeks derive an ISO Monday–Sunday from placed sessions. There is no VBT telemetry table. Indexes
-are created by `create_all` plus inline `ALTER TABLE` in `migrate_db()`; there is no migration tool.
+**Built.** `microcycles.startDate` and `endDate` are optional `YYYY-MM-DD` columns, patched via
+`PATCH /api/microcycles/{id}/bounds` and returned from `GET /api/microcycles`. `POST /api/microcycles/{id}/copy`
+duplicates prescriptions with new ids. Unset weeks derive an ISO Monday–Sunday from session dates on both
+client and server. There is no VBT telemetry table. Indexes are created by `create_all` plus inline
+`ALTER TABLE` in `migrate_db()`; there is no migration tool.
 
 Client types live in `src/types.ts` and do not mirror this schema exactly. The client tree is
 `MicrocycleData → WorkoutData → ExerciseData → SetData`.
@@ -201,7 +199,7 @@ a column on a set and is not modelled.
 | Area | Endpoints |
 | :--- | :--- |
 | Auth | `POST /api/auth/login`, `/api/auth/google`, `/api/auth/logout`, `/api/auth/register`, `/api/auth/link-athlete` |
-| Training | `GET /api/microcycles`, `POST /api/sets/log`, `POST /api/workouts/{id}/sync`, `POST /api/reset` |
+| Training | `GET /api/microcycles` (empty when the athlete has no weeks; never auto-seeds a demo tree), `PATCH /api/microcycles/{id}/bounds`, `POST /api/microcycles/{id}/copy`, `POST /api/sets/log`, `POST /api/workouts/{id}/sync`, `POST /api/reset` |
 | Coaching | `GET /api/coach/roster` |
 | Analytics | `GET /api/analytics/trends`, `GET /api/analytics/ai-advisor` |
 | Export | `GET /api/export/csv`, `GET /api/export/json` |
@@ -280,9 +278,9 @@ Math parity is the one genuinely cross-language guarantee, via `tests/math_vecto
 `backend/test_math.py` still asserts inline values rather than reading the shared vectors; prefer the vectors.
 
 End-to-end tests run against the local-first frontend with no backend, and the offline spec mocks the sync API.
+`backend/test_microcycle_ops.py` and `backend/test_microcycles.py` cover week dates, copy, empty GET, and reset.
 
-**Not built.** OpenAPI contract tests, IndexedDB migration tests, session revocation tests, and server-side
-microcycle boundary tests.
+**Not built.** OpenAPI contract tests, IndexedDB migration tests, and session revocation tests.
 
 ---
 
@@ -300,8 +298,8 @@ src/
     exerciseCatalog.ts
     fixtures/            real imported blocks and roster seeds; sample data, never spec
   insights/construct.ts  Insights KPI and chart catalog
-  services/              api, db, planStore, sync_engine, mathEngine,
-                         localRoster, numericTraining, workoutDays
+  services/              api, backendUrl, db, planStore, sync_engine, mathEngine,
+                         localRoster, numericTraining, workoutDays, copyMicrocycle
   storage/uiPrefs.ts     LocalStorage UI preferences only
 backend/
   main.py                app, auth, training, analytics, export, security routes
@@ -310,7 +308,7 @@ backend/
   math_utils.py          canonical formulas
   integrations.py        Telegram and Sheets routers
   sse_broadcaster.py     SSE from committed domain events
-  runtime_config.py  accessory_migration.py  test_*.py
+  runtime_config.py  accessory_migration.py  microcycle_ops.py  test_*.py
 e2e/                     Playwright specs and helpers
 tests/                   shared math vectors and their pytest
 scripts/                 offline data conversion, not runtime code
@@ -328,7 +326,6 @@ is written down.
 
 **Debt worth fixing when nearby**
 
-- Route every backend call through one configured base URL instead of hardcoded `http://localhost:8000`.
 - Enforce session revocation in `get_current_user`.
 - Authorise prescription writes on `/api/sets/log` and sync.
 - Authorise the SSE endpoint.
@@ -372,8 +369,8 @@ exists.
 | Emit SSE from committed domain events | Live telemetry must never show data that later rolls back | Backend only |
 | Cache plans per athlete with provenance and a content version | A shared unversioned snapshot went stale and could only be fixed by a destructive manual re-import | Yes |
 | Resolve athlete plans through a registry | Athlete-specific branching spread one import across the whole codebase | Yes |
-| Every schedule belongs to an athlete | An unowned demo microcycle tree sat in Sessions and forced a Roster detour | Yes — frontend. Backend `GET /api/microcycles` still returns a demo tree; the client no longer loads it. |
-| Enforce microcycle boundary locks on client and server | Workload metrics break if workouts cross week dates | Client only; dates are coach-editable |
+| Every schedule belongs to an athlete | An unowned demo microcycle tree sat in Sessions and forced a Roster detour | Yes — `GET /api/microcycles` returns the athlete's weeks or `[]`. It does not plant a demo tree. |
+| Enforce microcycle boundary locks on client and server | Workload metrics break if workouts cross week dates | Client drag/add; sync rejects `date` writes outside stored or derived bounds |
 | Session-backed JWT revocation | Logout and device revocation need server-side invalidation | **No** — see §9 |
 | Tombstones for soft deletes | Prevents resurrecting deleted records from offline edits | Columns only |
 | Fractional indexing (LexoRank) | Resolves offline reorder conflicts without rewriting siblings | **No** |

@@ -18,6 +18,7 @@ export function SessionWorkoutEditor({
   workout: WorkoutData;
   microcycleId: string;
   roleMode?: 'coach' | 'athlete';
+  key?: string | number;
 }) {
   const {
     updateExerciseSets,

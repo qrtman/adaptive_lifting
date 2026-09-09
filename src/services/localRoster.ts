@@ -38,10 +38,27 @@ export async function loadLocalRoster(): Promise<LocalAthlete[]> {
   return SEEDED_ATHLETES;
 }
 
+export function rosterHasName(roster: LocalAthlete[], name: string): boolean {
+  const needle = name.trim().toLowerCase();
+  return roster.some((row) => row.name.trim().toLowerCase() === needle);
+}
+
+export class DuplicateAthleteNameError extends Error {
+  constructor() {
+    super('That name is already on the roster.');
+    this.name = 'DuplicateAthleteNameError';
+  }
+}
+
 export async function addLocalAthlete(athlete: Omit<LocalAthlete, 'id' | 'linked'>): Promise<LocalAthlete[]> {
   const current = await loadLocalRoster();
+  const name = athlete.name.trim();
+  if (rosterHasName(current, name)) {
+    throw new DuplicateAthleteNameError();
+  }
   const next: LocalAthlete = {
     ...athlete,
+    name,
     id: `athlete-${Date.now()}`,
     linked: false,
   };

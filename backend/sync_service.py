@@ -6,9 +6,10 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 from .database import (
-    Workout, ExerciseSet, Exercise, SyncMutation, 
-    WorkoutLock, DomainEvent, AuditEvent
+    Workout, ExerciseSet, Exercise, SyncMutation,
+    WorkoutLock, DomainEvent, AuditEvent, Microcycle
 )
+from .microcycle_ops import date_in_microcycle
 
 class SyncFieldMutation(BaseModel):
     entity: str
@@ -86,6 +87,23 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
             # Upsert logic can be added here if needed, but assuming client only mutates existing for now.
             rejected.append(change.mutation_id)
             continue
+
+        if change.entity == "Workout" and "date" in change.fields:
+            target_date = change.fields["date"]
+            micro = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+            if micro is not None:
+                if not date_in_microcycle(str(target_date), micro):
+                    rejected.append(change.mutation_id)
+                    conflicts.append({
+                        "mutation_id": change.mutation_id,
+                        "reason": "MICROCYCLE_BOUNDARY",
+                    })
+                    db.add(SyncMutation(
+                        mutation_id=change.mutation_id, client_device_id=payload.client_device_id,
+                        entity_type=change.entity, entity_id=change.id, field_path="date",
+                        updated_at=client_updated, result="REJECTED_BOUNDARY"
+                    ))
+                    continue
             
         if entity.deleted_at is not None:
             rejected.append(change.mutation_id)

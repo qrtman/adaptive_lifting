@@ -53,7 +53,9 @@ class Microcycle(Base, TimestampMixin):
     active = Column(Boolean, default=False)
     owner_id = Column(String, ForeignKey("users.id"), nullable=True)
     mesocycle_id = Column(String, ForeignKey("mesocycles.id"), nullable=True)
-    
+    startDate = Column(String, nullable=True)
+    endDate = Column(String, nullable=True)
+
     workouts = relationship("Workout", back_populates="microcycle", cascade="all, delete-orphan")
 
 class Workout(Base, TimestampMixin):

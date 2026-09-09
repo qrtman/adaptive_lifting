@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { apiFetch, backendOrigin } from '../services/backendUrl';
 import { 
   FileSpreadsheet, CheckCircle2, XCircle, RefreshCw, 
   Trash2, Send, ExternalLink, Calendar, CheckSquare, Square, ChevronDown 
@@ -24,9 +25,13 @@ export const SheetsPublishPanel: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
 
   const fetchStatusAndJobs = async (silent = false) => {
+    if (!backendOrigin()) {
+      if (!silent) setStatus('disconnected');
+      return;
+    }
     if (!silent) setStatus('loading');
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets/status', {
+      const res = await apiFetch('/api/integrations/google-sheets/status', {
         headers: { 'credentials': 'include' }
       });
       if (res.ok) {
@@ -70,7 +75,7 @@ export const SheetsPublishPanel: React.FC = () => {
   const connectOAuth = async () => {
     setErrorMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets/auth-url', {
+      const res = await apiFetch('/api/integrations/google-sheets/auth-url', {
         headers: { 'credentials': 'include' }
       });
       if (res.ok) {
@@ -95,7 +100,7 @@ export const SheetsPublishPanel: React.FC = () => {
     }
     setStatus('loading');
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets', {
+      const res = await apiFetch('/api/integrations/google-sheets', {
         method: 'DELETE',
         headers: { 'credentials': 'include' }
       });
@@ -123,7 +128,7 @@ export const SheetsPublishPanel: React.FC = () => {
       // Mock or fetch active mesocycle ID
       const mockMesoId = athleteObj?.activeMesocycleId || "mesocycle-active-alpha-09";
       
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets/publish', {
+      const res = await apiFetch('/api/integrations/google-sheets/publish', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

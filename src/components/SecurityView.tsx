@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch, backendOrigin } from '../services/backendUrl';
 import { 
   Shield, Laptop, KeyRound, History, XCircle, AlertTriangle, 
   ChevronDown, ChevronUp, RefreshCw, FileJson, CheckCircle2 
@@ -38,23 +39,30 @@ export const SecurityView: React.FC = () => {
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
 
   const fetchSecurityData = async (silent = false) => {
+    if (!backendOrigin()) {
+      setDevices([]);
+      setSessions([]);
+      setAuditEvents([]);
+      setLoading(false);
+      return;
+    }
     if (!silent) setLoading(true);
     setErrorMsg(null);
     try {
       // 1. Fetch devices
-      const resDev = await fetch('http://localhost:8000/api/security/devices', { credentials: 'include' });
+      const resDev = await apiFetch('/api/security/devices', { credentials: 'include' });
       if (!resDev.ok) throw new Error("Failed to load client devices");
       const devData = await resDev.json();
       setDevices(devData);
 
       // 2. Fetch sessions
-      const resSess = await fetch('http://localhost:8000/api/security/sessions', { credentials: 'include' });
+      const resSess = await apiFetch('/api/security/sessions', { credentials: 'include' });
       if (!resSess.ok) throw new Error("Failed to load active login sessions");
       const sessData = await resSess.json();
       setSessions(sessData);
 
       // 3. Fetch audit events
-      const resAudit = await fetch('http://localhost:8000/api/security/audit-events', { credentials: 'include' });
+      const resAudit = await apiFetch('/api/security/audit-events', { credentials: 'include' });
       if (resAudit.status === 401) {
         // Session invalid, redirect
         window.dispatchEvent(new CustomEvent('auth-session-revoked'));
@@ -77,7 +85,7 @@ export const SecurityView: React.FC = () => {
     }
     setRevokingId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/security/devices/${id}`, {
+      const res = await apiFetch(`/api/security/devices/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -100,7 +108,7 @@ export const SecurityView: React.FC = () => {
     }
     setRevokingId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/security/sessions/${id}`, {
+      const res = await apiFetch(`/api/security/sessions/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });

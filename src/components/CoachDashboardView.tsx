@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { addLocalAthlete } from '../services/localRoster';
+import { addLocalAthlete, DuplicateAthleteNameError } from '../services/localRoster';
 
 interface CoachDashboardViewProps {
   onOpenSessions: () => void;
@@ -23,13 +23,18 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
       return;
     }
     setAddError(null);
-    await addLocalAthlete({
-      name,
-      email: addEmail.trim() || null,
-      currentBlock: null,
-      activeMicrocycles: 0,
-      peakE1RM: { squat: null, bench: null, deadlift: null },
-    });
+    try {
+      await addLocalAthlete({
+        name,
+        email: addEmail.trim() || null,
+        currentBlock: null,
+        activeMicrocycles: 0,
+        peakE1RM: { squat: null, bench: null, deadlift: null },
+      });
+    } catch (err) {
+      setAddError(err instanceof DuplicateAthleteNameError ? err.message : 'Could not add athlete.');
+      return;
+    }
     setAddName('');
     setAddEmail('');
     await refreshRoster();
@@ -48,8 +53,7 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
         <p className="text-zinc-400 text-sm mt-2">Identities. Click a name to open their sessions.</p>
       </div>
 
-      <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl mb-6 backdrop-blur-xl relative overflow-hidden group">
-        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-mac-blue to-transparent opacity-50" />
+      <div className="border border-white/10 bg-[#131313] p-4 mb-6">
         <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4">Active Roster</h2>
 
         {!rosterReady ? (
@@ -91,7 +95,7 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
         )}
       </div>
 
-      <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+      <div className="border border-white/10 bg-[#131313] p-4">
         <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4">Onboarding Tools</h2>
         <form
           onSubmit={handleAddAthlete}
@@ -128,12 +132,12 @@ export const CoachDashboardView: React.FC<CoachDashboardViewProps> = ({ onOpenSe
         <div className="border border-white/10 p-3">
           <p className="text-xs text-[#AEAEB2] mb-2">Coach invite code</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 bg-black rounded-lg px-3 py-2 text-sm text-mac-blue border border-zinc-800">
+            <code className="flex-1 bg-[#161616] border border-white/10 px-3 py-2 text-sm text-[#007AFF] font-mono">
               {userEmail}
             </code>
             <button
               onClick={copyLinkCode}
-              className="bg-mac-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
+              className="h-10 px-3 text-xs text-white bg-[#007AFF]"
             >
               Copy
             </button>

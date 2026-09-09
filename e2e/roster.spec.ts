@@ -37,6 +37,22 @@ test('an athlete without a block opens an empty Sessions view', async ({ page })
   await expect(page.getByTestId('sessions-empty')).toBeVisible();
 });
 
+test('duplicate athlete names are rejected', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'roster',
+  });
+  await page.goto('/');
+  await page.getByTestId('nav-roster').click();
+  await page.getByTestId('add-athlete-name').fill('Second Athlete');
+  await page.getByTestId('add-athlete-submit').click();
+  await expect(page.getByTestId('roster-list').getByText('Second Athlete')).toHaveCount(1);
+  await page.getByTestId('add-athlete-name').fill('second athlete');
+  await page.getByTestId('add-athlete-submit').click();
+  await expect(page.getByRole('alert')).toContainText('already on the roster');
+  await expect(page.getByTestId('roster-list').getByText('Second Athlete')).toHaveCount(1);
+});
+
 test('switching athletes in the sidebar swaps sessions in place', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',

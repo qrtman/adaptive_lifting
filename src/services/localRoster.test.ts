@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalAthlete } from '../types';
-import { mergeRoster } from './localRoster';
+import { mergeRoster, rosterHasName } from './localRoster';
 
 const LOCAL: LocalAthlete = {
   id: 'athlete-local',
@@ -37,5 +37,12 @@ describe('mergeRoster', () => {
     expect(merged[0].peakE1RM.squat).toBe(200);
     expect(merged[0].activeMicrocycles).toBe(3);
     expect(merged[0].linked).toBe(true);
+  });
+});
+
+describe('rosterHasName', () => {
+  it('treats the same name with different casing as a duplicate', () => {
+    expect(rosterHasName([LOCAL], 'local athlete')).toBe(true);
+    expect(rosterHasName([LOCAL], 'Other Athlete')).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import type { InsightKpi } from '../../insights/construct';
 
-export function InsightKpiStrip({ kpis }: { kpis: InsightKpi[] }) {
+export function InsightKpiStrip({ kpis }: { kpis: InsightKpi[]; key?: string | number }) {
   return (
     <div
       data-testid="insight-kpi-strip"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiFetch, backendOrigin } from '../services/backendUrl';
 
 export const LoginView = () => {
   const { signIn } = useAuth();
@@ -14,17 +15,21 @@ export const LoginView = () => {
     setLoading(true);
     setError(null);
     try {
+      if (!backendOrigin()) {
+        if (!email.trim()) throw new Error('Email is required.');
+        signIn({ email: email.trim(), role: 'COACH' });
+        return;
+      }
       const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
 
-      const res = await fetch('http://localhost:8000/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData.toString(),
-        credentials: 'include'
       });
       if (!res.ok) {
         throw new Error('Invalid credentials');
@@ -47,13 +52,16 @@ export const LoginView = () => {
         setLoading(false);
         return;
       }
+      if (!backendOrigin()) {
+        signIn({ email: mockEmail, role: 'COACH' });
+        return;
+      }
       const token = `mock_google_token_${mockEmail.split('@')[0]}`;
 
-      const res = await fetch('http://localhost:8000/api/auth/google', {
+      const res = await apiFetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, role: 'COACH' }),
-        credentials: 'include'
       });
 
       if (!res.ok) {

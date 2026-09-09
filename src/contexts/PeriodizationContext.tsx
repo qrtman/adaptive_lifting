@@ -384,6 +384,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         micro.id === microcycleId ? { ...micro, startDate, endDate } : micro,
       ),
     );
+    void apiService.updateMicrocycleBounds(microcycleId, startDate, endDate);
   };
 
   const copyMicrocycle = (microcycleId: string): string | null => {

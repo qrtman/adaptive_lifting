@@ -37,6 +37,7 @@ function NavButton({
   testId?: string;
   active: boolean;
   onNavigate: (mode: DashboardMode) => void;
+  key?: string | number;
 }) {
   const Icon = ICONS[mode];
   return (
