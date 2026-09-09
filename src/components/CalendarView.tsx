@@ -246,7 +246,7 @@ export function CalendarView({
       ) : (
         <div data-testid="calendar-timeline" className="border border-white/10 bg-[#131313]">
           <div className="flex">
-            <div className="hidden lg:block w-56 shrink-0" />
+            <div className="w-44 sm:w-56 shrink-0" />
             <div className="grid grid-cols-7 flex-1 min-w-0">
               {WEEKDAYS.map((day) => (
                 <div key={day} className="h-6 px-1 font-mono text-[10px] text-[#AEAEB2]">
@@ -263,8 +263,8 @@ export function CalendarView({
             const continuing = onRow.filter((item) => !starting.includes(item));
             const primary = starting[0];
             return (
-              <div key={monday} className="flex flex-col lg:flex-row border-t border-white/10">
-                <div className="lg:w-56 shrink-0 p-1 flex flex-wrap items-center gap-1">
+              <div key={monday} className="flex flex-row border-t border-white/10">
+                <div className="w-44 sm:w-56 shrink-0 p-1 flex flex-wrap items-center gap-1">
                   {continuing.map((item) => (
                     <span key={item.micro.id} className="text-[10px] text-[#636366]">
                       {item.micro.weekName}
