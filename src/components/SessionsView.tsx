@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Copy, Maximize2, Minimize2, Plus, Trash2 } from 'lucide-react';
 import { WorkoutData } from '../types';
-import { formatDateSpan, resolvedMicrocycleBounds } from '../services/workoutDays';
+import { formatDateSpan, mondayOf, resolvedMicrocycleBounds, sundayOf } from '../services/workoutDays';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
@@ -51,6 +51,7 @@ export function SessionsView({
     activeAthlete,
     updateMicrocycleBounds,
     copyMicrocycle,
+    addMicrocycle,
     deleteMicrocycle,
   } = usePeriodization();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -239,9 +240,25 @@ export function SessionsView({
             <div className="border border-white/10 px-3 py-8" data-testid="sessions-empty">
               <p className="text-sm text-[#AEAEB2]">
                 {activeAthlete
-                  ? `No sessions for ${activeAthlete.name}.`
+                  ? `No weeks for ${activeAthlete.name}. Add a week, then put sessions on Calendar.`
                   : 'No athlete selected. Add one on Roster.'}
               </p>
+              {roleMode === 'coach' && activeAthlete ? (
+                <button
+                  type="button"
+                  data-testid="add-week-sessions"
+                  onClick={() => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const start = mondayOf(today);
+                    const id = addMicrocycle(start, sundayOf(start));
+                    if (id) setExpanded(id);
+                  }}
+                  className="mt-3 h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white inline-flex items-center gap-1"
+                >
+                  <Plus size={12} />
+                  Week
+                </button>
+              ) : null}
             </div>
           ) : (
 

@@ -4,7 +4,7 @@ import { evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
-import { copyMicrocycle as copyMicrocyclePlan } from '../services/copyMicrocycle';
+import { copyMicrocycle as copyMicrocyclePlan, createBlankMicrocycle } from '../services/copyMicrocycle';
 import {
   insertWorkoutChronologically,
   isIsoDate,
@@ -60,6 +60,7 @@ interface PeriodizationState {
   rescheduleWorkout: (workoutId: string, date: string) => void;
   updateMicrocycleBounds: (microcycleId: string, startDate: string, endDate: string) => void;
   copyMicrocycle: (microcycleId: string) => string | null;
+  addMicrocycle: (startDate: string, endDate: string) => string | null;
   deleteWorkout: (workoutId: string) => void;
   deleteMicrocycle: (microcycleId: string) => void;
   finishSession: (
@@ -437,6 +438,15 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     return result.copied.id;
   };
 
+  const addMicrocycle = (startDate: string, endDate: string): string | null => {
+    if (!isIsoDate(startDate) || !isIsoDate(endDate) || startDate > endDate) return null;
+    const created = createBlankMicrocycle(microcycles, startDate, endDate);
+    setMicrocycles((prev) => [...prev, created]);
+    setActiveMicrocycleId(created.id);
+    setUiPref(UI_KEYS.sessionsExpandedMicro, created.id);
+    return created.id;
+  };
+
   const deleteWorkout = (workoutId: string) => {
     const host = microcycles.find((micro) => micro.workouts.some((workout) => workout.id === workoutId));
     const target = host?.workouts.find((workout) => workout.id === workoutId);
@@ -656,6 +666,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         rescheduleWorkout,
         updateMicrocycleBounds,
         copyMicrocycle,
+        addMicrocycle,
         deleteWorkout,
         deleteMicrocycle,
         finishSession,

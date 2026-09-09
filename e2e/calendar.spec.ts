@@ -73,4 +73,21 @@ test.describe('calendar timeline', () => {
     await page.getByTestId(`delete-session-${card!.workoutId}`).click();
     await expect(page.getByTestId('calendar-day-2026-09-05').locator(`[data-testid="${card!.cardTestId}"]`)).toHaveCount(0);
   });
+
+  test('keeps month days after a week is deleted', async ({ page }) => {
+    page.once('dialog', (dialog) => dialog.accept());
+    await expect(page.getByTestId('calendar-day-2026-09-21')).toBeVisible();
+    await page.getByTestId('delete-microcycle-z-w6').click();
+    await expect(page.getByTestId('assign-micro-z-w6')).toHaveCount(0);
+    await expect(page.getByTestId('calendar-day-2026-09-21')).toBeVisible();
+    await expect(page.getByTestId('add-week-2026-09-21')).toBeVisible();
+  });
+
+  test('places a blank week on an empty calendar row', async ({ page }) => {
+    await page.getByTestId('calendar-next-month').click();
+    await expect(page.getByTestId('calendar-day-2026-10-05')).toBeVisible();
+    await page.getByTestId('add-week-2026-10-05').click();
+    await expect(page.getByRole('button', { name: 'Week 7', exact: true })).toBeVisible();
+    await expect(page.getByTestId('calendar-day-2026-10-05')).toBeVisible();
+  });
 });

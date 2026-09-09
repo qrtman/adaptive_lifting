@@ -89,11 +89,12 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 | :--- | :--- |
 | Maximized microcycle header | Name, status, editable start–end dates, Copy, Session, Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL belong on the exercise cards. |
 | Collapsed microcycle header | May show scan metrics, because there are no cards visible to read them from. Copy stays available. |
-| Microcycle dates | Each week stores optional `startDate` / `endDate` (`YYYY-MM-DD`). Unset weeks default to the ISO Monday–Sunday that contains their placed sessions. The coach edits them on the maximized Sessions header and on the Calendar week legend. Add and drag stay inside that range. |
-| Copy microcycle | Copy on the Sessions week header and on each Calendar week duplicates prescriptions into a new week after existing weeks, with new ids and no logged sets. That is the repeat action. |
-| Delete session / week | Delete on the session heading, on the Calendar session chip, and on the week header. Logged work asks for confirmation. Deleted ids stay on the cached plan so an import reconcile does not bring them back. |
+| Microcycle dates | Each week stores optional `startDate` / `endDate` (`YYYY-MM-DD`). Unset weeks default to the ISO Monday–Sunday that contains their placed sessions. The coach edits them on the maximized Sessions header and on the Calendar row for that week. Add and drag stay inside that range. |
+| Copy microcycle | Copy on the Sessions week header and on the Calendar week row duplicates prescriptions into a new week after existing weeks, with new ids and no logged sets. That is the repeat action. |
+| Add week | Calendar is a month of day cells. A Week button on an empty row places a blank week on that Monday–Sunday. Sessions empty state has the same action. Deleting a week removes the week, not the day cells. |
+| Delete session / week | Delete on the session heading, on the Calendar session chip, and on the week row. Logged work asks for confirmation. Deleted ids stay on the cached plan so an import reconcile does not bring them back. |
 | Session block | Each session is a distinct block: heading with D-label, calendar date, and title; an **End of Dn** footer with Complete/Reopen after the last exercise. Stacked sessions must never read as one undifferentiated list. |
-| Add Session | From a maximized week, Session opens Calendar with that week selected. Calendar is one date timeline for the block: sessions sit on days, weeks are ranges on that timeline. Session on a day adds there. Title is optional and not part of create. No overlay month picker, no per-week session list, and no mini month grid inside each week. |
+| Add Session | From a maximized week, Session opens Calendar with that week selected. Calendar is a month timeline: day cells stay put; weeks sit on those rows. Session on a day adds there. Title is optional and not part of create. No overlay month picker, no separate week list, and no mini month grid inside each week. |
 | Day labels | `D1`, `D2`, … are chronological within a microcycle. Inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. |
 
 ### 3.4 Roster and imported blocks
@@ -207,12 +208,12 @@ Accurate as of the current code. Each entry names the file so you can check it.
 | Surface | File | What it does | Required states |
 | :--- | :--- | :--- | :--- |
 | App shell | `AppShell.tsx`, `Sidebar.tsx` | Fixed sidebar nav, native athlete `<select>`, account block, Reset plan. Status strip when offline or queued. | offline, queued mutations, authenticated, no athletes |
-| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; editable week dates; Copy; Delete; Session opens Calendar. | loading, empty (no athlete / no sessions), filtered-empty, maximized, collapsed |
+| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; editable week dates; Copy; Delete; Session opens Calendar; empty state can add a week. | loading, empty (no athlete / no weeks), filtered-empty, maximized, collapsed |
 | Session block | `SessionWorkoutEditor.tsx` | One session: heading with D-label, date, status and tonnage; exercise cards; End of Dn footer with Complete/Reopen. | planned, in progress, completed, read-only |
 | Exercise card | `ExerciseCard.tsx` | Identity and anchor e1RM left, set table middle, Vol/INOL/`+ Set` right. Rx, `%adj`, copy-to-log, Log, e1RM with Δ. | empty sets, logged, read-only |
 | Prescription editor | `PrescriptionEditor.tsx` | Inline structured Rx per set cell. | draft, valid, invalid, read-only |
 | Add exercise | `AddExerciseDialog.tsx` | Identity-only catalog picker. | empty search, matches, custom, validation error |
-| Calendar | `CalendarView.tsx` | One date timeline for the selected athlete. Week legend (dates, Copy, Delete) plus a shared Mon–Sun grid of the block. Session chips on days; Session adds on a day; drag inside that week. | loading, empty, dragging, rejected drop outside week dates |
+| Calendar | `CalendarView.tsx` | Month of day cells for the selected athlete. Week name, dates, Copy, Delete sit on that week’s row. Week on an empty row starts from scratch. Session chips on days; drag inside the week. Deleting a week does not remove days. | loading, empty athlete, dragging, rejected drop outside week dates |
 | Roster | `CoachDashboardView.tsx` | Roster list and add-athlete form. A row selects that athlete and opens Sessions. | loading, empty roster |
 | Insights | `InsightsView.tsx`, `insights/InsightKpiStrip.tsx`, `src/insights/construct.ts` | KPI strip, INOL line, chart slots, attempts, AI coach. | loading, empty, error |
 | Conflict review | `ConflictReviewCard.tsx` | Local versus server values with a resolution choice. Surfaced from `SyncContext`. | reviewable, read-only, resolved |

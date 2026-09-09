@@ -202,6 +202,29 @@ export function eachIsoDate(start: string, end: string): string[] {
   return Array.from({ length: days + 1 }, (_, index) => addUtcDays(start, index));
 }
 
+export type MonthCell = { date: string; inMonth: boolean };
+
+/** Monday-start rows covering one UTC month. Days outside the month stay in the grid. */
+export function utcMonthGrid(year: number, monthIndex: number): MonthCell[][] {
+  if (monthIndex < 0 || monthIndex > 11) return [];
+  const monthStart = `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`;
+  const nextMonth = monthIndex === 11 ? 1 : monthIndex + 2;
+  const nextYear = monthIndex === 11 ? year + 1 : year;
+  const nextStart = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+  const monthEnd = addUtcDays(nextStart, -1);
+  const days = eachIsoDate(mondayOf(monthStart), sundayOf(monthEnd));
+  const rows: MonthCell[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    rows.push(
+      days.slice(i, i + 7).map((date) => ({
+        date,
+        inMonth: date >= monthStart && date <= monthEnd,
+      })),
+    );
+  }
+  return rows;
+}
+
 const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function utcWeekdayShort(iso: string): string {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MicrocycleData, WorkoutData } from '../types';
-import { copyMicrocycle, copyWeekName } from './copyMicrocycle';
+import { copyMicrocycle, copyWeekName, createBlankMicrocycle, nextWeekName } from './copyMicrocycle';
 import { resolvedMicrocycleBounds } from './workoutDays';
 
 function session(id: string, date: string, loggedKg: number | null = null): WorkoutData {
@@ -42,6 +42,23 @@ function session(id: string, date: string, loggedKg: number | null = null): Work
 function week(id: string, weekName: string, workouts: WorkoutData[]): MicrocycleData {
   return { id, weekName, focus: 'Base', status: 'ACTIVE', workouts };
 }
+
+describe('nextWeekName', () => {
+  it('counts existing Week N names', () => {
+    expect(nextWeekName([])).toBe('Week 1');
+    expect(nextWeekName(['Week 3', 'Week 4'])).toBe('Week 5');
+  });
+});
+
+describe('createBlankMicrocycle', () => {
+  it('places an empty week on the given dates', () => {
+    const created = createBlankMicrocycle([], '2026-09-07', '2026-09-13');
+    expect(created.weekName).toBe('Week 1');
+    expect(created.startDate).toBe('2026-09-07');
+    expect(created.endDate).toBe('2026-09-13');
+    expect(created.workouts).toEqual([]);
+  });
+});
 
 describe('copyWeekName', () => {
   it('appends copy, then increments against names already in the plan', () => {

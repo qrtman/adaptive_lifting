@@ -14,6 +14,7 @@ import {
   placeCopiedBounds,
   resolvedMicrocycleBounds,
   eachIsoDate,
+  utcMonthGrid,
 } from './workoutDays';
 
 function session(id: string, date: string, dayLabel: string): WorkoutData {
@@ -209,5 +210,23 @@ describe('eachIsoDate', () => {
       '2026-09-02',
     ]);
     expect(eachIsoDate('2026-09-02', '2026-08-31')).toEqual([]);
+  });
+});
+
+describe('utcMonthGrid', () => {
+  it('keeps a Monday-start month even when the 1st is mid-week', () => {
+    const rows = utcMonthGrid(2026, 8);
+    expect(rows[0].map((cell) => cell.date)).toEqual([
+      '2026-08-31',
+      '2026-09-01',
+      '2026-09-02',
+      '2026-09-03',
+      '2026-09-04',
+      '2026-09-05',
+      '2026-09-06',
+    ]);
+    expect(rows[0][0].inMonth).toBe(false);
+    expect(rows[0][1].inMonth).toBe(true);
+    expect(rows.some((row) => row.some((cell) => cell.date === '2026-09-30' && cell.inMonth))).toBe(true);
   });
 });

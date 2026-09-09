@@ -11,6 +11,31 @@ function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export function nextWeekName(existingNames: string[]): string {
+  let max = 0;
+  for (const name of existingNames) {
+    const match = /^Week (\d+)$/i.exec(name.trim());
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `Week ${max + 1}`;
+}
+
+export function createBlankMicrocycle(
+  existing: MicrocycleData[],
+  startDate: string,
+  endDate: string,
+): MicrocycleData {
+  return {
+    id: newId('mc'),
+    weekName: nextWeekName(existing.map((micro) => micro.weekName)),
+    focus: '',
+    status: 'DRAFT',
+    startDate,
+    endDate,
+    workouts: [],
+  };
+}
+
 export function copyWeekName(name: string, existingNames: string[] = []): string {
   const taken = new Set(existingNames);
   const copied = /^(.*) copy(?: (\d+))?$/.exec(name);
