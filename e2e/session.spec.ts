@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fillLogCell, signInCoach } from './helpers';
+import { fillLogCell, signInCoach, cardOnDate } from './helpers';
 
 test('landing sessions belong to the selected athlete', async ({ page }) => {
   await signInCoach(page, {
@@ -117,7 +117,7 @@ test('coach can copy a microcycle from Sessions', async ({ page }) => {
   await expect(page.getByTestId('micro-bound-start-z-w3')).toHaveCount(0);
 });
 
-test('coach can add a session on any calendar day', async ({ page }) => {
+test('coach can add a session on a calendar date', async ({ page }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',
     al_dashboard_mode: 'sessions',
@@ -129,8 +129,10 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   await expect(page.getByTestId('add-session-dialog')).toHaveCount(0);
   await expect(page.getByTestId('assign-micro-z-w3')).toBeVisible();
   await page.getByTestId('assign-micro-z-w3').click();
-  await page.getByTestId('add-session-day-z-w3-2026-09-05').click();
-  await expect(page.getByTestId('calendar-day-z-w3-2026-09-05').locator('[data-testid^="workout-card-"]')).toBeVisible();
+  await page.getByTestId('add-session-date-z-w3').fill('2026-09-05');
+  await page.getByTestId('add-session-week-z-w3').click();
+  const added = await cardOnDate(page, '2026-09-05');
+  expect(added).toBeTruthy();
 });
 
 test('coach can add a catalog exercise into a session', async ({ page }) => {

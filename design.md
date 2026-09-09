@@ -89,11 +89,11 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 | :--- | :--- |
 | Maximized microcycle header | Name, status, editable start–end dates, Copy, Session, Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL belong on the exercise cards. |
 | Collapsed microcycle header | May show scan metrics, because there are no cards visible to read them from. Copy stays available. |
-| Microcycle dates | Each week stores optional `startDate` / `endDate` (`YYYY-MM-DD`). Unset weeks default to the ISO Monday–Sunday that contains their placed sessions. The coach edits them on the maximized Sessions header and on each Calendar week row. Drag and Add session stay inside that range. |
+| Microcycle dates | Each week stores optional `startDate` / `endDate` (`YYYY-MM-DD`). Unset weeks default to the ISO Monday–Sunday that contains their placed sessions. The coach edits them on the maximized Sessions header and on each Calendar week row. Add session and date changes stay inside that range. |
 | Copy microcycle | Copy on the Sessions week header and on each Calendar week duplicates prescriptions into a new week after existing weeks, with new ids and no logged sets. That is the repeat action. |
-| Delete session / week | Delete on the session heading, on the Calendar session chip, and on the week header. Logged work asks for confirmation. Deleted ids stay on the cached plan so an import reconcile does not bring them back. |
+| Delete session / week | Delete on the session heading, on the Calendar session row, and on the week header. Logged work asks for confirmation. Deleted ids stay on the cached plan so an import reconcile does not bring them back. |
 | Session block | Each session is a distinct block: heading with D-label, calendar date, and title; an **End of Dn** footer with Complete/Reopen after the last exercise. Stacked sessions must never read as one undifferentiated list. |
-| Add Session | From a maximized week, Session opens Calendar with that week selected. On Calendar each day of a week has a Session button. Title is optional and not part of create. No overlay month picker. Calendar is stacked week boards, not a month grid with gesture hints. |
+| Add Session | From a maximized week, Session opens Calendar with that week selected. Each Calendar week is a session list: a date field plus Session adds, and an existing session’s date field moves it. Title is optional and not part of create. No overlay month picker, and no per-week day grid. |
 | Day labels | `D1`, `D2`, … are chronological within a microcycle. Inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. |
 
 ### 3.4 Roster and imported blocks
@@ -212,7 +212,7 @@ Accurate as of the current code. Each entry names the file so you can check it.
 | Exercise card | `ExerciseCard.tsx` | Identity and anchor e1RM left, set table middle, Vol/INOL/`+ Set` right. Rx, `%adj`, copy-to-log, Log, e1RM with Δ. | empty sets, logged, read-only |
 | Prescription editor | `PrescriptionEditor.tsx` | Inline structured Rx per set cell. | draft, valid, invalid, read-only |
 | Add exercise | `AddExerciseDialog.tsx` | Identity-only catalog picker. | empty search, matches, custom, validation error |
-| Calendar | `CalendarView.tsx` | Stacked week boards for the selected athlete. Each week has dates, Copy, Delete, per-day Session add, session Delete, drag inside that week. | loading, empty, dragging, rejected drop outside week dates |
+| Calendar | `CalendarView.tsx` | Stacked week boards for the selected athlete. Each week is a session list with dates, Copy, Delete, a date field to add or move, and session Delete. Dropping onto another week is rejected. | loading, empty, dragging, rejected drop onto another week |
 | Roster | `CoachDashboardView.tsx` | Roster list and add-athlete form. A row selects that athlete and opens Sessions. | loading, empty roster |
 | Insights | `InsightsView.tsx`, `insights/InsightKpiStrip.tsx`, `src/insights/construct.ts` | KPI strip, INOL line, chart slots, attempts, AI coach. | loading, empty, error |
 | Conflict review | `ConflictReviewCard.tsx` | Local versus server values with a resolution choice. Surfaced from `SyncContext`. | reviewable, read-only, resolved |
@@ -303,7 +303,7 @@ Check what applies to the change you made.
 
 - [ ] Sessions groups by microcycle and each week has editable start and end dates.
 - [ ] Copy on Sessions and Calendar duplicates a week as prescriptions only.
-- [ ] Cross-microcycle drag is blocked and explained.
+- [ ] Cross-week drops are blocked and explained. Sessions move with the date field inside their week.
 - [ ] Prescription uses structured controls, never parsed text.
 - [ ] Metrics use the canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Cached athlete data refreshed itself; nothing asked the user to re-open or re-import.
