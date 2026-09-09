@@ -50,6 +50,7 @@ interface PeriodizationState {
   ) => void;
   addExercise: (workoutId: string, microcycleId: string, exercise: ExerciseData) => void;
   addWorkout: (microcycleId: string, workout: WorkoutData) => void;
+  rescheduleWorkout: (workoutId: string, date: string) => void;
   finishSession: (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -361,6 +362,18 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     void queueMutation(workout.id, 'Workout', workout.id, { workout: labeled });
   };
 
+  const rescheduleWorkout = (workoutId: string, date: string) => {
+    markWorkoutEdited(workoutId);
+    setMicrocycles((prev) =>
+      prev.map((micro) => ({
+        ...micro,
+        workouts: micro.workouts.map((workout) =>
+          workout.id === workoutId ? { ...workout, date } : workout,
+        ),
+      })),
+    );
+  };
+
   const finishSession = async (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -511,6 +524,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         updateExerciseSets,
         addExercise,
         addWorkout,
+        rescheduleWorkout,
         finishSession,
         resetPlan,
       }}

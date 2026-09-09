@@ -28,6 +28,62 @@ export function firstPlanDate(
   return fallback;
 }
 
+export function addUtcDays(iso: string, days: number): string {
+  const date = parseUtc(iso);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatUtc(date);
+}
+
+/**
+ * Calendar placement for a session. Stored ISO dates win. Undated sessions
+ * (imports that had no calendar column) occupy origin + week*7 + day index
+ * so Calendar and Insights still have a day to show.
+ */
+export function sessionCalendarDate(
+  workout: Pick<WorkoutData, 'date'>,
+  microIndex: number,
+  workoutIndex: number,
+  origin = FALLBACK_SESSION_DATE,
+): string {
+  if (isIsoDate(workout.date)) return workout.date;
+  return addUtcDays(origin, microIndex * 7 + workoutIndex);
+}
+
+export type PlacedSession = {
+  workout: WorkoutData;
+  micro: MicrocycleData;
+  microIndex: number;
+  workoutIndex: number;
+  date: string;
+};
+
+export function placedSessions(microcycles: MicrocycleData[]): PlacedSession[] {
+  const placed: PlacedSession[] = [];
+  microcycles.forEach((micro, microIndex) => {
+    micro.workouts.forEach((workout, workoutIndex) => {
+      placed.push({
+        workout,
+        micro,
+        microIndex,
+        workoutIndex,
+        date: sessionCalendarDate(workout, microIndex, workoutIndex),
+      });
+    });
+  });
+  return placed;
+}
+
+export function microcycleCalendarSpan(
+  micro: MicrocycleData,
+  microIndex: number,
+): { start: string; end: string } | null {
+  if (micro.workouts.length === 0) return null;
+  const dates = micro.workouts
+    .map((workout, workoutIndex) => sessionCalendarDate(workout, microIndex, workoutIndex))
+    .sort();
+  return { start: dates[0], end: dates[dates.length - 1] };
+}
+
 function parseUtc(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d));
@@ -81,23 +137,29 @@ export function inferMicrocycleId(
   microcycles: MicrocycleData[],
   fallbackId: string,
 ): string {
-  const occupying = microcycles.filter((m) => m.workouts.some((w) => w.date === date));
-  if (occupying.length === 1) return occupying[0].id;
+  const placed = placedSessions(microcycles);
+  const occupying = [...new Set(placed.filter((row) => row.date === date).map((row) => row.micro.id))];
+  if (occupying.length === 1) return occupying[0];
 
-  const spanning = microcycles.filter((m) => {
-    const dates = m.workouts.map((w) => w.date).filter(isIsoDate).sort();
-    if (dates.length === 0) return false;
-    return date >= dates[0] && date <= dates[dates.length - 1];
+  const datesByMicro = new Map<string, string[]>();
+  for (const row of placed) {
+    const dates = datesByMicro.get(row.micro.id) ?? [];
+    dates.push(row.date);
+    datesByMicro.set(row.micro.id, dates);
+  }
+
+  const spanning = [...datesByMicro.entries()].filter(([, dates]) => {
+    const sorted = [...dates].sort();
+    return date >= sorted[0] && date <= sorted[sorted.length - 1];
   });
-  if (spanning.length === 1) return spanning[0].id;
+  if (spanning.length === 1) return spanning[0][0];
 
   if (!isIsoDate(date)) return fallbackId;
   const targetMonday = mondayOf(date);
-  const sameWeek = microcycles.filter((m) => {
-    const mondays = new Set(m.workouts.map((w) => w.date).filter(isIsoDate).map(mondayOf));
-    return mondays.has(targetMonday);
-  });
-  if (sameWeek.length === 1) return sameWeek[0].id;
+  const sameWeek = [...datesByMicro.entries()].filter(([, dates]) =>
+    dates.some((sessionDate) => mondayOf(sessionDate) === targetMonday),
+  );
+  if (sameWeek.length === 1) return sameWeek[0][0];
 
   return fallbackId;
 }

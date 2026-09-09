@@ -2,7 +2,7 @@ import { calculateAttemptJumps, calculateE1RM } from '../services/mathEngine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import type { LiftFilterValue } from '../components/LiftFilter';
 import type { MicrocycleData } from '../types';
-import { isIsoDate } from '../services/workoutDays';
+import { sessionCalendarDate } from '../services/workoutDays';
 
 export type InsightTimeRange = 'All' | '30d' | '90d';
 export type InsightLift = 'Squat' | 'Bench' | 'Deadlift';
@@ -37,19 +37,12 @@ export const INSIGHT_CHARTS: ReadonlyArray<{ id: InsightChartId; label: string }
 export const INSIGHT_LAYOUT = ['kpis', 'inol', 'ai', 'chart', 'attempts'] as const;
 export type InsightSection = (typeof INSIGHT_LAYOUT)[number];
 
-function chartDate(date: string, microIndex: number, workoutIndex: number): string {
-  if (isIsoDate(date)) return date;
-  const origin = new Date(Date.UTC(2026, 8, 1));
-  origin.setUTCDate(origin.getUTCDate() + microIndex * 7 + workoutIndex);
-  return origin.toISOString().slice(0, 10);
-}
-
 /** Logged sets from the selected athlete's plan. Blank session dates still produce a chart date. */
 export function trendsFromMicrocycles(micros: MicrocycleData[]): TrendPoint[] {
   const points: TrendPoint[] = [];
   micros.forEach((micro, microIndex) => {
     micro.workouts.forEach((workout, workoutIndex) => {
-      const date = chartDate(workout.date, microIndex, workoutIndex);
+      const date = sessionCalendarDate(workout, microIndex, workoutIndex);
       workout.exercises.forEach((exercise) => {
         exercise.sets.forEach((set) => {
           const weight = trainingOrZero(set.actual);

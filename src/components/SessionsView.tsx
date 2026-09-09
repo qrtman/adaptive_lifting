@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Plus } from 'lucide-react';
 import { WorkoutData } from '../types';
-import { formatDateSpan, workoutDateSpan } from '../services/workoutDays';
+import { formatDateSpan, microcycleCalendarSpan } from '../services/workoutDays';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { SessionWorkoutEditor } from './SessionWorkoutEditor';
-import { AddSessionDialog } from './AddSessionDialog';
 import TelegramSessionTerminal from './mobile/TelegramSessionTerminal';
 
 interface SessionsViewProps {
   filter: LiftFilterValue;
   onFilterChange: (value: LiftFilterValue) => void;
+  onOpenCalendar?: (microcycleId: string) => void;
 }
 
 function liftAbbrev(title: string): string {
@@ -38,6 +38,7 @@ function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
 export function SessionsView({
   filter,
   onFilterChange,
+  onOpenCalendar,
 }: SessionsViewProps) {
   const { roleMode, setRoleMode } = useAuth();
   const {
@@ -46,10 +47,8 @@ export function SessionsView({
     setActiveMicrocycleId,
     activeWorkoutId,
     setActiveWorkoutId,
-    addWorkout,
     activeAthlete,
   } = usePeriodization();
-  const [addingSessionFor, setAddingSessionFor] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const hasRestoredRef = useRef(false);
@@ -274,7 +273,7 @@ export function SessionsView({
                     data-testid={`sessions-week-dates-${micro.id}`}
                     className="font-mono text-[11px] text-[#AEAEB2]"
                   >
-                    {formatDateSpan(workoutDateSpan(micro.workouts))}
+                    {formatDateSpan(microcycleCalendarSpan(micro, idx))}
                   </span>
                 </>
               );
@@ -318,11 +317,11 @@ export function SessionsView({
                     </div>
                     )}
                     <div className="flex items-center gap-1 shrink-0">
-                      {isExpanded && roleMode === 'coach' && (
+                      {isExpanded && roleMode === 'coach' && onOpenCalendar && (
                         <button
                           type="button"
                           data-testid={`add-session-${micro.id}`}
-                          onClick={() => setAddingSessionFor(micro.id)}
+                          onClick={() => onOpenCalendar?.(micro.id)}
                           className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
                         >
                           <Plus size={12} />
@@ -405,18 +404,6 @@ export function SessionsView({
           )}
         </div>
       </div>
-      {addingSessionFor ? (
-        <AddSessionDialog
-          open
-          onClose={() => setAddingSessionFor(null)}
-          sourceMicrocycleId={addingSessionFor}
-          microcycles={microcycles}
-          onCreate={(workout, microcycleId) => {
-            addWorkout(microcycleId, workout);
-            setExpanded(microcycleId);
-          }}
-        />
-      ) : null}
     </div>
   );
 }

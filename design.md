@@ -83,14 +83,14 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 
 ### 3.3 Sessions and microcycles
 
-**Built** — `SessionsView.tsx`, `SessionWorkoutEditor.tsx`, `AddSessionDialog.tsx`.
+**Built** — `SessionsView.tsx`, `SessionWorkoutEditor.tsx`, `CalendarView.tsx`.
 
 | Decision | Rule |
 | :--- | :--- |
 | Maximized microcycle header | Name, status, start–end dates from session calendar dates, Session, Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL belong on the exercise cards. |
 | Collapsed microcycle header | May show scan metrics, because there are no cards visible to read them from. |
 | Session block | Each session is a distinct block: heading with D-label, calendar date, and title; an **End of Dn** footer with Complete/Reopen after the last exercise. Stacked sessions must never read as one undifferentiated list. |
-| Add Session | Coach picks any calendar day and assigns a microcycle. Title is optional and not part of create. No prescription step. |
+| Add Session | From a maximized week, Session opens the Calendar tab with that week selected. On Calendar the coach assigns a microcycle and clicks a day. Title is optional and not part of create. No overlay month picker. |
 | Day labels | `D1`, `D2`, … are chronological within a microcycle. Inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. |
 
 ### 3.4 Roster and imported blocks
@@ -205,13 +205,12 @@ Accurate as of the current code. Each entry names the file so you can check it.
 | Surface | File | What it does | Required states |
 | :--- | :--- | :--- | :--- |
 | App shell | `AppShell.tsx`, `Sidebar.tsx` | Fixed sidebar nav, native athlete `<select>`, account block, Reset plan. Status strip when offline or queued. | offline, queued mutations, authenticated, no athletes |
-| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; add session. | loading, empty (no athlete / no sessions), filtered-empty, maximized, collapsed |
+| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; Session opens Calendar. | loading, empty (no athlete / no sessions), filtered-empty, maximized, collapsed |
 | Session block | `SessionWorkoutEditor.tsx` | One session: heading with D-label, date, status and tonnage; exercise cards; End of Dn footer with Complete/Reopen. | planned, in progress, completed, read-only |
 | Exercise card | `ExerciseCard.tsx` | Identity and anchor e1RM left, set table middle, Vol/INOL/`+ Set` right. Rx, `%adj`, copy-to-log, Log, e1RM with Δ. | empty sets, logged, read-only |
 | Prescription editor | `PrescriptionEditor.tsx` | Inline structured Rx per set cell. | draft, valid, invalid, read-only |
 | Add exercise | `AddExerciseDialog.tsx` | Identity-only catalog picker. | empty search, matches, custom, validation error |
-| Add session | `AddSessionDialog.tsx` | Month calendar day picker plus microcycle assignment. | day selected, microcycle required, occupied day |
-| Calendar | `CalendarView.tsx` | Month grid, drag to reschedule within a microcycle, add session. | loading, empty, dragging, rejected cross-microcycle drop |
+| Calendar | `CalendarView.tsx` | Month grid of the selected athlete's sessions. Undated imports occupy sequential days from 2026-09-01. Assign a week, click a day to add, drag within a week. | loading, empty, dragging, rejected cross-microcycle drop |
 | Roster | `CoachDashboardView.tsx` | Roster list and add-athlete form. A row selects that athlete and opens Sessions. | loading, empty roster |
 | Insights | `InsightsView.tsx`, `insights/InsightKpiStrip.tsx`, `src/insights/construct.ts` | KPI strip, INOL line, chart slots, attempts, AI coach. | loading, empty, error |
 | Conflict review | `ConflictReviewCard.tsx` | Local versus server values with a resolution choice. Surfaced from `SyncContext`. | reviewable, read-only, resolved |

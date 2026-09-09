@@ -7,6 +7,8 @@ import {
   workoutDateSpan,
   firstPlanDate,
   firstUsableDate,
+  sessionCalendarDate,
+  microcycleCalendarSpan,
 } from './workoutDays';
 
 function session(id: string, date: string, dayLabel: string): WorkoutData {
@@ -135,5 +137,29 @@ describe('firstPlanDate', () => {
         workouts: [session('a', '', 'D1')],
       },
     ])).toBe('2026-09-01');
+  });
+});
+
+describe('sessionCalendarDate', () => {
+  it('keeps a stored ISO date', () => {
+    expect(sessionCalendarDate(session('a', '2026-10-04', 'D1'), 2, 3)).toBe('2026-10-04');
+  });
+
+  it('places an undated session on origin plus week and day index', () => {
+    expect(sessionCalendarDate(session('a', '', 'D1'), 0, 0)).toBe('2026-09-01');
+    expect(sessionCalendarDate(session('b', '', 'D2'), 0, 1)).toBe('2026-09-02');
+    expect(sessionCalendarDate(session('c', '', 'D1'), 1, 0)).toBe('2026-09-08');
+  });
+
+  it('spans an undated week across its placed days', () => {
+    const week = {
+      id: 'w1',
+      weekName: 'Week 1',
+      focus: 'Base',
+      status: 'ACTIVE' as const,
+      workouts: [session('a', '', 'D1'), session('b', '', 'D2'), session('c', '', 'D3')],
+    };
+    expect(microcycleCalendarSpan(week, 0)).toEqual({ start: '2026-09-01', end: '2026-09-03' });
+    expect(formatDateSpan(microcycleCalendarSpan(week, 0))).toBe('2026-09-01 – 2026-09-03');
   });
 });

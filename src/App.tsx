@@ -81,6 +81,10 @@ export default function App() {
                   <SessionsView 
                     filter={filter}
                     onFilterChange={setFilter}
+                    onOpenCalendar={(microcycleId) => {
+                      setActiveMicrocycleId(microcycleId);
+                      setDashboardMode('calendar');
+                    }}
                   />
                 ) : dashboardMode === 'insights' ? (
                   <InsightsView />

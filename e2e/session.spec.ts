@@ -22,7 +22,7 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
 
   const weekHeader = page.getByTestId('sessions-week-header-z-w3');
   await expect(weekHeader).toContainText('Week 3');
-  await expect(weekHeader.getByTestId('sessions-week-dates-z-w3')).toHaveText('—');
+  await expect(weekHeader.getByTestId('sessions-week-dates-z-w3')).toHaveText('2026-09-01 – 2026-09-04');
   await expect(page.getByTestId('session-end-z-w3-d1')).toContainText('End of D1');
   await expect(page.getByRole('heading', { name: 'Sumo deadlift' }).first()).toBeVisible();
 
@@ -113,12 +113,11 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   await page.getByTestId('sessions-expand-z-w3').click();
   await expect(page.getByTestId('add-session-z-w3')).toBeVisible();
   await page.getByTestId('add-session-z-w3').click();
-  await expect(page.getByTestId('add-session-dialog')).toBeVisible();
-  await page.getByTestId('assign-micro-z-w3').click();
-  await page.getByTestId('session-day-2026-09-17').click();
-  await page.getByTestId('create-session').click();
   await expect(page.getByTestId('add-session-dialog')).toHaveCount(0);
-  await expect(page.locator('[data-testid^="session-date-"]', { hasText: '2026-09-17' })).toBeVisible();
+  await expect(page.getByTestId('assign-micro-z-w3')).toBeVisible();
+  await page.getByTestId('assign-micro-z-w3').click();
+  await page.getByTestId('calendar-day-2026-09-05').click();
+  await expect(page.getByTestId('calendar-day-2026-09-05').locator('[data-testid^="workout-card-"]')).toBeVisible();
 });
 
 test('coach can add a catalog exercise into a session', async ({ page }) => {
