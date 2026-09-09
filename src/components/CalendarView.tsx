@@ -81,6 +81,11 @@ export function CalendarView({
     microId: string,
     date: string,
   ) => {
+    const origin = event.target as HTMLElement | null;
+    if (origin?.closest('input, button, label')) {
+      event.preventDefault();
+      return;
+    }
     dragPayloadRef.current = { workoutId, microId, date };
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', JSON.stringify({ workoutId, microId, date }));
@@ -249,6 +254,7 @@ export function CalendarView({
                           <input
                             data-testid={`calendar-session-date-${row.workout.id}`}
                             type="date"
+                            draggable={false}
                             value={row.date}
                             min={bounds.start}
                             max={bounds.end}
