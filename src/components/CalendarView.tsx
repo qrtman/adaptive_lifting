@@ -177,7 +177,7 @@ export function CalendarView({
           {microcycles.map((micro, microIndex) => {
             const bounds = resolvedMicrocycleBounds(micro, microIndex);
             const rows = sessionsForWeek(micro.id);
-            const occupied = new Set(rows.map((row) => row.date));
+            const occupied = new Set<string>(rows.map((row) => row.date));
             const addDate = addDates[micro.id] ?? firstOpenDate(bounds.start, bounds.end, occupied);
             const selected = activeMicrocycleId === micro.id;
             return (
