@@ -31,9 +31,7 @@ export const SheetsPublishPanel: React.FC = () => {
     }
     if (!silent) setStatus('loading');
     try {
-      const res = await apiFetch('/api/integrations/google-sheets/status', {
-        headers: { 'credentials': 'include' }
-      });
+      const res = await apiFetch('/api/integrations/google-sheets/status');
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'connected') {
@@ -75,9 +73,7 @@ export const SheetsPublishPanel: React.FC = () => {
   const connectOAuth = async () => {
     setErrorMsg(null);
     try {
-      const res = await apiFetch('/api/integrations/google-sheets/auth-url', {
-        headers: { 'credentials': 'include' }
-      });
+      const res = await apiFetch('/api/integrations/google-sheets/auth-url');
       if (res.ok) {
         const data = await res.json();
         if (data.auth_url) {
@@ -102,7 +98,6 @@ export const SheetsPublishPanel: React.FC = () => {
     try {
       const res = await apiFetch('/api/integrations/google-sheets', {
         method: 'DELETE',
-        headers: { 'credentials': 'include' }
       });
       if (res.ok) {
         setStatus('disconnected');
@@ -130,9 +125,8 @@ export const SheetsPublishPanel: React.FC = () => {
       
       const res = await apiFetch('/api/integrations/google-sheets/publish', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'credentials': 'include'
         },
         body: JSON.stringify({
           athlete_id: selectedAthlete,

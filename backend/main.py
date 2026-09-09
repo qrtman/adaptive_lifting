@@ -30,6 +30,13 @@ import uuid
 
 from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
 from .accessory_migration import coerce_float, coerce_int
+from .access import (
+    get_visible_microcycles,
+    require_visible_microcycle,
+    require_visible_set,
+    require_visible_workout,
+)
+from .errors import api_error
 from .microcycle_ops import apply_bounds, copy_microcycle as copy_microcycle_tree
 
 from sqlalchemy import text
@@ -169,29 +176,39 @@ def decode_access_token(token: str):
     raise jwt.InvalidTokenError("Unable to decode JWT")
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
+    credentials_exception = api_error(
+        401,
+        "SESSION_INVALID",
+        "Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     token = request.cookies.get("session_id")
     if not token:
         auth = request.headers.get("Authorization")
         if auth and auth.startswith("Bearer "):
             token = auth.split(" ")[1]
-            
+
     if not token:
         raise credentials_exception
 
     try:
         payload = decode_access_token(token)
         user_id: str = payload.get("sub")
-        if user_id is None:
+        session_id: str = payload.get("session_id")
+        if user_id is None or session_id is None:
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
-        
+
+    from .database import Session as DBSession
+    sess = db.query(DBSession).filter(
+        DBSession.id == session_id,
+        DBSession.user_id == user_id,
+    ).first()
+    if sess is None or sess.revoked_at is not None or sess.expires_at <= datetime.utcnow():
+        raise credentials_exception
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
@@ -549,27 +566,10 @@ def get_roster(db: Session = Depends(get_db), current_user: User = Depends(get_c
             })
     return athletes
 
-def get_visible_microcycles(db: Session, current_user: User):
-    if current_user.role == "COACH":
-        relationships = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id).all()
-        athlete_ids = [rel.athlete_id for rel in relationships]
-        return db.query(Microcycle).filter(Microcycle.owner_id.in_(athlete_ids)).all()
-    else:
-        return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
-
 @app.get("/api/microcycles")
 def get_microcycles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
-
-def require_visible_microcycle(db: Session, current_user: User, microcycle_id: str) -> Microcycle:
-    micro = db.query(Microcycle).filter(Microcycle.id == microcycle_id).first()
-    if not micro:
-        raise HTTPException(status_code=404, detail="Microcycle not found")
-    visible_ids = {row.id for row in get_visible_microcycles(db, current_user)}
-    if micro.id not in visible_ids:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return micro
 
 @app.patch("/api/microcycles/{microcycle_id}/bounds")
 def update_microcycle_bounds(
@@ -600,9 +600,7 @@ def copy_microcycle_endpoint(
 
 @app.post("/api/sets/log")
 def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    s = db.query(ExerciseSet).filter(ExerciseSet.id == req.setId).first()
-    if not s:
-        raise HTTPException(status_code=404, detail="Target set not found")
+    s, workout = require_visible_set(db, current_user, req.setId, req.workoutId, req.exerciseId)
 
     s.actual = req.weight
     s.reps = req.reps
@@ -617,7 +615,7 @@ def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: Use
         s.hrv = req.hrv
 
     db.commit()
-    recalculate_metrics(db, req.workoutId, db.query(Workout).filter(Workout.id == req.workoutId).first().dayLabel)
+    recalculate_metrics(db, workout.id, workout.dayLabel)
     
     analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
@@ -1010,7 +1008,10 @@ Schema:
 
 @app.post("/api/workouts/{id}/sync")
 def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return resolve_sync_payload(db, payload, current_user.id)
+    if payload.workout_id != id:
+        raise api_error(400, "WORKOUT_MISMATCH", "Sync payload workout_id does not match the URL.")
+    require_visible_workout(db, current_user, id)
+    return resolve_sync_payload(db, payload, current_user)
 
 @app.get("/api/security/devices")
 def get_devices(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

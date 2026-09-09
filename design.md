@@ -158,8 +158,7 @@ Known debt: none on Roster chrome.
 | UI sans | `--font-sans` | Labels, headings, menus |
 | Data mono | `JetBrains Mono` (`--font-mono`) | All numerics, so columns align |
 
-Every training number renders in mono with tabular figures. Known debt: `--font-sans` is currently `Arial`
-even though Inter is imported in `src/index.css`.
+Every training number renders in mono with tabular figures. `--font-sans` is `Inter`.
 
 ### 4.3 Numeric formatting
 
@@ -216,7 +215,7 @@ Accurate as of the current code. Each entry names the file so you can check it.
 | Roster | `CoachDashboardView.tsx` | Roster list and add-athlete form. A row selects that athlete and opens Sessions. | loading, empty roster |
 | Insights | `InsightsView.tsx`, `insights/InsightKpiStrip.tsx`, `src/insights/construct.ts` | KPI strip, INOL line, chart slots, attempts, AI coach. | loading, empty, error |
 | Conflict review | `ConflictReviewCard.tsx` | Local versus server values with a resolution choice. Surfaced from `SyncContext`. | reviewable, read-only, resolved |
-| Security | `SecurityView.tsx` | Devices and sessions with revoke. | loading, empty, active, revoking |
+| Security | `SecurityView.tsx` | Devices, sessions, and audit events with revoke. Operational panels; empty when no backend. | loading, empty, active, revoking, disconnected |
 | Telegram settings | `TelegramLinkPanel.tsx` | Link token, status, disconnect. | disconnected, linking, connected, failed |
 | Sheets publish | `SheetsPublishPanel.tsx` | OAuth connect, publish, outbox status. | disconnected, connected, publishing, failed, revoked |
 | Athlete terminal | `mobile/TelegramSessionTerminal.tsx` | Athlete-mode set logging with exercise tabs. | active set, logged, offline |
@@ -269,7 +268,6 @@ Described here so nobody re-invents them by accident, and so nobody builds them 
 - **SSE live telemetry panel.** The backend broadcasts; no frontend subscribes.
 - **Meet day planner** as a dedicated surface. Attempt maths exists inside Insights.
 - **Volume and intensity profile** and **movement variation drill-down** analytics tabs.
-- **Audit event table.** The backend endpoint exists; `SecurityView` shows devices and sessions only.
 - **Standalone athlete mobile PWA** and the chronological cross-exercise logging feed.
 - **Telegram Mini App frontend route.**
 - **Scheduled Sheets publishing.** Publishing is manual.

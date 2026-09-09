@@ -208,8 +208,8 @@ a column on a set and is not modelled.
 | Sheets | `GET /api/integrations/google-sheets/auth-url`, `/callback`, `/status`; `POST .../publish`; `DELETE /api/integrations/google-sheets` |
 | Live | `GET /api/workouts/{workout_id}/live` (SSE) |
 
-There is no health endpoint and no OpenAPI contract test. Error shapes are inconsistent: some routes return a
-plain string detail, sync and lock failures return a nested `detail={"error": {...}}`. Unify on the nested
+There is no health endpoint and no OpenAPI contract test. Auth, log, sync, and live-stream failures use
+`detail={"error": {"code", "message"}}`. Other routes still return a plain string `detail`. Unify on the nested
 shape when touching a route.
 
 `POST /api/reset` hard-deletes microcycles, which contradicts the soft-delete tenet. Treat it as a development
@@ -232,13 +232,13 @@ affordance.
 
 | Gap | Reality |
 | :--- | :--- |
-| Session revocation | `get_current_user` decodes the JWT and loads the user. It never checks `sessions.revoked_at`, so revoking a session does not end it. Revocation is cosmetic until that check exists. |
+| Session revocation | `get_current_user` loads the JWT `session_id`, then rejects missing, expired, or `sessions.revoked_at` rows. Logout and `DELETE /api/security/sessions/{id}` now end the session. |
 | CSRF | No tokens and no middleware, despite cookie auth. |
 | Login rate limiting | None. |
-| Prescription write authority | Neither `/api/sets/log` nor sync checks whether the caller may edit that workout. Any authenticated user can mutate any set they can name. |
+| Prescription write authority | `/api/sets/log`, `/api/workouts/{id}/sync`, and `/api/workouts/{id}/live` require the caller to see that workout. Athletes may write logged set fields (`actual`, `reps`, `executedRpe`, note/velocity/readiness/hrv) and session status; planned/prescription fields are rejected as `PRESCRIPTION_FORBIDDEN`. |
 | Invite codes | The `invite_codes` table is unused. `/api/auth/link-athlete` accepts the coach's email as the code. |
-| SSE authorisation | `/api/workouts/{id}/live` has no `get_current_user` dependency. |
-| Frontend auth | `AuthContext` accepts an `al_role_mode` LocalStorage value, which is how end-to-end tests sign in. It is a dev bypass, not a security boundary. |
+| SSE authorisation | Cookie/Bearer auth plus the same workout visibility check as logging. EventSource still cannot set a Bearer header; cookie auth is the working path. |
+| Frontend auth | `AuthContext` accepts an `al_role_mode` LocalStorage value, which is how end-to-end tests sign in. It is a dev bypass, not a security boundary. `apiFetch` dispatches `auth-session-revoked` on 401 from non-login routes. |
 
 **Not built.** Account deletion, GDPR export, and biometric or HealthKit ingestion.
 
@@ -275,10 +275,11 @@ Provider failure must never block set logging. Logging is local-first, so this h
 | pytest | `pytest` | `backend/test_*.py`, `tests/test_math_vectors.py` |
 
 Math parity is the one genuinely cross-language guarantee, via `tests/math_vectors.json`.
-`backend/test_math.py` still asserts inline values rather than reading the shared vectors; prefer the vectors.
+`backend/test_math.py` reads the same `tests/math_vectors.json` file as `tests/test_math_vectors.py`, plus ACWR gap-fill cases.
 
 End-to-end tests run against the local-first frontend with no backend, and the offline spec mocks the sync API.
 `backend/test_microcycle_ops.py` and `backend/test_microcycles.py` cover week dates, copy, empty GET, and reset.
+`backend/test_access.py` covers session revocation, set-log RBAC, SSE auth, and prescription-field rejection.
 
 **Not built.** OpenAPI contract tests, IndexedDB migration tests, and session revocation tests.
 
@@ -304,6 +305,8 @@ src/
 backend/
   main.py                app, auth, training, analytics, export, security routes
   database.py            SQLAlchemy models and engine
+  access.py              workout/microcycle visibility and athlete write-field allowlists
+  errors.py              nested `{error: {code, message}}` HTTPException helper
   sync_service.py        mutation reconciliation
   math_utils.py          canonical formulas
   integrations.py        Telegram and Sheets routers
@@ -326,10 +329,7 @@ is written down.
 
 **Debt worth fixing when nearby**
 
-- Enforce session revocation in `get_current_user`.
-- Authorise prescription writes on `/api/sets/log` and sync.
-- Authorise the SSE endpoint.
-- Unify the API error envelope.
+- Unify the remaining plain-string API error envelopes.
 - Adopt a migration tool instead of inline `ALTER TABLE`.
 - Bound plan snapshot growth in IndexedDB.
 
@@ -371,7 +371,7 @@ exists.
 | Resolve athlete plans through a registry | Athlete-specific branching spread one import across the whole codebase | Yes |
 | Every schedule belongs to an athlete | An unowned demo microcycle tree sat in Sessions and forced a Roster detour | Yes — `GET /api/microcycles` returns the athlete's weeks or `[]`. It does not plant a demo tree. |
 | Enforce microcycle boundary locks on client and server | Workload metrics break if workouts cross week dates | Client drag/add; sync rejects `date` writes outside stored or derived bounds |
-| Session-backed JWT revocation | Logout and device revocation need server-side invalidation | **No** — see §9 |
+| Session-backed JWT revocation | Logout and device revocation need server-side invalidation | Yes — `get_current_user` checks `sessions.revoked_at` and expiry |
 | Tombstones for soft deletes | Prevents resurrecting deleted records from offline edits | Columns only |
 | Fractional indexing (LexoRank) | Resolves offline reorder conflicts without rewriting siblings | **No** |
 | Strict hydration window | Stops IndexedDB growing without bound over a multi-year career | Mutations only |
