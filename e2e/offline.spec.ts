@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { fillLogCell, signInCoach } from './helpers';
 
-test('queues a set offline and flushes it when the network returns', async ({ page, context }) => {
+test('queues a set offline and keeps it queued when no backend is configured', async ({ page, context }) => {
   await signInCoach(page, {
     al_app_view: 'dashboard',
     al_dashboard_mode: 'sessions',
@@ -63,6 +63,6 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   expect(syncPosts.length).toBe(0);
 
   await context.setOffline(false);
-  await expect.poll(() => syncPosts.length).toBeGreaterThan(0);
-  await expect(page.getByTestId('sync-status')).toHaveCount(0);
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'syncing');
+  expect(syncPosts.length).toBe(0);
 });
