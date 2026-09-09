@@ -196,17 +196,46 @@ export function formatDateSpan(span: { start: string; end: string } | null): str
   return `${span.start} – ${span.end}`;
 }
 
-export function insertWorkoutChronologically(
-  workouts: WorkoutData[],
-  workout: WorkoutData,
-): WorkoutData[] {
-  return [...workouts, workout]
+export function eachIsoDate(start: string, end: string): string[] {
+  if (!isIsoDate(start) || !isIsoDate(end) || start > end) return [];
+  const days = utcDayDiff(end, start);
+  return Array.from({ length: days + 1 }, (_, index) => addUtcDays(start, index));
+}
+
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export function utcWeekdayShort(iso: string): string {
+  if (!isIsoDate(iso)) return '';
+  return WEEKDAY_SHORT[parseUtc(iso).getUTCDay()];
+}
+
+export function workoutHasLoggedSets(workout: WorkoutData): boolean {
+  return workout.exercises.some((exercise) =>
+    exercise.sets.some(
+      (set) => set.actual != null || set.reps != null || set.executedRpe != null,
+    ),
+  );
+}
+
+export function microcycleHasLoggedSets(micro: MicrocycleData): boolean {
+  return micro.workouts.some(workoutHasLoggedSets);
+}
+
+export function relabelDayLabels(workouts: WorkoutData[]): WorkoutData[] {
+  return [...workouts]
     .sort((a, b) => {
       const byDate = a.date.localeCompare(b.date);
       if (byDate !== 0) return byDate;
       return dayIndex(a.dayLabel) - dayIndex(b.dayLabel);
     })
-    .map((w, index) => ({ ...w, dayLabel: `D${index + 1}` }));
+    .map((workout, index) => ({ ...workout, dayLabel: `D${index + 1}` }));
+}
+
+export function insertWorkoutChronologically(
+  workouts: WorkoutData[],
+  workout: WorkoutData,
+): WorkoutData[] {
+  return relabelDayLabels([...workouts, workout]);
 }
 
 export function inferMicrocycleId(

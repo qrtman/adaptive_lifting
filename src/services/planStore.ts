@@ -19,6 +19,10 @@ export interface StoredPlan {
    * import must not overwrite them.
    */
   ownedWorkoutIds: string[];
+  /** Sessions the coach deleted. Reconcile must not resurrect them from the import. */
+  deletedWorkoutIds: string[];
+  /** Weeks the coach deleted. Reconcile must not resurrect them from the import. */
+  deletedMicrocycleIds: string[];
   microcycles: MicrocycleData[];
 }
 
@@ -27,11 +31,9 @@ export function planSnapshotId(athleteId: string | null): string {
 }
 
 function looksLikePlan(microcycles: unknown): microcycles is MicrocycleData[] {
-  return (
-    Array.isArray(microcycles) &&
-    microcycles.length > 0 &&
-    Array.isArray((microcycles[0] as MicrocycleData | undefined)?.workouts)
-  );
+  if (!Array.isArray(microcycles)) return false;
+  if (microcycles.length === 0) return true;
+  return Array.isArray((microcycles[0] as MicrocycleData | undefined)?.workouts);
 }
 
 /** Narrow an untrusted snapshot payload, so a stale or corrupt record is ignored. */
@@ -43,6 +45,8 @@ export function asStoredPlan(raw: unknown): StoredPlan | null {
     source?: unknown;
     planVersion?: string | null;
     ownedWorkoutIds?: unknown;
+    deletedWorkoutIds?: unknown;
+    deletedMicrocycleIds?: unknown;
     microcycles?: unknown;
   };
   if (candidate.schema !== PLAN_SCHEMA) return null;
@@ -59,6 +63,10 @@ export function asStoredPlan(raw: unknown): StoredPlan | null {
     source,
     planVersion: candidate.planVersion ?? null,
     ownedWorkoutIds: Array.isArray(candidate.ownedWorkoutIds) ? candidate.ownedWorkoutIds : [],
+    deletedWorkoutIds: Array.isArray(candidate.deletedWorkoutIds) ? candidate.deletedWorkoutIds : [],
+    deletedMicrocycleIds: Array.isArray(candidate.deletedMicrocycleIds)
+      ? candidate.deletedMicrocycleIds
+      : [],
     microcycles: candidate.microcycles,
   };
 }
@@ -82,22 +90,32 @@ export function reconcileImportedPlan(
   stored: StoredPlan,
 ): MicrocycleData[] {
   const owned = new Set(stored.ownedWorkoutIds);
+  const deletedWorkouts = new Set(stored.deletedWorkoutIds);
+  const deletedWeeks = new Set(stored.deletedMicrocycleIds);
   const cachedById = new Map(stored.microcycles.map((micro) => [micro.id, micro]));
   const sourceMicroIds = new Set(source.map((micro) => micro.id));
 
-  const merged: MicrocycleData[] = source.map((micro) => {
+  const merged: MicrocycleData[] = source.filter((micro) => !deletedWeeks.has(micro.id)).map((micro) => {
     const cached = cachedById.get(micro.id);
-    if (!cached) return micro;
+    if (!cached) {
+      return {
+        ...micro,
+        workouts: micro.workouts.filter((workout) => !deletedWorkouts.has(workout.id)),
+      };
+    }
 
     const cachedWorkouts = new Map(cached.workouts.map((workout) => [workout.id, workout]));
     const sourceWorkoutIds = new Set(micro.workouts.map((workout) => workout.id));
 
-    const workouts = micro.workouts.map((workout) => {
-      const local = cachedWorkouts.get(workout.id);
-      return local && owned.has(workout.id) ? local : workout;
-    });
+    const workouts = micro.workouts
+      .filter((workout) => !deletedWorkouts.has(workout.id))
+      .map((workout) => {
+        const local = cachedWorkouts.get(workout.id);
+        return local && owned.has(workout.id) ? local : workout;
+      });
 
     for (const local of cached.workouts) {
+      if (deletedWorkouts.has(local.id)) continue;
       if (!sourceWorkoutIds.has(local.id) && owned.has(local.id)) workouts.push(local);
     }
 
@@ -111,7 +129,10 @@ export function reconcileImportedPlan(
 
   for (const cached of stored.microcycles) {
     if (sourceMicroIds.has(cached.id)) continue;
-    const kept = cached.workouts.filter((workout) => owned.has(workout.id));
+    if (deletedWeeks.has(cached.id)) continue;
+    const kept = cached.workouts.filter(
+      (workout) => owned.has(workout.id) && !deletedWorkouts.has(workout.id),
+    );
     if (kept.length > 0) merged.push({ ...cached, workouts: kept });
   }
 
@@ -211,6 +232,8 @@ export async function migrateLegacyPlanSnapshot(
     source: 'imported',
     planVersion: null,
     ownedWorkoutIds: source ? inferOwnedWorkoutIds(source, legacy) : [],
+    deletedWorkoutIds: [],
+    deletedMicrocycleIds: [],
     microcycles: legacy,
   };
   await writeStoredPlan(migrated);

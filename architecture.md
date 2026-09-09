@@ -164,10 +164,11 @@ a column on a set and is not modelled.
 - Insights KPIs and charts are derived from the selected athlete's in-memory microcycles (`trendsFromMicrocycles`),
   not from `GET /api/microcycles`.
 - Plans are cached per athlete via `planStore.ts` as `plan:<athleteId>`, recording schema, source
-  (`imported` / `api` / `local`), a content fingerprint, and which sessions were edited in the app. A changed
-  import reconciles on load and keeps edited sessions. A cached plan that does not share structure with the
-  import (the old unowned seed) is discarded, not merged. The pre-schema shared `microcycles` snapshot is
-  dropped unless it already belongs to that athlete's import.
+  (`imported` / `api` / `local`), a content fingerprint, edited session ids, and deleted session/week ids.
+  A changed import reconciles on load and keeps edited sessions. Deleted ids are not resurrected from the
+  import. A cached plan that does not share structure with the import (the old unowned seed) is discarded,
+  not merged. The pre-schema shared `microcycles` snapshot is dropped unless it already belongs to that
+  athlete's import.
 - `sync_engine.ts` queues mutations with ids and flushes on a 2000ms debounce.
 - `SyncContext` surfaces queue state and conflicts; `ConflictReviewCard` presents a resolution choice.
 - `evictOldSyncedData()` prunes acked and rejected mutations older than 28 days.

@@ -5,7 +5,13 @@ import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { copyMicrocycle as copyMicrocyclePlan } from '../services/copyMicrocycle';
-import { insertWorkoutChronologically, isIsoDate } from '../services/workoutDays';
+import {
+  insertWorkoutChronologically,
+  isIsoDate,
+  microcycleHasLoggedSets,
+  relabelDayLabels,
+  workoutHasLoggedSets,
+} from '../services/workoutDays';
 import { importedPlanFor, pickActiveAthlete, planVersion } from '../data/athletePlans';
 import { loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
 import {
@@ -54,6 +60,8 @@ interface PeriodizationState {
   rescheduleWorkout: (workoutId: string, date: string) => void;
   updateMicrocycleBounds: (microcycleId: string, startDate: string, endDate: string) => void;
   copyMicrocycle: (microcycleId: string) => string | null;
+  deleteWorkout: (workoutId: string) => void;
+  deleteMicrocycle: (microcycleId: string) => void;
   finishSession: (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -67,6 +75,8 @@ type PlanMeta = {
   source: PlanSource;
   planVersion: string | null;
   ownedWorkoutIds: Set<string>;
+  deletedWorkoutIds: Set<string>;
+  deletedMicrocycleIds: Set<string>;
 };
 
 const EMPTY_META: PlanMeta = {
@@ -74,6 +84,8 @@ const EMPTY_META: PlanMeta = {
   source: 'local',
   planVersion: null,
   ownedWorkoutIds: new Set(),
+  deletedWorkoutIds: new Set(),
+  deletedMicrocycleIds: new Set(),
 };
 
 const PeriodizationContext = createContext<PeriodizationState | null>(null);
@@ -102,6 +114,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     source: PlanSource;
     planVersion: string | null;
     ownedWorkoutIds: string[];
+    deletedWorkoutIds: string[];
+    deletedMicrocycleIds: string[];
   }>());
   const hydrated = useRef(false);
   const selectGeneration = useRef(0);
@@ -131,7 +145,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   ) => {
     if (imported) {
       const usable =
-        stored && planSharesStructure(imported.microcycles, stored.microcycles) ? stored : null;
+        stored &&
+        (planSharesStructure(imported.microcycles, stored.microcycles) ||
+          stored.deletedMicrocycleIds.length > 0 ||
+          stored.deletedWorkoutIds.length > 0)
+          ? stored
+          : null;
       const version = planVersion(imported.microcycles);
       const tracked = usable
         ? usable.ownedWorkoutIds.length > 0
@@ -149,6 +168,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         source: 'imported',
         planVersion: version,
         ownedWorkoutIds: new Set(tracked?.ownedWorkoutIds ?? []),
+        deletedWorkoutIds: new Set(tracked?.deletedWorkoutIds ?? []),
+        deletedMicrocycleIds: new Set(tracked?.deletedMicrocycleIds ?? []),
       };
       hydrated.current = true;
       setMicrocycles(plan);
@@ -157,6 +178,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         source: 'imported',
         planVersion: version,
         ownedWorkoutIds: Array.from(planMeta.current.ownedWorkoutIds),
+        deletedWorkoutIds: Array.from(planMeta.current.deletedWorkoutIds),
+        deletedMicrocycleIds: Array.from(planMeta.current.deletedMicrocycleIds),
       });
       const remembered = getUiPref(UI_KEYS.activeWorkoutId);
       const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
@@ -169,6 +192,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       source: stored?.source === 'imported' || stored?.source === 'api' ? stored.source : 'local',
       planVersion: stored?.planVersion ?? null,
       ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
+      deletedWorkoutIds: new Set(stored?.deletedWorkoutIds ?? []),
+      deletedMicrocycleIds: new Set(stored?.deletedMicrocycleIds ?? []),
     };
     hydrated.current = true;
     const plan = stored?.microcycles ?? [];
@@ -178,6 +203,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       source: planMeta.current.source,
       planVersion: planMeta.current.planVersion,
       ownedWorkoutIds: Array.from(planMeta.current.ownedWorkoutIds),
+      deletedWorkoutIds: Array.from(planMeta.current.deletedWorkoutIds),
+      deletedMicrocycleIds: Array.from(planMeta.current.deletedMicrocycleIds),
     });
     if (plan.length) {
       const remembered = getUiPref(UI_KEYS.activeWorkoutId);
@@ -251,15 +278,26 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         source: meta.source,
         planVersion: meta.planVersion,
         ownedWorkoutIds: Array.from(meta.ownedWorkoutIds),
+        deletedWorkoutIds: Array.from(meta.deletedWorkoutIds),
+        deletedMicrocycleIds: Array.from(meta.deletedMicrocycleIds),
       });
     }
-    if (meta.source === 'imported' && microcycles.length === 0) return;
+    if (
+      meta.source === 'imported' &&
+      microcycles.length === 0 &&
+      meta.deletedWorkoutIds.size === 0 &&
+      meta.deletedMicrocycleIds.size === 0
+    ) {
+      return;
+    }
     void writeStoredPlan({
       schema: PLAN_SCHEMA,
       athleteId: meta.athleteId,
       source: meta.source,
       planVersion: meta.planVersion,
       ownedWorkoutIds: Array.from(meta.ownedWorkoutIds),
+      deletedWorkoutIds: Array.from(meta.deletedWorkoutIds),
+      deletedMicrocycleIds: Array.from(meta.deletedMicrocycleIds),
       microcycles,
     });
   }, [microcycles]);
@@ -399,6 +437,59 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     return result.copied.id;
   };
 
+  const deleteWorkout = (workoutId: string) => {
+    const host = microcycles.find((micro) => micro.workouts.some((workout) => workout.id === workoutId));
+    const target = host?.workouts.find((workout) => workout.id === workoutId);
+    if (!host || !target) return;
+    const logged = workoutHasLoggedSets(target);
+    const ok = window.confirm(
+      logged
+        ? 'This session has logged sets. Delete it from the week?'
+        : 'Delete this session from the week?',
+    );
+    if (!ok) return;
+    planMeta.current.deletedWorkoutIds.add(workoutId);
+    planMeta.current.ownedWorkoutIds.delete(workoutId);
+    setMicrocycles((prev) =>
+      prev.map((micro) => {
+        if (micro.id !== host.id) return micro;
+        return {
+          ...micro,
+          workouts: relabelDayLabels(micro.workouts.filter((workout) => workout.id !== workoutId)),
+        };
+      }),
+    );
+    if (activeWorkoutId === workoutId) {
+      setActiveWorkoutId(null);
+      removeUiPref(UI_KEYS.activeWorkoutId);
+    }
+  };
+
+  const deleteMicrocycle = (microcycleId: string) => {
+    const target = microcycles.find((micro) => micro.id === microcycleId);
+    if (!target) return;
+    const logged = microcycleHasLoggedSets(target);
+    const ok = window.confirm(
+      logged
+        ? 'This week has logged sets. Delete the week and its sessions?'
+        : 'Delete this week and its sessions?',
+    );
+    if (!ok) return;
+    planMeta.current.deletedMicrocycleIds.add(microcycleId);
+    for (const workout of target.workouts) {
+      planMeta.current.deletedWorkoutIds.add(workout.id);
+      planMeta.current.ownedWorkoutIds.delete(workout.id);
+    }
+    const remaining = microcycles.filter((micro) => micro.id !== microcycleId);
+    setMicrocycles(remaining);
+    if (activeMicrocycleId === microcycleId) {
+      const next = remaining[remaining.length - 1] ?? remaining[0];
+      setActiveMicrocycleId(next?.id ?? null);
+      setActiveWorkoutId(next?.workouts[0]?.id ?? null);
+      if (next) setUiPref(UI_KEYS.sessionsExpandedMicro, next.id);
+    }
+  };
+
   const finishSession = async (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -448,6 +539,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         source: 'imported',
         planVersion: planVersion(imported.microcycles),
         ownedWorkoutIds: new Set(),
+        deletedWorkoutIds: new Set(),
+        deletedMicrocycleIds: new Set(),
       };
       setMicrocycles(imported.microcycles);
       focusPlan(imported.microcycles);
@@ -456,7 +549,14 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
     if (athleteId) {
       await clearStoredPlan(athleteId);
-      planMeta.current = { athleteId, source: 'local', planVersion: null, ownedWorkoutIds: new Set() };
+      planMeta.current = {
+        athleteId,
+        source: 'local',
+        planVersion: null,
+        ownedWorkoutIds: new Set(),
+        deletedWorkoutIds: new Set(),
+        deletedMicrocycleIds: new Set(),
+      };
       setMicrocycles([]);
       setActiveMicrocycleId(null);
       setActiveWorkoutId(null);
@@ -475,6 +575,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       source: PlanSource;
       planVersion: string | null;
       ownedWorkoutIds: string[];
+      deletedWorkoutIds: string[];
+      deletedMicrocycleIds: string[];
     },
     focus: boolean,
   ) => {
@@ -483,6 +585,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       source: cached.source,
       planVersion: cached.planVersion,
       ownedWorkoutIds: new Set(cached.ownedWorkoutIds),
+      deletedWorkoutIds: new Set(cached.deletedWorkoutIds ?? []),
+      deletedMicrocycleIds: new Set(cached.deletedMicrocycleIds ?? []),
     };
     hydrated.current = true;
     setMicrocycles(cached.microcycles);
@@ -552,6 +656,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         rescheduleWorkout,
         updateMicrocycleBounds,
         copyMicrocycle,
+        deleteWorkout,
+        deleteMicrocycle,
         finishSession,
         resetPlan,
       }}

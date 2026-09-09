@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Copy, Maximize2, Minimize2, Plus } from 'lucide-react';
+import { Copy, Maximize2, Minimize2, Plus, Trash2 } from 'lucide-react';
 import { WorkoutData } from '../types';
 import { formatDateSpan, resolvedMicrocycleBounds } from '../services/workoutDays';
 import { usePeriodization } from '../contexts/PeriodizationContext';
@@ -51,6 +51,7 @@ export function SessionsView({
     activeAthlete,
     updateMicrocycleBounds,
     copyMicrocycle,
+    deleteMicrocycle,
   } = usePeriodization();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -342,6 +343,17 @@ export function SessionsView({
                         >
                           <Copy size={12} />
                           Copy
+                        </button>
+                      )}
+                      {roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          data-testid={`delete-microcycle-${micro.id}`}
+                          onClick={() => deleteMicrocycle(micro.id)}
+                          className="h-7 px-2 text-[11px] text-[#FF453A] hover:text-white flex items-center gap-1"
+                        >
+                          <Trash2 size={12} />
+                          Delete
                         </button>
                       )}
                       {isExpanded && roleMode === 'coach' && onOpenCalendar && (

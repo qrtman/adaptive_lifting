@@ -13,6 +13,7 @@ import {
   derivedMicrocycleBounds,
   placeCopiedBounds,
   resolvedMicrocycleBounds,
+  eachIsoDate,
 } from './workoutDays';
 
 function session(id: string, date: string, dayLabel: string): WorkoutData {
@@ -197,5 +198,16 @@ describe('resolvedMicrocycleBounds', () => {
         { start: '2026-08-31', end: '2026-09-06' },
       ),
     ).toEqual({ start: '2026-09-14', end: '2026-09-20' });
+  });
+});
+
+describe('eachIsoDate', () => {
+  it('lists inclusive days and nothing when inverted', () => {
+    expect(eachIsoDate('2026-08-31', '2026-09-02')).toEqual([
+      '2026-08-31',
+      '2026-09-01',
+      '2026-09-02',
+    ]);
+    expect(eachIsoDate('2026-09-02', '2026-08-31')).toEqual([]);
   });
 });

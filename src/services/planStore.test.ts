@@ -49,13 +49,19 @@ function micro(id: string, workouts: WorkoutData[]): MicrocycleData {
   return { id, weekName: id, focus: 'Base', status: 'ACTIVE', workouts };
 }
 
-function storedPlan(microcycles: MicrocycleData[], ownedWorkoutIds: string[]): StoredPlan {
+function storedPlan(
+  microcycles: MicrocycleData[],
+  ownedWorkoutIds: string[],
+  deleted: { workouts?: string[]; weeks?: string[] } = {},
+): StoredPlan {
   return {
     schema: PLAN_SCHEMA,
     athleteId: 'athlete-1',
     source: 'imported',
     planVersion: 'old',
     ownedWorkoutIds,
+    deletedWorkoutIds: deleted.workouts ?? [],
+    deletedMicrocycleIds: deleted.weeks ?? [],
     microcycles,
   };
 }
@@ -79,7 +85,7 @@ describe('asStoredPlan', () => {
     expect(asStoredPlan(null)).toBeNull();
     expect(asStoredPlan([])).toBeNull();
     expect(asStoredPlan({ schema: 99, microcycles: [micro('m1', [workout('d1', 200)])] })).toBeNull();
-    expect(asStoredPlan({ schema: PLAN_SCHEMA, microcycles: [] })).toBeNull();
+    expect(asStoredPlan({ schema: PLAN_SCHEMA, microcycles: 'nope' })).toBeNull();
   });
 
   it('defaults edit tracking when an older record omits it', () => {
@@ -89,6 +95,8 @@ describe('asStoredPlan', () => {
       microcycles: [micro('m1', [workout('d1', 200)])],
     });
     expect(parsed?.ownedWorkoutIds).toEqual([]);
+    expect(parsed?.deletedWorkoutIds).toEqual([]);
+    expect(parsed?.deletedMicrocycleIds).toEqual([]);
     expect(parsed?.planVersion).toBeNull();
   });
 
@@ -190,6 +198,18 @@ describe('reconcileImportedPlan', () => {
     const merged = reconcileImportedPlan(source, cached);
     expect(merged.map((row) => row.id)).toEqual(['m1', 'm2']);
     expect(merged[1].workouts.map((row) => row.id)).toEqual(['d3']);
+  });
+
+  it('does not resurrect a session or week the coach deleted', () => {
+    const cached = storedPlan(
+      [micro('m1', [workout('d2', 100)]), micro('m2', [workout('d3', 210)])],
+      [],
+      { workouts: ['d1'], weeks: ['m2'] },
+    );
+    const source = [micro('m1', [workout('d1', 200), workout('d2', 100)]), micro('m2', [workout('d3', 210)])];
+    const merged = reconcileImportedPlan(source, cached);
+    expect(merged.map((row) => row.id)).toEqual(['m1']);
+    expect(merged[0].workouts.map((row) => row.id)).toEqual(['d2']);
   });
 });
 

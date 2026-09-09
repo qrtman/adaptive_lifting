@@ -129,8 +129,8 @@ test('coach can add a session on any calendar day', async ({ page }) => {
   await expect(page.getByTestId('add-session-dialog')).toHaveCount(0);
   await expect(page.getByTestId('assign-micro-z-w3')).toBeVisible();
   await page.getByTestId('assign-micro-z-w3').click();
-  await page.getByTestId('calendar-day-2026-09-05').click();
-  await expect(page.getByTestId('calendar-day-2026-09-05').locator('[data-testid^="workout-card-"]')).toBeVisible();
+  await page.getByTestId('add-session-day-z-w3-2026-09-05').click();
+  await expect(page.getByTestId('calendar-day-z-w3-2026-09-05').locator('[data-testid^="workout-card-"]')).toBeVisible();
 });
 
 test('coach can add a catalog exercise into a session', async ({ page }) => {

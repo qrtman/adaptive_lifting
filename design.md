@@ -89,10 +89,11 @@ The exercise card is where prescription and logging happen. **Built** — `Exerc
 | :--- | :--- |
 | Maximized microcycle header | Name, status, editable start–end dates, Copy, Session, Minimize. Do **not** show stored week tonnage or SQ/BP peaks parsed from `ex.top`. Live Vol and INOL belong on the exercise cards. |
 | Collapsed microcycle header | May show scan metrics, because there are no cards visible to read them from. Copy stays available. |
-| Microcycle dates | Each week stores optional `startDate` / `endDate` (`YYYY-MM-DD`). Unset weeks default to the ISO Monday–Sunday that contains their placed sessions. The coach edits them on the maximized Sessions header and on Calendar for the assigned week. Drag and add-session stay inside that range. |
-| Copy microcycle | Copy on the Sessions week header and on Calendar duplicates prescriptions into a new week after existing weeks, with new ids and no logged sets. |
+| Microcycle dates | Each week stores optional `startDate` / `endDate` (`YYYY-MM-DD`). Unset weeks default to the ISO Monday–Sunday that contains their placed sessions. The coach edits them on the maximized Sessions header and on each Calendar week row. Drag and Add session stay inside that range. |
+| Copy microcycle | Copy on the Sessions week header and on each Calendar week duplicates prescriptions into a new week after existing weeks, with new ids and no logged sets. That is the repeat action. |
+| Delete session / week | Delete on the session heading, on the Calendar session chip, and on the week header. Logged work asks for confirmation. Deleted ids stay on the cached plan so an import reconcile does not bring them back. |
 | Session block | Each session is a distinct block: heading with D-label, calendar date, and title; an **End of Dn** footer with Complete/Reopen after the last exercise. Stacked sessions must never read as one undifferentiated list. |
-| Add Session | From a maximized week, Session opens the Calendar tab with that week selected. On Calendar the coach assigns a microcycle and clicks a day inside that week's dates. Title is optional and not part of create. No overlay month picker. |
+| Add Session | From a maximized week, Session opens Calendar with that week selected. On Calendar each day of a week has a Session button. Title is optional and not part of create. No overlay month picker. Calendar is stacked week boards, not a month grid with gesture hints. |
 | Day labels | `D1`, `D2`, … are chronological within a microcycle. Inserting between D1 and D2 becomes D2 and later days increment. Occupied days stay selectable. |
 
 ### 3.4 Roster and imported blocks
@@ -179,7 +180,7 @@ Reps are integer only. Weight, reps, and RPE inputs are numeric and reject freef
 
 Sharp, high-density grids. Radii stay small: `4px` for tags and small controls, `8px` for outer panel
 boundaries. Do not exceed that inside the operational surfaces. Use full-width workspaces rather than floating
-rounded cards inside panels, and never nest a card in a card.
+rounded cards inside panels, sometimes you can nest cards.
 
 ---
 
@@ -206,12 +207,12 @@ Accurate as of the current code. Each entry names the file so you can check it.
 | Surface | File | What it does | Required states |
 | :--- | :--- | :--- | :--- |
 | App shell | `AppShell.tsx`, `Sidebar.tsx` | Fixed sidebar nav, native athlete `<select>`, account block, Reset plan. Status strip when offline or queued. | offline, queued mutations, authenticated, no athletes |
-| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; editable week dates; Copy; Session opens Calendar. | loading, empty (no athlete / no sessions), filtered-empty, maximized, collapsed |
+| Sessions | `SessionsView.tsx` | Primary coach surface for the **selected athlete**. Microcycle list; one week maximizes at a time; stacked session blocks; lift filter; editable week dates; Copy; Delete; Session opens Calendar. | loading, empty (no athlete / no sessions), filtered-empty, maximized, collapsed |
 | Session block | `SessionWorkoutEditor.tsx` | One session: heading with D-label, date, status and tonnage; exercise cards; End of Dn footer with Complete/Reopen. | planned, in progress, completed, read-only |
 | Exercise card | `ExerciseCard.tsx` | Identity and anchor e1RM left, set table middle, Vol/INOL/`+ Set` right. Rx, `%adj`, copy-to-log, Log, e1RM with Δ. | empty sets, logged, read-only |
 | Prescription editor | `PrescriptionEditor.tsx` | Inline structured Rx per set cell. | draft, valid, invalid, read-only |
 | Add exercise | `AddExerciseDialog.tsx` | Identity-only catalog picker. | empty search, matches, custom, validation error |
-| Calendar | `CalendarView.tsx` | Month grid of the selected athlete's sessions. Undated imports occupy sequential days from 2026-09-01. Assign a week, edit its dates, Copy, click a day to add, drag within the week dates. | loading, empty, dragging, rejected drop outside week dates |
+| Calendar | `CalendarView.tsx` | Stacked week boards for the selected athlete. Each week has dates, Copy, Delete, per-day Session add, session Delete, drag inside that week. | loading, empty, dragging, rejected drop outside week dates |
 | Roster | `CoachDashboardView.tsx` | Roster list and add-athlete form. A row selects that athlete and opens Sessions. | loading, empty roster |
 | Insights | `InsightsView.tsx`, `insights/InsightKpiStrip.tsx`, `src/insights/construct.ts` | KPI strip, INOL line, chart slots, attempts, AI coach. | loading, empty, error |
 | Conflict review | `ConflictReviewCard.tsx` | Local versus server values with a resolution choice. Surfaced from `SyncContext`. | reviewable, read-only, resolved |
@@ -263,7 +264,6 @@ Described here so nobody re-invents them by accident, and so nobody builds them 
 **None of these are requirements.** Ask before starting one.
 
 - **Periodization readiness wave and collapsed readiness lanes** on the calendar.
-- **Microcycle calendar view** as an alternative to the month grid, with expand-all-sets and per-day INOL.
 - **Collapsible sidebar** (240 → 60 → 0px) and the space-reclamation behaviour that depends on it.
 - **SSE live telemetry panel.** The backend broadcasts; no frontend subscribes.
 - **Meet day planner** as a dedicated surface. Attempt maths exists inside Insights.

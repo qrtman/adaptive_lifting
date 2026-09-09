@@ -1,4 +1,4 @@
-import { Copy } from 'lucide-react';
+import { Copy, Trash2 } from 'lucide-react';
 
 interface MicrocycleBoundsEditorProps {
   microId: string;
@@ -6,8 +6,10 @@ interface MicrocycleBoundsEditorProps {
   end: string;
   readOnly?: boolean;
   showCopy?: boolean;
+  showDelete?: boolean;
   onBoundsChange: (start: string, end: string) => void;
   onCopy?: () => void;
+  onDelete?: () => void;
 }
 
 const dateInputClass =
@@ -19,8 +21,10 @@ export function MicrocycleBoundsEditor({
   end,
   readOnly = false,
   showCopy = false,
+  showDelete = false,
   onBoundsChange,
   onCopy,
+  onDelete,
 }: MicrocycleBoundsEditorProps) {
   return (
     <div className="flex flex-wrap items-center gap-1 scheme-dark">
@@ -73,6 +77,17 @@ export function MicrocycleBoundsEditor({
         >
           <Copy size={12} />
           Copy
+        </button>
+      ) : null}
+      {showDelete ? (
+        <button
+          type="button"
+          data-testid={`delete-microcycle-${microId}`}
+          onClick={onDelete}
+          className="h-7 px-2 text-[11px] text-[#FF453A] hover:text-white flex items-center gap-1"
+        >
+          <Trash2 size={12} />
+          Delete
         </button>
       ) : null}
     </div>

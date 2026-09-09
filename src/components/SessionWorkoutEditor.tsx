@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { ExerciseCard } from './ExerciseCard';
 import { AccessoryLedger } from './AccessoryLedger';
 import { AddExerciseDialog } from './AddExerciseDialog';
@@ -23,6 +23,7 @@ export function SessionWorkoutEditor({
   const {
     updateExerciseSets,
     addExercise,
+    deleteWorkout,
     finishSession,
     activeWorkoutId,
     setActiveWorkoutId,
@@ -95,6 +96,17 @@ export function SessionWorkoutEditor({
                 Exercise
               </button>
             )
+          )}
+          {roleMode === 'coach' && (
+            <button
+              type="button"
+              data-testid={`delete-session-${workout.id}`}
+              onClick={() => deleteWorkout(workout.id)}
+              className="h-7 px-2 text-[11px] text-[#FF453A] hover:text-white flex items-center gap-1"
+            >
+              <Trash2 size={12} />
+              Delete
+            </button>
           )}
         </div>
       </div>
