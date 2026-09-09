@@ -212,51 +212,6 @@ export function CalendarView({
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-1">
-            {weekBounds.map(({ micro, bounds }) => {
-              const selected = activeMicrocycleId === micro.id;
-              return (
-                <div
-                  key={micro.id}
-                  data-testid={`week-board-${micro.id}`}
-                  className={`flex flex-wrap items-center gap-2 px-1 py-1 border ${
-                    selected ? 'border-[#007AFF]/60' : 'border-transparent'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    data-testid={`assign-micro-${micro.id}`}
-                    onClick={() => {
-                      setActiveMicrocycleId(micro.id);
-                      setAssignError(null);
-                    }}
-                    className={`h-7 px-2 text-[11px] border ${
-                      selected ? 'border-[#007AFF] text-white' : 'border-white/10 text-[#AEAEB2] hover:text-white'
-                    }`}
-                  >
-                    {micro.weekName}
-                  </button>
-                  {roleMode === 'coach' ? (
-                    <MicrocycleBoundsEditor
-                      microId={micro.id}
-                      start={bounds.start}
-                      end={bounds.end}
-                      showCopy
-                      showDelete
-                      onBoundsChange={(start, end) => updateMicrocycleBounds(micro.id, start, end)}
-                      onCopy={() => copyMicrocycle(micro.id)}
-                      onDelete={() => deleteMicrocycle(micro.id)}
-                    />
-                  ) : (
-                    <span className="font-mono text-[11px] text-[#AEAEB2]">
-                      {bounds.start} – {bounds.end}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
           <div data-testid="calendar-timeline" className="border border-white/10 bg-[#131313]">
             <div className="flex">
               <div className="w-16 shrink-0" />
@@ -323,7 +278,7 @@ export function CalendarView({
                                 className="w-full text-left cursor-pointer"
                               >
                                 <span className="block text-[10px] text-white truncate">
-                                  {rowItem.micro.weekName} {rowItem.workout.dayLabel || 'Session'}
+                                  {rowItem.workout.dayLabel || 'Session'}
                                 </span>
                                 <span className="block font-mono text-[10px] text-[#AEAEB2] truncate">
                                   {liftLine(rowItem.workout)}
@@ -347,6 +302,51 @@ export function CalendarView({
                       );
                     })}
                   </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {weekBounds.map(({ micro, bounds }) => {
+              const selected = activeMicrocycleId === micro.id;
+              return (
+                <div
+                  key={micro.id}
+                  data-testid={`week-board-${micro.id}`}
+                  className={`flex flex-wrap items-center gap-2 px-1 py-1 border ${
+                    selected ? 'border-[#007AFF]/60' : 'border-transparent'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    data-testid={`assign-micro-${micro.id}`}
+                    onClick={() => {
+                      setActiveMicrocycleId(micro.id);
+                      setAssignError(null);
+                    }}
+                    className={`h-7 px-2 text-[11px] border ${
+                      selected ? 'border-[#007AFF] text-white' : 'border-white/10 text-[#AEAEB2] hover:text-white'
+                    }`}
+                  >
+                    {micro.weekName}
+                  </button>
+                  {roleMode === 'coach' ? (
+                    <MicrocycleBoundsEditor
+                      microId={micro.id}
+                      start={bounds.start}
+                      end={bounds.end}
+                      showCopy
+                      showDelete
+                      onBoundsChange={(start, end) => updateMicrocycleBounds(micro.id, start, end)}
+                      onCopy={() => copyMicrocycle(micro.id)}
+                      onDelete={() => deleteMicrocycle(micro.id)}
+                    />
+                  ) : (
+                    <span className="font-mono text-[11px] text-[#AEAEB2]">
+                      {bounds.start} – {bounds.end}
+                    </span>
+                  )}
                 </div>
               );
             })}
