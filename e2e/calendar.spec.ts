@@ -61,7 +61,7 @@ test.describe('calendar timeline', () => {
     await page.getByTestId('assign-micro-z-w3').click();
     await expect(page.getByTestId('copy-microcycle-z-w3')).toBeVisible();
     await page.getByTestId('copy-microcycle-z-w3').click();
-    await expect(page.getByRole('button', { name: 'Week 3 copy' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Week 3 copy', exact: true })).toBeVisible();
   });
 
   test('deletes a session from a day', async ({ page }) => {
