@@ -30,6 +30,14 @@ import uuid
 
 from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
 from .accessory_migration import coerce_float, coerce_int
+from .access import (
+    get_visible_microcycles,
+    require_visible_microcycle,
+    require_visible_set,
+    require_visible_workout,
+)
+from .errors import api_error
+from .microcycle_ops import apply_bounds, copy_microcycle as copy_microcycle_tree
 
 from sqlalchemy import text
 # Make sure SQLite tables exist on launch
@@ -70,6 +78,16 @@ def migrate_db():
         db.rollback()
     try:
         db.execute(text("ALTER TABLE exercises ADD COLUMN lift_category VARCHAR DEFAULT 'Squat'"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE microcycles ADD COLUMN startDate VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE microcycles ADD COLUMN endDate VARCHAR"))
         db.commit()
     except Exception:
         db.rollback()
@@ -158,29 +176,39 @@ def decode_access_token(token: str):
     raise jwt.InvalidTokenError("Unable to decode JWT")
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
+    credentials_exception = api_error(
+        401,
+        "SESSION_INVALID",
+        "Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     token = request.cookies.get("session_id")
     if not token:
         auth = request.headers.get("Authorization")
         if auth and auth.startswith("Bearer "):
             token = auth.split(" ")[1]
-            
+
     if not token:
         raise credentials_exception
 
     try:
         payload = decode_access_token(token)
         user_id: str = payload.get("sub")
-        if user_id is None:
+        session_id: str = payload.get("session_id")
+        if user_id is None or session_id is None:
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
-        
+
+    from .database import Session as DBSession
+    sess = db.query(DBSession).filter(
+        DBSession.id == session_id,
+        DBSession.user_id == user_id,
+    ).first()
+    if sess is None or sess.revoked_at is not None or sess.expires_at <= datetime.utcnow():
+        raise credentials_exception
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
@@ -318,9 +346,9 @@ class LogSetRequest(BaseModel):
     readiness: Optional[int] = None
     hrv: Optional[float] = None
 
-class PushProgramRequest(BaseModel):
-    athleteId: str
-    template: str
+class MicrocycleBoundsRequest(BaseModel):
+    startDate: str
+    endDate: str
 
 # --- Powerlifting Math Helpers ---
 # Canonical formulas live in math_utils.py (calculate_e1rm / calculate_e1rm_linear_decay).
@@ -452,233 +480,10 @@ def format_microcycle(mc: Microcycle) -> dict:
         "focus": mc.focus,
         "status": mc.status,
         "active": mc.active,
+        "startDate": getattr(mc, "startDate", None),
+        "endDate": getattr(mc, "endDate", None),
         "workouts": workouts_list
     }
-
-# --- Database Seeder ---
-
-INITIAL_SEEDS = [
-    {
-        "id": "micro-1",
-        "weekName": "Microcycle 01",
-        "focus": "Technical Proficiency / Baseline",
-        "status": "COMPLETED",
-        "active": False,
-        "workouts": [
-            {
-                "id": "w-1-1", "date": "2026-09-02", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 12400.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-1-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus",
-                        "top": "150kg x 1", "vol": "8,600kg",
-                        "sets": [
-                            {"id": "s-1-1-1a", "label": "Top Single", "planned": "150kg x 1", "plannedWeight": 150.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 150.0, "reps": 1, "executedRpe": 5.0},
-                            {"id": "s-1-1-1b", "label": "Main Set", "planned": "137.5kg x 4", "plannedWeight": 137.5, "plannedReps": 4, "plannedRpe": 6.0, "actual": 137.5, "reps": 4, "executedRpe": 6.0},
-                            {"id": "s-1-1-1c", "label": "Backdown", "planned": "127.5kg x 4", "plannedWeight": 127.5, "plannedReps": 4, "plannedRpe": 5.0, "note": "-5% Drop", "actual": 127.5, "reps": 4, "executedRpe": 5.0, "dropPercent": -5.0}
-                        ]
-                    },
-                    {
-                        "id": "e-1-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause",
-                        "top": "90kg x 3", "vol": "3,800kg",
-                        "sets": [
-                            {"id": "s-1-1-2a", "label": "Top Single", "plannedWeight": 90.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 90.0, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    },
-                    {
-                        "id": "a-1-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "120kg x 12", "vol": "4,320kg",
-                        "sets": [
-                            {"id": "a-1-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-1-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-1-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
-                        ]
-                    }
-                ],
-            },
-            {
-                "id": "w-1-2", "date": "2026-09-04", "dayLabel": "D2", "title": "Secondary Deadlift, Secondary Bench",
-                "tonnage": 8900.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-1-2-1", "title": "Secondary Deadlift", "variation": "Deficit Deadlift", "tags": "Patience off Floor",
-                        "top": "180kg x 3", "vol": "4,700kg",
-                        "sets": [
-                            {"id": "s-1-2-1a", "label": "Top Set", "planned": "180kg x 3", "plannedWeight": 180.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 180.0, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    },
-                    {
-                        "id": "e-1-2-2", "title": "Secondary Bench", "variation": "Spoto Press", "tags": "Hover Focus, Chest Activation",
-                        "top": "85kg x 5", "vol": "4,200kg",
-                        "sets": [
-                            {"id": "s-1-2-2a", "label": "Top Set", "planned": "85kg x 5", "plannedWeight": 85.0, "plannedReps": 5, "plannedRpe": 7.0, "isTop": True, "actual": 85.0, "reps": 5, "executedRpe": 7.0}
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "id": "micro-2",
-        "weekName": "Microcycle 02",
-        "focus": "Accumulation / Volume Expansion",
-        "status": "COMPLETED",
-        "active": False,
-        "workouts": [
-            {
-                "id": "w-2-1", "date": "2026-09-09", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 13200.0, "delta": 800.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-2-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Quads Drive",
-                        "top": "155kg x 1", "vol": "9,200kg",
-                        "sets": [
-                            {"id": "s-2-1-1a", "label": "Top Single", "planned": "155kg x 1", "plannedWeight": 155.0, "plannedReps": 1, "plannedRpe": 5.5, "isTop": True, "actual": 155.0, "reps": 1, "executedRpe": 5.5}
-                        ]
-                    },
-                    {
-                        "id": "e-2-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive",
-                        "top": "92.5kg x 3", "vol": "4,000kg",
-                        "sets": [
-                            {"id": "s-2-1-2a", "label": "Top Set", "planned": "92.5kg x 3", "plannedWeight": 92.5, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 92.5, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "id": "micro-3",
-        "weekName": "Microcycle 03",
-        "focus": "Threshold / Intensity Peak",
-        "status": "ACTIVE",
-        "active": True,
-        "workouts": [
-            {
-                "id": "w-3-1", "date": "2026-09-16", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 14100.0, "delta": 900.0, "color": "mac-blue", "status": "IN_PROGRESS",
-                "exercises": [
-                    {
-                        "id": "e-3-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus, Heel Drive",
-                        "top": "160kg x 1", "vol": "9,800kg",
-                        "sets": [
-                            {"id": "s-3-1-1a", "label": "Top Single", "planned": "160kg x 1", "plannedWeight": 160.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 160.0, "reps": 1, "executedRpe": 8.5},
-                            {"id": "s-3-1-1b", "label": "Main Set", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 6.5, "actual": 152.5, "reps": 3, "executedRpe": 7.5},
-                            {"id": "s-3-1-1c", "label": "Backdown", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 5.5, "note": "-5% Drop", "actual": 152.5, "reps": 3, "executedRpe": 8.0, "dropPercent": -5.0}
-                        ]
-                    },
-                    {
-                        "id": "e-3-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause, Shoulder Pin",
-                        "top": "95kg x 3", "vol": "4,300kg",
-                        "sets": [
-                            {"id": "s-3-1-2a", "label": "Top Single", "planned": "95kg x 3", "plannedWeight": 95.0, "plannedReps": 3, "plannedRpe": 5.0, "isTop": True, "actual": 95.0, "reps": 3, "executedRpe": 8.0},
-                            {"id": "s-3-1-2b", "label": "Main Set", "plannedWeight": 90.0, "plannedReps": 5, "plannedRpe": 6.0, "actual": 90.0, "reps": 5, "executedRpe": 7.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "120kg x 12", "vol": "4,320kg",
-                        "sets": [
-                            {"id": "a-3-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-3-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-3-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-2", "title": "Triceps Extension", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "—", "vol": "—",
-                        "sets": [
-                            {"id": "a-3-1-2-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
-                            {"id": "a-3-1-2-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
-                            {"id": "a-3-1-2-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-3", "title": "Lateral Raises", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "—", "vol": "—",
-                        "sets": [
-                            {"id": "a-3-1-3-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
-                            {"id": "a-3-1-3-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
-                            {"id": "a-3-1-3-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0}
-                        ]
-                    }
-                ],
-            }
-        ]
-    }
-]
-
-def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
-    if clear_existing:
-        # Delete existing data for this user to avoid duplication if called again
-        old_mcs = db.query(Microcycle).filter(Microcycle.owner_id == owner_id).all()
-        for mc in old_mcs:
-            db.delete(mc)
-        db.commit()
-
-    for mc_data in INITIAL_SEEDS:
-        mc = Microcycle(
-            id=mc_data["id"] + "-" + str(uuid.uuid4())[:8],
-            weekName=mc_data["weekName"],
-            focus=mc_data["focus"],
-            status=mc_data["status"],
-            active=mc_data["active"],
-            owner_id=owner_id
-        )
-        db.add(mc)
-        db.commit()
-
-        for w_data in mc_data.get("workouts", []):
-            w = Workout(
-                id=w_data["id"] + "-" + str(uuid.uuid4())[:8],
-                date=w_data["date"],
-                dayLabel=w_data["dayLabel"],
-                title=w_data["title"],
-                tonnage=w_data["tonnage"],
-                delta=w_data["delta"],
-                color=w_data["color"],
-                status=w_data["status"],
-                microcycle_id=mc.id
-            )
-            db.add(w)
-            db.commit()
-
-            for e_data in w_data.get("exercises", []):
-                e = Exercise(
-                    id=e_data["id"] + "-" + str(uuid.uuid4())[:8],
-                    title=e_data["title"],
-                    variation=e_data["variation"],
-                    tier=e_data.get("tier", "Comp"),
-                    lift_category=e_data.get("lift_category", "Other"),
-                    tags_raw=e_data["tags"],
-                    top=e_data["top"],
-                    vol=e_data["vol"],
-                    workout_id=w.id
-                )
-                db.add(e)
-                db.commit()
-
-                for s_data in e_data.get("sets", []):
-                    s = ExerciseSet(
-                        id=s_data["id"] + "-" + str(uuid.uuid4())[:8],
-                        label=s_data["label"],
-                        plannedWeight=coerce_float(s_data.get("plannedWeight")),
-                        plannedReps=coerce_int(s_data.get("plannedReps")),
-                        plannedRpe=coerce_float(s_data.get("plannedRpe")),
-                        dropPercent=coerce_float(s_data.get("dropPercent")),
-                        isAuto=s_data.get("isAuto", False),
-                        actual=coerce_float(s_data.get("actual")),
-                        reps=coerce_int(s_data.get("reps")),
-                        executedRpe=coerce_float(s_data.get("executedRpe")),
-                        isTop=s_data.get("isTop", False),
-                        note=s_data.get("note"),
-                        velocity=coerce_float(s_data.get("velocity")),
-                        readiness=coerce_int(s_data.get("readiness")),
-                        hrv=coerce_float(s_data.get("hrv")),
-                        exercise_id=e.id
-                    )
-                    db.add(s)
-                db.commit()
 
 # --- REST Endpoints ---
 from .sync_service import SyncPayload, resolve_sync_payload
@@ -761,44 +566,41 @@ def get_roster(db: Session = Depends(get_db), current_user: User = Depends(get_c
             })
     return athletes
 
-@app.post("/api/coach/push-program")
-def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "COACH":
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
-    rel = db.query(CoachingRelationship).filter(
-        CoachingRelationship.coach_id == current_user.id,
-        CoachingRelationship.athlete_id == req.athleteId
-    ).first()
-    
-    if not rel:
-        raise HTTPException(status_code=403, detail="Not authorized to push to this athlete")
-        
-    seed_db(db, req.athleteId, clear_existing=False)
-    return {"status": "success", "message": f"Program {req.template} deployed successfully"}
-
-def get_visible_microcycles(db: Session, current_user: User):
-    if current_user.role == "COACH":
-        relationships = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id).all()
-        athlete_ids = [rel.athlete_id for rel in relationships]
-        return db.query(Microcycle).filter(Microcycle.owner_id.in_(athlete_ids)).all()
-    else:
-        return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
-
 @app.get("/api/microcycles")
 def get_microcycles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     mcs = get_visible_microcycles(db, current_user)
-    if not mcs and current_user.role == "ATHLETE":
-        # Seed database for new athletes
-        seed_db(db, current_user.id)
-        mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
+
+@app.patch("/api/microcycles/{microcycle_id}/bounds")
+def update_microcycle_bounds(
+    microcycle_id: str,
+    req: MicrocycleBoundsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    micro = require_visible_microcycle(db, current_user, microcycle_id)
+    try:
+        apply_bounds(micro, req.startDate, req.endDate)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    db.commit()
+    db.refresh(micro)
+    return format_microcycle(micro)
+
+@app.post("/api/microcycles/{microcycle_id}/copy")
+def copy_microcycle_endpoint(
+    microcycle_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    source = require_visible_microcycle(db, current_user, microcycle_id)
+    siblings = get_visible_microcycles(db, current_user)
+    copied = copy_microcycle_tree(db, source, siblings)
+    return format_microcycle(copied)
 
 @app.post("/api/sets/log")
 def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    s = db.query(ExerciseSet).filter(ExerciseSet.id == req.setId).first()
-    if not s:
-        raise HTTPException(status_code=404, detail="Target set not found")
+    s, workout = require_visible_set(db, current_user, req.setId, req.workoutId, req.exerciseId)
 
     s.actual = req.weight
     s.reps = req.reps
@@ -813,7 +615,7 @@ def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: Use
         s.hrv = req.hrv
 
     db.commit()
-    recalculate_metrics(db, req.workoutId, db.query(Workout).filter(Workout.id == req.workoutId).first().dayLabel)
+    recalculate_metrics(db, workout.id, workout.dayLabel)
     
     analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
@@ -1206,7 +1008,10 @@ Schema:
 
 @app.post("/api/workouts/{id}/sync")
 def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return resolve_sync_payload(db, payload, current_user.id)
+    if payload.workout_id != id:
+        raise api_error(400, "WORKOUT_MISMATCH", "Sync payload workout_id does not match the URL.")
+    require_visible_workout(db, current_user, id)
+    return resolve_sync_payload(db, payload, current_user)
 
 @app.get("/api/security/devices")
 def get_devices(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1305,13 +1110,10 @@ def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends
 @app.post("/api/reset")
 def reset_database(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role == "ATHLETE":
-        # Clear existing ones for this athlete
         mcs = db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
         for mc in mcs:
             db.delete(mc)
         db.commit()
-        seed_db(db, current_user.id)
-        
     analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]

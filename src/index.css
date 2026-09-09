@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Arial", -apple-system, sans-serif;
+  --font-sans: "Inter", Arial, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   --color-ink-950: #0a0a0a;

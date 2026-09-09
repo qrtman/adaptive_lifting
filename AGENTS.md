@@ -1,237 +1,107 @@
-# Adaptive Lifting Agent Instructions
+# Adaptive Lifting — Agent Instructions
 
-This file is the first instruction layer for AI coding tools working in this repo. Read it before editing code. Then read the project source-of-truth documents:
-
-- `architecture.md` for system behavior, backend boundaries, data model, sync, integrations, deployment, and security.
-- `design.md` for UI/UX, component contracts, layout rules, copy, states, and acceptance checks.
-
-If this file conflicts with `architecture.md` or `design.md`, prefer the more specific instruction from the relevant source-of-truth document.
+Read this before editing code.
 
 ---
 
-## 1. Three-Layer Working Method
+## 1. What the documents in this repo are
 
-Use this method for every task.
+**The code is the source of truth for what this app does.** `design.md` and `architecture.md` record
+decisions and intent. They are written by people and they go stale.
 
-### Layer 1: Repo Rules
+When a document disagrees with the code:
 
-These rules are always active:
+1. The code is right about what exists.
+2. Decide whether the document is describing a decision that was never implemented, or is simply out of date.
+3. Fix the document in the same change. Do not silently leave the contradiction for the next agent.
 
-- Do not invent architecture that conflicts with `architecture.md`.
-- Do not invent UI patterns that conflict with `design.md`.
-- Do not build a marketing landing page unless explicitly requested.
-- Do not make Telegram chat commands the primary mobile UI. Telegram is a Telegram Mini App launched from the bot, with bot messages as entry points, reminders, alerts, and fallback commands.
-- Do not use Google Sheets as canonical storage. Sheets is one-way publish/export unless a future import-review workflow is explicitly requested.
-- Do not parse workout prescriptions from freeform text. Use structured prescription data.
-- Do not hide offline, sync, conflict, lock, rejected, or session-revoked states.
-- Do not store numeric training values as strings.
-- Do not use `LocalStorage` for workout sync. Use IndexedDB mutation queues and snapshots.
-- Do not bypass RBAC, workout locks, tombstones, idempotency, backend canonical math, or audit logging from integrations.
-- Do not create nested cards, decorative hero sections, gradient-orb backgrounds, or generic SaaS filler UI.
+Both documents label every section:
 
-### Layer 2: Task Brief
+| Label | Meaning | What you may do |
+| :--- | :--- | :--- |
+| **Built** | Exists in the code and is expected to keep working. | Change it only on request. Keep the states listed. |
+| **Partly built** | Some of it exists. The gap is described. | Safe to extend. Do not assume the missing half works. |
+| **Not built** | A wish. Nothing backs it. | **Do not implement because it is written down.** Build it only when asked. |
 
-Before implementing, restate the task in concrete terms and identify:
-
-- Architecture sections that govern the behavior.
-- Design sections that govern the UI.
-- Files you expect to edit.
-- Required states and acceptance criteria.
-
-Use this task brief format:
-
-```md
-Task:
-Build or modify [specific feature].
-
-Source of truth:
-- architecture.md section(s): [...]
-- design.md section(s): [...]
-
-Scope:
-- Edit only: [...]
-- Do not refactor unrelated files.
-
-Required behavior:
-- [...]
-- [...]
-
-Required UI states:
-- loading
-- empty
-- success
-- offline/syncing where relevant
-- rejected/conflict where relevant
-- locked/readonly where relevant
-- permission denied where relevant
-
-Acceptance criteria:
-- [...]
-- [...]
-
-Verification:
-- Run lint/typecheck/tests if available.
-- If a command cannot run, explain why.
-```
-
-### Layer 3: Review Gate
-
-Before stopping, review the work against the source documents. Fix mismatches before final response.
-
-Use this review gate:
-
-```md
-Review against architecture.md:
-- Data model matches.
-- Sync/offline behavior matches.
-- RBAC and session behavior match.
-- Telegram Mini App behavior matches.
-- Google Sheets one-way publish behavior matches.
-- Backend canonical math is respected.
-- Deployment/runtime assumptions are not contradicted.
-
-Review against design.md:
-- Correct product surface and role.
-- Required UI states exist.
-- Component contracts are satisfied.
-- Mobile and desktop layouts follow the rules.
-- Prohibited patterns are absent.
-- Copy and domain terms are correct.
-
-Final response must include:
-- Files changed.
-- Verification run.
-- Any known gaps.
-```
+A thing being described in detail is not evidence that it exists, that it is wanted now, or that it is
+next. Length is not priority. Most of what these documents once contained was aspiration written in
+the present tense, which is why they used to produce wrong code.
 
 ---
 
-## 2. Task Templates
+## 2. Where each kind of rule lives
 
-### 2.1 UI Feature Template
+Each rule has exactly one home. Do not copy rules between files — duplicated rules drift apart and then
+contradict each other.
 
-```md
-Build [UI feature].
-
-Read first:
-- architecture.md sections: [...]
-- design.md sections: [...]
-
-Implement:
-- [component/view]
-- [states]
-- [actions]
-
-Rules:
-- Follow design.md component contracts.
-- Include loading, empty, error, permission, locked, and sync states where applicable.
-- No nested cards, no decorative hero, no generic SaaS filler.
-- Use domain terms exactly: e1RM, INOL, ACWR, DOTS, RPE, mesocycle, microcycle.
-
-Verify:
-- Typecheck/lint.
-- Check mobile 360px and desktop 1440px layout if browser tools are available.
-```
-
-### 2.2 Backend/API Template
-
-```md
-Build [backend/API feature].
-
-Read first:
-- architecture.md sections: [...]
-
-Implement:
-- Endpoint/service/schema/repository changes.
-- RBAC checks.
-- Audit events where needed.
-- Idempotency where needed.
-- Tests or test notes.
-
-Rules:
-- Routers validate and delegate; business logic belongs in services.
-- Do not let integrations write directly to ORM models.
-- Do not bypass tombstones, locks, idempotency, or backend canonical math.
-- Numeric training values stay numeric.
-
-Verify:
-- Run backend tests or the closest available check.
-```
-
-### 2.3 Integration Template
-
-```md
-Build [Telegram Mini App / Google Sheets] integration feature.
-
-Read first:
-- architecture.md section 14.
-- design.md sections 8 or 9.
-
-Rules:
-- Telegram is a Mini App launched from the bot; verify initData server-side.
-- Bot messages are entry points, reminders, alerts, and fallback commands.
-- Google Sheets is one-way publish/export only.
-- Provider failures must not block core workout logging.
-- Use IntegrationOutbox for retries and AuditEvent for important actions.
-
-Verify:
-- Invalid auth is rejected.
-- Duplicate provider events/jobs are idempotent.
-- RBAC prevents unrelated athlete access.
-```
-
-### 2.4 Bug Fix Template
-
-```md
-Fix [bug].
-
-Expected behavior:
-- [...]
-
-Observed behavior:
-- [...]
-
-Constraints:
-- Do not refactor unrelated code.
-- Preserve architecture.md and design.md contracts.
-
-Verify:
-- Add or update the smallest useful test.
-- Run the relevant check.
-```
-
----
-
-## 3. Common Failure Corrections
-
-If the generated result does any of the following, revise immediately:
-
-| Failure | Correction |
+| Kind of rule | Home |
 | :--- | :--- |
-| Builds a landing page | Replace with the actual app surface for the requested role. |
-| Creates pretty cards but no states | Add loading, empty, error, offline, sync, lock, and conflict states as relevant. |
-| Treats Telegram as just chat commands | Convert to Telegram Mini App launched from bot, with bot fallback. |
-| Treats Sheets as editable database | Convert to one-way publish/export. |
-| Uses freeform prescription text | Replace with structured controls and readonly generated preview. |
-| Stores numbers as strings | Use numeric types end to end. |
-| Hides sync failures | Add per-row status and conflict review. |
-| Ignores locks/tombstones | Add disabled/read-only behavior and recovery copy. |
-| Adds generic gradients/glass | Use restrained dark operational UI from `design.md`. |
+| Product and UI decisions (layout, states, copy, what a screen shows) | `design.md` §3 |
+| System behaviour (data model, sync, auth, integrations, API) | `architecture.md` |
+| How to work in this repo | This file |
 
 ---
 
-## 4. Final Response Format
+## 3. Engineering rules
 
-Keep final responses short and concrete:
+These are always active.
 
-```md
-Changed:
-- [file]: [what changed]
+- Numeric training values stay numeric end to end. Never store or pass kg, reps, RPE, or percentages as strings.
+- Workout data lives in IndexedDB snapshots and mutation queues. `LocalStorage` is UI preferences only.
+- Prescriptions are structured data. Never parse them out of freeform text.
+- Never key application logic on a specific athlete, block name, or id prefix. Athlete-scoped data resolves
+  through the registry in `src/data/athletePlans.ts`, so adding the next athlete is data, not code.
+- A real athlete's name, block label, and logged numbers are **fixture data**. They belong in
+  `src/data/fixtures/`, never in `design.md`, `architecture.md`, or as test acceptance criteria. Conversion
+  fidelity for a real import is checked by one fixture-integrity test that sits beside the fixture.
+- Tests assert mechanisms against neutral fixtures, so a test failing tells you the behaviour broke rather
+  than that someone's training numbers changed.
+- Cached data carries provenance and a version and refreshes itself. Never ask the user to re-open, re-import,
+  or re-run something to pick up fresh data. Discarding a user's work is a separate, explicitly labelled action.
+- Routers validate and delegate. Business logic belongs in services, not in route handlers or ORM callbacks.
+- Do not bypass RBAC, workout locks, tombstones, idempotency, or audit logging where they exist. Where they
+  do not exist yet, `architecture.md` §9 lists the gaps honestly — read it before assuming an invariant holds.
 
-Verified:
-- [command/check]
+---
 
-Notes:
-- [known limitation or none]
-```
+## 4. Changing a decision
 
+When the user overrides a decision:
+
+1. Edit the decision where it lives (`design.md` §3 for product, `architecture.md` for system behaviour).
+2. **Delete or correct every other passage that now contradicts it, in the same change.** Search for it.
+3. Do not add a new "overrides" or "exceptions" layer on top of the old text. That is what broke these
+   documents before: corrections accumulated at the top while the body kept describing the rejected design,
+   and each new agent implemented whichever it read first.
+
+If a section becomes untrue and you cannot fix it properly, relabel it **Not built** rather than leaving it
+looking authoritative.
+
+---
+
+## 5. Working method
+
+Before implementing, be concrete about: what the user asked for, which documented decisions govern it, which
+files you expect to change, and how you will know it works. Keep this proportionate — a one-line fix does not
+need a plan.
+
+While implementing:
+
+- Change only what the task needs. Do not refactor unrelated files.
+- Include the states the surface actually needs: loading, empty, error, permission-denied, and where relevant
+  offline/syncing, rejected/conflict, and locked/read-only. Hiding these states is a bug.
+- Match the surrounding code's naming, comment density, and idiom.
+
+Before finishing:
+
+- Run the relevant checks: `npm run lint`, `npm test`, `npm run test:e2e`, `pytest`. If one cannot run, say so
+  and why.
+- Re-read the documented decisions you touched and confirm the code matches them.
+- If you changed behaviour a document describes, update that document now.
+
+---
+
+## 6. Final response
+
+Say what changed, what you verified, and what is still missing or uncertain. Be specific and brief. If you
+left a known gap, name it rather than letting it be discovered later.

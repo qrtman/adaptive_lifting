@@ -35,7 +35,12 @@ export function getRpePercentage(reps: number, rpe: number): number {
 /** Mirrors calculate_e1rm_linear_decay in backend/math_utils.py */
 export function calculateE1RM(weight: number, reps: number, rpe: number): number {
   if (weight <= 0 || reps <= 0) return 0;
-  if (rpe < 6.0 || reps > 12) return weight;
+  if (reps > 12) return weight;
+  if (rpe < 6.0) {
+    const pct = getRpePercentage(reps, rpe);
+    if (pct <= 0) return weight;
+    return Math.round((weight / pct) * 100) / 100;
+  }
 
   let effectiveDropPct = 0.03 * (10 - rpe + reps - 1);
   if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
@@ -46,10 +51,58 @@ export function calculateE1RM(weight: number, reps: number, rpe: number): number
   return Math.round((weight / denominator) * 100) / 100;
 }
 
+/** Anchor e1RM from set 1 prescription, not from an edited baseline. */
+export function anchorE1RMFromPrescription(
+  weight: number | null | undefined,
+  reps: number | null | undefined,
+  rpeOrPct: number | null | undefined,
+  intensityType: string = 'RPE',
+): number {
+  const w = trainingOrZero(weight);
+  const r = trainingIntOrZero(reps);
+  if (w <= 0 || r <= 0) return 0;
+  if (intensityType === 'PERCENT') {
+    const pct = trainingOrZero(rpeOrPct);
+    if (pct <= 0) return 0;
+    return Math.round((w / (pct / 100)) * 100) / 100;
+  }
+  return calculateE1RM(w, r, trainingOrZero(rpeOrPct));
+}
+
 export function calculateINOL(reps: number, intensityPct: number): number {
   if (intensityPct >= 100.0) return reps * 1.0;
   if (intensityPct <= 0) return 0;
   return Math.round((reps / (100.0 - intensityPct)) * 100) / 100;
+}
+
+export type LoggedSetForINOL = {
+  actual?: unknown;
+  suggestedWeight?: unknown;
+  reps?: unknown;
+  executedRpe?: unknown;
+  intensity_type?: string;
+  target_value?: unknown;
+};
+
+/** Per-set INOL using logged kg when present, else suggested kg. */
+export function exerciseSetINOL(set: LoggedSetForINOL): number {
+  const isPercent = (set.intensity_type || 'RPE') === 'PERCENT';
+  const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
+  const reps = trainingIntOrZero(set.reps);
+  if (weight <= 0 || reps <= 0) return 0;
+  if (isPercent) {
+    const pct = trainingOrZero(set.target_value);
+    if (pct <= 0) return 0;
+    return calculateINOL(reps, pct);
+  }
+  const e1RM = calculateE1RM(weight, reps, trainingOrZero(set.executedRpe));
+  if (e1RM <= 0) return 0;
+  return calculateINOL(reps, (weight / e1RM) * 100);
+}
+
+export function sumExerciseINOL(sets: LoggedSetForINOL[]): number {
+  const total = sets.reduce((acc, set) => acc + exerciseSetINOL(set), 0);
+  return Math.round(total * 100) / 100;
 }
 
 export function calculateDOTS(gender: string, bodyweight: number, total: number): number {
@@ -227,7 +280,10 @@ export function calculateCapacityScaledWeight(
 /** Inverse of calculateE1RM linear decay, for prescription preview. */
 export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number): number {
   if (!e1RM || !reps || !rpe) return 0;
-  if (rpe < 6.0 || reps > 12) return e1RM;
+  if (reps > 12) return e1RM;
+  if (rpe < 6.0) {
+    return Math.max(0, e1RM * getRpePercentage(reps, rpe));
+  }
 
   let effectiveDropPct = 0.03 * (10 - rpe + reps - 1);
   if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
@@ -236,4 +292,79 @@ export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number)
   if (denominator <= 0.1) return e1RM;
 
   return Math.max(0, e1RM * denominator);
+}
+
+export type LoggedSetForE1RM = {
+  actual?: unknown;
+  reps?: unknown;
+  executedRpe?: unknown;
+  intensity_type?: string;
+  target_value?: unknown;
+};
+
+/** Logged e1RM only. Unlogged sets (no actual kg) return 0. Percent sets invert target %. */
+export function loggedSetE1RM(set: LoggedSetForE1RM): number {
+  const weight = trainingOrZero(set.actual);
+  if (weight <= 0) return 0;
+  if ((set.intensity_type || 'RPE') === 'PERCENT') {
+    const pct = trainingOrZero(set.target_value);
+    if (pct <= 0) return 0;
+    return Math.round((weight / (pct / 100)) * 100) / 100;
+  }
+  return calculateE1RM(weight, trainingIntOrZero(set.reps), trainingOrZero(set.executedRpe));
+}
+
+export type PrecedingE1RMDelta = {
+  pct: number;
+};
+
+/**
+ * % Δ vs the most recent preceding logged e1RM (skip unlogged rows).
+ * Set 1 and any set without a prior logged e1RM have no Δ.
+ */
+export function precedingLoggedE1RMDelta(
+  sets: LoggedSetForE1RM[],
+  index: number,
+): PrecedingE1RMDelta | null {
+  const current = loggedSetE1RM(sets[index] ?? {});
+  if (current <= 0) return null;
+
+  let previous = 0;
+  for (let j = index - 1; j >= 0; j--) {
+    const prior = loggedSetE1RM(sets[j]);
+    if (prior > 0) {
+      previous = prior;
+      break;
+    }
+  }
+  if (previous <= 0) return null;
+
+  const currentRounded = Math.round(current);
+  const prevRounded = Math.round(previous);
+  const pct = Math.round(((currentRounded - prevRounded) / prevRounded) * 1000) / 10;
+  return { pct };
+}
+
+export function formatPrecedingE1RMDelta(delta: PrecedingE1RMDelta): string {
+  return `${delta.pct > 0 ? '+' : ''}${delta.pct.toFixed(1)}%`;
+}
+
+/** Daily e1RM for later-set suggestions: top set if logged, else peak preceding log. Backdowns do not re-anchor. */
+export function peakPrecedingLoggedE1RM(
+  sets: Array<{ actual?: unknown; reps?: unknown; executedRpe?: unknown; isTop?: boolean }>,
+  beforeIndex: number,
+): number {
+  let top = 0;
+  let peak = 0;
+  for (let j = 0; j < beforeIndex; j++) {
+    const e1rm = calculateE1RM(
+      trainingOrZero(sets[j].actual),
+      trainingIntOrZero(sets[j].reps),
+      trainingOrZero(sets[j].executedRpe),
+    );
+    if (e1rm <= 0) continue;
+    if (sets[j].isTop) top = Math.max(top, e1rm);
+    peak = Math.max(peak, e1rm);
+  }
+  return top > 0 ? top : peak;
 }

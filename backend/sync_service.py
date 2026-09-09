@@ -5,10 +5,12 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
+from .access import athlete_forbidden_fields
 from .database import (
-    Workout, ExerciseSet, Exercise, SyncMutation, 
-    WorkoutLock, DomainEvent, AuditEvent
+    User, Workout, ExerciseSet, Exercise, SyncMutation,
+    WorkoutLock, DomainEvent, AuditEvent, Microcycle
 )
+from .microcycle_ops import date_in_microcycle
 
 class SyncFieldMutation(BaseModel):
     entity: str
@@ -24,7 +26,7 @@ class SyncPayload(BaseModel):
     last_updated_at: str
     changes: List[SyncFieldMutation]
 
-def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str) -> dict:
+def resolve_sync_payload(db: Session, payload: SyncPayload, current_user: User) -> dict:
     if payload.schema_version != 1:
         raise HTTPException(status_code=409, detail={"error": {"code": "CLIENT_SCHEMA_UNSUPPORTED", "message": "App update required."}})
     
@@ -34,7 +36,7 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
         
     # Check locks
     lock = db.query(WorkoutLock).filter(WorkoutLock.workout_id == workout.id).first()
-    if lock and lock.holder_user_id != current_user_id and lock.expires_at > datetime.utcnow():
+    if lock and lock.holder_user_id != current_user.id and lock.expires_at > datetime.utcnow():
         raise HTTPException(status_code=409, detail={"error": {"code": "WORKOUT_LOCKED", "message": "This workout is locked right now."}})
 
     # Process mutations
@@ -80,12 +82,44 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
         if not model_class:
             rejected.append(change.mutation_id)
             continue
+
+        if current_user.role != "COACH":
+            forbidden = athlete_forbidden_fields(change.entity, change.fields)
+            if forbidden:
+                rejected.append(change.mutation_id)
+                conflicts.append({
+                    "mutation_id": change.mutation_id,
+                    "reason": "PRESCRIPTION_FORBIDDEN",
+                })
+                db.add(SyncMutation(
+                    mutation_id=change.mutation_id, client_device_id=payload.client_device_id,
+                    entity_type=change.entity, entity_id=change.id, field_path="ALL",
+                    updated_at=client_updated, result="REJECTED_PRESCRIPTION"
+                ))
+                continue
             
         entity = db.query(model_class).filter(model_class.id == change.id).first()
         if not entity:
             # Upsert logic can be added here if needed, but assuming client only mutates existing for now.
             rejected.append(change.mutation_id)
             continue
+
+        if change.entity == "Workout" and "date" in change.fields:
+            target_date = change.fields["date"]
+            micro = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+            if micro is not None:
+                if not date_in_microcycle(str(target_date), micro):
+                    rejected.append(change.mutation_id)
+                    conflicts.append({
+                        "mutation_id": change.mutation_id,
+                        "reason": "MICROCYCLE_BOUNDARY",
+                    })
+                    db.add(SyncMutation(
+                        mutation_id=change.mutation_id, client_device_id=payload.client_device_id,
+                        entity_type=change.entity, entity_id=change.id, field_path="date",
+                        updated_at=client_updated, result="REJECTED_BOUNDARY"
+                    ))
+                    continue
             
         if entity.deleted_at is not None:
             rejected.append(change.mutation_id)

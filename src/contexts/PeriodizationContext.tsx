@@ -1,32 +1,93 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { apiService } from '../services/api';
-import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
+import { evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
-import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
+import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
+import { copyMicrocycle as copyMicrocyclePlan, createBlankMicrocycle } from '../services/copyMicrocycle';
 import {
-  INITIAL_MICROCYCLES,
+  insertWorkoutChronologically,
+  isIsoDate,
+  microcycleHasLoggedSets,
+  relabelDayLabels,
+  workoutHasLoggedSets,
+} from '../services/workoutDays';
+import { importedPlanFor, pickActiveAthlete, planVersion } from '../data/athletePlans';
+import { loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
+import {
+  PLAN_SCHEMA,
+  PlanSource,
+  clearStoredPlan,
+  migrateLegacyPlanSnapshot,
+  planSharesStructure,
+  readStoredPlan,
+  reconcileImportedPlan,
+  inferOwnedWorkoutIds,
+  writeStoredPlan,
+} from '../services/planStore';
+import {
   INITIAL_MESOCYCLE,
   WorkoutData,
   MicrocycleData,
   MesocycleData,
   WorkoutStatus,
+  ExerciseData,
 } from '../types';
 
 interface PeriodizationState {
   microcycles: MicrocycleData[];
   setMicrocycles: (next: MicrocycleData[] | ((prev: MicrocycleData[]) => MicrocycleData[])) => void;
   mesocycles: MesocycleData[];
+  athletes: LocalAthlete[];
+  rosterReady: boolean;
+  activeAthleteId: string | null;
+  activeAthlete: LocalAthlete | undefined;
+  selectAthlete: (athleteId: string) => void;
+  refreshRoster: () => Promise<void>;
   activeWorkoutId: string | null;
   setActiveWorkoutId: (id: string | null) => void;
   activeMicrocycleId: string | null;
   setActiveMicrocycleId: (id: string | null) => void;
   activeMicro: MicrocycleData | undefined;
   activeWorkout: WorkoutData | undefined;
-  updateExerciseSets: (exerciseId: string, updatedSets: any[]) => void;
-  finishSession: (status: WorkoutStatus) => Promise<void>;
+  updateExerciseSets: (
+    exerciseId: string,
+    updatedSets: any[],
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => void;
+  addExercise: (workoutId: string, microcycleId: string, exercise: ExerciseData) => void;
+  addWorkout: (microcycleId: string, workout: WorkoutData) => void;
+  rescheduleWorkout: (workoutId: string, date: string) => void;
+  updateMicrocycleBounds: (microcycleId: string, startDate: string, endDate: string) => void;
+  copyMicrocycle: (microcycleId: string) => string | null;
+  addMicrocycle: (startDate: string, endDate: string) => string | null;
+  deleteWorkout: (workoutId: string) => void;
+  deleteMicrocycle: (microcycleId: string) => void;
+  finishSession: (
+    status: WorkoutStatus,
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => Promise<void>;
   resetPlan: () => Promise<void>;
 }
+
+/** Provenance for the plan currently in memory, so every write lands on the right key. */
+type PlanMeta = {
+  athleteId: string | null;
+  source: PlanSource;
+  planVersion: string | null;
+  ownedWorkoutIds: Set<string>;
+  deletedWorkoutIds: Set<string>;
+  deletedMicrocycleIds: Set<string>;
+};
+
+const EMPTY_META: PlanMeta = {
+  athleteId: null,
+  source: 'local',
+  planVersion: null,
+  ownedWorkoutIds: new Set(),
+  deletedWorkoutIds: new Set(),
+  deletedMicrocycleIds: new Set(),
+};
 
 const PeriodizationContext = createContext<PeriodizationState | null>(null);
 
@@ -39,49 +100,207 @@ export function usePeriodization(): PeriodizationState {
 }
 
 export function PeriodizationProvider({ children }: { children: ReactNode }) {
-  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>(INITIAL_MICROCYCLES);
-  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(() => {
-    return getUiPref(UI_KEYS.activeWorkoutId) || 'w-3-1';
-  });
-  const [activeMicrocycleId, setActiveMicrocycleId] = useState<string | null>(() => {
-    return getUiPref(UI_KEYS.activeMicrocycleId) || 'micro-3';
-  });
+  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>([]);
+  const [athletes, setAthletes] = useState<LocalAthlete[]>([]);
+  const [rosterReady, setRosterReady] = useState(false);
+  const [activeAthleteId, setActiveAthleteId] = useState<string | null>(() => getUiPref(UI_KEYS.activeAthleteId));
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(() => getUiPref(UI_KEYS.activeWorkoutId));
+  const [activeMicrocycleId, setActiveMicrocycleId] = useState<string | null>(() => getUiPref(UI_KEYS.activeMicrocycleId));
 
   const mesocycles = INITIAL_MESOCYCLE;
 
+  const planMeta = useRef<PlanMeta>(EMPTY_META);
+  const planCache = useRef(new Map<string, {
+    microcycles: MicrocycleData[];
+    source: PlanSource;
+    planVersion: string | null;
+    ownedWorkoutIds: string[];
+    deletedWorkoutIds: string[];
+    deletedMicrocycleIds: string[];
+  }>());
+  const hydrated = useRef(false);
+  const selectGeneration = useRef(0);
+
+  const focusPlan = (plan: MicrocycleData[]) => {
+    const current = plan.find((micro) => micro.status === 'ACTIVE') ?? plan[plan.length - 1];
+    if (!current) {
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+      return;
+    }
+    setActiveMicrocycleId(current.id);
+    setUiPref(UI_KEYS.sessionsExpandedMicro, current.id);
+    const first = current.workouts[0];
+    if (first) setActiveWorkoutId(first.id);
+  };
+
+  const markWorkoutEdited = (workoutId: string) => {
+    planMeta.current.ownedWorkoutIds.add(workoutId);
+  };
+
+  const applyResolvedPlan = (
+    athleteId: string,
+    imported: ReturnType<typeof importedPlanFor>,
+    stored: Awaited<ReturnType<typeof readStoredPlan>>,
+    focus: boolean,
+  ) => {
+    if (imported) {
+      const usable =
+        stored &&
+        (planSharesStructure(imported.microcycles, stored.microcycles) ||
+          stored.deletedMicrocycleIds.length > 0 ||
+          stored.deletedWorkoutIds.length > 0)
+          ? stored
+          : null;
+      const version = planVersion(imported.microcycles);
+      const tracked = usable
+        ? usable.ownedWorkoutIds.length > 0
+          ? usable
+          : {
+              ...usable,
+              ownedWorkoutIds: inferOwnedWorkoutIds(imported.microcycles, usable.microcycles),
+            }
+        : null;
+      const plan = !tracked
+        ? imported.microcycles
+        : reconcileImportedPlan(imported.microcycles, tracked);
+      planMeta.current = {
+        athleteId,
+        source: 'imported',
+        planVersion: version,
+        ownedWorkoutIds: new Set(tracked?.ownedWorkoutIds ?? []),
+        deletedWorkoutIds: new Set(tracked?.deletedWorkoutIds ?? []),
+        deletedMicrocycleIds: new Set(tracked?.deletedMicrocycleIds ?? []),
+      };
+      hydrated.current = true;
+      setMicrocycles(plan);
+      planCache.current.set(athleteId, {
+        microcycles: plan,
+        source: 'imported',
+        planVersion: version,
+        ownedWorkoutIds: Array.from(planMeta.current.ownedWorkoutIds),
+        deletedWorkoutIds: Array.from(planMeta.current.deletedWorkoutIds),
+        deletedMicrocycleIds: Array.from(planMeta.current.deletedMicrocycleIds),
+      });
+      const remembered = getUiPref(UI_KEYS.activeWorkoutId);
+      const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
+      if (focus || !known) focusPlan(plan);
+      return;
+    }
+
+    planMeta.current = {
+      athleteId,
+      source: stored?.source === 'imported' || stored?.source === 'api' ? stored.source : 'local',
+      planVersion: stored?.planVersion ?? null,
+      ownedWorkoutIds: new Set(stored?.ownedWorkoutIds ?? []),
+      deletedWorkoutIds: new Set(stored?.deletedWorkoutIds ?? []),
+      deletedMicrocycleIds: new Set(stored?.deletedMicrocycleIds ?? []),
+    };
+    hydrated.current = true;
+    const plan = stored?.microcycles ?? [];
+    setMicrocycles(plan);
+    planCache.current.set(athleteId, {
+      microcycles: plan,
+      source: planMeta.current.source,
+      planVersion: planMeta.current.planVersion,
+      ownedWorkoutIds: Array.from(planMeta.current.ownedWorkoutIds),
+      deletedWorkoutIds: Array.from(planMeta.current.deletedWorkoutIds),
+      deletedMicrocycleIds: Array.from(planMeta.current.deletedMicrocycleIds),
+    });
+    if (plan.length) {
+      const remembered = getUiPref(UI_KEYS.activeWorkoutId);
+      const known = plan.some((micro) => micro.workouts.some((w) => w.id === remembered));
+      if (focus || !known) focusPlan(plan);
+    } else {
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+    }
+  };
+
+  const loadRoster = async (): Promise<LocalAthlete[]> => {
+    const local = await loadLocalRoster();
+    let remote: Array<{ id: string; email?: string; activeMicrocycles?: number }> = [];
+    try {
+      remote = await apiService.fetchRoster();
+    } catch (err) {
+      console.warn('Failed to refresh roster from backend:', err);
+    }
+    return mergeRoster(remote, local);
+  };
+
   useEffect(() => {
-    const hydrateAndEvict = async () => {
+    let cancelled = false;
+
+    const hydrate = async () => {
       try {
         await evictOldSyncedData();
       } catch (err) {
         console.warn('Failed to evict old synced mutations on launch:', err);
       }
 
-      try {
-        const cached = await getSnapshot('microcycles');
-        if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].workouts) {
-          setMicrocycles(cached);
-        }
-      } catch (err) {
-        console.error('Failed to hydrate workout data from IndexedDB:', err);
+      const roster = await loadRoster();
+      if (cancelled) return;
+      setAthletes(roster);
+
+      const athlete = pickActiveAthlete(roster, getUiPref(UI_KEYS.activeAthleteId));
+      if (!athlete) {
+        await migrateLegacyPlanSnapshot(null, null);
+        planMeta.current = EMPTY_META;
+        hydrated.current = true;
+        setActiveAthleteId(null);
+        setMicrocycles([]);
+        setRosterReady(true);
+        return;
       }
 
-      try {
-        const meso = await apiService.getMesocycle();
-        if (meso && meso.microcycles) {
-          setMicrocycles(meso.microcycles);
-          await saveSnapshot('microcycles', meso.microcycles);
-        }
-      } catch (err) {
-        console.warn('Failed to refresh mesocycle from backend (offline fallback active):', err);
-      }
+      setActiveAthleteId(athlete.id);
+      setUiPref(UI_KEYS.activeAthleteId, athlete.id);
+
+      const imported = importedPlanFor(athlete.id);
+      await migrateLegacyPlanSnapshot(athlete.id, imported?.microcycles ?? null);
+      const stored = await readStoredPlan(athlete.id);
+      if (cancelled) return;
+      applyResolvedPlan(athlete.id, imported, stored, false);
+      setRosterReady(true);
     };
-    hydrateAndEvict();
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    saveSnapshot('microcycles', microcycles)
-      .catch(err => console.error('Failed to write IndexedDB microcycles snapshot:', err));
+    if (!hydrated.current) return;
+    const meta = planMeta.current;
+    if (meta.athleteId) {
+      planCache.current.set(meta.athleteId, {
+        microcycles,
+        source: meta.source,
+        planVersion: meta.planVersion,
+        ownedWorkoutIds: Array.from(meta.ownedWorkoutIds),
+        deletedWorkoutIds: Array.from(meta.deletedWorkoutIds),
+        deletedMicrocycleIds: Array.from(meta.deletedMicrocycleIds),
+      });
+    }
+    if (
+      meta.source === 'imported' &&
+      microcycles.length === 0 &&
+      meta.deletedWorkoutIds.size === 0 &&
+      meta.deletedMicrocycleIds.size === 0
+    ) {
+      return;
+    }
+    void writeStoredPlan({
+      schema: PLAN_SCHEMA,
+      athleteId: meta.athleteId,
+      source: meta.source,
+      planVersion: meta.planVersion,
+      ownedWorkoutIds: Array.from(meta.ownedWorkoutIds),
+      deletedWorkoutIds: Array.from(meta.deletedWorkoutIds),
+      deletedMicrocycleIds: Array.from(meta.deletedMicrocycleIds),
+      microcycles,
+    });
   }, [microcycles]);
 
   useEffect(() => {
@@ -95,15 +314,23 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
   const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
-  const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+  const updateExerciseSets = (
+    exerciseId: string,
+    updatedSets: any[],
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => {
+    const workoutId = scope?.workoutId ?? activeWorkoutId;
+    if (!workoutId) return;
+    markWorkoutEdited(workoutId);
 
     setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
+      const inThisMicro = m.workouts.some(w => w.id === workoutId);
+      if (!inThisMicro) return m;
+      if (scope?.microcycleId && m.id !== scope.microcycleId) return m;
       return {
         ...m,
         workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
+          if (w.id !== workoutId) return w;
 
           const updatedExercises = w.exercises.map(ex => {
             if (ex.id !== exerciseId) return ex;
@@ -141,20 +368,156 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       };
     }));
 
-    void queueMutation(activeWorkoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
+    void queueMutation(workoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
   };
 
-  const finishSession = async (status: WorkoutStatus) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+  const addExercise = (workoutId: string, microcycleId: string, exercise: ExerciseData) => {
+    markWorkoutEdited(workoutId);
+    setMicrocycles((prev) =>
+      prev.map((m) => {
+        if (m.id !== microcycleId) return m;
+        return {
+          ...m,
+          workouts: m.workouts.map((w) => {
+            if (w.id !== workoutId) return w;
+            return { ...w, exercises: [...w.exercises, exercise] };
+          }),
+        };
+      })
+    );
+    void queueMutation(workoutId, 'Exercise', exercise.id, { exercise });
+  };
+
+  const addWorkout = (microcycleId: string, workout: WorkoutData) => {
+    markWorkoutEdited(workout.id);
+    let labeled: WorkoutData = workout;
+    setMicrocycles((prev) =>
+      prev.map((m) => {
+        if (m.id !== microcycleId) return m;
+        const workouts = insertWorkoutChronologically(m.workouts, workout);
+        labeled = workouts.find((w) => w.id === workout.id) ?? workout;
+        return { ...m, workouts };
+      })
+    );
+    setActiveWorkoutId(workout.id);
+    setActiveMicrocycleId(microcycleId);
+    void queueMutation(workout.id, 'Workout', workout.id, { workout: labeled });
+  };
+
+  const rescheduleWorkout = (workoutId: string, date: string) => {
+    markWorkoutEdited(workoutId);
+    setMicrocycles((prev) =>
+      prev.map((micro) => ({
+        ...micro,
+        workouts: micro.workouts.map((workout) =>
+          workout.id === workoutId ? { ...workout, date } : workout,
+        ),
+      })),
+    );
+  };
+
+  const updateMicrocycleBounds = (microcycleId: string, startDate: string, endDate: string) => {
+    if (!isIsoDate(startDate) || !isIsoDate(endDate) || startDate > endDate) return;
+    setMicrocycles((prev) =>
+      prev.map((micro) =>
+        micro.id === microcycleId ? { ...micro, startDate, endDate } : micro,
+      ),
+    );
+    void apiService.updateMicrocycleBounds(microcycleId, startDate, endDate);
+  };
+
+  const copyMicrocycle = (microcycleId: string): string | null => {
+    const result = copyMicrocyclePlan(microcycles, microcycleId);
+    if (!result) return null;
+    for (const workout of result.copied.workouts) markWorkoutEdited(workout.id);
+    setMicrocycles(result.microcycles);
+    setActiveMicrocycleId(result.copied.id);
+    setUiPref(UI_KEYS.sessionsExpandedMicro, result.copied.id);
+    const first = result.copied.workouts[0];
+    if (first) setActiveWorkoutId(first.id);
+    return result.copied.id;
+  };
+
+  const addMicrocycle = (startDate: string, endDate: string): string | null => {
+    if (!isIsoDate(startDate) || !isIsoDate(endDate) || startDate > endDate) return null;
+    const created = createBlankMicrocycle(microcycles, startDate, endDate);
+    setMicrocycles((prev) => [...prev, created]);
+    setActiveMicrocycleId(created.id);
+    setUiPref(UI_KEYS.sessionsExpandedMicro, created.id);
+    return created.id;
+  };
+
+  const deleteWorkout = (workoutId: string) => {
+    const host = microcycles.find((micro) => micro.workouts.some((workout) => workout.id === workoutId));
+    const target = host?.workouts.find((workout) => workout.id === workoutId);
+    if (!host || !target) return;
+    const logged = workoutHasLoggedSets(target);
+    const ok = window.confirm(
+      logged
+        ? 'This session has logged sets. Delete it from the week?'
+        : 'Delete this session from the week?',
+    );
+    if (!ok) return;
+    planMeta.current.deletedWorkoutIds.add(workoutId);
+    planMeta.current.ownedWorkoutIds.delete(workoutId);
+    setMicrocycles((prev) =>
+      prev.map((micro) => {
+        if (micro.id !== host.id) return micro;
+        return {
+          ...micro,
+          workouts: relabelDayLabels(micro.workouts.filter((workout) => workout.id !== workoutId)),
+        };
+      }),
+    );
+    if (activeWorkoutId === workoutId) {
+      setActiveWorkoutId(null);
+      removeUiPref(UI_KEYS.activeWorkoutId);
+    }
+  };
+
+  const deleteMicrocycle = (microcycleId: string) => {
+    const target = microcycles.find((micro) => micro.id === microcycleId);
+    if (!target) return;
+    const logged = microcycleHasLoggedSets(target);
+    const ok = window.confirm(
+      logged
+        ? 'This week has logged sets. Delete the week and its sessions?'
+        : 'Delete this week and its sessions?',
+    );
+    if (!ok) return;
+    planMeta.current.deletedMicrocycleIds.add(microcycleId);
+    for (const workout of target.workouts) {
+      planMeta.current.deletedWorkoutIds.add(workout.id);
+      planMeta.current.ownedWorkoutIds.delete(workout.id);
+    }
+    const remaining = microcycles.filter((micro) => micro.id !== microcycleId);
+    setMicrocycles(remaining);
+    if (activeMicrocycleId === microcycleId) {
+      const next = remaining[remaining.length - 1] ?? remaining[0];
+      setActiveMicrocycleId(next?.id ?? null);
+      setActiveWorkoutId(next?.workouts[0]?.id ?? null);
+      if (next) setUiPref(UI_KEYS.sessionsExpandedMicro, next.id);
+    }
+  };
+
+  const finishSession = async (
+    status: WorkoutStatus,
+    scope?: { workoutId?: string; microcycleId?: string }
+  ) => {
+    const workoutId = scope?.workoutId ?? activeWorkoutId;
+    if (!workoutId) return;
+    markWorkoutEdited(workoutId);
 
     let updatedWorkoutData: WorkoutData | null = null;
 
     setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
+      const inThisMicro = m.workouts.some(w => w.id === workoutId);
+      if (!inThisMicro) return m;
+      if (scope?.microcycleId && m.id !== scope.microcycleId) return m;
       return {
         ...m,
         workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
+          if (w.id !== workoutId) return w;
           const newWorkout = {
             ...w,
             status,
@@ -175,9 +538,108 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /** The only path that deliberately throws away logged work. */
   const resetPlan = async () => {
-    const next = await apiService.resetMicrocycles();
-    setMicrocycles(next);
+    const athleteId = planMeta.current.athleteId;
+    const imported = importedPlanFor(athleteId);
+    if (imported) {
+      await clearStoredPlan(imported.athleteId);
+      planMeta.current = {
+        athleteId: imported.athleteId,
+        source: 'imported',
+        planVersion: planVersion(imported.microcycles),
+        ownedWorkoutIds: new Set(),
+        deletedWorkoutIds: new Set(),
+        deletedMicrocycleIds: new Set(),
+      };
+      setMicrocycles(imported.microcycles);
+      focusPlan(imported.microcycles);
+      return;
+    }
+
+    if (athleteId) {
+      await clearStoredPlan(athleteId);
+      planMeta.current = {
+        athleteId,
+        source: 'local',
+        planVersion: null,
+        ownedWorkoutIds: new Set(),
+        deletedWorkoutIds: new Set(),
+        deletedMicrocycleIds: new Set(),
+      };
+      setMicrocycles([]);
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+      return;
+    }
+
+    await clearStoredPlan(null);
+    planMeta.current = EMPTY_META;
+    setMicrocycles([]);
+  };
+
+  const paintAthletePlan = (
+    athleteId: string,
+    cached: {
+      microcycles: MicrocycleData[];
+      source: PlanSource;
+      planVersion: string | null;
+      ownedWorkoutIds: string[];
+      deletedWorkoutIds: string[];
+      deletedMicrocycleIds: string[];
+    },
+    focus: boolean,
+  ) => {
+    planMeta.current = {
+      athleteId,
+      source: cached.source,
+      planVersion: cached.planVersion,
+      ownedWorkoutIds: new Set(cached.ownedWorkoutIds),
+      deletedWorkoutIds: new Set(cached.deletedWorkoutIds ?? []),
+      deletedMicrocycleIds: new Set(cached.deletedMicrocycleIds ?? []),
+    };
+    hydrated.current = true;
+    setMicrocycles(cached.microcycles);
+    if (cached.microcycles.length) {
+      if (focus) focusPlan(cached.microcycles);
+    } else {
+      setActiveMicrocycleId(null);
+      setActiveWorkoutId(null);
+    }
+  };
+
+  const selectAthlete = (athleteId: string) => {
+    if (athleteId === activeAthleteId) return;
+    const generation = ++selectGeneration.current;
+    setActiveAthleteId(athleteId);
+    setUiPref(UI_KEYS.activeAthleteId, athleteId);
+
+    const cached = planCache.current.get(athleteId);
+    if (cached) {
+      paintAthletePlan(athleteId, cached, true);
+      return;
+    }
+
+    void (async () => {
+      const imported = importedPlanFor(athleteId);
+      const stored = await readStoredPlan(athleteId);
+      if (generation !== selectGeneration.current) return;
+      applyResolvedPlan(athleteId, imported, stored, true);
+    })();
+  };
+
+  const refreshRoster = async () => {
+    const roster = await loadRoster();
+    setAthletes(roster);
+    if (activeAthleteId && !roster.some((row) => row.id === activeAthleteId)) {
+      const next = pickActiveAthlete(roster, null);
+      if (next) selectAthlete(next.id);
+      else {
+        setActiveAthleteId(null);
+        removeUiPref(UI_KEYS.activeAthleteId);
+        setMicrocycles([]);
+      }
+    }
   };
 
   return (
@@ -186,6 +648,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         microcycles,
         setMicrocycles,
         mesocycles,
+        athletes,
+        rosterReady,
+        activeAthleteId,
+        activeAthlete: athletes.find((row) => row.id === activeAthleteId),
+        selectAthlete,
+        refreshRoster,
         activeWorkoutId,
         setActiveWorkoutId,
         activeMicrocycleId,
@@ -193,6 +661,14 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         activeMicro,
         activeWorkout,
         updateExerciseSets,
+        addExercise,
+        addWorkout,
+        rescheduleWorkout,
+        updateMicrocycleBounds,
+        copyMicrocycle,
+        addMicrocycle,
+        deleteWorkout,
+        deleteMicrocycle,
         finishSession,
         resetPlan,
       }}

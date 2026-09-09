@@ -1,5 +1,6 @@
 import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
+import { backendPath, apiFetch } from './backendUrl';
 
 let syncTimeout: number | null = null;
 const SYNC_DEBOUNCE_MS = 2000;
@@ -72,10 +73,11 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
   try {
     for (const m of pending) await updateMutationStatus(m.mutation_id, 'IN_FLIGHT');
     
-    const response = await fetch(`http://localhost:8000/api/workouts/${workout_id}/sync`, {
+    const url = backendPath(`/api/workouts/${workout_id}/sync`);
+    if (!url) return [];
+    const response = await apiFetch(`/api/workouts/${workout_id}/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify(payload)
     });
     

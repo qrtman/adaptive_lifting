@@ -120,6 +120,8 @@ def test_security_and_data_isolation():
         ).first()
         
         assert active_sess is not None, "Failed to resolve active DB session"
+        from backend.main import get_current_user as load_current_user
+        assert load_current_user(MockRequest(cookies={"session_id": token}), db).id == athlete.id
         print("  [OK] Session verification success.")
 
         # --- TEST 3: Session Revocation Rejections ---
@@ -129,13 +131,15 @@ def test_security_and_data_isolation():
         active_sess.revoked_at = datetime.utcnow()
         db.commit()
         
-        # Re-query
-        revoked_sess = db.query(DBSession).filter(
-            DBSession.id == s_id,
-            DBSession.revoked_at.is_(None)
-        ).first()
-        
-        assert revoked_sess is None, "Revoked session was returned as active"
+        from fastapi import HTTPException
+        from backend.main import get_current_user
+
+        req = MockRequest(cookies={"session_id": token})
+        try:
+            get_current_user(req, db)
+            assert False, "Revoked session must be rejected by get_current_user"
+        except HTTPException as exc:
+            assert exc.status_code == 401, f"Expected 401, got {exc.status_code}"
         print("  [OK] Session revocation blocks subsequent requests successfully.")
 
         # --- TEST 4: Team-scoped Data Isolation ---

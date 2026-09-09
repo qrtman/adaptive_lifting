@@ -1,13 +1,14 @@
 import { Calendar, BarChart3, Dumbbell, Link2, Settings, List } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { usePeriodization } from '../contexts/PeriodizationContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import type { DashboardMode } from './AppShell';
 
 const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
   { mode: 'calendar', label: 'Calendar', testId: 'nav-calendar' },
-  { mode: 'sessions', label: 'Sessions' },
-  { mode: 'roster', label: 'Roster' },
-  { mode: 'insights', label: 'Insights' },
+  { mode: 'sessions', label: 'Sessions', testId: 'nav-sessions' },
+  { mode: 'roster', label: 'Roster', testId: 'nav-roster' },
+  { mode: 'insights', label: 'Insights', testId: 'nav-insights' },
 ];
 
 const OPS: { mode: DashboardMode; label: string }[] = [
@@ -36,6 +37,7 @@ function NavButton({
   testId?: string;
   active: boolean;
   onNavigate: (mode: DashboardMode) => void;
+  key?: string | number;
 }) {
   const Icon = ICONS[mode];
   return (
@@ -63,6 +65,7 @@ export const Sidebar = ({
   onResetPlan?: () => void;
 }) => {
   const { user, roleMode, signOut } = useAuth();
+  const { athletes, activeAthleteId, selectAthlete } = usePeriodization();
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
 
   return (
@@ -96,6 +99,27 @@ export const Sidebar = ({
       </nav>
 
       <div className="pt-3 border-t border-white/10 px-2 flex flex-col gap-1">
+        {athletes.length > 0 ? (
+          <label className="flex flex-col gap-1 pb-2">
+            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Athlete</span>
+            <select
+              data-testid="athlete-switcher"
+              value={activeAthleteId ?? ''}
+              onChange={(event) => {
+                if (event.target.value) selectAthlete(event.target.value);
+              }}
+              className="h-8 bg-[#161616] border border-white/10 px-2 text-xs text-white"
+            >
+              {athletes.map((athlete) => (
+                <option key={athlete.id} value={athlete.id}>
+                  {athlete.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="text-[11px] text-[#636366] pb-2">No athletes on the roster.</p>
+        )}
         <p className="text-xs text-white truncate">{email}</p>
         <p className="text-[11px] text-[#AEAEB2] capitalize">{roleMode}</p>
         <button type="button" onClick={signOut} className="text-left text-[12px] text-[#AEAEB2] hover:text-white h-7">

@@ -1,10 +1,10 @@
 import asyncio
-import json
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .database import get_db, DomainEvent, Workout, User
+from .access import require_visible_workout
+from .database import get_db, DomainEvent, User
 from .main import get_current_user
 
 router = APIRouter()
@@ -39,16 +39,12 @@ async def get_events(workout_id: str, db: Session, last_event_id: str = None):
 @router.get("/api/workouts/{workout_id}/live")
 async def live_workout_events(
     workout_id: str,
-    request: Request,
     last_event_id: str = Header(None, alias="Last-Event-ID"),
     db: Session = Depends(get_db),
-    # In a real app we need a way to pass auth via URL param since EventSource doesn't support headers easily
-    # but for now we assume cookie auth or similar.
+    current_user: User = Depends(get_current_user),
 ):
-    workout = db.query(Workout).filter(Workout.id == workout_id).first()
-    if not workout:
-        raise HTTPException(status_code=404, detail="Workout not found")
-        
+    require_visible_workout(db, current_user, workout_id)
+
     return StreamingResponse(
         get_events(workout_id, db, last_event_id), 
         media_type="text/event-stream"

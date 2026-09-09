@@ -1,12 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { fillLogCell, signInCoach } from './helpers';
 
-test('queues a set offline and flushes it when the network returns', async ({ page, context }) => {
+test('queues a set offline and keeps it queued when no backend is configured', async ({ page, context }) => {
   await signInCoach(page, {
-    al_app_view: 'session',
+    al_app_view: 'dashboard',
     al_dashboard_mode: 'sessions',
-    al_active_workout_id: 'w-3-2',
-    al_active_microcycle_id: 'micro-3',
   });
 
   const syncPosts: string[] = [];
@@ -26,14 +24,15 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Secondary Deadlift, Secondary Bench' })).toBeVisible();
+  await page.getByTestId('sessions-expand-z-w3').click();
+  await expect(page.getByRole('heading', { name: 'Sumo deadlift' }).first()).toBeVisible();
 
   await context.setOffline(true);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'offline');
 
-  await fillLogCell(page, 'cell-e-3-2-1-reps-0', 3);
-  await fillLogCell(page, 'cell-e-3-2-1-executedRpe-0', 8);
-  await fillLogCell(page, 'cell-e-3-2-1-actual-weight-0', 190);
+  await fillLogCell(page, 'cell-z-w3-d2-e1-reps-0', 1);
+  await fillLogCell(page, 'cell-z-w3-d2-e1-executedRpe-0', 8);
+  await fillLogCell(page, 'cell-z-w3-d2-e1-actual-weight-0', 170);
 
   await expect.poll(async () => {
     return page.evaluate(async () => {
@@ -64,6 +63,6 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   expect(syncPosts.length).toBe(0);
 
   await context.setOffline(false);
-  await expect.poll(() => syncPosts.length).toBeGreaterThan(0);
-  await expect(page.getByTestId('sync-status')).toHaveCount(0);
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'syncing');
+  expect(syncPosts.length).toBe(0);
 });

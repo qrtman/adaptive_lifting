@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
-import { ExerciseData, WorkoutData } from '../types';
+import { Copy, Maximize2, Minimize2, Plus, Trash2 } from 'lucide-react';
+import { WorkoutData } from '../types';
+import { formatDateSpan, mondayOf, resolvedMicrocycleBounds, sundayOf } from '../services/workoutDays';
 import { usePeriodization } from '../contexts/PeriodizationContext';
+import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { MicrocycleBoundsEditor } from './MicrocycleBoundsEditor';
+import { SessionWorkoutEditor } from './SessionWorkoutEditor';
+import TelegramSessionTerminal from './mobile/TelegramSessionTerminal';
 
 interface SessionsViewProps {
-  onViewSession: (workout: WorkoutData, microId: string) => void;
   filter: LiftFilterValue;
   onFilterChange: (value: LiftFilterValue) => void;
+  onOpenCalendar?: (microcycleId: string) => void;
 }
 
 function liftAbbrev(title: string): string {
@@ -19,28 +24,9 @@ function liftAbbrev(title: string): string {
   return title.slice(0, 3).toUpperCase();
 }
 
-function liftColor(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('squat')) return 'text-[#007aff]';
-  if (t.includes('bench')) return 'text-[#54e083]';
-  if (t.includes('dead')) return 'text-[#F5A623]';
-  return 'text-[#AEAEB2]';
-}
-
-function setLine(ex: ExerciseData): { planned: string; logged: string | null } {
-  const set = ex.sets[0];
-  const planned = `${set?.plannedWeight ?? '—'}×${set?.plannedReps ?? '—'}@${set?.plannedRpe ?? '—'}`;
-  if (set?.actual != null && Number(set.actual) > 0) {
-    return {
-      planned,
-      logged: `${set.actual}×${set.reps ?? '—'}@${set.executedRpe ?? '—'}`,
-    };
-  }
-  return { planned, logged: null };
-}
-
 function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
   if (filter === 'All') return true;
+  if (w.exercises.length === 0) return true;
   const hasSquat = w.exercises.some(e => e.title.toLowerCase().includes('squat'));
   const hasBench = w.exercises.some(e => e.title.toLowerCase().includes('bench'));
   const hasDeadlift = w.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
@@ -51,16 +37,22 @@ function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
 }
 
 export function SessionsView({
-  onViewSession,
   filter,
   onFilterChange,
+  onOpenCalendar,
 }: SessionsViewProps) {
+  const { roleMode, setRoleMode } = useAuth();
   const {
     microcycles,
     activeMicrocycleId,
     setActiveMicrocycleId,
     activeWorkoutId,
     setActiveWorkoutId,
+    activeAthlete,
+    updateMicrocycleBounds,
+    copyMicrocycle,
+    addMicrocycle,
+    deleteMicrocycle,
   } = usePeriodization();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -68,7 +60,7 @@ export function SessionsView({
 
   const [observedIdx, setObservedIdx] = useState<number>(() => {
     const activeIdx = microcycles.findIndex(m => m.id === activeMicrocycleId);
-    return activeIdx !== -1 ? activeIdx : 2;
+    return activeIdx !== -1 ? activeIdx : 0;
   });
 
   const [expandedMicroId, setExpandedMicroId] = useState<string | null>(() => {
@@ -88,6 +80,16 @@ export function SessionsView({
       removeUiPref(UI_KEYS.sessionsExpandedMicro);
     }
   };
+
+  useEffect(() => {
+    if (expandedMicroId && microcycles.some((m) => m.id === expandedMicroId)) return;
+    const saved = getUiPref(UI_KEYS.sessionsExpandedMicro);
+    if (saved && microcycles.some((m) => m.id === saved)) {
+      setExpandedMicroId(saved);
+      return;
+    }
+    setExpandedMicroId(null);
+  }, [microcycles, expandedMicroId]);
 
   useEffect(() => {
     if (hasRestoredRef.current) return;
@@ -124,12 +126,19 @@ export function SessionsView({
     return () => cancelAnimationFrame(rAnimFrame);
   }, []);
 
+  const openWorkout = (workout: WorkoutData, microId: string) => {
+    setActiveWorkoutId(workout.id);
+    setActiveMicrocycleId(microId);
+    setExpanded(microId);
+  };
+
   useEffect(() => {
     if (!expandedMicroId) return;
-    const el = microRefs.current[expandedMicroId];
-    if (el) {
+    const sessionEl = activeWorkoutId ? document.getElementById(`session-${activeWorkoutId}`) : null;
+    const target = sessionEl ?? microRefs.current[expandedMicroId];
+    if (target) {
       requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
   }, [expandedMicroId]);
@@ -186,17 +195,72 @@ export function SessionsView({
         <div className="space-y-2 pb-8">
           <div className="h-7 px-1 flex items-center justify-between gap-2">
             <LiftFilter value={filter} onChange={onFilterChange} />
-            {isMaximized && (
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => setExpanded(null)}
-                className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                onClick={() => setRoleMode('coach')}
+                className={`h-7 px-2 text-[11px] ${
+                  roleMode === 'coach' ? 'text-white' : 'text-[#AEAEB2]'
+                }`}
               >
-                <Minimize2 size={12} />
-                Show all weeks
+                Coach
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setRoleMode('athlete')}
+                className={`h-7 px-2 text-[11px] ${
+                  roleMode === 'athlete' ? 'text-white' : 'text-[#AEAEB2]'
+                }`}
+              >
+                Athlete
+              </button>
+              {isMaximized && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(null)}
+                  className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                >
+                  <Minimize2 size={12} />
+                  Show all weeks
+                </button>
+              )}
+            </div>
           </div>
+
+          {roleMode === 'athlete' ? (
+            <div className="flex flex-col items-center justify-center py-6 w-full border border-white/10 p-4">
+              <p className="text-xs font-mono text-[#636366] mb-4">Telegram Mini App</p>
+              <div className="w-[390px] max-w-full h-[844px] bg-black rounded-[48px] border-[12px] border-[#20201f] overflow-hidden relative flex flex-col">
+                <div className="flex-1 overflow-hidden pt-6">
+                  <TelegramSessionTerminal />
+                </div>
+              </div>
+            </div>
+          ) : microcycles.length === 0 ? (
+            <div className="border border-white/10 px-3 py-8" data-testid="sessions-empty">
+              <p className="text-sm text-[#AEAEB2]">
+                {activeAthlete
+                  ? `No weeks for ${activeAthlete.name}. Add a week, then put sessions on Calendar.`
+                  : 'No athlete selected. Add one on Roster.'}
+              </p>
+              {roleMode === 'coach' && activeAthlete ? (
+                <button
+                  type="button"
+                  data-testid="add-week-sessions"
+                  onClick={() => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const start = mondayOf(today);
+                    const id = addMicrocycle(start, sundayOf(start));
+                    if (id) setExpanded(id);
+                  }}
+                  className="mt-3 h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white inline-flex items-center gap-1"
+                >
+                  <Plus size={12} />
+                  Week
+                </button>
+              ) : null}
+            </div>
+          ) : (
 
           <div className="flex flex-col gap-3 border-l border-white/10 pl-4 relative">
             {microcycles.map((micro, idx) => {
@@ -206,19 +270,53 @@ export function SessionsView({
 
               let peakSquat = 0;
               let peakBench = 0;
-              
-              micro.workouts.forEach(w => {
-                w.exercises.forEach(ex => {
-                  const val = parseFloat(ex.top || '0');
-                  if (ex.title.toLowerCase().includes('squat')) {
-                    if (val > peakSquat) peakSquat = val;
-                  } else if (ex.title.toLowerCase().includes('bench')) {
-                    if (val > peakBench) peakBench = val;
-                  }
+              let weekTonnage = 0;
+              if (!isExpanded) {
+                weekTonnage = micro.workouts.reduce((acc, w) => acc + w.tonnage, 0);
+                micro.workouts.forEach(w => {
+                  w.exercises.forEach(ex => {
+                    const val = parseFloat(ex.top || '0');
+                    if (ex.title.toLowerCase().includes('squat')) {
+                      if (val > peakSquat) peakSquat = val;
+                    } else if (ex.title.toLowerCase().includes('bench')) {
+                      if (val > peakBench) peakBench = val;
+                    }
+                  });
                 });
-              });
+              }
 
               const visibleWorkouts = micro.workouts.filter(w => workoutPassesFilter(w, filter));
+              const weekBounds = resolvedMicrocycleBounds(micro, idx);
+              const weekIdentity = (
+                <>
+                  <h4 className="text-sm text-white">{micro.weekName}</h4>
+                  <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
+                  {isExpanded && roleMode === 'coach' ? (
+                    <MicrocycleBoundsEditor
+                      microId={micro.id}
+                      start={weekBounds.start}
+                      end={weekBounds.end}
+                      onBoundsChange={(start, end) => updateMicrocycleBounds(micro.id, start, end)}
+                    />
+                  ) : (
+                    <span
+                      data-testid={`sessions-week-dates-${micro.id}`}
+                      className="font-mono text-[11px] text-[#AEAEB2]"
+                    >
+                      {formatDateSpan(weekBounds)}
+                    </span>
+                  )}
+                </>
+              );
+              const weekScanMetrics = !isExpanded ? (
+                <>
+                  <span className="font-mono text-[11px] text-[#AEAEB2]">
+                    {weekTonnage.toLocaleString()}kg
+                  </span>
+                  {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
+                  {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
+                </>
+              ) : null;
 
               return (
                 <div
@@ -231,31 +329,72 @@ export function SessionsView({
                   }`} />
 
                   <div className="flex flex-wrap items-center justify-between gap-2">
+                    {isCollapsedOther ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isCollapsedOther) setExpanded(micro.id);
-                      }}
+                      onClick={() => setExpanded(micro.id)}
                       className="flex items-center gap-2 min-w-0 text-left"
                     >
-                      <h4 className="text-sm text-white">{micro.weekName}</h4>
-                      <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
-                      <span className="font-mono text-[11px] text-[#AEAEB2]">
-                        {micro.workouts.reduce((acc, w) => acc + w.tonnage, 0).toLocaleString()}kg
-                      </span>
-                      {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
-                      {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
+                      {weekIdentity}
+                      {weekScanMetrics}
                     </button>
-                    <button
-                      type="button"
-                      data-testid={`sessions-expand-${micro.id}`}
-                      onClick={() => setExpanded(isExpanded ? null : micro.id)}
-                      className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1 shrink-0"
-                      title={isExpanded ? 'Minimize week' : 'Maximize week'}
+                    ) : (
+                    <div
+                      data-testid={`sessions-week-header-${micro.id}`}
+                      className="flex items-center gap-2 min-w-0"
                     >
-                      {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                      {isExpanded ? 'Minimize' : 'Maximize'}
-                    </button>
+                      {weekIdentity}
+                      {weekScanMetrics}
+                    </div>
+                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          data-testid={`copy-microcycle-${micro.id}`}
+                          onClick={() => {
+                            const copiedId = copyMicrocycle(micro.id);
+                            if (copiedId) setExpanded(copiedId);
+                          }}
+                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        >
+                          <Copy size={12} />
+                          Copy
+                        </button>
+                      )}
+                      {roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          data-testid={`delete-microcycle-${micro.id}`}
+                          onClick={() => deleteMicrocycle(micro.id)}
+                          className="h-7 px-2 text-[11px] text-[#FF453A] hover:text-white flex items-center gap-1"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      )}
+                      {isExpanded && roleMode === 'coach' && onOpenCalendar && (
+                        <button
+                          type="button"
+                          data-testid={`add-session-${micro.id}`}
+                          onClick={() => onOpenCalendar?.(micro.id)}
+                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        >
+                          <Plus size={12} />
+                          Session
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        data-testid={`sessions-expand-${micro.id}`}
+                        onClick={() => setExpanded(isExpanded ? null : micro.id)}
+                        className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        title={isExpanded ? 'Minimize week' : 'Maximize week'}
+                      >
+                        {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                        {isExpanded ? 'Minimize' : 'Maximize'}
+                      </button>
+                    </div>
                   </div>
 
                   {isCollapsedOther ? (
@@ -263,59 +402,19 @@ export function SessionsView({
                       {visibleWorkouts.length} sessions · Maximize to open
                     </p>
                   ) : isExpanded ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                      {visibleWorkouts.map(w => {
-                        const isWorkoutActive = activeWorkoutId === w.id;
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => onViewSession(w, micro.id)}
+                    <div className="flex flex-col gap-4">
+                      {visibleWorkouts.length === 0 ? (
+                        <p className="px-2 py-3 text-xs text-[#636366]">No sessions match this filter.</p>
+                      ) : (
+                        visibleWorkouts.map((w) => (
+                          <SessionWorkoutEditor
                             key={w.id}
-                            data-testid={`sessions-card-${w.id}`}
-                            className={`text-left border rounded p-2 flex flex-col gap-1 hover:border-white/20 ${
-                              isWorkoutActive
-                                ? 'bg-[#161616] border-[#007AFF]/50'
-                                : 'bg-[#161616] border-white/10'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2 h-6">
-                              <span className="text-xs text-white truncate">
-                                {w.dayLabel} · {w.title}
-                              </span>
-                              <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
-                                {w.status} · {w.tonnage}kg
-                              </span>
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                              {w.exercises.map(ex => {
-                                const { planned, logged } = setLine(ex);
-                                return (
-                                  <div
-                                    key={ex.id}
-                                    className="flex items-center gap-2 font-mono text-[11px] leading-tight min-h-5"
-                                  >
-                                    <span className={`${liftColor(ex.title)} w-6 shrink-0`}>
-                                      {liftAbbrev(ex.title)}
-                                    </span>
-                                    <span className="text-white truncate flex-1 min-w-0" title={ex.title}>
-                                      {ex.title}
-                                    </span>
-                                    <span className="text-[#AEAEB2] shrink-0">{planned}</span>
-                                    <span className={`shrink-0 ${logged ? 'text-white' : 'text-[#636366]'}`}>
-                                      {logged ?? '—'}
-                                    </span>
-                                    {ex.top && ex.top !== '—' && (
-                                      <span className="text-[#AEAEB2] shrink-0 w-12 text-right">
-                                        {String(ex.top).split(' ')[0]}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </button>
-                        );
-                      })}
+                            workout={w}
+                            microcycleId={micro.id}
+                            roleMode={roleMode}
+                          />
+                        ))
+                      )}
                     </div>
                   ) : (
                     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -324,7 +423,7 @@ export function SessionsView({
                         return (
                           <button
                             type="button"
-                            onClick={() => onViewSession(w, micro.id)}
+                            onClick={() => openWorkout(w, micro.id)}
                             key={w.id}
                             className={`
                               text-left bg-[#161616] border border-white/10 rounded px-2 py-1 min-w-[220px] w-[220px] flex-shrink-0 hover:border-white/20 leading-none
@@ -358,6 +457,7 @@ export function SessionsView({
               );
             })}
           </div>
+          )}
         </div>
       </div>
     </div>

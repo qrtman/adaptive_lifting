@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Send, CheckCircle2, AlertCircle, RefreshCw, XCircle, ArrowRight } from 'lucide-react';
+import { apiFetch, backendOrigin } from '../services/backendUrl';
 
 export const TelegramLinkPanel = () => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'unlinked' | 'generating' | 'linked' | 'error'>('idle');
@@ -9,11 +10,13 @@ export const TelegramLinkPanel = () => {
   const [secondsLeft, setSecondsLeft] = useState<number>(600); // 10 minutes
 
   const checkStatus = async (silent = false) => {
+    if (!backendOrigin()) {
+      if (!silent) setStatus('unlinked');
+      return;
+    }
     if (!silent) setStatus('loading');
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/telegram/status', {
-        headers: { 'credentials': 'include' } // matches cookie session setup
-      });
+      const res = await apiFetch('/api/integrations/telegram/status');
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'connected') {
@@ -40,9 +43,8 @@ export const TelegramLinkPanel = () => {
     setStatus('loading');
     setErrorMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/telegram/link-token', {
+      const res = await apiFetch('/api/integrations/telegram/link-token', {
         method: 'POST',
-        headers: { 'credentials': 'include' }
       });
       if (res.ok) {
         const data = await res.json();
@@ -66,9 +68,8 @@ export const TelegramLinkPanel = () => {
     }
     setStatus('loading');
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/telegram', {
+      const res = await apiFetch('/api/integrations/telegram', {
         method: 'DELETE',
-        headers: { 'credentials': 'include' }
       });
       if (res.ok) {
         setStatus('unlinked');

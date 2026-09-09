@@ -1,10 +1,12 @@
-import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
-import { getSnapshot, saveSnapshot } from './db';
+import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
+import { saveSnapshot } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 
-const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
+import { apiFetch, backendOrigin } from './backendUrl';
+
+const BACKEND_URL = backendOrigin();
 
 /**
  * Recalculates metrics for a workout: exercise volumes, top single labels, and day's overall tonnage.
@@ -68,15 +70,7 @@ export function recalculateWorkoutMetrics(
 }
 
 async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
-  try {
-    const cached = await getSnapshot('microcycles');
-    if (cached && Array.isArray(cached) && cached[0]?.workouts) {
-      return cached;
-    }
-  } catch (err) {
-    console.warn('IndexedDB snapshot read failed.', err);
-  }
-  return INITIAL_MICROCYCLES;
+  return [];
 }
 
 async function saveOfflineMicrocycles(data: MicrocycleData[]): Promise<void> {
@@ -102,7 +96,7 @@ export const apiService = {
   async fetchMicrocycles(): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/microcycles`, { headers: getHeaders(), credentials: 'include' });
+        const response = await apiFetch('/api/microcycles', { headers: getHeaders() });
         if (!response.ok) throw new Error('API server returned error status');
         return await response.json();
       } catch (err) {
@@ -130,10 +124,9 @@ export const apiService = {
   ): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/sets/log`, {
+        const response = await apiFetch('/api/sets/log', {
           method: 'POST',
           headers: getHeaders(),
-          credentials: 'include',
           body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv })
         });
         if (!response.ok) throw new Error('API set log request failed');
@@ -197,15 +190,15 @@ export const apiService = {
   async resetMicrocycles(): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/reset`, { method: 'POST', credentials: 'include' });
+        const response = await apiFetch('/api/reset', { method: 'POST' });
         if (!response.ok) throw new Error('API server reset failed');
         return await response.json();
       } catch (err) {
         console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
       }
     }
-    await saveOfflineMicrocycles(INITIAL_MICROCYCLES);
-    return INITIAL_MICROCYCLES;
+    await saveOfflineMicrocycles([]);
+    return [];
   },
 
   /**
@@ -214,8 +207,8 @@ export const apiService = {
   async fetchAnalyticsTrends(athleteId?: string): Promise<any> {
     if (BACKEND_URL) {
       try {
-        const url = athleteId ? `${BACKEND_URL}/api/analytics/trends?athlete_id=${athleteId}` : `${BACKEND_URL}/api/analytics/trends`;
-        const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+        const path = athleteId ? `/api/analytics/trends?athlete_id=${athleteId}` : '/api/analytics/trends';
+        const response = await apiFetch(path, { headers: getHeaders() });
         if (!response.ok) throw new Error('API server trends request failed');
         return await response.json();
       } catch (err) {
@@ -230,9 +223,9 @@ export const apiService = {
    * Fetches the secure AI-driven auto-regulation coaching prescriptions.
    */
   async fetchAICoachPrescription(athleteId?: string): Promise<AICoachResponse> {
-    const baseUrl = BACKEND_URL || '';
-    const url = athleteId ? `${baseUrl}/api/analytics/ai-advisor?athlete_id=${athleteId}` : `${baseUrl}/api/analytics/ai-advisor`;
-    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+    if (!BACKEND_URL) throw new Error('Backend is not configured.');
+    const path = athleteId ? `/api/analytics/ai-advisor?athlete_id=${athleteId}` : '/api/analytics/ai-advisor';
+    const response = await apiFetch(path, { headers: getHeaders() });
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => ({}));
       throw new Error(errorPayload?.detail || 'Failed to generate AI recommendations.');
@@ -277,6 +270,7 @@ export const apiService = {
                   date: w.date,
                   exercise: e.title,
                   variation: e.variation,
+                  liftCategory: e.liftCategory,
                   weight: weightVal,
                   reps: repsVal,
                   rpe: rpeVal,
@@ -298,11 +292,10 @@ export const apiService = {
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
-    const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+    const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       body: formData,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      credentials: 'include'
     });
     if (!response.ok) throw new Error('Login failed');
     const data = await response.json();
@@ -312,10 +305,9 @@ export const apiService = {
   },
 
   async register(email: string, password: string, role: string) {
-    const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
+    const response = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: getHeaders(),
-      credentials: 'include',
       body: JSON.stringify({ email, password, role })
     });
     if (!response.ok) {
@@ -328,22 +320,9 @@ export const apiService = {
     return data;
   },
 
-  async pushProgramming(athleteId: string, template: string) {
-    const response = await fetch(`${BACKEND_URL}/api/coach/push-program`, {
-      method: 'POST',
-      headers: getHeaders(),
-      credentials: 'include',
-      body: JSON.stringify({ athleteId, template })
-    });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to push program');
-    }
-    return await response.json();
-  },
-
   async fetchRoster() {
-    const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders(), credentials: 'include' });
+    if (!BACKEND_URL) throw new Error('Backend is not configured.');
+    const response = await apiFetch('/api/coach/roster', { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch roster');
     return await response.json();
   },
@@ -352,14 +331,14 @@ export const apiService = {
    * Triggers a fetch call to download the CSV export blob.
    */
   async downloadExportCSV(liftCategory?: string, tier?: string): Promise<Blob> {
-    const baseUrl = BACKEND_URL || 'http://localhost:8000';
-    let url = `${baseUrl}/api/export/csv`;
+    if (!backendOrigin()) throw new Error('Backend is not configured.');
+    let path = '/api/export/csv';
     const params = [];
     if (liftCategory) params.push(`lift_category=${encodeURIComponent(liftCategory)}`);
     if (tier) params.push(`tier=${encodeURIComponent(tier)}`);
-    if (params.length > 0) url += `?${params.join('&')}`;
+    if (params.length > 0) path += `?${params.join('&')}`;
 
-    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+    const response = await apiFetch(path, { headers: getHeaders() });
     if (!response.ok) throw new Error('CSV export download failed');
     return await response.blob();
   },
@@ -368,16 +347,31 @@ export const apiService = {
    * Triggers a fetch call to download the JSON export blob.
    */
   async downloadExportJSON(): Promise<Blob> {
-    const baseUrl = BACKEND_URL || 'http://localhost:8000';
-    const url = `${baseUrl}/api/export/json`;
-    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+    if (!backendOrigin()) throw new Error('Backend is not configured.');
+    const response = await apiFetch('/api/export/json', { headers: getHeaders() });
     if (!response.ok) throw new Error('JSON export download failed');
     return await response.blob();
   },
 
+  async updateMicrocycleBounds(microcycleId: string, startDate: string, endDate: string): Promise<void> {
+    if (!backendOrigin()) return;
+    try {
+      const response = await apiFetch(`/api/microcycles/${microcycleId}/bounds`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ startDate, endDate }),
+      });
+      if (!response.ok && response.status !== 404) {
+        console.warn('Failed to persist microcycle dates on the backend.');
+      }
+    } catch (err) {
+      console.warn('Failed to persist microcycle dates on the backend.', err);
+    }
+  },
+
   async logout() {
     try {
-      await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+      await apiFetch('/api/auth/logout', { method: 'POST' });
     } catch (err) {}
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
