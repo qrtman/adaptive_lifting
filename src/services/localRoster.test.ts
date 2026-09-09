@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalAthlete } from '../types';
-import { mergeRoster, rosterHasName } from './localRoster';
+import { dedupeRosterByName, mergeRoster, rosterHasName } from './localRoster';
 
 const LOCAL: LocalAthlete = {
   id: 'athlete-local',
@@ -44,5 +44,13 @@ describe('rosterHasName', () => {
   it('treats the same name with different casing as a duplicate', () => {
     expect(rosterHasName([LOCAL], 'local athlete')).toBe(true);
     expect(rosterHasName([LOCAL], 'Other Athlete')).toBe(false);
+  });
+});
+
+describe('dedupeRosterByName', () => {
+  it('keeps the first identity when the same name was stored twice', () => {
+    const copy: LocalAthlete = { ...LOCAL, id: 'athlete-local-2', email: 'copy@example.com' };
+    const unique = dedupeRosterByName([LOCAL, copy]);
+    expect(unique).toEqual([LOCAL]);
   });
 });

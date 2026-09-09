@@ -26,13 +26,17 @@ export function mergeRoster(
       linked: true,
     });
   }
-  return Array.from(byId.values());
+  return dedupeRosterByName(Array.from(byId.values()));
 }
 
 export async function loadLocalRoster(): Promise<LocalAthlete[]> {
   const stored = await getSnapshot(SNAPSHOT_ID);
   if (Array.isArray(stored) && stored.length > 0) {
-    return stored as LocalAthlete[];
+    const roster = dedupeRosterByName(stored as LocalAthlete[]);
+    if (roster.length !== stored.length) {
+      await saveSnapshot(SNAPSHOT_ID, roster);
+    }
+    return roster;
   }
   await saveSnapshot(SNAPSHOT_ID, SEEDED_ATHLETES);
   return SEEDED_ATHLETES;
@@ -41,6 +45,18 @@ export async function loadLocalRoster(): Promise<LocalAthlete[]> {
 export function rosterHasName(roster: LocalAthlete[], name: string): boolean {
   const needle = name.trim().toLowerCase();
   return roster.some((row) => row.name.trim().toLowerCase() === needle);
+}
+
+export function dedupeRosterByName(roster: LocalAthlete[]): LocalAthlete[] {
+  const seen = new Set<string>();
+  const unique: LocalAthlete[] = [];
+  for (const row of roster) {
+    const key = row.name.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+  return unique;
 }
 
 export class DuplicateAthleteNameError extends Error {
