@@ -4,7 +4,8 @@ import { WorkoutData, isWorkoutCompleted } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
-import { mondayOf, placedSessions } from '../services/workoutDays';
+import { MicrocycleBoundsEditor } from './MicrocycleBoundsEditor';
+import { dateInMicrocycle, placedSessions, resolvedMicrocycleBounds } from '../services/workoutDays';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = [
@@ -67,6 +68,8 @@ export function CalendarView({
     microcycles,
     addWorkout,
     rescheduleWorkout,
+    updateMicrocycleBounds,
+    copyMicrocycle,
     activeMicrocycleId,
     setActiveMicrocycleId,
     activeAthlete,
@@ -94,6 +97,9 @@ export function CalendarView({
   }, [planKey]);
 
   const assignMicrocycleId = activeMicrocycleId ?? microcycles[0]?.id ?? '';
+  const assignIndex = microcycles.findIndex((micro) => micro.id === assignMicrocycleId);
+  const assignMicro = assignIndex === -1 ? undefined : microcycles[assignIndex];
+  const assignBounds = assignMicro ? resolvedMicrocycleBounds(assignMicro, assignIndex) : null;
   const daysGrid = useMemo(() => monthCells(currentYear, currentMonth), [currentYear, currentMonth]);
 
   const handlePrevMonth = () => {
@@ -153,7 +159,9 @@ export function CalendarView({
     }
     dragPayloadRef.current = null;
     if (!payload || payload.date === targetDate) return;
-    if (mondayOf(payload.date) !== mondayOf(targetDate)) {
+    const microIndex = microcycles.findIndex((micro) => micro.id === payload.microId);
+    const micro = microIndex === -1 ? undefined : microcycles[microIndex];
+    if (!micro || !dateInMicrocycle(targetDate, micro, microIndex)) {
       setBoundaryLockVisible(true);
       setBoundaryFlashDate(payload.date);
       return;
@@ -167,6 +175,12 @@ export function CalendarView({
     if (roleMode !== 'coach' || !inMonth) return;
     if (!assignMicrocycleId) {
       setAssignError('Assign a microcycle.');
+      return;
+    }
+    const assignIndex = microcycles.findIndex((micro) => micro.id === assignMicrocycleId);
+    const assignMicro = assignIndex === -1 ? undefined : microcycles[assignIndex];
+    if (!assignMicro || !dateInMicrocycle(dateStr, assignMicro, assignIndex)) {
+      setAssignError('That day is outside this microcycle. Adjust the week dates first.');
       return;
     }
     setAssignError(null);
@@ -212,27 +226,39 @@ export function CalendarView({
       </div>
 
       {microcycles.length > 0 && roleMode === 'coach' ? (
-        <div className="flex flex-wrap items-center gap-1 px-1">
-          <span className="text-[10px] uppercase tracking-wider text-[#636366] mr-1">Add to</span>
-          {microcycles.map((micro) => {
-            const selected = assignMicrocycleId === micro.id;
-            return (
-              <button
-                key={micro.id}
-                type="button"
-                data-testid={`assign-micro-${micro.id}`}
-                onClick={() => {
-                  setActiveMicrocycleId(micro.id);
-                  setAssignError(null);
-                }}
-                className={`h-7 px-2 text-[11px] border ${
-                  selected ? 'border-[#007AFF] text-white' : 'border-white/10 text-[#AEAEB2] hover:text-white'
-                }`}
-              >
-                {micro.weekName}
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-1 px-1">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[#636366] mr-1">Add to</span>
+            {microcycles.map((micro) => {
+              const selected = assignMicrocycleId === micro.id;
+              return (
+                <button
+                  key={micro.id}
+                  type="button"
+                  data-testid={`assign-micro-${micro.id}`}
+                  onClick={() => {
+                    setActiveMicrocycleId(micro.id);
+                    setAssignError(null);
+                  }}
+                  className={`h-7 px-2 text-[11px] border ${
+                    selected ? 'border-[#007AFF] text-white' : 'border-white/10 text-[#AEAEB2] hover:text-white'
+                  }`}
+                >
+                  {micro.weekName}
+                </button>
+              );
+            })}
+          </div>
+          {assignMicro && assignBounds ? (
+            <MicrocycleBoundsEditor
+              microId={assignMicro.id}
+              start={assignBounds.start}
+              end={assignBounds.end}
+              showCopy
+              onBoundsChange={(start, end) => updateMicrocycleBounds(assignMicro.id, start, end)}
+              onCopy={() => copyMicrocycle(assignMicro.id)}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -246,7 +272,7 @@ export function CalendarView({
           role="alert"
           className="border border-[#FF453A]/50 bg-[#FF453A]/10 text-[#FF453A] px-3 py-1.5 font-mono text-xs"
         >
-          Periodization Boundary Lock: Workouts cannot be dragged across microcycle week boundaries.
+          Periodization Boundary Lock: Workouts cannot be dragged outside this microcycle's dates.
         </div>
       )}
 
@@ -313,7 +339,7 @@ export function CalendarView({
 
       {microcycles.length > 0 ? (
         <p className="h-8 px-2 flex items-center text-[10px] text-[#AEAEB2] border border-white/10">
-          Click a day to add a session · drag within a week · open a card to edit
+          Click a day to add a session · drag within the week dates · Copy duplicates the selected week
         </p>
       ) : null}
     </div>

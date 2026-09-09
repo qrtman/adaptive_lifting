@@ -9,6 +9,10 @@ import {
   firstUsableDate,
   sessionCalendarDate,
   microcycleCalendarSpan,
+  dateInMicrocycle,
+  derivedMicrocycleBounds,
+  placeCopiedBounds,
+  resolvedMicrocycleBounds,
 } from './workoutDays';
 
 function session(id: string, date: string, dayLabel: string): WorkoutData {
@@ -161,5 +165,37 @@ describe('sessionCalendarDate', () => {
     };
     expect(microcycleCalendarSpan(week, 0)).toEqual({ start: '2026-09-01', end: '2026-09-03' });
     expect(formatDateSpan(microcycleCalendarSpan(week, 0))).toBe('2026-09-01 – 2026-09-03');
+  });
+});
+
+describe('resolvedMicrocycleBounds', () => {
+  const week = {
+    id: 'w1',
+    weekName: 'Week 1',
+    focus: 'Base',
+    status: 'ACTIVE' as const,
+    workouts: [session('a', '', 'D1'), session('b', '', 'D2'), session('c', '', 'D3')],
+  };
+
+  it('defaults to the ISO week that contains placed sessions', () => {
+    expect(derivedMicrocycleBounds(week, 0)).toEqual({ start: '2026-08-31', end: '2026-09-06' });
+    expect(dateInMicrocycle('2026-09-05', week, 0)).toBe(true);
+    expect(dateInMicrocycle('2026-09-07', week, 0)).toBe(false);
+  });
+
+  it('uses stored start and end when the coach has set them', () => {
+    const adjusted = { ...week, startDate: '2026-09-01', endDate: '2026-09-20' };
+    expect(resolvedMicrocycleBounds(adjusted, 0)).toEqual({ start: '2026-09-01', end: '2026-09-20' });
+    expect(dateInMicrocycle('2026-09-16', adjusted, 0)).toBe(true);
+    expect(dateInMicrocycle('2026-09-21', adjusted, 0)).toBe(false);
+  });
+
+  it('places a copied week after existing ranges', () => {
+    expect(
+      placeCopiedBounds(
+        [{ start: '2026-08-31', end: '2026-09-06' }, { start: '2026-09-07', end: '2026-09-13' }],
+        { start: '2026-08-31', end: '2026-09-06' },
+      ),
+    ).toEqual({ start: '2026-09-14', end: '2026-09-20' });
   });
 });

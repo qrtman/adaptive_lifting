@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2, Plus } from 'lucide-react';
+import { Copy, Maximize2, Minimize2, Plus } from 'lucide-react';
 import { WorkoutData } from '../types';
-import { formatDateSpan, microcycleCalendarSpan } from '../services/workoutDays';
+import { formatDateSpan, resolvedMicrocycleBounds } from '../services/workoutDays';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { MicrocycleBoundsEditor } from './MicrocycleBoundsEditor';
 import { SessionWorkoutEditor } from './SessionWorkoutEditor';
 import TelegramSessionTerminal from './mobile/TelegramSessionTerminal';
 
@@ -48,6 +49,8 @@ export function SessionsView({
     activeWorkoutId,
     setActiveWorkoutId,
     activeAthlete,
+    updateMicrocycleBounds,
+    copyMicrocycle,
   } = usePeriodization();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -265,16 +268,26 @@ export function SessionsView({
               }
 
               const visibleWorkouts = micro.workouts.filter(w => workoutPassesFilter(w, filter));
+              const weekBounds = resolvedMicrocycleBounds(micro, idx);
               const weekIdentity = (
                 <>
                   <h4 className="text-sm text-white">{micro.weekName}</h4>
                   <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
-                  <span
-                    data-testid={`sessions-week-dates-${micro.id}`}
-                    className="font-mono text-[11px] text-[#AEAEB2]"
-                  >
-                    {formatDateSpan(microcycleCalendarSpan(micro, idx))}
-                  </span>
+                  {isExpanded && roleMode === 'coach' ? (
+                    <MicrocycleBoundsEditor
+                      microId={micro.id}
+                      start={weekBounds.start}
+                      end={weekBounds.end}
+                      onBoundsChange={(start, end) => updateMicrocycleBounds(micro.id, start, end)}
+                    />
+                  ) : (
+                    <span
+                      data-testid={`sessions-week-dates-${micro.id}`}
+                      className="font-mono text-[11px] text-[#AEAEB2]"
+                    >
+                      {formatDateSpan(weekBounds)}
+                    </span>
+                  )}
                 </>
               );
               const weekScanMetrics = !isExpanded ? (
@@ -317,6 +330,20 @@ export function SessionsView({
                     </div>
                     )}
                     <div className="flex items-center gap-1 shrink-0">
+                      {roleMode === 'coach' && (
+                        <button
+                          type="button"
+                          data-testid={`copy-microcycle-${micro.id}`}
+                          onClick={() => {
+                            const copiedId = copyMicrocycle(micro.id);
+                            if (copiedId) setExpanded(copiedId);
+                          }}
+                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
+                        >
+                          <Copy size={12} />
+                          Copy
+                        </button>
+                      )}
                       {isExpanded && roleMode === 'coach' && onOpenCalendar && (
                         <button
                           type="button"

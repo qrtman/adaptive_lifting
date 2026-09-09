@@ -151,6 +151,18 @@ describe('reconcileImportedPlan', () => {
     expect(merged[0].workouts.map((row) => row.id)).toEqual(['d1', 'd9']);
   });
 
+  it('keeps coach-set week dates on an imported microcycle', () => {
+    const cached = storedPlan(
+      [{ ...micro('m1', [workout('d1', 200)]), startDate: '2026-09-01', endDate: '2026-09-12' }],
+      [],
+    );
+    const source = [micro('m1', [workout('d1', 205)])];
+    const merged = reconcileImportedPlan(source, cached);
+    expect(merged[0].startDate).toBe('2026-09-01');
+    expect(merged[0].endDate).toBe('2026-09-12');
+    expect(topKgOf(merged, 'm1', 'd1')).toBe(205);
+  });
+
   it('adds weeks the import gained', () => {
     const cached = storedPlan([micro('m1', [workout('d1', 200)])], []);
     const source = [micro('m1', [workout('d1', 200)]), micro('m2', [workout('d3', 210)])];

@@ -89,6 +89,9 @@ export interface MicrocycleData {
   focus: string;
   status: MicrocycleStatus;
   active?: boolean;
+  /** Inclusive YYYY-MM-DD. Unset weeks derive an ISO Monday–Sunday from placed sessions. */
+  startDate?: string;
+  endDate?: string;
   workouts: WorkoutData[];
 }
 

@@ -4,7 +4,8 @@ import { evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
-import { insertWorkoutChronologically } from '../services/workoutDays';
+import { copyMicrocycle as copyMicrocyclePlan } from '../services/copyMicrocycle';
+import { insertWorkoutChronologically, isIsoDate } from '../services/workoutDays';
 import { importedPlanFor, pickActiveAthlete, planVersion } from '../data/athletePlans';
 import { loadLocalRoster, mergeRoster, type LocalAthlete } from '../services/localRoster';
 import {
@@ -51,6 +52,8 @@ interface PeriodizationState {
   addExercise: (workoutId: string, microcycleId: string, exercise: ExerciseData) => void;
   addWorkout: (microcycleId: string, workout: WorkoutData) => void;
   rescheduleWorkout: (workoutId: string, date: string) => void;
+  updateMicrocycleBounds: (microcycleId: string, startDate: string, endDate: string) => void;
+  copyMicrocycle: (microcycleId: string) => string | null;
   finishSession: (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -374,6 +377,27 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const updateMicrocycleBounds = (microcycleId: string, startDate: string, endDate: string) => {
+    if (!isIsoDate(startDate) || !isIsoDate(endDate) || startDate > endDate) return;
+    setMicrocycles((prev) =>
+      prev.map((micro) =>
+        micro.id === microcycleId ? { ...micro, startDate, endDate } : micro,
+      ),
+    );
+  };
+
+  const copyMicrocycle = (microcycleId: string): string | null => {
+    const result = copyMicrocyclePlan(microcycles, microcycleId);
+    if (!result) return null;
+    for (const workout of result.copied.workouts) markWorkoutEdited(workout.id);
+    setMicrocycles(result.microcycles);
+    setActiveMicrocycleId(result.copied.id);
+    setUiPref(UI_KEYS.sessionsExpandedMicro, result.copied.id);
+    const first = result.copied.workouts[0];
+    if (first) setActiveWorkoutId(first.id);
+    return result.copied.id;
+  };
+
   const finishSession = async (
     status: WorkoutStatus,
     scope?: { workoutId?: string; microcycleId?: string }
@@ -525,6 +549,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         addExercise,
         addWorkout,
         rescheduleWorkout,
+        updateMicrocycleBounds,
+        copyMicrocycle,
         finishSession,
         resetPlan,
       }}

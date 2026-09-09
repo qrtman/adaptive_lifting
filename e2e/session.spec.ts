@@ -22,7 +22,9 @@ test('maximized microcycle stacks session editors and logs weight, reps, and RPE
 
   const weekHeader = page.getByTestId('sessions-week-header-z-w3');
   await expect(weekHeader).toContainText('Week 3');
-  await expect(weekHeader.getByTestId('sessions-week-dates-z-w3')).toHaveText('2026-09-01 – 2026-09-04');
+  await expect(page.getByTestId('micro-bound-start-z-w3')).toHaveValue('2026-08-31');
+  await expect(page.getByTestId('micro-bound-end-z-w3')).toHaveValue('2026-09-06');
+  await expect(page.getByTestId('copy-microcycle-z-w3')).toBeVisible();
   await expect(page.getByTestId('session-end-z-w3-d1')).toContainText('End of D1');
   await expect(page.getByRole('heading', { name: 'Sumo deadlift' }).first()).toBeVisible();
 
@@ -102,6 +104,17 @@ test('percent prescriptions copy weight and reps without RPE', async ({ page }) 
   await session.locator('[data-testid^="toggle-percent-"]').first().click();
   await session.getByTitle('Copy prescription to log').first().click();
   await expect(session.locator('[data-testid^="log-rpe-"]').first()).toHaveText('—');
+});
+
+test('coach can copy a microcycle from Sessions', async ({ page }) => {
+  await signInCoach(page, {
+    al_app_view: 'dashboard',
+    al_dashboard_mode: 'sessions',
+  });
+  await page.goto('/');
+  await page.getByTestId('copy-microcycle-z-w3').click();
+  await expect(page.getByRole('heading', { name: 'Week 3 copy' })).toBeVisible();
+  await expect(page.getByTestId('micro-bound-start-z-w3')).toHaveCount(0);
 });
 
 test('coach can add a session on any calendar day', async ({ page }) => {

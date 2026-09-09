@@ -44,7 +44,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Playwright covers the login screen, same-week calendar drag, cross-week boundary lock, set logging (e1RM / INOL / tonnage), and offline mutation flush.
+Playwright covers the login screen, calendar drag inside editable week dates, boundary lock, Copy week, set logging (e1RM / INOL / tonnage), and offline mutation flush.
 
 ---
 

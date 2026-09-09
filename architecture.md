@@ -55,7 +55,7 @@ browser unless a backend is wired. Most development and all end-to-end tests run
 1. **Numeric integrity.** Training values are numeric end to end. `src/services/numericTraining.ts` guards conversion.
 2. **Offline-tolerant logging.** Sessions can be logged with no network. Mutations queue in IndexedDB and flush later.
 3. **Chronological binding.** Every workout carries a `YYYY-MM-DD` date. Rescheduling must not break date assignment.
-4. **Microcycle boundary.** Workouts cannot move across microcycle boundaries. Enforced client-side.
+4. **Microcycle boundary.** Workouts cannot move or be added outside that week's start–end dates. Dates are stored on the client microcycle, editable by the coach, and default to the ISO week of placed sessions when unset. Enforced client-side.
 5. **Kilograms canonical.** One storage unit regardless of display preference.
 6. **Idempotent sync.** Mutations carry ids so retries cannot duplicate logs.
 7. **LocalStorage is UI preferences only.** Workout trees live in IndexedDB.
@@ -124,9 +124,10 @@ handling and business logic both live in `main.py`, apart from `sync_service.py`
 | `integration_outbox` | Retryable outbound jobs | Yes |
 | `sheet_publications` | Publish records | Model only; publishing goes through the outbox |
 
-**Not built.** `microcycles` has no start or end date columns — the UI derives a week's date span from its
-sessions. There is no VBT telemetry table. Indexes are created by `create_all` plus inline `ALTER TABLE` in
-`migrate_db()`; there is no migration tool.
+**Partly built.** The backend `microcycles` table has no start or end date columns. The client stores
+optional `startDate` / `endDate` on `MicrocycleData` and persists them in the athlete plan snapshot.
+Unset weeks derive an ISO Monday–Sunday from placed sessions. There is no VBT telemetry table. Indexes
+are created by `create_all` plus inline `ALTER TABLE` in `migrate_db()`; there is no migration tool.
 
 Client types live in `src/types.ts` and do not mirror this schema exactly. The client tree is
 `MicrocycleData → WorkoutData → ExerciseData → SetData`.
@@ -372,7 +373,7 @@ exists.
 | Cache plans per athlete with provenance and a content version | A shared unversioned snapshot went stale and could only be fixed by a destructive manual re-import | Yes |
 | Resolve athlete plans through a registry | Athlete-specific branching spread one import across the whole codebase | Yes |
 | Every schedule belongs to an athlete | An unowned demo microcycle tree sat in Sessions and forced a Roster detour | Yes — frontend. Backend `GET /api/microcycles` still returns a demo tree; the client no longer loads it. |
-| Enforce microcycle boundary locks on client and server | Workload metrics break if workouts cross week boundaries | Client only |
+| Enforce microcycle boundary locks on client and server | Workload metrics break if workouts cross week dates | Client only; dates are coach-editable |
 | Session-backed JWT revocation | Logout and device revocation need server-side invalidation | **No** — see §9 |
 | Tombstones for soft deletes | Prevents resurrecting deleted records from offline edits | Columns only |
 | Fractional indexing (LexoRank) | Resolves offline reorder conflicts without rewriting siblings | **No** |

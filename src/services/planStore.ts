@@ -101,7 +101,12 @@ export function reconcileImportedPlan(
       if (!sourceWorkoutIds.has(local.id) && owned.has(local.id)) workouts.push(local);
     }
 
-    return { ...micro, workouts };
+    return {
+      ...micro,
+      workouts,
+      startDate: cached.startDate ?? micro.startDate,
+      endDate: cached.endDate ?? micro.endDate,
+    };
   });
 
   for (const cached of stored.microcycles) {

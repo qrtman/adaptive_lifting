@@ -76,10 +76,11 @@ export function placedSessions(microcycles: MicrocycleData[]): PlacedSession[] {
 export function microcycleCalendarSpan(
   micro: MicrocycleData,
   microIndex: number,
+  origin = FALLBACK_SESSION_DATE,
 ): { start: string; end: string } | null {
   if (micro.workouts.length === 0) return null;
   const dates = micro.workouts
-    .map((workout, workoutIndex) => sessionCalendarDate(workout, microIndex, workoutIndex))
+    .map((workout, workoutIndex) => sessionCalendarDate(workout, microIndex, workoutIndex, origin))
     .sort();
   return { start: dates[0], end: dates[dates.length - 1] };
 }
@@ -99,6 +100,82 @@ export function mondayOf(iso: string): string {
   const offset = utcDay === 0 ? -6 : 1 - utcDay;
   date.setUTCDate(date.getUTCDate() + offset);
   return formatUtc(date);
+}
+
+export function sundayOf(iso: string): string {
+  return addUtcDays(mondayOf(iso), 6);
+}
+
+export function utcDayDiff(later: string, earlier: string): number {
+  return Math.round((parseUtc(later).getTime() - parseUtc(earlier).getTime()) / 86_400_000);
+}
+
+export function rangesOverlap(
+  a: { start: string; end: string },
+  b: { start: string; end: string },
+): boolean {
+  return a.start <= b.end && b.start <= a.end;
+}
+
+/** Coach-set inclusive range, or null when missing or inverted. */
+export function storedMicrocycleBounds(
+  micro: Pick<MicrocycleData, 'startDate' | 'endDate'>,
+): { start: string; end: string } | null {
+  if (!isIsoDate(micro.startDate) || !isIsoDate(micro.endDate)) return null;
+  if (micro.startDate > micro.endDate) return null;
+  return { start: micro.startDate, end: micro.endDate };
+}
+
+/**
+ * Default lock range: ISO Monday–Sunday that contains the placed sessions,
+ * or a 7-day slot from the plan origin when the week is empty.
+ */
+export function derivedMicrocycleBounds(
+  micro: MicrocycleData,
+  microIndex: number,
+  origin = FALLBACK_SESSION_DATE,
+): { start: string; end: string } {
+  const span = microcycleCalendarSpan(micro, microIndex, origin);
+  if (!span) {
+    const start = addUtcDays(origin, microIndex * 7);
+    return { start, end: addUtcDays(start, 6) };
+  }
+  return { start: mondayOf(span.start), end: sundayOf(span.end) };
+}
+
+export function resolvedMicrocycleBounds(
+  micro: MicrocycleData,
+  microIndex: number,
+  origin = FALLBACK_SESSION_DATE,
+): { start: string; end: string } {
+  return storedMicrocycleBounds(micro) ?? derivedMicrocycleBounds(micro, microIndex, origin);
+}
+
+export function dateInMicrocycle(
+  date: string,
+  micro: MicrocycleData,
+  microIndex: number,
+): boolean {
+  if (!isIsoDate(date)) return false;
+  const { start, end } = resolvedMicrocycleBounds(micro, microIndex);
+  return date >= start && date <= end;
+}
+
+/** Shift a week by 7 days, then walk forward until it does not overlap existing weeks. */
+export function placeCopiedBounds(
+  existing: Array<{ start: string; end: string }>,
+  source: { start: string; end: string },
+): { start: string; end: string } {
+  const duration = utcDayDiff(source.end, source.start);
+  let start = addUtcDays(source.start, 7);
+  for (let i = 0; i < 52; i++) {
+    const candidate = { start, end: addUtcDays(start, duration) };
+    const blockers = existing.filter((row) => rangesOverlap(row, candidate));
+    if (blockers.length === 0) return candidate;
+    const latestEnd = blockers.reduce((max, row) => (row.end > max ? row.end : max), blockers[0].end);
+    start = addUtcDays(latestEnd, 1);
+  }
+  return { start, end: addUtcDays(start, duration) };
 }
 
 function dayIndex(label: string): number {
@@ -141,25 +218,10 @@ export function inferMicrocycleId(
   const occupying = [...new Set(placed.filter((row) => row.date === date).map((row) => row.micro.id))];
   if (occupying.length === 1) return occupying[0];
 
-  const datesByMicro = new Map<string, string[]>();
-  for (const row of placed) {
-    const dates = datesByMicro.get(row.micro.id) ?? [];
-    dates.push(row.date);
-    datesByMicro.set(row.micro.id, dates);
-  }
-
-  const spanning = [...datesByMicro.entries()].filter(([, dates]) => {
-    const sorted = [...dates].sort();
-    return date >= sorted[0] && date <= sorted[sorted.length - 1];
-  });
-  if (spanning.length === 1) return spanning[0][0];
-
   if (!isIsoDate(date)) return fallbackId;
-  const targetMonday = mondayOf(date);
-  const sameWeek = [...datesByMicro.entries()].filter(([, dates]) =>
-    dates.some((sessionDate) => mondayOf(sessionDate) === targetMonday),
-  );
-  if (sameWeek.length === 1) return sameWeek[0][0];
+
+  const spanning = microcycles.filter((micro, microIndex) => dateInMicrocycle(date, micro, microIndex));
+  if (spanning.length === 1) return spanning[0].id;
 
   return fallbackId;
 }
