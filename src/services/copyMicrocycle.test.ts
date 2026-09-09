@@ -44,10 +44,10 @@ function week(id: string, weekName: string, workouts: WorkoutData[]): Microcycle
 }
 
 describe('copyWeekName', () => {
-  it('appends copy, then increments', () => {
+  it('appends copy, then increments against names already in the plan', () => {
     expect(copyWeekName('Week 3')).toBe('Week 3 copy');
-    expect(copyWeekName('Week 3 copy')).toBe('Week 3 copy 2');
-    expect(copyWeekName('Week 3 copy 2')).toBe('Week 3 copy 3');
+    expect(copyWeekName('Week 3', ['Week 3', 'Week 3 copy'])).toBe('Week 3 copy 2');
+    expect(copyWeekName('Week 3 copy', ['Week 3', 'Week 3 copy'])).toBe('Week 3 copy 2');
   });
 });
 
