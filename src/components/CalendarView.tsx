@@ -8,9 +8,14 @@ import { MicrocycleBoundsEditor } from './MicrocycleBoundsEditor';
 import {
   dateInMicrocycle,
   eachIsoDate,
+  inferMicrocycleId,
+  mondayOf,
   placedSessions,
   resolvedMicrocycleBounds,
+  sundayOf,
 } from '../services/workoutDays';
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function newWorkoutId(): string {
   return `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -25,9 +30,11 @@ function liftLine(workout: WorkoutData): string {
   return `${first.title} ${weight}×${reps}`;
 }
 
-function firstOpenDate(start: string, end: string, occupied: Set<string>): string {
-  const open = eachIsoDate(start, end).find((date) => !occupied.has(date));
-  return open ?? start;
+function timelineRows(start: string, end: string): string[][] {
+  const days = eachIsoDate(mondayOf(start), sundayOf(end));
+  const rows: string[][] = [];
+  for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7));
+  return rows;
 }
 
 interface CalendarViewProps {
@@ -56,24 +63,47 @@ export function CalendarView({
   const { roleMode } = useAuth();
   const placed = useMemo(() => placedSessions(microcycles), [microcycles]);
   const [boundaryLockVisible, setBoundaryLockVisible] = useState(false);
+  const [boundaryFlashDate, setBoundaryFlashDate] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
-  const [addDates, setAddDates] = useState<Record<string, string>>({});
   const dragPayloadRef = useRef<{ workoutId: string; microId: string; date: string } | null>(null);
 
-  const sessionsForWeek = (microId: string) =>
-    placed
-      .filter((row) => {
-        if (row.micro.id !== microId) return false;
-        if (filter === 'All') return true;
-        const titles = row.workout.exercises.map((exercise) => exercise.title.toLowerCase());
-        if (filter === 'Squat') return titles.some((title) => title.includes('squat'));
-        if (filter === 'Bench') return titles.some((title) => title.includes('bench'));
-        if (filter === 'Deadlift') {
-          return titles.some((title) => title.includes('deadlift') || title.includes('dead'));
-        }
-        return true;
-      })
-      .sort((a, b) => a.date.localeCompare(b.date) || a.workout.dayLabel.localeCompare(b.workout.dayLabel));
+  const weekBounds = useMemo(
+    () =>
+      microcycles.map((micro, index) => ({
+        micro,
+        index,
+        bounds: resolvedMicrocycleBounds(micro, index),
+      })),
+    [microcycles],
+  );
+
+  const span = useMemo(() => {
+    if (weekBounds.length === 0) return null;
+    const starts = weekBounds.map((row) => row.bounds.start).sort();
+    const ends = weekBounds.map((row) => row.bounds.end).sort();
+    return { start: starts[0], end: ends[ends.length - 1] };
+  }, [weekBounds]);
+
+  const rows = useMemo(
+    () => (span ? timelineRows(span.start, span.end) : []),
+    [span],
+  );
+
+  const ownersOn = (date: string) =>
+    weekBounds.filter((row) => date >= row.bounds.start && date <= row.bounds.end);
+
+  const sessionsOn = (dateStr: string) =>
+    placed.filter((row) => {
+      if (row.date !== dateStr) return false;
+      if (filter === 'All') return true;
+      const titles = row.workout.exercises.map((exercise) => exercise.title.toLowerCase());
+      if (filter === 'Squat') return titles.some((title) => title.includes('squat'));
+      if (filter === 'Bench') return titles.some((title) => title.includes('bench'));
+      if (filter === 'Deadlift') {
+        return titles.some((title) => title.includes('deadlift') || title.includes('dead'));
+      }
+      return true;
+    });
 
   const handleDragStart = (
     event: DragEvent,
@@ -82,7 +112,7 @@ export function CalendarView({
     date: string,
   ) => {
     const origin = event.target as HTMLElement | null;
-    if (origin?.closest('input, button, label')) {
+    if (origin?.closest('button, input, label')) {
       event.preventDefault();
       return;
     }
@@ -91,7 +121,7 @@ export function CalendarView({
     event.dataTransfer.setData('text/plain', JSON.stringify({ workoutId, microId, date }));
   };
 
-  const handleDropOnWeek = (event: DragEvent, targetMicroId: string) => {
+  const handleDrop = (event: DragEvent, targetDate: string) => {
     event.preventDefault();
     let payload = dragPayloadRef.current;
     if (!payload) {
@@ -105,32 +135,33 @@ export function CalendarView({
       }
     }
     dragPayloadRef.current = null;
-    if (!payload) return;
-    if (payload.microId !== targetMicroId) {
+    if (!payload || payload.date === targetDate) return;
+    const microIndex = microcycles.findIndex((micro) => micro.id === payload.microId);
+    const micro = microIndex === -1 ? undefined : microcycles[microIndex];
+    if (!micro || !dateInMicrocycle(targetDate, micro, microIndex)) {
       setBoundaryLockVisible(true);
+      setBoundaryFlashDate(payload.date);
       return;
     }
     setBoundaryLockVisible(false);
+    setBoundaryFlashDate(null);
+    rescheduleWorkout(payload.workoutId, targetDate);
   };
 
-  const moveSession = (workoutId: string, microId: string, nextDate: string) => {
-    const microIndex = microcycles.findIndex((micro) => micro.id === microId);
-    const micro = microIndex === -1 ? undefined : microcycles[microIndex];
-    if (!micro || !dateInMicrocycle(nextDate, micro, microIndex)) {
-      setBoundaryLockVisible(true);
-      return false;
-    }
-    setBoundaryLockVisible(false);
-    rescheduleWorkout(workoutId, nextDate);
-    return true;
-  };
-
-  const addOnDay = (dateStr: string, microcycleId: string) => {
+  const addOnDay = (dateStr: string) => {
     if (roleMode !== 'coach') return;
+    const owners = ownersOn(dateStr);
+    if (owners.length === 0) {
+      setAssignError("That day is outside every week. Adjust a week's dates first.");
+      return;
+    }
+    const selected = owners.find((row) => row.micro.id === activeMicrocycleId);
+    const microcycleId = selected?.micro.id
+      ?? inferMicrocycleId(dateStr, microcycles, owners[0].micro.id);
     const assignIndex = microcycles.findIndex((micro) => micro.id === microcycleId);
     const assignMicro = assignIndex === -1 ? undefined : microcycles[assignIndex];
     if (!assignMicro || !dateInMicrocycle(dateStr, assignMicro, assignIndex)) {
-      setAssignError('That day is outside this microcycle. Adjust the week dates first.');
+      setAssignError('That day is outside this week. Select the week that owns it, or adjust the dates.');
       return;
     }
     setAssignError(null);
@@ -151,7 +182,9 @@ export function CalendarView({
   return (
     <div className="flex-1 flex flex-col p-2 gap-2 overflow-y-auto bg-[#0A0A0A]">
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <h3 className="text-sm text-white">Weeks</h3>
+        <h3 className="text-sm text-white">
+          {span ? `${span.start} – ${span.end}` : 'Calendar'}
+        </h3>
         <LiftFilter value={filter} onChange={onFilterChange} />
       </div>
 
@@ -178,22 +211,18 @@ export function CalendarView({
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {microcycles.map((micro, microIndex) => {
-            const bounds = resolvedMicrocycleBounds(micro, microIndex);
-            const rows = sessionsForWeek(micro.id);
-            const occupied = new Set<string>(rows.map((row) => row.date));
-            const addDate = addDates[micro.id] ?? firstOpenDate(bounds.start, bounds.end, occupied);
-            const selected = activeMicrocycleId === micro.id;
-            return (
-              <section
-                key={micro.id}
-                data-testid={`week-board-${micro.id}`}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => handleDropOnWeek(event, micro.id)}
-                className={`border border-white/10 bg-[#131313] p-2 ${selected ? 'border-[#007AFF]/60' : ''}`}
-              >
-                <div className="flex flex-wrap items-center gap-2 mb-2">
+        <>
+          <div className="flex flex-col gap-1">
+            {weekBounds.map(({ micro, bounds }) => {
+              const selected = activeMicrocycleId === micro.id;
+              return (
+                <div
+                  key={micro.id}
+                  data-testid={`week-board-${micro.id}`}
+                  className={`flex flex-wrap items-center gap-2 px-1 py-1 border ${
+                    selected ? 'border-[#007AFF]/60' : 'border-transparent'
+                  }`}
+                >
                   <button
                     type="button"
                     data-testid={`assign-micro-${micro.id}`}
@@ -224,98 +253,105 @@ export function CalendarView({
                     </span>
                   )}
                 </div>
+              );
+            })}
+          </div>
 
-                <div data-testid={`week-sessions-${micro.id}`} className="flex flex-col">
-                  {rows.length === 0 ? (
-                    <p className="px-1 py-2 text-xs text-[#636366]">No sessions in this week.</p>
-                  ) : (
-                    rows.map((row) => (
-                      <div
-                        key={row.workout.id}
-                        data-testid={`workout-card-${row.workout.id}`}
-                        draggable={roleMode === 'coach'}
-                        onDragStart={(event) => handleDragStart(event, row.workout.id, row.micro.id, row.date)}
-                        className="border-b border-white/10 px-1 py-1.5 flex items-center gap-2"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onViewSession(row.workout, row.micro.id)}
-                          className="min-w-0 flex-1 text-left cursor-pointer"
-                        >
-                          <span className="text-[11px] text-white">
-                            {row.workout.dayLabel || 'Session'}
-                          </span>
-                          <span className="ml-2 font-mono text-[11px] text-[#AEAEB2]">
-                            {liftLine(row.workout)}
-                            {isWorkoutCompleted(row.workout.status) ? ' ✓' : ''}
-                          </span>
-                        </button>
-                        {roleMode === 'coach' ? (
-                          <input
-                            data-testid={`calendar-session-date-${row.workout.id}`}
-                            type="date"
-                            draggable={false}
-                            value={row.date}
-                            min={bounds.start}
-                            max={bounds.end}
-                            onChange={(event) => {
-                              const next = event.target.value;
-                              if (next) moveSession(row.workout.id, micro.id, next);
-                            }}
-                            className="h-7 bg-[#161616] border border-white/10 text-[#AEAEB2] font-mono text-[11px] px-1 scheme-dark"
-                          />
-                        ) : (
-                          <span className="font-mono text-[11px] text-[#AEAEB2]">{row.date}</span>
-                        )}
-                        {roleMode === 'coach' ? (
-                          <button
-                            type="button"
-                            data-testid={`delete-session-${row.workout.id}`}
-                            onClick={() => deleteWorkout(row.workout.id)}
-                            className="h-7 px-2 text-[10px] text-[#FF453A] hover:text-white flex items-center gap-1 shrink-0"
-                          >
-                            <Trash2 size={10} />
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {roleMode === 'coach' ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <label className="sr-only" htmlFor={`add-session-date-${micro.id}`}>
-                      Session date
-                    </label>
-                    <input
-                      id={`add-session-date-${micro.id}`}
-                      data-testid={`add-session-date-${micro.id}`}
-                      type="date"
-                      value={addDate}
-                      min={bounds.start}
-                      max={bounds.end}
-                      onChange={(event) => {
-                        const next = event.target.value;
-                        if (next) setAddDates((prev) => ({ ...prev, [micro.id]: next }));
-                      }}
-                      className="h-7 bg-[#161616] border border-white/10 text-[#AEAEB2] font-mono text-[11px] px-1 scheme-dark"
-                    />
-                    <button
-                      type="button"
-                      data-testid={`add-session-week-${micro.id}`}
-                      onClick={() => addOnDay(addDate, micro.id)}
-                      className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
-                    >
-                      <Plus size={12} />
-                      Session
-                    </button>
+          <div data-testid="calendar-timeline" className="border border-white/10 bg-[#131313]">
+            <div className="flex">
+              <div className="w-16 shrink-0" />
+              <div className="grid grid-cols-7 flex-1">
+                {WEEKDAYS.map((day) => (
+                  <div key={day} className="h-6 px-1 font-mono text-[10px] text-[#AEAEB2]">
+                    {day}
                   </div>
-                ) : null}
-              </section>
-            );
-          })}
-        </div>
+                ))}
+              </div>
+            </div>
+            {rows.map((row) => {
+              const labels = [...new Set(row.flatMap((date) => ownersOn(date).map((item) => item.micro.weekName)))];
+              return (
+                <div key={row[0]} className="flex border-t border-white/10">
+                  <div className="w-16 shrink-0 px-1 py-1 text-[10px] text-[#AEAEB2] leading-tight">
+                    {labels.join(' · ') || '—'}
+                  </div>
+                  <div className="grid grid-cols-7 flex-1">
+                    {row.map((dateStr) => {
+                      const dayWorkouts = sessionsOn(dateStr);
+                      const owners = ownersOn(dateStr);
+                      const inSelected = owners.some((item) => item.micro.id === activeMicrocycleId);
+                      const dayNumber = dateStr.slice(8, 10);
+                      return (
+                        <div
+                          key={dateStr}
+                          data-testid={`calendar-day-${dateStr}`}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => handleDrop(event, dateStr)}
+                          className={`min-h-[72px] p-1 flex flex-col border-l border-white/10 bg-[#161616] ${
+                            owners.length === 0 ? 'opacity-40' : ''
+                          } ${inSelected ? 'bg-[#007AFF]/5' : ''} ${
+                            boundaryFlashDate === dateStr ? 'ring-2 ring-[#FF453A] bg-[#FF453A]/10' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-mono text-[11px] text-[#AEAEB2]">{dayNumber}</span>
+                            {roleMode === 'coach' && owners.length > 0 ? (
+                              <button
+                                type="button"
+                                data-testid={`add-session-day-${dateStr}`}
+                                onClick={() => addOnDay(dateStr)}
+                                className="h-5 px-1 text-[10px] text-[#AEAEB2] hover:text-white flex items-center gap-0.5"
+                              >
+                                <Plus size={10} />
+                                Session
+                              </button>
+                            ) : null}
+                          </div>
+                          {dayWorkouts.map((rowItem) => (
+                            <div
+                              key={rowItem.workout.id}
+                              data-testid={`workout-card-${rowItem.workout.id}`}
+                              draggable={roleMode === 'coach'}
+                              onDragStart={(event) =>
+                                handleDragStart(event, rowItem.workout.id, rowItem.micro.id, rowItem.date)
+                              }
+                              className="mt-1 border border-white/10 bg-[#0A0A0A] p-1"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => onViewSession(rowItem.workout, rowItem.micro.id)}
+                                className="w-full text-left cursor-pointer"
+                              >
+                                <span className="block text-[10px] text-white truncate">
+                                  {rowItem.micro.weekName} {rowItem.workout.dayLabel || 'Session'}
+                                </span>
+                                <span className="block font-mono text-[10px] text-[#AEAEB2] truncate">
+                                  {liftLine(rowItem.workout)}
+                                  {isWorkoutCompleted(rowItem.workout.status) ? ' ✓' : ''}
+                                </span>
+                              </button>
+                              {roleMode === 'coach' ? (
+                                <button
+                                  type="button"
+                                  data-testid={`delete-session-${rowItem.workout.id}`}
+                                  onClick={() => deleteWorkout(rowItem.workout.id)}
+                                  className="mt-0.5 h-5 px-1 text-[10px] text-[#FF453A] hover:text-white flex items-center gap-1"
+                                >
+                                  <Trash2 size={10} />
+                                  Delete
+                                </button>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

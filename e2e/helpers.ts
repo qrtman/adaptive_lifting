@@ -53,21 +53,14 @@ export async function fillLogCell(page: Page, cellId: string, value: string | nu
 }
 
 export async function cardOnDate(page: Page, date: string) {
-  const inputs = page.locator('[data-testid^="calendar-session-date-"]');
-  const count = await inputs.count();
-  for (let i = 0; i < count; i++) {
-    const input = inputs.nth(i);
-    if ((await input.inputValue()) === date) {
-      const testId = await input.getAttribute('data-testid');
-      const workoutId = testId!.replace('calendar-session-date-', '');
-      return {
-        workoutId,
-        input,
-        cardTestId: `workout-card-${workoutId}`,
-      };
-    }
-  }
-  return null;
+  const card = page.getByTestId(`calendar-day-${date}`).locator('[data-testid^="workout-card-"]').last();
+  if ((await card.count()) === 0) return null;
+  const cardTestId = await card.getAttribute('data-testid');
+  if (!cardTestId) return null;
+  return {
+    workoutId: cardTestId.replace('workout-card-', ''),
+    cardTestId,
+  };
 }
 
 export async function html5Drag(page: Page, sourceTestId: string, targetTestId: string) {

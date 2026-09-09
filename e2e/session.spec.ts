@@ -129,8 +129,7 @@ test('coach can add a session on a calendar date', async ({ page }) => {
   await expect(page.getByTestId('add-session-dialog')).toHaveCount(0);
   await expect(page.getByTestId('assign-micro-z-w3')).toBeVisible();
   await page.getByTestId('assign-micro-z-w3').click();
-  await page.getByTestId('add-session-date-z-w3').fill('2026-09-05');
-  await page.getByTestId('add-session-week-z-w3').click();
+  await page.getByTestId('add-session-day-2026-09-05').click();
   const added = await cardOnDate(page, '2026-09-05');
   expect(added).toBeTruthy();
 });

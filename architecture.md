@@ -55,7 +55,7 @@ browser unless a backend is wired. Most development and all end-to-end tests run
 1. **Numeric integrity.** Training values are numeric end to end. `src/services/numericTraining.ts` guards conversion.
 2. **Offline-tolerant logging.** Sessions can be logged with no network. Mutations queue in IndexedDB and flush later.
 3. **Chronological binding.** Every workout carries a `YYYY-MM-DD` date. Rescheduling must not break date assignment.
-4. **Microcycle boundary.** Workouts cannot move or be added outside that week's start–end dates. Dates are stored on the client microcycle and on the backend `microcycles.startDate` / `endDate` columns. Unset weeks default to the ISO week of placed sessions. The client enforces on add and date change; sync rejects `date` writes outside the range.
+4. **Microcycle boundary.** Workouts cannot move or be added outside that week's start–end dates. Dates are stored on the client microcycle and on the backend `microcycles.startDate` / `endDate` columns. Unset weeks default to the ISO week of placed sessions. The client enforces on add and drag; sync rejects `date` writes outside the range.
 5. **Kilograms canonical.** One storage unit regardless of display preference.
 6. **Idempotent sync.** Mutations carry ids so retries cannot duplicate logs.
 7. **LocalStorage is UI preferences only.** Workout trees live in IndexedDB.
