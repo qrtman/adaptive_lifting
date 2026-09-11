@@ -144,6 +144,9 @@ def test_session_labels_anytime_and_reset_stays_empty():
     assert labeled.json()["blockLabel"] == "Block1"
     assert labeled.json()["weekLabel"] == "Week1"
 
+    removed = client.delete(f"/api/sessions/{sid}", cookies=cookies)
+    assert removed.status_code == 200
+
     reset = client.post("/api/reset", cookies=cookies)
     assert reset.status_code == 200
     assert reset.json() == []

@@ -35,7 +35,7 @@ export function CalendarView({
   filter,
   onFilterChange,
 }: CalendarViewProps) {
-  const { microcycles, mesocycles, setMicrocycles, activeAthleteId } = usePeriodization();
+  const { microcycles, mesocycles, setMicrocycles, activeAthleteId, reloadMicrocycles } = usePeriodization();
   const onUpdateWorkouts = setMicrocycles;
   const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
@@ -61,6 +61,8 @@ export function CalendarView({
 
   // Added state for high-fidelity Stitch Side Panel Session Analysis
   const [selectedWorkout, setSelectedWorkout] = useState<{ workout: WorkoutData; microId: string } | null>(null);
+  const [creatingDate, setCreatingDate] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -146,6 +148,39 @@ export function CalendarView({
     setDraggedFromMicrocycleId(microId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify({ workoutId, microId }));
+  };
+
+  const handleCreateOnDate = async (dateStr: string) => {
+    if (showCoachSelectAthlete || creatingDate) return;
+    setCreatingDate(dateStr);
+    try {
+      await apiService.createSession({
+        date: dateStr,
+        title: 'Session',
+        athleteId: activeAthleteId || undefined,
+      });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add session');
+    } finally {
+      setCreatingDate(null);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!window.confirm('Delete this session?')) return;
+    setDeletingId(sessionId);
+    try {
+      await apiService.deleteSession(sessionId);
+      setSelectedWorkout(null);
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete session');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const readDragPayload = (e: React.DragEvent): { workoutId: string; microId: string } | null => {
@@ -370,16 +405,12 @@ export function CalendarView({
             <p className="text-sm text-white mb-1">Select an athlete</p>
             <p className="text-xs text-[#AEAEB2]">Use the athlete switcher in the sidebar to load a plan.</p>
           </div>
-        ) : workoutList.length === 0 ? (
-          <div
-            data-testid="calendar-empty"
-            className="border border-white/10 rounded p-6 text-center"
-          >
-            <p className="text-sm text-white mb-1">No sessions scheduled</p>
-            <p className="text-xs text-[#AEAEB2]">Calendar dates fill in once sessions exist on this plan.</p>
-          </div>
         ) : (
         <>
+
+        {workoutList.length === 0 && (
+          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Click an empty day to add one.</p>
+        )}
 
         {boundaryLockVisible && (
           <div
@@ -510,6 +541,12 @@ export function CalendarView({
                                 data-testid={`calendar-day-${dateStr}`}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, dateStr)}
+                                onClick={() => {
+                                  if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
+                                  if (dayWorkouts.length === 0) {
+                                    void handleCreateOnDate(dateStr);
+                                  }
+                                }}
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative group cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
                                 } ${
@@ -707,6 +744,15 @@ export function CalendarView({
                 className="flex-1 h-8 bg-[#007AFF] hover:bg-[#0066d6] text-white text-xs rounded"
               >
                 Open session
+              </button>
+              <button
+                type="button"
+                data-testid="calendar-delete-session"
+                onClick={() => void handleDeleteSession(selectedWorkout.workout.id)}
+                disabled={deletingId === selectedWorkout.workout.id}
+                className="h-8 px-2 border border-[#FF453A]/40 text-[#FF453A] text-xs rounded disabled:opacity-50"
+              >
+                {deletingId === selectedWorkout.workout.id ? 'Deleting…' : 'Delete'}
               </button>
               <button 
                 onClick={async () => {

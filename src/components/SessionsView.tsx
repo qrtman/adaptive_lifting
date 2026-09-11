@@ -371,6 +371,23 @@ export function SessionsView({
                             >
                               {savingId === workout.id ? 'Saving…' : 'Save labels'}
                             </button>
+                            <button
+                              type="button"
+                              data-testid={`sessions-delete-${workout.id}`}
+                              onClick={async () => {
+                                if (!window.confirm('Delete this session?')) return;
+                                try {
+                                  await apiService.deleteSession(workout.id);
+                                  await reloadMicrocycles(activeAthleteId);
+                                } catch (err) {
+                                  console.error(err);
+                                  alert('Failed to delete session');
+                                }
+                              }}
+                              className="h-7 px-2 rounded border border-[#FF453A]/40 text-[#FF453A] text-[11px]"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
                       );
