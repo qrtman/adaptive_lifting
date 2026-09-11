@@ -50,8 +50,13 @@ Understanding the RTS methodology is essential for working with this system. All
 | **INOL** | Intensity Number of Lifts. A per-lift fatigue metric quantifying how much training stress a single movement receives within a time window. |
 | **ACWR** | Acute-Chronic Workload Ratio. A CNS recovery diagnostic comparing recent 7-day training load against the rolling 28-day average. |
 | **Tonnage** | Total mechanical work in a session. `Sum(Weight * Reps)` across all working sets. |
-| **Mesocycle** | A macro-level training block (typically 4-8 weeks) with a specific phase goal (hypertrophy, strength, peaking, deload). |
-| **Microcycle** | A single training week within a mesocycle. The primary scheduling unit. |
+| **Mesocycle** | Optional macro training block (typically 4-8 weeks) with a phase goal (hypertrophy, strength, peaking, deload). Used for analytics and labeling, not as a required create gate. |
+| **Block label** | Optional grouping prefix on sessions (e.g. `Block2`). Prefix of a Week label for hierarchical grouping, copy, compare, export, and graphs. |
+| **Week label** | Optional grouping label on sessions (e.g. `Week3`). May be used alone or under a Block. Not a forced Mon–Sun calendar container. |
+| **Microcycle** | Soft week grouping used for UI aggregation when Week labels are present. Not a hard Mon–Sun container and not required before creating a session. |
+| **Session** | First-class dated workout (`YYYY-MM-DD`) with exercises and sets. May be unlabeled or carry Block/Week labels anytime. |
+| **Athlete plan space** | Canonical ownership boundary for all training data. Linked coaches share full write; unlink removes access only. |
+| **Coach code** | Shareable code published by a coach; athletes enter it to grant access. Not the coach email. |
 | **Tier** | Exercise classification: **Comp** (competition lift), **Variation** (close derivative), **Accessory** (isolation/bodybuilding). |
 | **Lift Category** | Movement pattern classifier: Squat, Bench, Deadlift, or Other. Used for INOL grouping and export gating. |
 | **Top Set** | The heaviest or most fatiguing set in an exercise block. Flagged with `isTop` for e1RM tracking. |
@@ -79,8 +84,12 @@ These are the non-negotiable principles governing all design decisions.
 
 ### 3.2 Key Constraints
 
+* **Athlete-Owned Plan Space**: Training rows are owned by the athlete. A linked coach shares full write on that space. Ending the relationship does not move or delete the plan.
+* **Shared Full Write While Linked**: Linked coach and athlete may both structure and log on the shared plan, subject to the single-writer workout lock.
 * **Single-Writer per Workout**: Only one user (coach or athlete) may have a workout in an editable state at a time to prevent merge conflicts.
-* **Microcycle Boundary Lock**: Workouts cannot be dragged across microcycle boundaries. This is a hard constraint.
+* **Session-First Scheduling**: Sessions can be created with only a date. Block/Week labels are optional and may be assigned or changed anytime (including bulk). Unlabeled sessions are valid.
+* **No Demo Auto-Seed**: Empty athlete plans stay empty. Fetch, reset, and coach push must not inject sample microcycles.
+* **Label Drag Soft Boundary**: When sessions share a Week label, drag-and-drop reschedule prefers staying within that labeled group; unlabeled sessions move freely by date. Server validates date integrity, not Mon–Sun week boxes.
 * **Fractional Indexing for Order**: Array-based indexing is strictly forbidden for user-ordered lists (Exercises, Sets) to prevent offline sync conflicts.
 * **Date-Only Scheduling**: Workout dates are stored as date-only values (`YYYY-MM-DD`). Timestamps are reserved for audit and sync metadata.
 
@@ -184,9 +193,11 @@ erDiagram
     User ||--o{ Session : "has"
     User ||--o{ ClientDevice : "uses"
     User ||--o{ CoachingRelationship : "participates in"
+    User ||--o{ InviteCode : "publishes"
     User ||--o{ Mesocycle : "owns"
-    Mesocycle ||--o{ Microcycle : "contains"
-    Microcycle ||--o{ Workout : "contains"
+    User ||--o{ Workout : "owns as athlete"
+    Mesocycle ||--o{ Microcycle : "optional contains"
+    Microcycle ||--o{ Workout : "soft groups"
     Workout ||--o{ Exercise : "contains"
     Exercise ||--o{ ExerciseSet : "contains"
     Workout ||--o| WorkoutLock : "may have"
@@ -201,11 +212,11 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 
 | Entity | Key | Core Attributes | Relationships |
 | :--- | :--- | :--- | :--- |
-| **User** | `id` (UUID) | `email`, `role`, `subscription_status` | Owns Mesocycles, participates in CoachingRelationships |
-| **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | Links one coach to one athlete |
-| **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate` | Contains Microcycles |
-| **Microcycle** | `id` (String) | `weekName`, `status`, `startDate`, `endDate` | Belongs to Mesocycle; contains Workouts |
-| **Workout** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw` | Belongs to Microcycle |
+| **User** | `id` (UUID) | `email`, `role`, `subscription_status` | Owns athlete plan space when role is athlete; coaches publish InviteCodes and participate in CoachingRelationships |
+| **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | Athlete grants coach shared write on athlete plan space; `ended_at` unlinks without deleting plan data |
+| **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
+| **Microcycle** | `id` (String) | `weekName`, `focus`, `status`, `owner_id`, optional `mesocycle_id` | Soft week aggregation for labeled sessions; owned by athlete; not required before first session |
+| **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
 | **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
 | **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `deleted_at` | Belongs to Exercise |
 
@@ -219,7 +230,8 @@ Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `
 | **State Machine Lock**: A workout in `COMPLETED` state rejects execution mutations unless reverted to `IN_PROGRESS`. | Pydantic schema / Service layer |
 | **LexoRank Order**: Ordering strings (`lexo_rank`) must maintain lexical sortability without integer collisions. | Client generation, DB indexing |
 | **Accessory identity**: Isolation work is `Exercise.tier = Accessory`, never a workout-level blob without sets. | Schema + sync entity allow-list |
-| `Workout.date` must fall within parent `Microcycle.startDate` and `endDate` | Server validation |
+| Session `date` is required (`YYYY-MM-DD`); Block/Week labels are optional and independently nullable | Schema + service validation |
+| Plan rows for an athlete remain after `CoachingRelationship.ended_at` is set | Unlink service never deletes athlete-owned sessions |
 
 ### 5.3 Lifecycle Status Values
 
@@ -252,7 +264,7 @@ These entities are not part of the training hierarchy, but they are required to 
 | **SyncMutation** | `mutation_id`, `client_device_id`, `entity_type`, `entity_id`, `field_path`, `updated_at`, `applied_at`, `result` | Provides idempotency and replay protection for offline queue retries. |
 | **WorkoutLock** | `workout_id`, `holder_user_id`, `mode`, `expires_at`, `version` | Enforces the single-writer-per-workout constraint. |
 | **AuditEvent** | `id`, `actor_user_id`, `event_type`, `resource_type`, `resource_id`, `created_at`, `metadata_json` | Records security, export, deletion, and conflict events. |
-| **InviteCode** | `id`, `coach_id`, `code_hash`, `expires_at`, `used_at` | Supports short-lived coach-athlete linking without storing raw invite codes. |
+| **InviteCode (Coach Code)** | `id`, `coach_id`, `code_hash`, `expires_at`, `used_at` | Coach-published code athletes enter to link. Store salted hash only; expiry + single-use or rotatable coach codes as implemented. |
 | **DomainEvent** | `id`, `workout_id`, `event_type`, `payload_json`, `created_at` | Feeds SSE telemetry after database commit. |
 | **IntegrationConnection** | `id`, `user_id`, `provider`, `external_account_id`, `status`, `scopes`, `created_at`, `revoked_at` | Tracks Telegram and Google Sheets connections without exposing provider credentials. |
 | **IntegrationCredential** | `connection_id`, `credential_type`, `encrypted_payload`, `expires_at`, `rotated_at` | Stores Telegram chat IDs, Mini App identifiers, webhook secrets, OAuth refresh tokens, and access-token metadata encrypted at rest. |
@@ -865,24 +877,31 @@ sequenceDiagram
 
 ### 9.2 Role-Based Access Control (RBAC) Matrix
 
-| Resource | COACH | ATHLETE |
+| Resource | COACH (linked) | ATHLETE (plan owner) |
 | :--- | :--- | :--- |
-| Mesocycle / Microcycle structure | Read/Write (own athletes) | Read Only |
-| Exercise prescriptions | Read/Write | Read Only |
-| Execution data (`actual`, `reps`, `executedRpe`) | Read Only | **Read/Write (own sets only)** |
-| Velocity / HRV / Readiness | Read Only | Read/Write |
-| Analytics & Export | Full Access | Own data only |
+| Session structure (create/edit/delete, dates, Block/Week labels) | **Read/Write** on linked athlete plan space | **Read/Write** on own plan space |
+| Exercise prescriptions | **Read/Write** | **Read/Write** |
+| Execution data (`actual`, `reps`, `executedRpe`) | **Read/Write** | **Read/Write** |
+| Velocity / HRV / Readiness | Read/Write | Read/Write |
+| Analytics & Export | Linked athletes | Own data |
+| Coach code / unlink | Generate/rotate code; accept unlink | Enter coach code to link; unlink keeps plan |
 
 Authorization is enforced before service execution and again at repository query boundaries:
 
-- Coach-scoped reads must join through `CoachingRelationship` and reject ended relationships.
-- Athlete-scoped reads must use the authenticated `user_id` as the athlete boundary.
+- Coach-scoped reads/writes must join through an active `CoachingRelationship` (`ended_at IS NULL`) and target the athlete plan `owner_id`.
+- Athlete-scoped reads/writes must use the authenticated athlete as `owner_id`.
+- Ended relationships lose all coach access immediately; athlete-owned rows remain.
 - Export endpoints must record an `AuditEvent` with filters, row count, and actor.
 - SSE subscriptions must validate access to the workout before opening the stream and again before replaying missed events.
 
 ### 9.3 Coach-Athlete Linking
 
-Athletes are linked to coaches via the `CoachingRelationship` entity. An athlete can have exactly one coach. Linking is performed via a short-lived (15-minute), cryptographically secure invite code generated by the coach, entered by the athlete on their device.
+Athletes link to coaches via `CoachingRelationship`. An athlete may have at most one active coach.
+
+- **Coach code**: Coach generates a shareable code (`InviteCode`). Athletes enter that code — never coach email.
+- **Link**: `POST /api/auth/link` (or `/api/auth/link-athlete`) with the coach code creates the relationship and grants shared full write on the athlete plan space.
+- **Unlink**: Athlete (or coach) ends the relationship by setting `ended_at`. Plan data stays in athlete space; coach loses access.
+- Codes are stored as salted hashes. Prefer short-lived single-use codes; rotatable durable coach codes are allowed if hashed and revocable.
 
 ### 9.4 Biometric Ingestion & Privacy
 
@@ -921,8 +940,16 @@ Athletes are linked to coaches via the `CoachingRelationship` entity. An athlete
 | `POST` | `/api/auth/logout` | Revoke current session and clear auth cookie | Coach / Athlete |
 | `GET` | `/api/auth/sessions` | List active device sessions | Coach / Athlete |
 | `DELETE` | `/api/auth/sessions/{id}` | Revoke a device session | Coach / Athlete |
-| `POST` | `/api/auth/link` | Link athlete to coach via invite code | Athlete |
-| `GET` | `/api/microcycles` | Retrieve active periodization tree | Coach / Athlete |
+| `POST` | `/api/auth/coach-code` | Generate or rotate coach code | Coach |
+| `GET` | `/api/auth/coach-code` | Show current coach code metadata (not raw hash) | Coach |
+| `POST` | `/api/auth/link` | Athlete enters coach code to link | Athlete |
+| `DELETE` | `/api/auth/link` | Unlink coach; athlete plan remains | Athlete (or Coach) |
+| `GET` | `/api/coach/roster` | List linked athletes | Coach |
+| `GET` | `/api/microcycles?athlete_id=` | Retrieve periodization tree for athlete plan space (empty array if none; never auto-seed) | Coach / Athlete |
+| `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
+| `PATCH` | `/api/sessions/{id}` | Update session including labels anytime | Coach / Athlete |
+| `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
+| `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (with tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |

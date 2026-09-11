@@ -68,6 +68,7 @@ Do not build:
 Every authenticated PWA screen must include:
 
 - Current athlete or account context.
+- **Coach athlete switcher** when role is coach: changing athlete reloads Calendar and Sessions for that athlete's plan space.
 - Environment label when not production.
 - Online/offline indicator.
 - Sync queue count.
@@ -84,7 +85,10 @@ If implementation context is missing, assume:
 | Units | kg canonical, kg display unless user preference says otherwise |
 | Theme | Dark only for initial release |
 | Mobile first screen | Today's active workout |
-| Coach first screen | Dashboard with athlete switcher |
+| Coach first screen | Dashboard with athlete switcher that drives Calendar and Sessions |
+| Empty athlete plan | Show empty Calendar/Sessions states — never inject demo weeks |
+| Session create | Date required; Block/Week labels optional anytime |
+| Athlete link | Enter coach code (not email); unlink keeps plan |
 | Integrations | Disconnected until explicitly linked |
 | Offline state | Allowed for logging; publish/export requires network |
 | Role conflict | Prefer least privilege and show read-only UI |
@@ -1865,9 +1869,11 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 
 ### 16.3 Coach Desktop Acceptance
 
-- [ ] Coach can switch active athlete.
-- [ ] Calendar visibly groups workouts by microcycle.
-- [ ] Cross-microcycle drag is blocked and explained.
+- [ ] Coach can switch active athlete; Calendar and Sessions reload for that athlete.
+- [ ] Empty athlete plans show empty states — no demo microcycles.
+- [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
+- [ ] Block/Week labels can be set or changed anytime (including after create).
+- [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing.
 - [ ] LexoRank reorder controls are visible and stable.
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
