@@ -579,6 +579,24 @@ export const apiService = {
     return await response.json();
   },
 
+  async updateSessionExercise(sessionId: string, exerciseId: string, payload: {
+    variation?: string;
+    title?: string;
+    tier?: 'Comp' | 'Variation' | 'Accessory';
+  }): Promise<import('../types').ExerciseData> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to update lift');
+    }
+    return await response.json();
+  },
+
   async removeSessionExercise(sessionId: string, exerciseId: string): Promise<{ status: string; id: string }> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
       method: 'DELETE',

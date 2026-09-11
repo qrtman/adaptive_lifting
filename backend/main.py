@@ -1343,6 +1343,12 @@ class AddExerciseRequest(BaseModel):
     plannedRpe: Optional[float] = 8.0
 
 
+class UpdateExerciseRequest(BaseModel):
+    variation: Optional[str] = None
+    title: Optional[str] = None
+    tier: Optional[str] = None
+
+
 def require_session_for_write(db: Session, current_user: User, session_id: str) -> Workout:
     workout = db.query(Workout).filter(Workout.id == session_id).first()
     if not workout:
@@ -1612,6 +1618,37 @@ def remove_session_exercise(
             exercise_set.deleted_at = now
     db.commit()
     return {"status": "success", "id": exercise_id}
+
+
+@app.patch("/api/sessions/{session_id}/exercises/{exercise_id}")
+def update_session_exercise(
+    session_id: str,
+    exercise_id: str,
+    req: UpdateExerciseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+    exercise = next((e for e in (workout.exercises or []) if e.id == exercise_id and is_live(e)), None)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Lift not found")
+    if req.title is not None:
+        title = req.title.strip()
+        if not title:
+            raise HTTPException(status_code=400, detail="title required")
+        exercise.title = title
+    if req.variation is not None:
+        variation = req.variation.strip()
+        if not variation:
+            raise HTTPException(status_code=400, detail="variation required")
+        exercise.variation = variation
+    if req.tier is not None:
+        if req.tier not in ALLOWED_TIERS:
+            raise HTTPException(status_code=400, detail="Invalid tier")
+        exercise.tier = req.tier
+    db.commit()
+    persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
+    return format_exercise(persisted)
 
 
 @app.patch("/api/sessions/{session_id}")

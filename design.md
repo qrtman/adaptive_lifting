@@ -1882,6 +1882,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
 - [ ] Coach or athlete can remove a lift from an unlocked session; completed sessions stay locked until Open.
 - [ ] Finished sessions reopen with a single Open action (same as opening a folder). No lock ceremony.
+- [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) compiling a readonly name, not a freeform program.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing.
 - [ ] LexoRank reorder controls are visible and stable.

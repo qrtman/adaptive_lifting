@@ -350,3 +350,39 @@ def test_open_finished_session():
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     match = next(w for w in workouts if w["id"] == sid)
     assert [e["title"] for e in match["exercises"]] == ["Squat", "Bench"]
+
+
+def test_name_lift_variation():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Session"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    )
+    eid = squat.json()["id"]
+    named = client.patch(
+        f"/api/sessions/{sid}/exercises/{eid}",
+        json={"variation": "Pause High Bar Squat (3-2-0)", "tier": "Variation"},
+        cookies=cookies,
+    )
+    assert named.status_code == 200
+    assert named.json()["variation"] == "Pause High Bar Squat (3-2-0)"
+    assert named.json()["tier"] == "Variation"
+    assert named.json()["title"] == "Squat"
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    match = next(w for w in workouts if w["id"] == sid)
+    assert match["exercises"][0]["variation"] == "Pause High Bar Squat (3-2-0)"

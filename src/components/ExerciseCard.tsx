@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, Trash2, Copy } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
+import { LiftVariationPicker } from './LiftVariationPicker';
 import { 
   calculateCapacityScaledWeight, 
   calculateE1RM, 
@@ -16,8 +17,10 @@ export const ExerciseCard = ({
   variation, 
   tags: _tags, 
   tier,
+  liftCategory = 'Other',
   initialSets,
   onUpdateSets,
+  onUpdateMeta,
   onRemove,
   locked = false,
   roleMode = 'coach'
@@ -27,8 +30,10 @@ export const ExerciseCard = ({
   variation: string, 
   tags: string[], 
   tier?: 'Comp' | 'Variation' | 'Accessory',
+  liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other',
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
+  onUpdateMeta?: (patch: { variation: string; tier: 'Comp' | 'Variation' }) => void,
   onRemove?: () => void | Promise<void>,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
@@ -197,11 +202,26 @@ export const ExerciseCard = ({
   return (
     <div className="border-b border-white/10">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
-          <span className="text-xs text-[#AEAEB2] truncate">
-            {tier ? `${tier} · ${variation}` : variation}
-          </span>
+        <div className="flex items-start gap-2 min-w-0">
+          {tier === 'Accessory' || !onUpdateMeta ? (
+            <>
+              <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
+              <span className="text-xs text-[#AEAEB2] truncate">
+                {tier ? `${tier} · ${variation}` : variation}
+              </span>
+            </>
+          ) : (
+            <>
+              <h4 className="text-lg leading-7 text-white shrink-0">{title}</h4>
+              <LiftVariationPicker
+                title={title}
+                variation={variation}
+                liftCategory={liftCategory}
+                locked={locked}
+                onChange={onUpdateMeta}
+              />
+            </>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">

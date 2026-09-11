@@ -76,6 +76,16 @@ export default function App() {
     }
   };
 
+  const handleUpdateLift = async (exerciseId: string, patch: { variation: string; tier: 'Comp' | 'Variation' }) => {
+    if (!activeWorkout) return;
+    try {
+      await apiService.updateSessionExercise(activeWorkout.id, exerciseId, patch);
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update lift');
+    }
+  };
+
   const handleOpenSession = async () => {
     if (!activeWorkout) return;
     try {
@@ -224,8 +234,10 @@ export default function App() {
                         variation={ex.variation}
                         tags={ex.tags}
                         tier={ex.tier}
+                        liftCategory={ex.liftCategory}
                         initialSets={ex.sets}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
+                        onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
                         onRemove={() => handleRemoveLift(ex.id)}
                         locked={isWorkoutLocked(activeWorkout.status)}
                         roleMode={roleMode}
