@@ -37,7 +37,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import re
 import uuid
 import hashlib
 import secrets
@@ -1532,6 +1533,140 @@ class BulkLabelsRequest(BaseModel):
     clearBlock: bool = False
     clearWeek: bool = False
     athleteId: Optional[str] = None
+
+
+class CopyWeekRequest(BaseModel):
+    sessionIds: List[str]
+    athleteId: Optional[str] = None
+    dateOffsetDays: int = 7
+    targetBlockLabel: Optional[str] = None
+    targetWeekLabel: Optional[str] = None
+
+
+def session_owner_id(db: Session, workout: Workout) -> Optional[str]:
+    if workout.owner_id:
+        return workout.owner_id
+    if workout.microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+        return mc.owner_id if mc else None
+    return None
+
+
+def shift_iso_date(iso: str, days: int) -> str:
+    return (date.fromisoformat(iso) + timedelta(days=days)).isoformat()
+
+
+def next_week_label(week: Optional[str]) -> Optional[str]:
+    if not week or not week.strip():
+        return None
+    match = re.match(r"^(.*?)(\d+)$", week.strip())
+    if not match:
+        return f"{week.strip()}-next"
+    prefix, digits = match.group(1), match.group(2)
+    return f"{prefix}{int(digits) + 1}"
+
+
+def clone_session_prescription(db: Session, source: Workout, new_date: str, block_label: Optional[str], week_label: Optional[str]) -> Workout:
+    clone = Workout(
+        id=f"w-{uuid.uuid4().hex[:10]}",
+        date=new_date,
+        dayLabel=new_date,
+        title=source.title,
+        tonnage=0.0,
+        delta=0.0,
+        color="mac-blue",
+        status="PLANNED",
+        athlete_bw=None,
+        block_label=block_label,
+        week_label=week_label,
+        owner_id=source.owner_id,
+        microcycle_id=source.microcycle_id,
+    )
+    db.add(clone)
+    db.flush()
+    for exercise in sorted(source.exercises, key=lambda item: (item.lexo_rank or "", item.id)):
+        cloned_exercise = Exercise(
+            id=f"e-{uuid.uuid4().hex[:10]}",
+            lexo_rank=exercise.lexo_rank or "a0",
+            title=exercise.title,
+            variation=exercise.variation,
+            tier=exercise.tier or "Comp",
+            lift_category=exercise.lift_category or "Other",
+            tags_raw=exercise.tags_raw or "",
+            top="—",
+            vol="—",
+            workout_id=clone.id,
+        )
+        db.add(cloned_exercise)
+        db.flush()
+        for exercise_set in sorted(exercise.sets, key=lambda item: (item.lexo_rank or "", item.id)):
+            db.add(ExerciseSet(
+                id=f"s-{uuid.uuid4().hex[:10]}",
+                lexo_rank=exercise_set.lexo_rank or "a0",
+                label=exercise_set.label,
+                plannedWeight=exercise_set.plannedWeight,
+                plannedReps=exercise_set.plannedReps,
+                plannedRpe=exercise_set.plannedRpe,
+                dropPercent=exercise_set.dropPercent,
+                isAuto=exercise_set.isAuto,
+                actual=None,
+                reps=None,
+                executedRpe=None,
+                isTop=exercise_set.isTop,
+                note=exercise_set.note,
+                velocity=None,
+                readiness=None,
+                hrv=None,
+                exercise_id=cloned_exercise.id,
+            ))
+    return clone
+
+
+@app.post("/api/sessions/copy-week")
+def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not req.sessionIds:
+        raise HTTPException(status_code=400, detail="sessionIds required")
+    if req.dateOffsetDays < 1:
+        raise HTTPException(status_code=400, detail="dateOffsetDays must be at least 1")
+
+    sources = []
+    owner_id = None
+    for session_id in req.sessionIds:
+        workout = db.query(Workout).filter(Workout.id == session_id).first()
+        if not workout:
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        found_owner = session_owner_id(db, workout)
+        if not found_owner:
+            raise HTTPException(status_code=400, detail="Session has no owner")
+        if owner_id is None:
+            owner_id = found_owner
+        elif found_owner != owner_id:
+            raise HTTPException(status_code=400, detail="All sessions must belong to one athlete plan")
+        sources.append(workout)
+
+    assert_plan_access(db, current_user, owner_id)
+
+    created = []
+    for source in sources:
+        target_block = req.targetBlockLabel if req.targetBlockLabel is not None else source.block_label
+        target_week = req.targetWeekLabel if req.targetWeekLabel is not None else next_week_label(source.week_label)
+        clone = clone_session_prescription(
+            db,
+            source,
+            shift_iso_date(source.date, req.dateOffsetDays),
+            target_block,
+            target_week,
+        )
+        created.append({
+            "id": clone.id,
+            "date": clone.date,
+            "title": clone.title,
+            "blockLabel": clone.block_label,
+            "weekLabel": clone.week_label,
+            "sourceId": source.id,
+        })
+    db.commit()
+    return {"status": "success", "copied": created}
 
 
 @app.post("/api/sessions")

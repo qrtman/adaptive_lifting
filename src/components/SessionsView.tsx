@@ -146,6 +146,8 @@ export function SessionsView({
   const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [newTitle, setNewTitle] = useState('Session');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [copyingKey, setCopyingKey] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const handleCreateSession = async () => {
     if (showCoachSelectAthlete) return;
@@ -162,6 +164,24 @@ export function SessionsView({
       setCreateError(err?.message || 'Failed to create session');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleCopyWeek = async (groupKey: string, entries: SessionEntry[]) => {
+    if (showCoachSelectAthlete || groupKey === 'Ungrouped' || entries.length === 0) return;
+    setCopyingKey(groupKey);
+    setCopyError(null);
+    try {
+      await apiService.copyWeek({
+        sessionIds: entries.map(({ workout }) => workout.id),
+        athleteId: activeAthleteId || undefined,
+        dateOffsetDays: 7,
+      });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err: any) {
+      setCopyError(err?.message || 'Failed to copy week');
+    } finally {
+      setCopyingKey(null);
     }
   };
 
@@ -203,6 +223,7 @@ export function SessionsView({
                 {creating ? 'Adding…' : 'Add session'}
               </button>
               {createError && <p className="w-full text-[10px] text-red-400">{createError}</p>}
+              {copyError && <p className="w-full text-[10px] text-red-400">{copyError}</p>}
             </div>
           )}
 
@@ -226,9 +247,22 @@ export function SessionsView({
             <div className="flex flex-col gap-4">
               {groupedSessions.map(({ key, label, entries }) => (
                 <section key={key} className="border border-white/10 rounded overflow-hidden">
-                  <div className="h-8 px-3 border-b border-white/10 flex items-center justify-between bg-[#131313]">
+                  <div className="h-8 px-3 border-b border-white/10 flex items-center justify-between gap-2 bg-[#131313]">
                     <h4 className="text-xs text-white">{label}</h4>
-                    <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
+                    <div className="flex items-center gap-2">
+                      {key !== 'Ungrouped' && (
+                        <button
+                          type="button"
+                          data-testid={`sessions-copy-week-${key}`}
+                          onClick={() => handleCopyWeek(key, entries)}
+                          disabled={copyingKey === key}
+                          className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                        >
+                          {copyingKey === key ? 'Copying…' : 'Copy week +7d'}
+                        </button>
+                      )}
+                      <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
+                    </div>
                   </div>
                   <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                     {entries.map(({ workout, microId }) => {

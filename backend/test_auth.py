@@ -147,3 +147,44 @@ def test_session_labels_anytime_and_reset_stays_empty():
     reset = client.post("/api/reset", cookies=cookies)
     assert reset.status_code == 200
     assert reset.json() == []
+
+
+def test_copy_week_shifts_dates_and_increments_week_label():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+
+    squat = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-15", "title": "Squat", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    bench = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-17", "title": "Bench", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    assert bench.status_code == 200
+
+    copied = client.post(
+        "/api/sessions/copy-week",
+        json={"sessionIds": [squat.json()["id"], bench.json()["id"]]},
+        cookies=cookies,
+    )
+    assert copied.status_code == 200
+    payload = copied.json()
+    assert payload["status"] == "success"
+    assert len(payload["copied"]) == 2
+    dates = sorted(row["date"] for row in payload["copied"])
+    assert dates == ["2026-09-22", "2026-09-24"]
+    assert all(row["blockLabel"] == "Block2" for row in payload["copied"])
+    assert all(row["weekLabel"] == "Week4" for row in payload["copied"])
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    assert len(workouts) == 4

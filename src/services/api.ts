@@ -522,6 +522,32 @@ export const apiService = {
     return await response.json();
   },
 
+  async copyWeek(payload: {
+    sessionIds: string[];
+    athleteId?: string;
+    dateOffsetDays?: number;
+    targetBlockLabel?: string | null;
+    targetWeekLabel?: string | null;
+  }): Promise<{ status: string; copied: Array<{ id: string; date: string; title: string; blockLabel: string | null; weekLabel: string | null; sourceId: string }> }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/copy-week`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        sessionIds: payload.sessionIds,
+        athleteId: payload.athleteId,
+        dateOffsetDays: payload.dateOffsetDays ?? 7,
+        targetBlockLabel: payload.targetBlockLabel,
+        targetWeekLabel: payload.targetWeekLabel,
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to copy week');
+    }
+    return await response.json();
+  },
+
   async deleteSession(sessionId: string): Promise<{ status: string }> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`, {
       method: 'DELETE',
