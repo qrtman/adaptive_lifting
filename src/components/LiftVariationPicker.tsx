@@ -4,15 +4,15 @@ import {
   GEAR_OPTIONS,
   LiftCategory,
   ROM_OPTIONS,
-  TEMPO_OPTIONS,
   compileVariation,
+  formatTempo,
   parseModifiers,
+  parseTempoParts,
   toggleGear,
   variationTier,
   type GearMod,
   type LiftModifiers,
   type RomMod,
-  type TempoMod,
 } from '../services/liftVariation';
 
 function Chip({
@@ -55,12 +55,32 @@ function Row({
   );
 }
 
-const TEMPO_LABEL: Record<TempoMod, string> = {
-  Standard: 'Std',
-  Paused: 'Pause',
-  'Slow ecc': 'Slow',
-  Iso: 'Iso',
-};
+function TempoPart({
+  value,
+  disabled,
+  label,
+  onChange,
+}: {
+  value: number;
+  disabled?: boolean;
+  label: string;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <input
+      type="number"
+      min={0}
+      max={9}
+      step={1}
+      inputMode="numeric"
+      aria-label={label}
+      disabled={disabled}
+      value={value}
+      onChange={(event) => onChange(Number(event.target.value))}
+      className="h-6 w-8 px-1 text-center text-xs font-mono bg-black border border-white/10 rounded text-white disabled:opacity-40"
+    />
+  );
+}
 
 export function LiftVariationPicker({
   title,
@@ -78,12 +98,19 @@ export function LiftVariationPicker({
   const mods = parseModifiers(variation, liftCategory);
   const bars = BAR_OPTIONS[liftCategory] ?? BAR_OPTIONS.Other;
   const gearOpts = GEAR_OPTIONS[liftCategory] ?? GEAR_OPTIONS.Other;
+  const [eccentric, pause, concentric] = parseTempoParts(mods.tempo);
 
   const commit = (next: LiftModifiers) => {
     onChange({
       variation: compileVariation(title, next),
       tier: variationTier(next),
     });
+  };
+
+  const setTempoPart = (index: 0 | 1 | 2, value: number) => {
+    const parts: [number, number, number] = [eccentric, pause, concentric];
+    parts[index] = value;
+    commit({ ...mods, tempo: formatTempo(...parts) });
   };
 
   return (
@@ -103,15 +130,11 @@ export function LiftVariationPicker({
         ))}
       </Row>
       <Row label="Tempo">
-        {TEMPO_OPTIONS.map((tempo) => (
-          <Chip
-            key={tempo}
-            label={TEMPO_LABEL[tempo]}
-            active={mods.tempo === tempo}
-            disabled={locked}
-            onClick={() => commit({ ...mods, tempo: tempo as TempoMod })}
-          />
-        ))}
+        <TempoPart label="Eccentric" value={eccentric} disabled={locked} onChange={(value) => setTempoPart(0, value)} />
+        <span className="text-[10px] text-[#636366]">-</span>
+        <TempoPart label="Pause" value={pause} disabled={locked} onChange={(value) => setTempoPart(1, value)} />
+        <span className="text-[10px] text-[#636366]">-</span>
+        <TempoPart label="Concentric" value={concentric} disabled={locked} onChange={(value) => setTempoPart(2, value)} />
       </Row>
       <Row label="ROM">
         {ROM_OPTIONS.map((rom) => (

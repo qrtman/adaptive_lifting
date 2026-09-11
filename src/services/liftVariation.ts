@@ -1,14 +1,15 @@
 export type LiftCategory = 'Squat' | 'Bench' | 'Deadlift' | 'Other';
-export type TempoMod = 'Standard' | 'Paused' | 'Slow ecc' | 'Iso';
 export type RomMod = 'Full' | 'Deficit' | 'Pin' | 'Board' | 'Partial';
 export type GearMod = 'Beltless' | 'Bands' | 'Chains' | 'Wraps' | 'SlingShot';
 
 export type LiftModifiers = {
   bar: string;
-  tempo: TempoMod;
+  tempo: string;
   rom: RomMod;
   gear: GearMod[];
 };
+
+export const DEFAULT_TEMPO = '1-0-1';
 
 export const BAR_OPTIONS: Record<LiftCategory, string[]> = {
   Squat: ['Competition', 'High Bar', 'Low Bar', 'SSB', 'Front', 'Box', 'Hatfield'],
@@ -17,27 +18,12 @@ export const BAR_OPTIONS: Record<LiftCategory, string[]> = {
   Other: ['Standard'],
 };
 
-export const TEMPO_OPTIONS: TempoMod[] = ['Standard', 'Paused', 'Slow ecc', 'Iso'];
 export const ROM_OPTIONS: RomMod[] = ['Full', 'Deficit', 'Pin', 'Board', 'Partial'];
 export const GEAR_OPTIONS: Record<LiftCategory, GearMod[]> = {
   Squat: ['Beltless', 'Bands', 'Chains', 'Wraps'],
   Bench: ['Beltless', 'Bands', 'Chains', 'Wraps', 'SlingShot'],
   Deadlift: ['Beltless', 'Bands', 'Chains', 'Wraps'],
   Other: ['Beltless', 'Bands', 'Chains'],
-};
-
-const TEMPO_NOTE: Record<TempoMod, string> = {
-  Standard: '',
-  Paused: ' (3-2-0)',
-  'Slow ecc': ' (3-0-0)',
-  Iso: ' (1-3-1)',
-};
-
-const TEMPO_WORD: Record<TempoMod, string | null> = {
-  Standard: null,
-  Paused: 'Pause',
-  'Slow ecc': 'Slow ecc',
-  Iso: 'Iso',
 };
 
 const ROM_WORD: Record<RomMod, string | null> = {
@@ -48,11 +34,30 @@ const ROM_WORD: Record<RomMod, string | null> = {
   Partial: 'Partial',
 };
 
+function clampTempoPart(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(9, Math.round(value)));
+}
+
+export function parseTempoParts(tempo: string): [number, number, number] {
+  const match = (tempo || '').match(/(\d+)\s*-\s*(\d+)\s*-\s*(\d+)/);
+  if (!match) return [1, 0, 1];
+  return [clampTempoPart(Number(match[1])), clampTempoPart(Number(match[2])), clampTempoPart(Number(match[3]))];
+}
+
+export function formatTempo(eccentric: number, pause: number, concentric: number): string {
+  return `${clampTempoPart(eccentric)}-${clampTempoPart(pause)}-${clampTempoPart(concentric)}`;
+}
+
+export function isDefaultTempo(tempo: string): boolean {
+  return formatTempo(...parseTempoParts(tempo)) === DEFAULT_TEMPO;
+}
+
 export function defaultModifiers(category: LiftCategory): LiftModifiers {
   const bars = BAR_OPTIONS[category] ?? BAR_OPTIONS.Other;
   return {
     bar: bars[0],
-    tempo: 'Standard',
+    tempo: DEFAULT_TEMPO,
     rom: 'Full',
     gear: [],
   };
@@ -67,21 +72,20 @@ export function compileVariation(title: string, mods: LiftModifiers): string {
   for (const item of mods.gear) bits.push(item);
   const romWord = ROM_WORD[mods.rom];
   if (romWord) bits.push(romWord);
-  const tempoWord = TEMPO_WORD[mods.tempo];
-  if (tempoWord) bits.push(tempoWord);
   if (mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard') {
     bits.push(mods.bar);
   } else if (bits.length === 0) {
     bits.push('Competition');
   }
-  const note = TEMPO_NOTE[mods.tempo] ?? '';
+  const tempo = formatTempo(...parseTempoParts(mods.tempo));
+  const note = tempo === DEFAULT_TEMPO ? '' : ` (${tempo})`;
   return `${bits.join(' ')} ${title}${note}`.replace(/\s+/g, ' ').trim();
 }
 
 export function variationTier(mods: LiftModifiers): 'Comp' | 'Variation' {
   const isComp =
     (mods.bar === 'Competition' || mods.bar === 'Standard' || mods.bar === 'Conventional')
-    && mods.tempo === 'Standard'
+    && isDefaultTempo(mods.tempo)
     && mods.rom === 'Full'
     && mods.gear.length === 0;
   return isComp ? 'Comp' : 'Variation';
@@ -105,8 +109,15 @@ export function parseModifiers(variation: string, category: LiftCategory): LiftM
   else if (/partial/.test(text)) mods.rom = 'Partial';
   else if (/\bpin\b/.test(text)) mods.rom = 'Pin';
 
-  if (/pause/.test(text) || /3-2-0/.test(text)) mods.tempo = 'Paused';
-  else if (/slow\s*ecc|3-0-0/.test(text)) mods.tempo = 'Slow ecc';
-  else if (/\biso\b|1-3-1/.test(text)) mods.tempo = 'Iso';
+  const triple = variation.match(/(\d+)\s*-\s*(\d+)\s*-\s*(\d+)/);
+  if (triple) {
+    mods.tempo = formatTempo(Number(triple[1]), Number(triple[2]), Number(triple[3]));
+  } else if (/pause/.test(text)) {
+    mods.tempo = '3-2-0';
+  } else if (/slow\s*ecc/.test(text)) {
+    mods.tempo = '3-0-0';
+  } else if (/\biso\b/.test(text)) {
+    mods.tempo = '1-3-1';
+  }
   return mods;
 }

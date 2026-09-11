@@ -24,4 +24,4 @@ Persistent context for Cursor agents. Keep this short and aligned with `architec
 - **No demo seed**: Empty athletes start empty. Never auto-inject sample microcycles on fetch/reset/push.
 - **Surfaces**: Calendar = by date. Sessions = group/filter by Block/Week when present; ungrouped bucket otherwise. Coach shell has an athlete switcher that drives Calendar/Sessions.
 - **Web first**: Coach and athlete use the same web session screen to add lifts and log sets. Telegram Mini App / phone logging is deferred until the web constructor is done. Do not build or gate session work on the phone mock.
-- **Lift names**: Structured chips compile the variation name (bar/style, tempo, ROM, gear). Do not parse a freeform program.
+- **Lift names**: Structured chips compile bar/style, ROM, and gear. Tempo is three digits (ecc-pause-con), not preset chips or a freeform program.
