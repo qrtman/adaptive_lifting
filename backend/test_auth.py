@@ -24,7 +24,7 @@ def test_register_and_login_set_session_cookie():
     assert login_response.cookies.get("session_id")
 
 
-def test_coach_roster_and_microcycle_isolation():
+def test_coach_code_link_unlink_keeps_empty_plan():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     coach_email = f"coach-{suffix}@example.com"
@@ -51,19 +51,43 @@ def test_coach_roster_and_microcycle_isolation():
     )
     assert athlete2.status_code == 200
 
-    link = client.post(
+    code_resp = client.post("/api/auth/coach-code", cookies=coach_cookies)
+    assert code_resp.status_code == 200
+    coach_code = code_resp.json()["code"]
+    assert coach_code
+
+    # Email is no longer a valid link code
+    bad = client.post(
         "/api/auth/link-athlete",
         json={"code": coach_email},
+        cookies=athlete1_cookies,
+    )
+    assert bad.status_code == 404
+
+    link = client.post(
+        "/api/auth/link-athlete",
+        json={"code": coach_code},
         cookies=athlete1_cookies,
     )
     assert link.status_code == 200
 
     athlete1_mcs = client.get("/api/microcycles", cookies=athlete1_cookies)
     assert athlete1_mcs.status_code == 200
-    athlete1_count = len(athlete1_mcs.json())
+    assert athlete1_mcs.json() == []
 
     athlete2_mcs = client.get("/api/microcycles", cookies=athlete2.cookies)
     assert athlete2_mcs.status_code == 200
+    assert athlete2_mcs.json() == []
+
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-11", "title": "Squat day", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=athlete1_cookies,
+    )
+    assert created.status_code == 200
+    session = created.json()
+    assert session["blockLabel"] == "Block2"
+    assert session["weekLabel"] == "Week3"
 
     roster = client.get("/api/coach/roster", cookies=coach_cookies)
     assert roster.status_code == 200
@@ -72,6 +96,54 @@ def test_coach_roster_and_microcycle_isolation():
     assert athlete1_email in emails
     assert athlete2_email not in emails
 
-    coach_mcs = client.get("/api/microcycles", cookies=coach_cookies)
+    athlete_id = next(row["id"] for row in roster_data if row["email"] == athlete1_email)
+    coach_mcs = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies)
     assert coach_mcs.status_code == 200
-    assert len(coach_mcs.json()) == athlete1_count
+    assert len(coach_mcs.json()) >= 1
+
+    unlink = client.delete("/api/auth/link", cookies=athlete1_cookies)
+    assert unlink.status_code == 200
+
+    roster_after = client.get("/api/coach/roster", cookies=coach_cookies)
+    assert athlete1_email not in [row["email"] for row in roster_after.json()]
+
+    # Plan stays in athlete space after unlink
+    athlete1_after = client.get("/api/microcycles", cookies=athlete1_cookies)
+    assert athlete1_after.status_code == 200
+    assert len(athlete1_after.json()) >= 1
+
+
+def test_session_labels_anytime_and_reset_stays_empty():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+
+    empty = client.get("/api/microcycles", cookies=cookies)
+    assert empty.status_code == 200
+    assert empty.json() == []
+
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Bench"},
+        cookies=cookies,
+    )
+    assert created.status_code == 200
+    sid = created.json()["id"]
+    assert created.json()["blockLabel"] is None
+
+    labeled = client.patch(
+        f"/api/sessions/{sid}",
+        json={"blockLabel": "Block1", "weekLabel": "Week1"},
+        cookies=cookies,
+    )
+    assert labeled.status_code == 200
+    assert labeled.json()["blockLabel"] == "Block1"
+    assert labeled.json()["weekLabel"] == "Week1"
+
+    reset = client.post("/api/reset", cookies=cookies)
+    assert reset.status_code == 200
+    assert reset.json() == []

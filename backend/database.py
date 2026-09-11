@@ -67,7 +67,10 @@ class Workout(Base, TimestampMixin):
     color = Column(String, nullable=False)
     status = Column(String, nullable=False) # PLANNED, IN_PROGRESS, COMPLETED, MISSED
     athlete_bw = Column(Float, nullable=True)
-    microcycle_id = Column(String, ForeignKey("microcycles.id"))
+    block_label = Column(String, nullable=True)
+    week_label = Column(String, nullable=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=True)
+    microcycle_id = Column(String, ForeignKey("microcycles.id"), nullable=True)
 
     microcycle = relationship("Microcycle", back_populates="workouts")
     exercises = relationship("Exercise", back_populates="workout", cascade="all, delete-orphan")
