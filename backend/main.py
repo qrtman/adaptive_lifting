@@ -1348,6 +1348,19 @@ class UpdateExerciseRequest(BaseModel):
     variation: Optional[str] = None
     title: Optional[str] = None
     tier: Optional[str] = None
+    move: Optional[str] = None
+
+
+def live_exercises(workout: Workout):
+    return sorted(
+        [e for e in (workout.exercises or []) if is_live(e)],
+        key=lambda item: (item.lexo_rank or "", item.id),
+    )
+
+
+def reindex_exercises(ordered) -> None:
+    for index, exercise in enumerate(ordered):
+        exercise.lexo_rank = f"a{index}"
 
 
 def require_session_for_write(db: Session, current_user: User, session_id: str) -> Workout:
@@ -1625,6 +1638,7 @@ def remove_session_exercise(
     for exercise_set in exercise.sets or []:
         if is_live(exercise_set):
             exercise_set.deleted_at = now
+    reindex_exercises(live_exercises(workout))
     db.commit()
     return {"status": "success", "id": exercise_id}
 
@@ -1655,6 +1669,18 @@ def update_session_exercise(
         if req.tier not in ALLOWED_TIERS:
             raise HTTPException(status_code=400, detail="Invalid tier")
         exercise.tier = req.tier
+    if req.move is not None:
+        direction = req.move.strip().lower()
+        if direction not in ("up", "down"):
+            raise HTTPException(status_code=400, detail="move must be up or down")
+        ordered = live_exercises(workout)
+        index = next((i for i, item in enumerate(ordered) if item.id == exercise.id), None)
+        if index is None:
+            raise HTTPException(status_code=404, detail="Lift not found")
+        swap_with = index - 1 if direction == "up" else index + 1
+        if 0 <= swap_with < len(ordered):
+            ordered[index], ordered[swap_with] = ordered[swap_with], ordered[index]
+            reindex_exercises(ordered)
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)

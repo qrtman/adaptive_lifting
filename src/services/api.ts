@@ -585,6 +585,7 @@ export const apiService = {
     variation?: string;
     title?: string;
     tier?: 'Comp' | 'Variation' | 'Accessory';
+    move?: 'up' | 'down';
   }): Promise<import('../types').ExerciseData> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
       method: 'PATCH',

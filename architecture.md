@@ -565,6 +565,8 @@ On boot, leftover `obsidian_*` and `iron_box_*` keys are migrated (UI prefs) or 
 
 To solve the complex problem of offline drag-and-drop ordering, all ordered lists (`Exercises`, `ExerciseSets`) use a deterministic **Fractional Indexing** (LexoRank) algorithm.
 
+The current web constructor reorders lifts with Up/Down. `PATCH /api/sessions/{id}/exercises/{exercise_id}` with `move: "up" | "down"` swaps the lift among live siblings and reindexes `lexo_rank` to `a0`..`an`. Locked sessions reject the write. Client midpoint LexoRank remains the target for offline drag sync.
+
 #### 7.2.1 Core Lexical Specifications
 - **Alphabet**: The sorting string relies on standard Base36 ASCII printable characters: `0123456789abcdefghijklmnopqrstuvwxyz`. Ranks are sorted lexically (character by character, left to right).
 - **String Bounds**: Ranks must operate between `0` (inclusive lower bound) and `z` (inclusive upper bound). 
@@ -948,7 +950,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `GET` | `/api/microcycles?athlete_id=` | Retrieve periodization tree for athlete plan space (empty array if none; never auto-seed) | Coach / Athlete |
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
 | `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
-| `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) on an unlocked session | Coach / Athlete |
+| `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) or `move` (`up`/`down`) on an unlocked session | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}/exercises/{exercise_id}` | Tombstone a lift on an unlocked session | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}` | Update session including labels anytime; set `IN_PROGRESS` to open a finished session | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |

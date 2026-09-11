@@ -7,14 +7,13 @@ import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
 import { AppShell, type DashboardMode } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
-import { AccessoryLedger } from './components/AccessoryLedger';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
 import { CoachDashboardView } from './components/CoachDashboardView';
-import { splitWorkoutExercises, isWorkoutLocked } from './types';
+import { isWorkoutLocked } from './types';
 import { AddLiftBar } from './components/AddLiftBar';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
@@ -83,6 +82,16 @@ export default function App() {
       await reloadMicrocycles(activeAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update lift');
+    }
+  };
+
+  const handleMoveLift = async (exerciseId: string, move: 'up' | 'down') => {
+    if (!activeWorkout) return;
+    try {
+      await apiService.updateSessionExercise(activeWorkout.id, exerciseId, { move });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to move lift');
     }
   };
 
@@ -250,7 +259,7 @@ export default function App() {
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
                     )}
-                    {splitWorkoutExercises(activeWorkout.exercises).main.map(ex => (
+                    {activeWorkout.exercises.map((ex, index) => (
                       <ExerciseCard 
                         key={ex.id}
                         id={ex.id}
@@ -263,18 +272,12 @@ export default function App() {
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
                         onRemove={() => handleRemoveLift(ex.id)}
+                        onMoveUp={index > 0 ? () => handleMoveLift(ex.id, 'up') : undefined}
+                        onMoveDown={index < activeWorkout.exercises.length - 1 ? () => handleMoveLift(ex.id, 'down') : undefined}
                         locked={isWorkoutLocked(activeWorkout.status)}
                         roleMode={roleMode}
                       />
                     ))}
-
-                    <AccessoryLedger 
-                      exercises={splitWorkoutExercises(activeWorkout.exercises).accessories}
-                      onUpdateSets={updateExerciseSets}
-                      onRemove={(exerciseId) => handleRemoveLift(exerciseId)}
-                      locked={isWorkoutLocked(activeWorkout.status)}
-                      roleMode={roleMode}
-                    />
 
                     <AddLiftBar
                       sessionId={activeWorkout.id}

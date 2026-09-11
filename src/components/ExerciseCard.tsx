@@ -22,6 +22,8 @@ export const ExerciseCard = ({
   onUpdateSets,
   onUpdateMeta,
   onRemove,
+  onMoveUp,
+  onMoveDown,
   locked = false,
   roleMode = 'coach'
 }: { 
@@ -35,6 +37,8 @@ export const ExerciseCard = ({
   onUpdateSets: (sets: any[]) => void,
   onUpdateMeta?: (patch: { variation: string; tier: 'Comp' | 'Variation' }) => void,
   onRemove?: () => void | Promise<void>,
+  onMoveUp?: () => void | Promise<void>,
+  onMoveDown?: () => void | Promise<void>,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
 }) => {
@@ -251,6 +255,28 @@ export const ExerciseCard = ({
           <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
             + Set
           </button>
+          {onMoveUp && (
+            <button
+              type="button"
+              data-testid={`move-lift-up-${id}`}
+              disabled={locked}
+              onClick={() => void onMoveUp()}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            >
+              Up
+            </button>
+          )}
+          {onMoveDown && (
+            <button
+              type="button"
+              data-testid={`move-lift-down-${id}`}
+              disabled={locked}
+              onClick={() => void onMoveDown()}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            >
+              Down
+            </button>
+          )}
           {onRemove && (
             <button
               type="button"
