@@ -1876,6 +1876,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 
 - [ ] Coach can switch active athlete; Calendar and Sessions reload for that athlete.
 - [ ] Empty athlete plans show empty states — no demo microcycles.
+- [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
 - [ ] Block/Week labels can be set or changed anytime (including after create).
 - [ ] Copy week duplicates a labeled group by a user-chosen day offset with prescriptions only (no logged actuals).

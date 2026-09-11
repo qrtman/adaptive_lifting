@@ -489,11 +489,7 @@ export function CalendarView({
                         {meso.startDate} – {meso.endDate}
                       </span>
                     </div>
-                  ) : (
-                    <div className="h-8 px-2 border-b border-white/10 flex items-center">
-                      <span className="text-xs text-amber-400">Transition</span>
-                    </div>
-                  )}
+                  ) : null}
 
                   <div className="p-2 space-y-2">
                     <div className="grid grid-cols-7 gap-0">

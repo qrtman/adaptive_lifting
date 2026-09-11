@@ -139,26 +139,6 @@ export interface MesocycleData {
   endDate: string; // YYYY-MM-DD
 }
 
-// Month banners for calendar grouping only — not a sample training plan.
-export const INITIAL_MESOCYCLE: MesocycleData[] = [
-  {
-    id: 'meso-1',
-    name: 'Alpha-09 Strength Phase',
-    status: 'ACTIVE',
-    color: '#007AFF', // mac-blue
-    startDate: '2026-09-01',
-    endDate: '2026-09-28',
-  },
-  {
-    id: 'meso-2',
-    name: 'Beta-10 Peaking Cycle',
-    status: 'DRAFT',
-    color: '#34C759', // mac-green
-    startDate: '2026-09-29',
-    endDate: '2026-10-15',
-  }
-];
-
 export interface AICoachResponse {
   cns_readiness: {
     status: 'Functional Adaptation' | 'Neural Fatigue Suppression' | 'Detraining';

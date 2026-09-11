@@ -5,7 +5,6 @@ import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import {
-  INITIAL_MESOCYCLE,
   WorkoutData,
   MicrocycleData,
   MesocycleData,
@@ -52,7 +51,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     return getUiPref(UI_KEYS.activeMicrocycleId) || null;
   });
 
-  const mesocycles = INITIAL_MESOCYCLE;
+  const mesocycles: MesocycleData[] = [];
 
   const reloadMicrocycles = useCallback(async (athleteId?: string | null) => {
     try {
