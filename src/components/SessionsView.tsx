@@ -4,6 +4,7 @@ import { usePeriodization } from '../contexts/PeriodizationContext';
 import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { NewSessionDialog } from './NewSessionDialog';
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
@@ -144,31 +145,10 @@ export function SessionsView({
   };
 
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
-  const [creating, setCreating] = useState(false);
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [newTitle, setNewTitle] = useState('Session');
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [showNewSession, setShowNewSession] = useState(false);
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [copyOffsetDays, setCopyOffsetDays] = useState<Record<string, number>>({});
-
-  const handleCreateSession = async () => {
-    if (showCoachSelectAthlete) return;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await apiService.createSession({
-        date: newDate,
-        title: newTitle.trim() || 'Session',
-        athleteId: activeAthleteId || undefined,
-      });
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err: any) {
-      setCreateError(err?.message || 'Failed to create session');
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const handleCopySessions = async (copyKey: string, sessionIds: string[], includeLogs: boolean, days: number) => {
     if (showCoachSelectAthlete || sessionIds.length === 0) return;
@@ -202,36 +182,16 @@ export function SessionsView({
           </div>
 
           {!showCoachSelectAthlete && (
-            <div className="border border-white/10 rounded p-2 flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[10px] text-[#636366]">Date</span>
-                <input
-                  type="date"
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
-                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5 flex-1 min-w-[140px]">
-                <span className="text-[10px] text-[#636366]">Title</span>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                />
-              </label>
+            <div className="px-1">
               <button
                 type="button"
                 data-testid="sessions-add"
-                onClick={handleCreateSession}
-                disabled={creating || !newDate}
-                className="h-7 px-3 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                onClick={() => setShowNewSession(true)}
+                className="h-7 px-3 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30"
               >
-                {creating ? 'Adding…' : 'Add session'}
+                Add session
               </button>
-              {createError && <p className="w-full text-[10px] text-red-400">{createError}</p>}
-              {copyError && <p className="w-full text-[10px] text-red-400">{copyError}</p>}
+              {copyError && <p className="w-full text-[10px] text-red-400 mt-1">{copyError}</p>}
             </div>
           )}
 
@@ -249,7 +209,7 @@ export function SessionsView({
               className="border border-white/10 rounded p-6 text-center"
             >
               <p className="text-sm text-white mb-1">No sessions yet</p>
-              <p className="text-xs text-[#AEAEB2]">Add a dated session above. Block/Week labels can be set anytime.</p>
+              <p className="text-xs text-[#AEAEB2]">Add session. Block/Week can wait.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -435,6 +395,19 @@ export function SessionsView({
           )}
         </div>
       </div>
+      {showNewSession && (
+        <NewSessionDialog
+          date={new Date().toISOString().slice(0, 10)}
+          allowDateEdit
+          sessions={allSessions}
+          athleteId={activeAthleteId}
+          onClose={() => setShowNewSession(false)}
+          onCreated={async () => {
+            await reloadMicrocycles(activeAthleteId);
+            setShowNewSession(false);
+          }}
+        />
+      )}
     </div>
   );
 }

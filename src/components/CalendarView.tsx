@@ -6,9 +6,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
-import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import { NewSessionDialog } from './NewSessionDialog';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
 interface CalendarViewProps {
@@ -43,7 +43,7 @@ export function CalendarView({
     conflictType: 'overlap' | 'periodization_breach' | 'normal';
   } | null>(null);
 
-  const [creatingDate, setCreatingDate] = useState<string | null>(null);
+  const [newSessionDate, setNewSessionDate] = useState<string | null>(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -131,25 +131,9 @@ export function CalendarView({
     e.dataTransfer.setData('text/plain', JSON.stringify({ workoutId, microId }));
   };
 
-  const handleCreateOnDate = async (dateStr: string) => {
-    if (showCoachSelectAthlete || creatingDate) return;
-    setCreatingDate(dateStr);
-    try {
-      const created = await apiService.createSession({
-        date: dateStr,
-        title: 'Session',
-        athleteId: activeAthleteId || undefined,
-      });
-      await reloadMicrocycles(activeAthleteId);
-      if (created.microcycleId) {
-        onViewSession(created, created.microcycleId);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Failed to add session');
-    } finally {
-      setCreatingDate(null);
-    }
+  const openNewSession = (dateStr: string) => {
+    if (showCoachSelectAthlete) return;
+    setNewSessionDate(dateStr);
   };
 
   const readDragPayload = (e: React.DragEvent): { workoutId: string; microId: string } | null => {
@@ -312,7 +296,7 @@ export function CalendarView({
         <>
 
         {workoutList.length === 0 && (
-          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Click a day to open one.</p>
+          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day and press New session.</p>
         )}
 
         {/* Calendar Grid Container */}
@@ -413,22 +397,33 @@ export function CalendarView({
                                 onDrop={(e) => handleDrop(e, dateStr)}
                                 onClick={() => {
                                   if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
-                                  if (dayWorkouts.length === 0) {
-                                    void handleCreateOnDate(dateStr);
-                                  } else if (dayWorkouts.length === 1) {
+                                  if (dayWorkouts.length === 1) {
                                     onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
                                   }
                                 }}
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative group cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
                                 } ${
-                                  creatingDate === dateStr ? 'ring-1 ring-[#007AFF]' : ''
+                                  newSessionDate === dateStr ? 'ring-1 ring-[#007AFF]' : ''
                                 }`}
                               >
-                                <div className="flex items-center gap-1.5 relative z-10 mb-1">
+                                <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
                                   <span className="font-mono text-[11px] text-[#AEAEB2]">
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
+                                  {cell.isCurrentMonth && !showCoachSelectAthlete && (
+                                    <button
+                                      type="button"
+                                      data-testid={`calendar-new-session-${dateStr}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openNewSession(dateStr);
+                                      }}
+                                      className="h-6 px-1.5 text-[10px] text-white bg-[#007AFF] rounded opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                    >
+                                      New session
+                                    </button>
+                                  )}
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
                                   .filter(item => {
@@ -522,11 +517,27 @@ export function CalendarView({
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
           </div>
-          <span className="truncate">Click a day to open the session</span>
+          <span className="truncate">Hover a day · New session</span>
         </div>
         </>
         )}
       </div>
+
+      {newSessionDate && (
+        <NewSessionDialog
+          date={newSessionDate}
+          sessions={workoutList}
+          athleteId={activeAthleteId}
+          onClose={() => setNewSessionDate(null)}
+          onCreated={async (created) => {
+            await reloadMicrocycles(activeAthleteId);
+            setNewSessionDate(null);
+            const match = workoutList.find((item) => item.workout.id === created.id);
+            const microId = created.microcycleId || match?.microId;
+            if (microId) onViewSession({ id: created.id } as WorkoutData, microId);
+          }}
+        />
+      )}
 
       {/* Conflict Decision Modal */}
       <AnimatePresence>

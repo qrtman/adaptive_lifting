@@ -16,20 +16,25 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Sessions' }).click();
-  await page.locator('input[type="date"]').fill('2026-09-12');
-  await page.locator('label:has-text("Title") input').fill('Reorder day');
   await page.getByTestId('sessions-add').click();
+  await page.getByTestId('new-session-date').fill('2026-09-12');
+  await page.getByTestId('new-session-title').fill('Reorder day');
+  await page.getByTestId('new-session-create').click();
   const card = page.locator('[data-testid^="sessions-card-"]');
   await expect(card).toHaveCount(1, { timeout: 10_000 });
   await card.locator('button').first().click();
 
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
-  await page.getByTestId('add-lift-squat').click();
-  await expect(page.getByRole('heading', { name: 'Squat' })).toBeVisible();
-  await page.getByTestId('add-lift-bench').click();
-  await expect(page.getByRole('heading', { name: 'Bench' })).toBeVisible();
-  await page.getByTestId('add-lift-deadlift').click();
-  await expect(page.getByRole('heading', { name: 'Deadlift' })).toBeVisible();
+  const addNamedLift = async (name: 'squat' | 'bench' | 'deadlift') => {
+    await page.getByTestId('add-lift').click();
+    await page.getByTestId(`add-lift-${name}`).click();
+    await page.getByTestId('add-lift-confirm').click();
+    const heading = name === 'squat' ? 'Squat' : name === 'bench' ? 'Bench' : 'Deadlift';
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+  };
+  await addNamedLift('squat');
+  await addNamedLift('bench');
+  await addNamedLift('deadlift');
 
   const liftHeadings = page.locator('.border-b.border-white\\/10 h4');
   await expect(liftHeadings).toHaveText(['Squat', 'Bench', 'Deadlift']);

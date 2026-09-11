@@ -1470,8 +1470,7 @@ def clone_session_prescription(
 def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not req.sessionIds:
         raise HTTPException(status_code=400, detail="sessionIds required")
-    if req.dateOffsetDays < 1:
-        raise HTTPException(status_code=400, detail="dateOffsetDays must be at least 1")
+    # Offset may be negative or zero so a copy can land on a chosen calendar date.
 
     sources = []
     owner_id = None

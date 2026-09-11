@@ -1,18 +1,28 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
+import { compileVariation, defaultModifiers, type LiftCategory } from '../services/liftVariation';
+import { CenteredDialog } from './CenteredDialog';
+import { LiftVariationPicker } from './LiftVariationPicker';
 
 type LiftPreset = 'Squat' | 'Bench' | 'Deadlift' | 'Accessory';
 
 const PRESETS: Record<Exclude<LiftPreset, 'Accessory'>, {
   title: string;
-  variation: string;
-  tier: 'Comp';
   liftCategory: 'Squat' | 'Bench' | 'Deadlift';
 }> = {
-  Squat: { title: 'Squat', variation: 'Competition', tier: 'Comp', liftCategory: 'Squat' },
-  Bench: { title: 'Bench', variation: 'Competition', tier: 'Comp', liftCategory: 'Bench' },
-  Deadlift: { title: 'Deadlift', variation: 'Competition', tier: 'Comp', liftCategory: 'Deadlift' },
+  Squat: { title: 'Squat', liftCategory: 'Squat' },
+  Bench: { title: 'Bench', liftCategory: 'Bench' },
+  Deadlift: { title: 'Deadlift', liftCategory: 'Deadlift' },
 };
+
+function categoryFor(preset: LiftPreset): LiftCategory {
+  return preset === 'Accessory' ? 'Other' : preset;
+}
+
+function titleFor(preset: LiftPreset, accessoryName: string): string {
+  if (preset === 'Accessory') return accessoryName.trim() || 'Accessory';
+  return PRESETS[preset].title;
+}
 
 export function AddLiftBar({
   sessionId,
@@ -23,78 +33,139 @@ export function AddLiftBar({
   locked: boolean;
   onAdded: () => Promise<void> | void;
 }) {
-  const [customTitle, setCustomTitle] = useState('');
-  const [busy, setBusy] = useState<LiftPreset | null>(null);
+  const [open, setOpen] = useState(false);
+  const [preset, setPreset] = useState<LiftPreset>('Squat');
+  const [accessoryName, setAccessoryName] = useState('');
+  const [variation, setVariation] = useState(() => compileVariation('Squat', defaultModifiers('Squat')));
+  const [tier, setTier] = useState<'Comp' | 'Variation'>('Comp');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const addLift = async (preset: LiftPreset) => {
-    if (locked || busy) return;
-    setBusy(preset);
-    setError(null);
-    try {
-      const payload = preset === 'Accessory'
-        ? {
-            title: customTitle.trim() || 'Accessory',
-            variation: 'Accessory',
-            tier: 'Accessory' as const,
-            liftCategory: 'Other' as const,
-            plannedReps: 10,
-            plannedRpe: 8,
-          }
-        : {
-            ...PRESETS[preset],
-            plannedReps: 5,
-            plannedRpe: 8,
-          };
-      await apiService.addSessionExercise(sessionId, payload);
-      await onAdded();
-      if (preset === 'Accessory') setCustomTitle('');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to add lift';
-      setError(message);
-    } finally {
-      setBusy(null);
-    }
+  const applyPreset = (next: LiftPreset) => {
+    setPreset(next);
+    const title = titleFor(next, accessoryName);
+    const mods = defaultModifiers(categoryFor(next));
+    setVariation(compileVariation(title, mods));
+    setTier(next === 'Accessory' ? 'Variation' : 'Comp');
   };
 
-  const btn = (preset: LiftPreset) => (
-    <button
-      type="button"
-      data-testid={`add-lift-${preset.toLowerCase()}`}
-      disabled={locked || busy !== null}
-      onClick={() => void addLift(preset)}
-      className="h-8 min-w-[44px] px-3 text-xs text-white bg-white/10 rounded disabled:opacity-40"
-    >
-      {busy === preset ? 'Adding…' : preset}
-    </button>
-  );
+  const addLift = async () => {
+    if (locked || busy) return;
+    setBusy(true);
+    setError(null);
+    const title = titleFor(preset, accessoryName);
+    try {
+      if (preset === 'Accessory') {
+        await apiService.addSessionExercise(sessionId, {
+          title,
+          variation: variation || 'Accessory',
+          tier: 'Accessory',
+          liftCategory: 'Other',
+        });
+      } else {
+        await apiService.addSessionExercise(sessionId, {
+          title,
+          variation,
+          tier,
+          liftCategory: PRESETS[preset].liftCategory,
+        });
+      }
+      await onAdded();
+      setOpen(false);
+      setAccessoryName('');
+      applyPreset('Squat');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to add lift');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="px-2 py-3 border-t border-white/10">
       {locked ? (
         <p className="text-xs text-[#AEAEB2]">Finished. Tap Open to edit.</p>
       ) : (
-        <>
-          <p className="text-[10px] uppercase tracking-wider text-[#636366] mb-2">Add lift</p>
-          <div className="flex flex-wrap items-center gap-2">
-            {btn('Squat')}
-            {btn('Bench')}
-            {btn('Deadlift')}
-            <input
-              type="text"
-              value={customTitle}
-              onChange={(e) => setCustomTitle(e.target.value)}
-              placeholder="Accessory name"
-              disabled={busy !== null}
-              data-testid="add-lift-accessory-name"
-              className="h-8 min-w-[140px] px-2 text-xs bg-black border border-white/10 rounded text-white"
-            />
-            {btn('Accessory')}
-          </div>
-        </>
+        <button
+          type="button"
+          data-testid="add-lift"
+          onClick={() => {
+            setError(null);
+            setOpen(true);
+          }}
+          className="h-8 px-3 text-xs text-white bg-white/10 rounded"
+        >
+          Add lift
+        </button>
       )}
-      {error && (
-        <p className="mt-2 text-xs text-[#FF453A]" data-testid="add-lift-error">{error}</p>
+      {open && (
+        <CenteredDialog
+          title="Add lift"
+          onClose={() => setOpen(false)}
+          testId="add-lift-dialog"
+          footer={(
+            <>
+              <button
+                type="button"
+                data-testid="add-lift-cancel"
+                onClick={() => setOpen(false)}
+                className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="add-lift-confirm"
+                disabled={busy}
+                onClick={() => void addLift()}
+                className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+              >
+                {busy ? 'Adding…' : 'Add'}
+              </button>
+            </>
+          )}
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              {(['Squat', 'Bench', 'Deadlift', 'Accessory'] as LiftPreset[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  data-testid={`add-lift-${item.toLowerCase()}`}
+                  onClick={() => applyPreset(item)}
+                  className={`h-8 px-3 text-xs rounded ${preset === item ? 'bg-white/15 text-white' : 'text-[#AEAEB2]'}`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            {preset === 'Accessory' && (
+              <input
+                type="text"
+                value={accessoryName}
+                onChange={(event) => {
+                  setAccessoryName(event.target.value);
+                  setVariation(compileVariation(event.target.value.trim() || 'Accessory', defaultModifiers('Other')));
+                }}
+                placeholder="Accessory name"
+                data-testid="add-lift-accessory-name"
+                className="h-8 min-w-[140px] px-2 text-xs bg-black border border-white/10 rounded text-white"
+              />
+            )}
+            <LiftVariationPicker
+              title={titleFor(preset, accessoryName)}
+              variation={variation}
+              liftCategory={categoryFor(preset)}
+              onChange={(patch) => {
+                setVariation(patch.variation);
+                setTier(patch.tier);
+              }}
+            />
+            {error && (
+              <p className="text-xs text-[#FF453A]" data-testid="add-lift-error">{error}</p>
+            )}
+          </div>
+        </CenteredDialog>
       )}
     </div>
   );
