@@ -1,11 +1,15 @@
+import type { ReactNode } from 'react';
 import {
   BAR_OPTIONS,
+  GEAR_OPTIONS,
   LiftCategory,
   ROM_OPTIONS,
   TEMPO_OPTIONS,
   compileVariation,
   parseModifiers,
+  toggleGear,
   variationTier,
+  type GearMod,
   type LiftModifiers,
   type RomMod,
   type TempoMod,
@@ -36,6 +40,28 @@ function Chip({
   );
 }
 
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="text-[10px] uppercase tracking-wider text-[#636366] w-10 shrink-0">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+const TEMPO_LABEL: Record<TempoMod, string> = {
+  Standard: 'Std',
+  Paused: 'Pause',
+  'Slow ecc': 'Slow',
+  Iso: 'Iso',
+};
+
 export function LiftVariationPicker({
   title,
   variation,
@@ -51,6 +77,7 @@ export function LiftVariationPicker({
 }) {
   const mods = parseModifiers(variation, liftCategory);
   const bars = BAR_OPTIONS[liftCategory] ?? BAR_OPTIONS.Other;
+  const gearOpts = GEAR_OPTIONS[liftCategory] ?? GEAR_OPTIONS.Other;
 
   const commit = (next: LiftModifiers) => {
     onChange({
@@ -64,7 +91,7 @@ export function LiftVariationPicker({
       <p className="text-xs text-[#AEAEB2] truncate" data-testid={`lift-name-${title}`}>
         {compileVariation(title, mods)}
       </p>
-      <div className="flex flex-wrap items-center gap-1">
+      <Row label="Bar">
         {bars.map((bar) => (
           <Chip
             key={bar}
@@ -74,15 +101,19 @@ export function LiftVariationPicker({
             onClick={() => commit({ ...mods, bar })}
           />
         ))}
+      </Row>
+      <Row label="Tempo">
         {TEMPO_OPTIONS.map((tempo) => (
           <Chip
             key={tempo}
-            label={tempo === 'Standard' ? 'Std' : tempo === 'Paused' ? 'Pause' : 'Slow'}
+            label={TEMPO_LABEL[tempo]}
             active={mods.tempo === tempo}
             disabled={locked}
             onClick={() => commit({ ...mods, tempo: tempo as TempoMod })}
           />
         ))}
+      </Row>
+      <Row label="ROM">
         {ROM_OPTIONS.map((rom) => (
           <Chip
             key={rom}
@@ -92,13 +123,18 @@ export function LiftVariationPicker({
             onClick={() => commit({ ...mods, rom: rom as RomMod })}
           />
         ))}
-        <Chip
-          label="Beltless"
-          active={mods.beltless}
-          disabled={locked}
-          onClick={() => commit({ ...mods, beltless: !mods.beltless })}
-        />
-      </div>
+      </Row>
+      <Row label="Gear">
+        {gearOpts.map((item) => (
+          <Chip
+            key={item}
+            label={item}
+            active={mods.gear.includes(item)}
+            disabled={locked}
+            onClick={() => commit({ ...mods, gear: toggleGear(mods.gear, item as GearMod) })}
+          />
+        ))}
+      </Row>
     </div>
   );
 }
