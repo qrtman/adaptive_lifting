@@ -107,6 +107,8 @@ export interface WorkoutData {
   date: string; // YYYY-MM-DD
   dayLabel: string; // e.g. "D1"
   title: string;
+  blockLabel?: string | null;
+  weekLabel?: string | null;
   athleteBw?: number;
   tonnage: number;
   delta: number;

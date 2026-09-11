@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
+import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
 const getMondayOfDate = (dateStr: string) => {
@@ -34,8 +35,10 @@ export function CalendarView({
   filter,
   onFilterChange,
 }: CalendarViewProps) {
-  const { microcycles, mesocycles, setMicrocycles } = usePeriodization();
+  const { microcycles, mesocycles, setMicrocycles, activeAthleteId } = usePeriodization();
   const onUpdateWorkouts = setMicrocycles;
+  const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
+  const showCoachSelectAthlete = isCoach && !activeAthleteId;
   // Navigation states (we start in September 2026)
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(8); // September is 8 (0-indexed)
@@ -359,6 +362,25 @@ export function CalendarView({
           <LiftFilter value={filter} onChange={onFilterChange} />
         </div>
 
+        {showCoachSelectAthlete ? (
+          <div
+            data-testid="calendar-empty"
+            className="border border-white/10 rounded p-6 text-center"
+          >
+            <p className="text-sm text-white mb-1">Select an athlete</p>
+            <p className="text-xs text-[#AEAEB2]">Use the athlete switcher in the sidebar to load a plan.</p>
+          </div>
+        ) : workoutList.length === 0 ? (
+          <div
+            data-testid="calendar-empty"
+            className="border border-white/10 rounded p-6 text-center"
+          >
+            <p className="text-sm text-white mb-1">No sessions scheduled</p>
+            <p className="text-xs text-[#AEAEB2]">Calendar dates fill in once sessions exist on this plan.</p>
+          </div>
+        ) : (
+        <>
+
         {boundaryLockVisible && (
           <div
             data-testid="calendar-boundary-lock"
@@ -594,6 +616,8 @@ export function CalendarView({
           </div>
           <span className="font-mono truncate">Drag within microcycle week · boundary lock across weeks</span>
         </div>
+        </>
+        )}
       </div>
 
       {/* Slide-out Session Analysis Side Panel (Stitch Premium Detail View Refinement) */}

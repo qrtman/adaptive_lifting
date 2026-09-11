@@ -4,6 +4,7 @@ This file is the first instruction layer for AI coding tools working in this rep
 
 - `architecture.md` for system behavior, backend boundaries, data model, sync, integrations, deployment, and security.
 - `design.md` for UI/UX, component contracts, layout rules, copy, states, and acceptance checks.
+- `knowledge.md` for compressed current product focus.
 
 If this file conflicts with `architecture.md` or `design.md`, prefer the more specific instruction from the relevant source-of-truth document.
 
@@ -28,6 +29,12 @@ These rules are always active:
 - Do not use `LocalStorage` for workout sync. Use IndexedDB mutation queues and snapshots.
 - Do not bypass RBAC, workout locks, tombstones, idempotency, backend canonical math, or audit logging from integrations.
 - Do not create nested cards, decorative hero sections, gradient-orb backgrounds, or generic SaaS filler UI.
+- Do not auto-seed demo microcycles, sample athletes (e.g. Zahar), or restore seed plans on empty fetch / reset / coach push. New athlete plans start empty.
+- Treat the training plan as **athlete-owned space**. A linked coach has shared full write. Athlete unlink revokes coach access only; the plan stays with the athlete.
+- Coach–athlete linking uses a **coach code** the athlete enters. Do not use coach email as the link code.
+- Sessions (dated workouts) are first-class. Block/Week are optional grouping labels (block is a prefix of week). Labels may be set at create or anytime later; unlabeled sessions are allowed.
+- Do not invent fixed Mon–Sun week containers or require creating a week before the first session.
+- Calendar is date-first. Sessions view groups by Block/Week labels when present. Coach Calendar/Sessions must follow the active athlete switcher.
 
 ### Layer 2: Task Brief
 
@@ -85,6 +92,9 @@ Review against architecture.md:
 - Data model matches.
 - Sync/offline behavior matches.
 - RBAC and session behavior match.
+- Athlete-owned plan + coach code link/unlink match.
+- Session-first + optional Block/Week labels match.
+- No demo auto-seed.
 - Telegram Mini App behavior matches.
 - Google Sheets one-way publish behavior matches.
 - Backend canonical math is respected.
@@ -92,7 +102,8 @@ Review against architecture.md:
 
 Review against design.md:
 - Correct product surface and role.
-- Required UI states exist.
+- Athlete switcher drives coach Calendar/Sessions.
+- Required UI states exist (including empty plan).
 - Component contracts are satisfied.
 - Mobile and desktop layouts follow the rules.
 - Prohibited patterns are absent.
@@ -126,7 +137,8 @@ Rules:
 - Follow design.md component contracts.
 - Include loading, empty, error, permission, locked, and sync states where applicable.
 - No nested cards, no decorative hero, no generic SaaS filler.
-- Use domain terms exactly: e1RM, INOL, ACWR, DOTS, RPE, mesocycle, microcycle.
+- Use domain terms exactly: e1RM, INOL, ACWR, DOTS, RPE, mesocycle, microcycle, Block, Week, session.
+- Empty athlete plans show empty states — never inject demo data.
 
 Verify:
 - Typecheck/lint.
@@ -143,7 +155,7 @@ Read first:
 
 Implement:
 - Endpoint/service/schema/repository changes.
-- RBAC checks.
+- RBAC checks (athlete owns plan; linked coach shared write; ended links blocked).
 - Audit events where needed.
 - Idempotency where needed.
 - Tests or test notes.
@@ -153,6 +165,7 @@ Rules:
 - Do not let integrations write directly to ORM models.
 - Do not bypass tombstones, locks, idempotency, or backend canonical math.
 - Numeric training values stay numeric.
+- Do not auto-seed demo programs.
 
 Verify:
 - Run backend tests or the closest available check.
@@ -217,6 +230,10 @@ If the generated result does any of the following, revise immediately:
 | Hides sync failures | Add per-row status and conflict review. |
 | Ignores locks/tombstones | Add disabled/read-only behavior and recovery copy. |
 | Adds generic gradients/glass | Use restrained dark operational UI from `design.md`. |
+| Auto-seeds demo weeks / Zahar / sample block | Return empty plan; show empty UI states. |
+| Forces Mon–Sun week before first session | Create dated session; optional Block/Week labels anytime. |
+| Uses coach email as invite code | Use coach code generate + athlete enter code. |
+| Puts plan ownership on the coach | Keep plan in athlete space; unlink only ends access. |
 
 ---
 
@@ -234,4 +251,3 @@ Verified:
 Notes:
 - [known limitation or none]
 ```
-

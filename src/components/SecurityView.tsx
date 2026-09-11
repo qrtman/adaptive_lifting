@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Shield, Laptop, KeyRound, History, XCircle, AlertTriangle, 
-  ChevronDown, ChevronUp, RefreshCw, FileJson, CheckCircle2 
+  ChevronDown, ChevronUp, RefreshCw, FileJson, CheckCircle2, Link2
 } from 'lucide-react';
+import { apiService } from '../services/api';
+import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 
 interface ClientDevice {
   id: string;
@@ -36,6 +38,12 @@ export const SecurityView: React.FC = () => {
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
+  const [coachCodeInput, setCoachCodeInput] = useState('');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const storedRole = getUiPref(UI_KEYS.role)?.toUpperCase();
+  const isAthlete = storedRole === 'ATHLETE';
 
   const fetchSecurityData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -122,6 +130,35 @@ export const SecurityView: React.FC = () => {
     setTimeout(() => setSuccessAlert(null), 4000);
   };
 
+  const handleLinkCoach = async () => {
+    if (!coachCodeInput.trim()) return;
+    setLinkLoading(true);
+    setLinkError(null);
+    try {
+      const result = await apiService.linkAthlete(coachCodeInput.trim());
+      showSuccess(result.message || 'Linked to coach.');
+      setCoachCodeInput('');
+    } catch (e: any) {
+      setLinkError(e.message || 'Failed to link coach');
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const handleUnlinkCoach = async () => {
+    if (!window.confirm('Unlink from your coach? Your plan stays in your account.')) return;
+    setUnlinkLoading(true);
+    setLinkError(null);
+    try {
+      const result = await apiService.unlinkCoach();
+      showSuccess(result.message || 'Unlinked from coach.');
+    } catch (e: any) {
+      setLinkError(e.message || 'Failed to unlink coach');
+    } finally {
+      setUnlinkLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchSecurityData();
   }, []);
@@ -190,6 +227,47 @@ export const SecurityView: React.FC = () => {
               🔐 <b>Active Encryption Shield:</b> All active sessions are bound via <b>secure, HTTP-Only session cookies</b>. Remotely terminating a browser token or device invalidates the backend signature key immediately, rejecting subsequent synchronization mutations or read queries.
             </p>
           </div>
+
+          {/* Athlete coach linking */}
+          {isAthlete && (
+            <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
+              <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4 flex items-center gap-2">
+                <Link2 size={14} className="text-mac-blue" />
+                Coach Link
+              </h2>
+              <p className="text-xs text-zinc-400 mb-3">
+                Enter your coach&apos;s link code to share plan access. Unlinking keeps your plan in your account.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <input
+                  type="text"
+                  value={coachCodeInput}
+                  onChange={(e) => setCoachCodeInput(e.target.value.toUpperCase())}
+                  placeholder="Coach code"
+                  className="flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-sm text-white uppercase tracking-widest"
+                />
+                <button
+                  type="button"
+                  onClick={handleLinkCoach}
+                  disabled={linkLoading || !coachCodeInput.trim()}
+                  className="h-9 px-4 rounded-lg bg-mac-blue hover:bg-blue-600 text-xs font-bold disabled:opacity-50"
+                >
+                  {linkLoading ? 'Linking…' : 'Link coach'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUnlinkCoach}
+                  disabled={unlinkLoading}
+                  className="h-9 px-4 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 disabled:opacity-50"
+                >
+                  {unlinkLoading ? 'Unlinking…' : 'Unlink coach'}
+                </button>
+              </div>
+              {linkError && (
+                <p className="text-xs text-red-400">{linkError}</p>
+              )}
+            </div>
+          )}
 
           {/* Quadrant: Devices and Sessions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

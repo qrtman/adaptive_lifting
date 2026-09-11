@@ -5,7 +5,19 @@ from typing import List, Optional
 import os
 
 from sqlalchemy.orm import Session
-from .database import engine, get_db, init_db, Mesocycle, Microcycle, Workout, Exercise, ExerciseSet, User, CoachingRelationship
+from .database import (
+    engine,
+    get_db,
+    init_db,
+    Mesocycle,
+    Microcycle,
+    Workout,
+    Exercise,
+    ExerciseSet,
+    User,
+    CoachingRelationship,
+    InviteCode,
+)
 from .runtime_config import (
     JWT_KID_CURRENT,
     JWT_KID_PREVIOUS,
@@ -27,6 +39,8 @@ from passlib.context import CryptContext
 import jwt
 from datetime import datetime, timedelta
 import uuid
+import hashlib
+import secrets
 
 from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
 from .accessory_migration import coerce_float, coerce_int
@@ -70,6 +84,26 @@ def migrate_db():
         db.rollback()
     try:
         db.execute(text("ALTER TABLE exercises ADD COLUMN lift_category VARCHAR DEFAULT 'Squat'"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE workouts ADD COLUMN block_label VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE workouts ADD COLUMN week_label VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE workouts ADD COLUMN owner_id VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE workouts MODIFY microcycle_id VARCHAR NULL"))
         db.commit()
     except Exception:
         db.rollback()
@@ -443,6 +477,8 @@ def format_microcycle(mc: Microcycle) -> dict:
             "delta": w.delta,
             "color": w.color,
             "status": w.status,
+            "blockLabel": getattr(w, "block_label", None),
+            "weekLabel": getattr(w, "week_label", None),
             "exercises": exercises_list,
         })
 
@@ -680,6 +716,61 @@ def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
                     db.add(s)
                 db.commit()
 
+
+
+def hash_coach_code(code: str) -> str:
+    return hashlib.sha256(code.strip().upper().encode("utf-8")).hexdigest()
+
+
+def active_coaching_query(db: Session):
+    return db.query(CoachingRelationship).filter(CoachingRelationship.ended_at.is_(None))
+
+
+def assert_plan_access(db: Session, current_user: User, athlete_id: str) -> str:
+    """Return athlete_id if current_user may read/write that athlete plan space."""
+    if current_user.role == "ATHLETE":
+        if athlete_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Athletes can only access their own plan")
+        return athlete_id
+    if current_user.role == "COACH":
+        rel = active_coaching_query(db).filter(
+            CoachingRelationship.coach_id == current_user.id,
+            CoachingRelationship.athlete_id == athlete_id,
+        ).first()
+        if not rel:
+            raise HTTPException(status_code=403, detail="Not linked to this athlete")
+        return athlete_id
+    raise HTTPException(status_code=403, detail="Not authorized")
+
+
+def resolve_athlete_id(current_user: User, athlete_id: Optional[str]) -> str:
+    if current_user.role == "ATHLETE":
+        return current_user.id
+    if not athlete_id:
+        raise HTTPException(status_code=400, detail="athlete_id is required for coaches")
+    return athlete_id
+
+
+def get_or_create_ungrouped_microcycle(db: Session, owner_id: str) -> Microcycle:
+    mc = db.query(Microcycle).filter(
+        Microcycle.owner_id == owner_id,
+        Microcycle.weekName == "Ungrouped",
+    ).first()
+    if mc:
+        return mc
+    mc = Microcycle(
+        id=f"ungrouped-{uuid.uuid4().hex[:8]}",
+        weekName="Ungrouped",
+        focus="Unlabeled sessions",
+        status="DRAFT",
+        active=True,
+        owner_id=owner_id,
+    )
+    db.add(mc)
+    db.commit()
+    db.refresh(mc)
+    return mc
+
 # --- REST Endpoints ---
 from .sync_service import SyncPayload, resolve_sync_payload
 
@@ -724,30 +815,113 @@ def register_user(req: RegisterRequest, response: Response, db: Session = Depend
     
     return {"access_token": access_token, "token_type": "bearer", "role": user.role, "email": user.email}
 
+@app.post("/api/auth/coach-code")
+def create_coach_code(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Only coaches can create coach codes")
+    # Rotate: expire previous unused codes for this coach
+    for old in db.query(InviteCode).filter(InviteCode.coach_id == current_user.id, InviteCode.used_at.is_(None)).all():
+        old.used_at = datetime.utcnow()
+    raw = secrets.token_hex(3).upper()  # 6 hex chars
+    invite = InviteCode(
+        id=str(uuid.uuid4()),
+        coach_id=current_user.id,
+        code_hash=hash_coach_code(raw),
+        expires_at=datetime.utcnow() + timedelta(days=365),
+        used_at=None,
+    )
+    db.add(invite)
+    db.commit()
+    return {"code": raw, "expires_at": invite.expires_at.isoformat()}
+
+
+@app.get("/api/auth/coach-code")
+def get_coach_code_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Only coaches can view coach codes")
+    active = db.query(InviteCode).filter(
+        InviteCode.coach_id == current_user.id,
+        InviteCode.used_at.is_(None),
+        InviteCode.expires_at > datetime.utcnow(),
+    ).order_by(InviteCode.expires_at.desc()).first()
+    if not active:
+        return {"active": False, "code": None}
+    return {"active": True, "expires_at": active.expires_at.isoformat(), "hint": "Rotate to reveal a new code"}
+
+
 @app.post("/api/auth/link-athlete")
 def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "ATHLETE":
         raise HTTPException(status_code=403, detail="Only athletes can link to a coach")
-    
-    coach = db.query(User).filter(User.email == req.code, User.role == "COACH").first()
+
+    code_hash = hash_coach_code(req.code)
+    invite = db.query(InviteCode).filter(
+        InviteCode.code_hash == code_hash,
+        InviteCode.used_at.is_(None),
+        InviteCode.expires_at > datetime.utcnow(),
+    ).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invalid or expired coach code")
+
+    coach = db.query(User).filter(User.id == invite.coach_id, User.role == "COACH").first()
     if not coach:
-        raise HTTPException(status_code=404, detail="Invalid link code / coach email not found")
-        
-    existing_link = db.query(CoachingRelationship).filter(CoachingRelationship.athlete_id == current_user.id).first()
+        raise HTTPException(status_code=404, detail="Coach not found for this code")
+
+    existing_link = active_coaching_query(db).filter(CoachingRelationship.athlete_id == current_user.id).first()
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")
-        
-    link = CoachingRelationship(coach_id=coach.id, athlete_id=current_user.id)
-    db.add(link)
+
+    # Reactivate previous ended link to same coach if present
+    prior = db.query(CoachingRelationship).filter(
+        CoachingRelationship.athlete_id == current_user.id,
+        CoachingRelationship.coach_id == coach.id,
+    ).first()
+    if prior:
+        prior.ended_at = None
+        link = prior
+    else:
+        link = CoachingRelationship(coach_id=coach.id, athlete_id=current_user.id)
+        db.add(link)
     db.commit()
     return {"status": "success", "message": f"Successfully linked to coach {coach.email}"}
+
+
+@app.delete("/api/auth/link")
+def unlink_coach(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Unlink coach from athlete. Plan data stays in athlete space."""
+    if current_user.role == "ATHLETE":
+        rel = active_coaching_query(db).filter(CoachingRelationship.athlete_id == current_user.id).first()
+    elif current_user.role == "COACH":
+        raise HTTPException(status_code=400, detail="Coaches must unlink a specific athlete via DELETE /api/auth/link/{athlete_id}")
+    else:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not rel:
+        raise HTTPException(status_code=404, detail="No active coaching link")
+    rel.ended_at = datetime.utcnow()
+    db.commit()
+    return {"status": "success", "message": "Unlinked. Athlete plan remains in athlete space."}
+
+
+@app.delete("/api/auth/link/{athlete_id}")
+def unlink_athlete(athlete_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Only coaches can unlink athletes by id")
+    rel = active_coaching_query(db).filter(
+        CoachingRelationship.coach_id == current_user.id,
+        CoachingRelationship.athlete_id == athlete_id,
+    ).first()
+    if not rel:
+        raise HTTPException(status_code=404, detail="No active coaching link")
+    rel.ended_at = datetime.utcnow()
+    db.commit()
+    return {"status": "success", "message": "Unlinked. Athlete plan remains in athlete space."}
 
 @app.get("/api/coach/roster")
 def get_roster(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "COACH":
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    relationships = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id).all()
+    relationships = active_coaching_query(db).filter(CoachingRelationship.coach_id == current_user.id).all()
     athletes = []
     for rel in relationships:
         athlete = db.query(User).filter(User.id == rel.athlete_id).first()
@@ -771,27 +945,39 @@ def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current
         CoachingRelationship.athlete_id == req.athleteId
     ).first()
     
-    if not rel:
+    if not rel or rel.ended_at is not None:
         raise HTTPException(status_code=403, detail="Not authorized to push to this athlete")
-        
-    seed_db(db, req.athleteId, clear_existing=False)
-    return {"status": "success", "message": f"Program {req.template} deployed successfully"}
 
-def get_visible_microcycles(db: Session, current_user: User):
+    # Plans stay athlete-owned and empty unless sessions are created explicitly.
+    # Demo seed injection is intentionally removed.
+    return {
+        "status": "success",
+        "message": "Push acknowledged. Create sessions on the athlete plan — demo programs are not auto-injected.",
+        "athleteId": req.athleteId,
+        "template": req.template,
+    }
+
+def get_visible_microcycles(db: Session, current_user: User, athlete_id: Optional[str] = None):
     if current_user.role == "COACH":
-        relationships = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id).all()
+        if athlete_id:
+            assert_plan_access(db, current_user, athlete_id)
+            return db.query(Microcycle).filter(Microcycle.owner_id == athlete_id).all()
+        relationships = active_coaching_query(db).filter(CoachingRelationship.coach_id == current_user.id).all()
         athlete_ids = [rel.athlete_id for rel in relationships]
+        if not athlete_ids:
+            return []
         return db.query(Microcycle).filter(Microcycle.owner_id.in_(athlete_ids)).all()
     else:
         return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
 
 @app.get("/api/microcycles")
-def get_microcycles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    mcs = get_visible_microcycles(db, current_user)
-    if not mcs and current_user.role == "ATHLETE":
-        # Seed database for new athletes
-        seed_db(db, current_user.id)
-        mcs = get_visible_microcycles(db, current_user)
+def get_microcycles(
+    athlete_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Empty athlete plans stay empty — never auto-seed demo microcycles.
+    mcs = get_visible_microcycles(db, current_user, athlete_id=athlete_id)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
 
 @app.post("/api/sets/log")
@@ -1305,13 +1491,177 @@ def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends
 @app.post("/api/reset")
 def reset_database(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role == "ATHLETE":
-        # Clear existing ones for this athlete
+        # Clear athlete plan to empty — do not re-seed demo data.
         mcs = db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
         for mc in mcs:
             db.delete(mc)
+        # Also clear any owner-scoped sessions without microcycle
+        orphans = db.query(Workout).filter(Workout.owner_id == current_user.id).all()
+        for w in orphans:
+            db.delete(w)
         db.commit()
-        seed_db(db, current_user.id)
-        
+
     analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
+
+
+class CreateSessionRequest(BaseModel):
+    date: str
+    title: Optional[str] = "Session"
+    dayLabel: Optional[str] = None
+    blockLabel: Optional[str] = None
+    weekLabel: Optional[str] = None
+    athleteId: Optional[str] = None
+    microcycleId: Optional[str] = None
+
+
+class UpdateSessionRequest(BaseModel):
+    date: Optional[str] = None
+    title: Optional[str] = None
+    dayLabel: Optional[str] = None
+    blockLabel: Optional[str] = None
+    weekLabel: Optional[str] = None
+    status: Optional[str] = None
+
+
+class BulkLabelsRequest(BaseModel):
+    sessionIds: List[str]
+    blockLabel: Optional[str] = None
+    weekLabel: Optional[str] = None
+    clearBlock: bool = False
+    clearWeek: bool = False
+    athleteId: Optional[str] = None
+
+
+@app.post("/api/sessions")
+def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    athlete_id = resolve_athlete_id(current_user, req.athleteId)
+    assert_plan_access(db, current_user, athlete_id)
+
+    microcycle_id = req.microcycleId
+    if microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == microcycle_id, Microcycle.owner_id == athlete_id).first()
+        if not mc:
+            raise HTTPException(status_code=404, detail="Microcycle not found in athlete plan")
+    else:
+        mc = get_or_create_ungrouped_microcycle(db, athlete_id)
+        microcycle_id = mc.id
+
+    day_label = req.dayLabel or req.date
+    workout = Workout(
+        id=f"w-{uuid.uuid4().hex[:10]}",
+        date=req.date,
+        dayLabel=day_label,
+        title=req.title or "Session",
+        tonnage=0.0,
+        delta=0.0,
+        color="mac-blue",
+        status="PLANNED",
+        block_label=req.blockLabel,
+        week_label=req.weekLabel,
+        owner_id=athlete_id,
+        microcycle_id=microcycle_id,
+    )
+    db.add(workout)
+    db.commit()
+    db.refresh(workout)
+    return {
+        "id": workout.id,
+        "date": workout.date,
+        "dayLabel": workout.dayLabel,
+        "title": workout.title,
+        "status": workout.status,
+        "blockLabel": workout.block_label,
+        "weekLabel": workout.week_label,
+        "microcycleId": workout.microcycle_id,
+        "ownerId": workout.owner_id,
+        "exercises": [],
+    }
+
+
+@app.patch("/api/sessions/{session_id}")
+def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    workout = db.query(Workout).filter(Workout.id == session_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Session not found")
+    owner_id = workout.owner_id
+    if not owner_id and workout.microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+        owner_id = mc.owner_id if mc else None
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Session has no owner")
+    assert_plan_access(db, current_user, owner_id)
+
+    if req.date is not None:
+        workout.date = req.date
+    if req.title is not None:
+        workout.title = req.title
+    if req.dayLabel is not None:
+        workout.dayLabel = req.dayLabel
+    if req.blockLabel is not None:
+        workout.block_label = req.blockLabel
+    if req.weekLabel is not None:
+        workout.week_label = req.weekLabel
+    if req.status is not None:
+        workout.status = req.status
+    db.commit()
+    db.refresh(workout)
+    return {
+        "id": workout.id,
+        "date": workout.date,
+        "dayLabel": workout.dayLabel,
+        "title": workout.title,
+        "status": workout.status,
+        "blockLabel": workout.block_label,
+        "weekLabel": workout.week_label,
+        "microcycleId": workout.microcycle_id,
+        "ownerId": workout.owner_id,
+    }
+
+
+@app.delete("/api/sessions/{session_id}")
+def delete_session(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    workout = db.query(Workout).filter(Workout.id == session_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Session not found")
+    owner_id = workout.owner_id
+    if not owner_id and workout.microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+        owner_id = mc.owner_id if mc else None
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Session has no owner")
+    assert_plan_access(db, current_user, owner_id)
+    db.delete(workout)
+    db.commit()
+    return {"status": "success"}
+
+
+@app.patch("/api/sessions/labels")
+def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not req.sessionIds:
+        raise HTTPException(status_code=400, detail="sessionIds required")
+    updated = []
+    for sid in req.sessionIds:
+        workout = db.query(Workout).filter(Workout.id == sid).first()
+        if not workout:
+            continue
+        owner_id = workout.owner_id
+        if not owner_id and workout.microcycle_id:
+            mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+            owner_id = mc.owner_id if mc else None
+        if not owner_id:
+            continue
+        assert_plan_access(db, current_user, owner_id)
+        if req.clearBlock:
+            workout.block_label = None
+        elif req.blockLabel is not None:
+            workout.block_label = req.blockLabel
+        if req.clearWeek:
+            workout.week_label = None
+        elif req.weekLabel is not None:
+            workout.week_label = req.weekLabel
+        updated.append(sid)
+    db.commit()
+    return {"status": "success", "updated": updated}
+

@@ -1,11 +1,10 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
-import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
+import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import {
-  INITIAL_MICROCYCLES,
   INITIAL_MESOCYCLE,
   WorkoutData,
   MicrocycleData,
@@ -17,6 +16,9 @@ interface PeriodizationState {
   microcycles: MicrocycleData[];
   setMicrocycles: (next: MicrocycleData[] | ((prev: MicrocycleData[]) => MicrocycleData[])) => void;
   mesocycles: MesocycleData[];
+  activeAthleteId: string | null;
+  setActiveAthleteId: (id: string | null) => void;
+  reloadMicrocycles: (athleteId?: string | null) => Promise<void>;
   activeWorkoutId: string | null;
   setActiveWorkoutId: (id: string | null) => void;
   activeMicrocycleId: string | null;
@@ -39,15 +41,37 @@ export function usePeriodization(): PeriodizationState {
 }
 
 export function PeriodizationProvider({ children }: { children: ReactNode }) {
-  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>(INITIAL_MICROCYCLES);
+  const [microcycles, setMicrocycles] = useState<MicrocycleData[]>([]);
+  const [activeAthleteId, setActiveAthleteIdState] = useState<string | null>(() => {
+    return getUiPref(UI_KEYS.activeAthleteId) || null;
+  });
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(() => {
-    return getUiPref(UI_KEYS.activeWorkoutId) || 'w-3-1';
+    return getUiPref(UI_KEYS.activeWorkoutId) || null;
   });
   const [activeMicrocycleId, setActiveMicrocycleId] = useState<string | null>(() => {
-    return getUiPref(UI_KEYS.activeMicrocycleId) || 'micro-3';
+    return getUiPref(UI_KEYS.activeMicrocycleId) || null;
   });
 
   const mesocycles = INITIAL_MESOCYCLE;
+
+  const reloadMicrocycles = useCallback(async (athleteId?: string | null) => {
+    try {
+      const data = await apiService.fetchMicrocycles(athleteId ?? undefined);
+      setMicrocycles(data);
+      await saveSnapshot('microcycles', data);
+    } catch (err) {
+      console.warn('Failed to reload microcycles:', err);
+    }
+  }, []);
+
+  const setActiveAthleteId = useCallback((id: string | null) => {
+    setActiveAthleteIdState(id);
+    if (id) {
+      setUiPref(UI_KEYS.activeAthleteId, id);
+    } else {
+      removeUiPref(UI_KEYS.activeAthleteId);
+    }
+  }, []);
 
   useEffect(() => {
     const hydrateAndEvict = async () => {
@@ -59,25 +83,19 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
       try {
         const cached = await getSnapshot('microcycles');
-        if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].workouts) {
+        if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
           setMicrocycles(cached);
         }
       } catch (err) {
         console.error('Failed to hydrate workout data from IndexedDB:', err);
       }
-
-      try {
-        const meso = await apiService.getMesocycle();
-        if (meso && meso.microcycles) {
-          setMicrocycles(meso.microcycles);
-          await saveSnapshot('microcycles', meso.microcycles);
-        }
-      } catch (err) {
-        console.warn('Failed to refresh mesocycle from backend (offline fallback active):', err);
-      }
     };
     hydrateAndEvict();
   }, []);
+
+  useEffect(() => {
+    reloadMicrocycles(activeAthleteId);
+  }, [activeAthleteId, reloadMicrocycles]);
 
   useEffect(() => {
     saveSnapshot('microcycles', microcycles)
@@ -178,6 +196,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const resetPlan = async () => {
     const next = await apiService.resetMicrocycles();
     setMicrocycles(next);
+    await saveSnapshot('microcycles', next);
   };
 
   return (
@@ -186,6 +205,9 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         microcycles,
         setMicrocycles,
         mesocycles,
+        activeAthleteId,
+        setActiveAthleteId,
+        reloadMicrocycles,
         activeWorkoutId,
         setActiveWorkoutId,
         activeMicrocycleId,

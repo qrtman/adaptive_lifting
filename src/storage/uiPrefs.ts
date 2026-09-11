@@ -9,6 +9,7 @@ export const UI_KEYS = {
   sessionsExpandedMicro: 'al_sessions_expanded_micro',
   activeWorkoutId: 'al_active_workout_id',
   activeMicrocycleId: 'al_active_microcycle_id',
+  activeAthleteId: 'al_active_athlete_id',
   deviceId: 'al_client_device_id',
 } as const;
 

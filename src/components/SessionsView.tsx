@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { ExerciseData, WorkoutData } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
+import { apiService } from '../services/api';
+import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
 interface SessionsViewProps {
@@ -10,6 +10,8 @@ interface SessionsViewProps {
   filter: LiftFilterValue;
   onFilterChange: (value: LiftFilterValue) => void;
 }
+
+type SessionEntry = { workout: WorkoutData; microId: string };
 
 function liftAbbrev(title: string): string {
   const t = title.toLowerCase();
@@ -50,6 +52,22 @@ function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
   return false;
 }
 
+function sessionGroupKey(workout: WorkoutData): string {
+  const block = workout.blockLabel?.trim() || '';
+  const week = workout.weekLabel?.trim() || '';
+  if (!block && !week) return 'Ungrouped';
+  return `${block}/${week}`;
+}
+
+function sessionGroupLabel(key: string): string {
+  if (key === 'Ungrouped') return 'Ungrouped';
+  const [block, week] = key.split('/');
+  const parts = [];
+  if (block) parts.push(`Block ${block}`);
+  if (week) parts.push(`Week ${week}`);
+  return parts.join(' · ') || key;
+}
+
 export function SessionsView({
   onViewSession,
   filter,
@@ -57,237 +75,190 @@ export function SessionsView({
 }: SessionsViewProps) {
   const {
     microcycles,
-    activeMicrocycleId,
-    setActiveMicrocycleId,
     activeWorkoutId,
-    setActiveWorkoutId,
+    reloadMicrocycles,
+    activeAthleteId,
   } = usePeriodization();
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const microRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const hasRestoredRef = useRef(false);
 
-  const [observedIdx, setObservedIdx] = useState<number>(() => {
-    const activeIdx = microcycles.findIndex(m => m.id === activeMicrocycleId);
-    return activeIdx !== -1 ? activeIdx : 2;
-  });
+  const [labelDrafts, setLabelDrafts] = useState<Record<string, { block: string; week: string }>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
 
-  const [expandedMicroId, setExpandedMicroId] = useState<string | null>(() => {
-    const saved = getUiPref(UI_KEYS.sessionsExpandedMicro);
-    if (saved && microcycles.some(m => m.id === saved)) return saved;
-    return null;
-  });
-
-  const setExpanded = (microId: string | null) => {
-    setExpandedMicroId(microId);
-    if (microId) {
-      setUiPref(UI_KEYS.sessionsExpandedMicro, microId);
-      setActiveMicrocycleId(microId);
-      const idx = microcycles.findIndex(m => m.id === microId);
-      if (idx !== -1) setObservedIdx(idx);
-    } else {
-      removeUiPref(UI_KEYS.sessionsExpandedMicro);
-    }
-  };
-
-  useEffect(() => {
-    if (hasRestoredRef.current) return;
-
-    const savedScrollPos = getUiPref(UI_KEYS.sessionsScrollY);
-    
-    const restoreScroll = () => {
-      if (!containerRef.current || hasRestoredRef.current) return;
-      
-      if (activeWorkoutId) {
-        const parentMicro = microcycles.find(m => m.workouts.some(w => w.id === activeWorkoutId));
-        if (parentMicro) {
-          const el = microRefs.current[parentMicro.id];
-          if (el) {
-            el.scrollIntoView({ behavior: 'instant', block: 'center' });
-            hasRestoredRef.current = true;
-            return;
-          }
-        }
-      }
-
-      if (savedScrollPos) {
-        const scrollY = parseInt(savedScrollPos, 10);
-        containerRef.current.scrollTop = scrollY;
-      }
-      hasRestoredRef.current = true;
-    };
-
-    const rAnimFrame = requestAnimationFrame(() => {
-      const deRefTimer = setTimeout(restoreScroll, 50);
-      return () => clearTimeout(deRefTimer);
-    });
-
-    return () => cancelAnimationFrame(rAnimFrame);
-  }, []);
-
-  useEffect(() => {
-    if (!expandedMicroId) return;
-    const el = microRefs.current[expandedMicroId];
-    if (el) {
-      requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const allSessions = useMemo(() => {
+    const entries: SessionEntry[] = [];
+    microcycles.forEach((micro) => {
+      micro.workouts.forEach((workout) => {
+        entries.push({ workout, microId: micro.id });
       });
-    }
-  }, [expandedMicroId]);
-
-  const handleScroll = () => {
-    if (!containerRef.current || expandedMicroId) return;
-    const container = containerRef.current;
-    
-    setUiPref(UI_KEYS.sessionsScrollY, container.scrollTop.toString());
-
-    const containerRect = container.getBoundingClientRect();
-    const viewportCenter = containerRect.top + (containerRect.height / 2);
-
-    let closestId = '';
-    let closestIdx = -1;
-    let minDistance = Infinity;
-
-    microcycles.forEach((micro, idx) => {
-      const el = microRefs.current[micro.id];
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        const elementCenter = rect.top + (rect.height / 2);
-        const distance = Math.abs(elementCenter - viewportCenter);
-        
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestId = micro.id;
-          closestIdx = idx;
-        }
-      }
     });
+    return entries
+      .filter(({ workout }) => workoutPassesFilter(workout, filter))
+      .sort((a, b) => a.workout.date.localeCompare(b.workout.date));
+  }, [microcycles, filter]);
 
-    if (closestIdx !== -1 && closestIdx !== observedIdx) {
-      setObservedIdx(closestIdx);
-      
-      if (setActiveMicrocycleId) {
-        setActiveMicrocycleId(closestId);
-      }
-      if (setActiveWorkoutId && microcycles[closestIdx]?.workouts?.length > 0) {
-        setActiveWorkoutId(microcycles[closestIdx].workouts[0].id);
-      }
+  const groupedSessions = useMemo(() => {
+    const groups = new Map<string, SessionEntry[]>();
+    for (const entry of allSessions) {
+      const key = sessionGroupKey(entry.workout);
+      const list = groups.get(key) || [];
+      list.push(entry);
+      groups.set(key, list);
+    }
+    const keys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === 'Ungrouped') return 1;
+      if (b === 'Ungrouped') return -1;
+      return a.localeCompare(b);
+    });
+    return keys.map((key) => ({ key, label: sessionGroupLabel(key), entries: groups.get(key)! }));
+  }, [allSessions]);
+
+  useEffect(() => {
+    const drafts: Record<string, { block: string; week: string }> = {};
+    allSessions.forEach(({ workout }) => {
+      drafts[workout.id] = {
+        block: workout.blockLabel || '',
+        week: workout.weekLabel || '',
+      };
+    });
+    setLabelDrafts(drafts);
+  }, [allSessions]);
+
+  const saveLabels = async (workoutId: string) => {
+    const draft = labelDrafts[workoutId];
+    if (!draft) return;
+    setSavingId(workoutId);
+    try {
+      await apiService.updateSession(workoutId, {
+        blockLabel: draft.block.trim() || null,
+        weekLabel: draft.week.trim() || null,
+      });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save session labels');
+    } finally {
+      setSavingId(null);
     }
   };
 
-  const isMaximized = expandedMicroId != null;
+  const showCoachSelectAthlete = isCoach && !activeAthleteId;
+  const [creating, setCreating] = useState(false);
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newTitle, setNewTitle] = useState('Session');
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreateSession = async () => {
+    if (showCoachSelectAthlete) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await apiService.createSession({
+        date: newDate,
+        title: newTitle.trim() || 'Session',
+        athleteId: activeAthleteId || undefined,
+      });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create session');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex relative h-full overflow-hidden bg-[#0A0A0A]">
-      <div 
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-2"
-      >
+      <div className="flex-1 overflow-y-auto p-2">
         <div className="space-y-2 pb-8">
           <div className="h-7 px-1 flex items-center justify-between gap-2">
             <LiftFilter value={filter} onChange={onFilterChange} />
-            {isMaximized && (
-              <button
-                type="button"
-                onClick={() => setExpanded(null)}
-                className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1"
-              >
-                <Minimize2 size={12} />
-                Show all weeks
-              </button>
-            )}
           </div>
 
-          <div className="flex flex-col gap-3 border-l border-white/10 pl-4 relative">
-            {microcycles.map((micro, idx) => {
-              const isObserved = idx === observedIdx;
-              const isExpanded = expandedMicroId === micro.id;
-              const isCollapsedOther = isMaximized && !isExpanded;
+          {!showCoachSelectAthlete && (
+            <div className="border border-white/10 rounded p-2 flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] text-[#636366]">Date</span>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 flex-1 min-w-[140px]">
+                <span className="text-[10px] text-[#636366]">Title</span>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                />
+              </label>
+              <button
+                type="button"
+                data-testid="sessions-add"
+                onClick={handleCreateSession}
+                disabled={creating || !newDate}
+                className="h-7 px-3 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+              >
+                {creating ? 'Adding…' : 'Add session'}
+              </button>
+              {createError && <p className="w-full text-[10px] text-red-400">{createError}</p>}
+            </div>
+          )}
 
-              let peakSquat = 0;
-              let peakBench = 0;
-              
-              micro.workouts.forEach(w => {
-                w.exercises.forEach(ex => {
-                  const val = parseFloat(ex.top || '0');
-                  if (ex.title.toLowerCase().includes('squat')) {
-                    if (val > peakSquat) peakSquat = val;
-                  } else if (ex.title.toLowerCase().includes('bench')) {
-                    if (val > peakBench) peakBench = val;
-                  }
-                });
-              });
-
-              const visibleWorkouts = micro.workouts.filter(w => workoutPassesFilter(w, filter));
-
-              return (
-                <div
-                  key={micro.id}
-                  ref={el => { microRefs.current[micro.id] = el; }}
-                  className={`flex flex-col relative ${isExpanded ? 'gap-2 min-h-[70vh]' : 'gap-1.5'}`}
-                >
-                  <div className={`absolute -left-[18px] top-2 w-2 h-2 rounded-full ${
-                    isExpanded || isObserved ? 'bg-[#54e083]' : 'bg-white/15'
-                  }`} />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isCollapsedOther) setExpanded(micro.id);
-                      }}
-                      className="flex items-center gap-2 min-w-0 text-left"
-                    >
-                      <h4 className="text-sm text-white">{micro.weekName}</h4>
-                      <span className="text-[10px] text-[#AEAEB2]">{micro.status}</span>
-                      <span className="font-mono text-[11px] text-[#AEAEB2]">
-                        {micro.workouts.reduce((acc, w) => acc + w.tonnage, 0).toLocaleString()}kg
-                      </span>
-                      {peakSquat > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">SQ {peakSquat}</span>}
-                      {peakBench > 0 && <span className="font-mono text-[11px] text-[#AEAEB2]">BP {peakBench}</span>}
-                    </button>
-                    <button
-                      type="button"
-                      data-testid={`sessions-expand-${micro.id}`}
-                      onClick={() => setExpanded(isExpanded ? null : micro.id)}
-                      className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white flex items-center gap-1 shrink-0"
-                      title={isExpanded ? 'Minimize week' : 'Maximize week'}
-                    >
-                      {isExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                      {isExpanded ? 'Minimize' : 'Maximize'}
-                    </button>
+          {showCoachSelectAthlete ? (
+            <div
+              data-testid="sessions-empty"
+              className="border border-white/10 rounded p-6 text-center"
+            >
+              <p className="text-sm text-white mb-1">Select an athlete</p>
+              <p className="text-xs text-[#AEAEB2]">Use the athlete switcher in the sidebar to load a plan.</p>
+            </div>
+          ) : allSessions.length === 0 ? (
+            <div
+              data-testid="sessions-empty"
+              className="border border-white/10 rounded p-6 text-center"
+            >
+              <p className="text-sm text-white mb-1">No sessions yet</p>
+              <p className="text-xs text-[#AEAEB2]">Add a dated session above. Block/Week labels can be set anytime.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {groupedSessions.map(({ key, label, entries }) => (
+                <section key={key} className="border border-white/10 rounded overflow-hidden">
+                  <div className="h-8 px-3 border-b border-white/10 flex items-center justify-between bg-[#131313]">
+                    <h4 className="text-xs text-white">{label}</h4>
+                    <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
                   </div>
-
-                  {isCollapsedOther ? (
-                    <p className="text-[10px] text-[#636366] px-0.5">
-                      {visibleWorkouts.length} sessions · Maximize to open
-                    </p>
-                  ) : isExpanded ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                      {visibleWorkouts.map(w => {
-                        const isWorkoutActive = activeWorkoutId === w.id;
-                        return (
+                  <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {entries.map(({ workout, microId }) => {
+                      const draft = labelDrafts[workout.id] || { block: '', week: '' };
+                      const isWorkoutActive = activeWorkoutId === workout.id;
+                      return (
+                        <div
+                          key={workout.id}
+                          data-testid={`sessions-card-${workout.id}`}
+                          className={`border rounded p-2 flex flex-col gap-2 ${
+                            isWorkoutActive
+                              ? 'bg-[#161616] border-[#007AFF]/50'
+                              : 'bg-[#161616] border-white/10'
+                          }`}
+                        >
                           <button
                             type="button"
-                            onClick={() => onViewSession(w, micro.id)}
-                            key={w.id}
-                            data-testid={`sessions-card-${w.id}`}
-                            className={`text-left border rounded p-2 flex flex-col gap-1 hover:border-white/20 ${
-                              isWorkoutActive
-                                ? 'bg-[#161616] border-[#007AFF]/50'
-                                : 'bg-[#161616] border-white/10'
-                            }`}
+                            onClick={() => onViewSession(workout, microId)}
+                            className="text-left flex flex-col gap-1 hover:opacity-90"
                           >
                             <div className="flex items-center justify-between gap-2 h-6">
                               <span className="text-xs text-white truncate">
-                                {w.dayLabel} · {w.title}
+                                {workout.date} · {workout.title}
                               </span>
                               <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
-                                {w.status} · {w.tonnage}kg
+                                {workout.status} · {workout.tonnage}kg
                               </span>
                             </div>
                             <div className="flex flex-col gap-0.5">
-                              {w.exercises.map(ex => {
+                              {workout.exercises.map(ex => {
                                 const { planned, logged } = setLine(ex);
                                 return (
                                   <div
@@ -304,60 +275,53 @@ export function SessionsView({
                                     <span className={`shrink-0 ${logged ? 'text-white' : 'text-[#636366]'}`}>
                                       {logged ?? '—'}
                                     </span>
-                                    {ex.top && ex.top !== '—' && (
-                                      <span className="text-[#AEAEB2] shrink-0 w-12 text-right">
-                                        {String(ex.top).split(' ')[0]}
-                                      </span>
-                                    )}
                                   </div>
                                 );
                               })}
                             </div>
                           </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {visibleWorkouts.map(w => {
-                        const isWorkoutActive = activeWorkoutId === w.id;
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => onViewSession(w, micro.id)}
-                            key={w.id}
-                            className={`
-                              text-left bg-[#161616] border border-white/10 rounded px-2 py-1 min-w-[220px] w-[220px] flex-shrink-0 hover:border-white/20 leading-none
-                              ${isWorkoutActive ? 'border-[#007aff]/50' : ''}
-                            `}
-                          >
-                            <div className="flex items-center justify-between gap-2 h-5">
-                              <span className="text-[12px] text-white truncate">
-                                {w.dayLabel} {w.title}
-                              </span>
-                              <span className="text-[10px] text-[#AEAEB2] shrink-0">{w.status}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 h-4 font-mono text-[10px] text-[#AEAEB2]">
-                              <span className="truncate">
-                                {w.exercises.map((ex) => {
-                                  const set = ex.sets[0];
-                                  const weight = set?.actual ?? set?.plannedWeight ?? '—';
-                                  const reps = set?.reps ?? set?.plannedReps ?? '—';
-                                  const rpe = set?.executedRpe ?? set?.plannedRpe ?? '—';
-                                  return `${liftAbbrev(ex.title)} ${weight}×${reps}@${rpe}`;
-                                }).join('  ')}
-                              </span>
-                              <span className="shrink-0">{w.tonnage}kg</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                          <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-white/5">
+                            <label className="flex flex-col gap-0.5">
+                              <span className="text-[10px] text-[#636366]">Block</span>
+                              <input
+                                type="text"
+                                value={draft.block}
+                                onChange={(e) => setLabelDrafts(prev => ({
+                                  ...prev,
+                                  [workout.id]: { ...draft, block: e.target.value },
+                                }))}
+                                className="h-7 w-20 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-0.5">
+                              <span className="text-[10px] text-[#636366]">Week</span>
+                              <input
+                                type="text"
+                                value={draft.week}
+                                onChange={(e) => setLabelDrafts(prev => ({
+                                  ...prev,
+                                  [workout.id]: { ...draft, week: e.target.value },
+                                }))}
+                                className="h-7 w-20 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => saveLabels(workout.id)}
+                              disabled={savingId === workout.id}
+                              className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                            >
+                              {savingId === workout.id ? 'Saving…' : 'Save labels'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

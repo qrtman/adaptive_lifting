@@ -1,5 +1,8 @@
 import { Calendar, BarChart3, Dumbbell, Link2, Settings, List } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { usePeriodization } from '../contexts/PeriodizationContext';
+import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import type { DashboardMode } from './AppShell';
 
@@ -63,7 +66,23 @@ export const Sidebar = ({
   onResetPlan?: () => void;
 }) => {
   const { user, roleMode, signOut } = useAuth();
+  const { activeAthleteId, setActiveAthleteId } = usePeriodization();
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
+  const storedRole = getUiPref(UI_KEYS.role)?.toUpperCase();
+  const isCoach = storedRole === 'COACH' || roleMode === 'coach';
+  const [roster, setRoster] = useState<{ id: string; email: string }[]>([]);
+
+  useEffect(() => {
+    if (!isCoach) return;
+    apiService.fetchRoster()
+      .then((data) => {
+        setRoster(data);
+        if (!activeAthleteId && data.length > 0) {
+          setActiveAthleteId(data[0].id);
+        }
+      })
+      .catch(() => setRoster([]));
+  }, [isCoach]);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[240px] min-w-[240px] max-w-[240px] bg-[#131313] border-r border-white/10 flex flex-col px-3 py-4 z-50">
@@ -94,6 +113,28 @@ export const Sidebar = ({
           ))}
         </div>
       </nav>
+
+      {isCoach && (
+        <div className="px-2 pb-3 border-b border-white/10 mb-3">
+          <label htmlFor="athlete-switcher" className="text-[10px] text-[#636366] uppercase tracking-wider block mb-1">
+            Athlete plan
+          </label>
+          <select
+            id="athlete-switcher"
+            data-testid="coach-athlete-switcher"
+            value={activeAthleteId || ''}
+            onChange={(e) => setActiveAthleteId(e.target.value || null)}
+            className="w-full h-8 px-2 rounded bg-[#1a1a1a] border border-white/10 text-[12px] text-white"
+          >
+            <option value="">Select athlete…</option>
+            {roster.map((athlete) => (
+              <option key={athlete.id} value={athlete.id}>
+                {athlete.email}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="pt-3 border-t border-white/10 px-2 flex flex-col gap-1">
         <p className="text-xs text-white truncate">{email}</p>

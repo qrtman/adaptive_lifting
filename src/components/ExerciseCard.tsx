@@ -183,43 +183,79 @@ export const ExerciseCard = ({
     }]);
   };
 
-  const td = "px-1 py-0 align-middle whitespace-nowrap";
+  const td = "px-2 py-0.5 align-middle whitespace-nowrap";
+  const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[#636366] whitespace-nowrap";
+  const sep = (ch: string) => (
+    <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">{ch}</span>
+  );
 
   return (
-    <div className="border-b border-white/10 overflow-x-auto">
-      <div className="px-1 h-6 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h4 className="text-xs text-white truncate">{title}</h4>
-          <span className="text-[10px] text-[#AEAEB2] truncate">
+    <div className="border-b border-white/10">
+      <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
+          <span className="text-xs text-[#AEAEB2] truncate">
             {tier ? `${tier} · ${variation}` : variation}
           </span>
-          {roleMode === 'coach' && sets[0] ? (
-            <EditablePerformanceCell
-              value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
-              onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
-              placeholder="150"
-              fieldKey={`${id}-baseline_e1rm`}
-              label="Baseline e1RM"
-              step={5}
-              variant="transparent"
-              widthClass="w-10"
-              rowIndex={0}
-            />
-          ) : (
-            <span className="text-[10px] font-mono text-[#AEAEB2]">
-              {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
-            </span>
-          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] font-mono text-[#AEAEB2]">{totalVolume.toLocaleString()}kg</span>
-          <button type="button" onClick={addSet} className="text-[10px] text-[#AEAEB2] hover:text-white">
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
+            {roleMode === 'coach' && sets[0] ? (
+              <EditablePerformanceCell
+                value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
+                onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
+                placeholder="150"
+                fieldKey={`${id}-baseline_e1rm`}
+                label="Baseline e1RM"
+                step={5}
+                variant="transparent"
+                widthClass="w-10"
+                rowIndex={0}
+              />
+            ) : (
+              <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+                {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
+            <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
+          </div>
+          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
             + Set
           </button>
         </div>
       </div>
-      <table className="w-full text-left border-collapse min-w-[720px]">
+      <div className="overflow-x-auto">
+      <table className="text-left border-collapse w-max max-w-full">
+        <thead>
+          <tr className="border-b border-white/5">
+            <th className={`${th} w-6`}>#</th>
+            <th className={`${th} pr-3`}>
+              <span className="text-[#AEAEB2]">Rx</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
+            </th>
+            <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
+            <th className={`${th} pl-3 border-l border-white/5`}>
+              <span className="text-[#AEAEB2]">Log</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
+            </th>
+            <th className={th}>Δ</th>
+            <th className={th}>e1RM</th>
+            <th className={th}>INOL</th>
+            <th className={`${th} w-10`} aria-label="Set actions" />
+          </tr>
+        </thead>
         <tbody>
+            {sets.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-2 py-3 text-xs text-[#636366]">
+                  No sets programmed.
+                </td>
+              </tr>
+            )}
             {sets.map((set, i) => {
               const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
               const reps = trainingIntOrZero(set.reps);
@@ -271,8 +307,8 @@ export const ExerciseCard = ({
 
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
-                  <td className={`${td} w-5 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
-                  <td className={td}>
+                  <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
+                  <td className={`${td} pr-3`}>
                     {roleMode === 'coach' ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
                           <PrescriptionEditor
@@ -310,27 +346,44 @@ export const ExerciseCard = ({
                             step={1}
                             rowIndex={i}
                           />
-                          <button 
-                            type="button"
-                            onClick={() => syncTarget(i)}
-                            className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
-                            title="Copy prescription to log"
-                          >
-                            <ArrowRight size={12} />
-                          </button>
+                          <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 text-[11px] font-mono whitespace-nowrap">
-                          <span>{set.plannedReps} @ {set.target_value}{set.intensity_type === "PERCENT" ? "%" : "RPE"}</span>
-                          <span className="text-white">{set.plannedWeight}kg</span>
-                          <button type="button" onClick={() => syncTarget(i)} className="text-[#AEAEB2] hover:text-white">
-                            <ArrowRight size={12} />
-                          </button>
+                      <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
+                          <span className="text-white">{set.plannedWeight} kg</span>
+                          {sep('×')}
+                          <span>{set.plannedReps}</span>
+                          {sep('@')}
+                          <span>{set.target_value}{set.intensity_type === "PERCENT" ? "%" : " RPE"}</span>
                       </div>
                     )}
                   </td>
-                  <td className={td}>
+                  <td className={`${td} px-1`}>
+                    <button
+                      type="button"
+                      onClick={() => syncTarget(i)}
+                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+                      title="Copy prescription to log"
+                    >
+                      <ArrowRight size={12} />
+                    </button>
+                  </td>
+                  <td className={`${td} pl-3 border-l border-white/5`}>
                     <div className="flex items-center gap-0.5 whitespace-nowrap">
+                      <EditablePerformanceCell
+                        value={displayTrainingValue(set.actual)}
+                        onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
+                        placeholder="—"
+                        fieldKey={`${id}-actual-weight`}
+                        label="Log Weight"
+                        widthClass="w-12"
+                        isLogged={true}
+                        isAuto={set.isAuto}
+                        suggestedValue={set.suggestedWeight ? displayTrainingValue(Math.round(set.suggestedWeight * 4) / 4) : "0"}
+                        step={2.5}
+                        rowIndex={i}
+                      />
+                      {sep('×')}
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.reps)}
                         onChange={(val) => updateSet(i, { reps: trainingInt(val) })}
@@ -342,6 +395,7 @@ export const ExerciseCard = ({
                         step={1}
                         rowIndex={i}
                       />
+                      {sep('@')}
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.executedRpe)}
                         onChange={(val) => updateSet(i, { executedRpe: trainingNumber(val) })}
@@ -353,32 +407,21 @@ export const ExerciseCard = ({
                         step={0.5}
                         rowIndex={i}
                       />
-                      <EditablePerformanceCell
-                        value={displayTrainingValue(set.actual)}
-                        onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
-                        placeholder="—"
-                        fieldKey={`${id}-actual-weight`}
-                        label="Log Weight"
-                        widthClass="w-10"
-                        isLogged={true}
-                        isAuto={set.isAuto}
-                        suggestedValue={set.suggestedWeight ? displayTrainingValue(Math.round(set.suggestedWeight * 4) / 4) : "0"}
-                        step={2.5}
-                        rowIndex={i}
-                      />
                     </div>
                   </td>
-                  <td className={`${td} font-mono text-[10px] text-[#AEAEB2]`}>
-                    {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : ''}
+                  <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
+                    {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
                     {rpeDelta !== null ? ` ${rpeDelta > 0 ? '+' : ''}${rpeDelta}r` : ''}
                   </td>
-                  <td className={`${td} font-mono text-[11px]`} data-testid={`set-metrics-${set.id}`}>
+                  <td className={`${td} font-mono tabular-nums text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-white' : 'text-[#636366]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
+                  </td>
+                  <td className={`${td} font-mono tabular-nums text-[11px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
-                      className="text-[#AEAEB2] ml-1"
+                      className={inol > 0 ? 'text-[#AEAEB2]' : 'text-[#636366]'}
                     >
                       {inol > 0 ? inol.toFixed(2) : '—'}
                     </span>
@@ -406,6 +449,7 @@ export const ExerciseCard = ({
             })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };

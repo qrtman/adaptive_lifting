@@ -68,6 +68,7 @@ Do not build:
 Every authenticated PWA screen must include:
 
 - Current athlete or account context.
+- **Coach athlete switcher** when role is coach: changing athlete reloads Calendar and Sessions for that athlete's plan space.
 - Environment label when not production.
 - Online/offline indicator.
 - Sync queue count.
@@ -84,7 +85,10 @@ If implementation context is missing, assume:
 | Units | kg canonical, kg display unless user preference says otherwise |
 | Theme | Dark only for initial release |
 | Mobile first screen | Today's active workout |
-| Coach first screen | Dashboard with athlete switcher |
+| Coach first screen | Dashboard with athlete switcher that drives Calendar and Sessions |
+| Empty athlete plan | Show empty Calendar/Sessions states — never inject demo weeks |
+| Session create | Date required; Block/Week labels optional anytime |
+| Athlete link | Enter coach code (not email); unlink keeps plan |
 | Integrations | Disconnected until explicitly linked |
 | Offline state | Allowed for logging; publish/export requires network |
 | Role conflict | Prefer least privilege and show read-only UI |
@@ -107,8 +111,11 @@ The design system follows three product principles:
 
 | Surface | Primary User | Purpose | Design Constraint |
 | :--- | :--- | :--- | :--- |
-| Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient |
-| Athlete mobile PWA | Athlete | Offline-capable set logging in the gym | Thumb-first, high contrast, large numeric controls |
+| Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
+| Athlete mobile PWA | Athlete | Offline-capable set logging in the gym; own plan space | Thumb-first, high contrast, large numeric controls; empty plan shows empty states |
+| Calendar workspace | Coach / Athlete | Date-first session timeline | Sessions appear by date regardless of labels; empty month allowed |
+| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; labels editable anytime |
+| Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
 | Telegram Mini App + bot | Athlete / Coach | Telegram-native workout logging, summaries, guided fallbacks, alerts | Mini App reuses mobile logging patterns; bot text stays compact |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
 | Staging/admin runtime views | Operator / Coach-owner | Connection health, webhook/OAuth status, backup status | Quiet operational dashboard, not marketing UI |
@@ -1865,9 +1872,11 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 
 ### 16.3 Coach Desktop Acceptance
 
-- [ ] Coach can switch active athlete.
-- [ ] Calendar visibly groups workouts by microcycle.
-- [ ] Cross-microcycle drag is blocked and explained.
+- [ ] Coach can switch active athlete; Calendar and Sessions reload for that athlete.
+- [ ] Empty athlete plans show empty states — no demo microcycles.
+- [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
+- [ ] Block/Week labels can be set or changed anytime (including after create).
+- [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing.
 - [ ] LexoRank reorder controls are visible and stable.
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
