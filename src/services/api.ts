@@ -581,6 +581,50 @@ export const apiService = {
     return await response.json();
   },
 
+  async replaceExerciseSets(
+    sessionId: string,
+    exerciseId: string,
+    sets: Array<{
+      id?: string;
+      label?: string;
+      plannedWeight?: number | null;
+      plannedReps?: number | null;
+      plannedRpe?: number | null;
+      intensityType?: string | null;
+      isAuto?: boolean;
+      isTop?: boolean;
+      actual?: number | null;
+      reps?: number | null;
+      executedRpe?: number | null;
+    }>
+  ): Promise<import('../types').ExerciseData> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}/sets`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        sets: sets.map((row) => ({
+          id: row.id,
+          label: row.label,
+          plannedWeight: row.plannedWeight,
+          plannedReps: row.plannedReps,
+          plannedRpe: row.plannedRpe,
+          intensityType: row.intensityType,
+          isAuto: row.isAuto,
+          isTop: row.isTop,
+          actual: row.actual,
+          reps: row.reps,
+          executedRpe: row.executedRpe,
+        })),
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to save sets');
+    }
+    return await response.json();
+  },
+
   async updateSessionExercise(sessionId: string, exerciseId: string, payload: {
     variation?: string;
     title?: string;

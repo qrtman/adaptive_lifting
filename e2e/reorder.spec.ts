@@ -34,10 +34,16 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   };
   await addNamedLift('Knee Dominant', 'Squat');
   await expect(page.getByTestId('rx-weight').first()).toHaveText('—');
+  const savedSets = page.waitForResponse((res) =>
+    res.url().includes('/sets') && res.request().method() === 'PUT'
+  );
   await page.getByTestId('rx-weight').first().click();
   await page.getByTestId('rx-weight').first().fill('180');
   await page.getByTestId('rx-weight').first().press('Enter');
+  expect((await savedSets).ok()).toBeTruthy();
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
+  await page.getByRole('button', { name: '+ Set' }).click();
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
   await expect(page.getByTestId('lift-constructor')).toHaveCount(0);
   await page.getByTestId(/^edit-lift-/).first().click();
   await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
@@ -62,6 +68,10 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
 
   await page.reload();
   await expect(page.locator('.border-b.border-white\\/10 h4')).toHaveText(['Bench', 'Squat', 'Deadlift']);
+  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
+    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]');
+  await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('180');
+  await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('—');
 
   await page.getByTestId('session-complete').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();

@@ -14,6 +14,14 @@ describe('refreshSetAnchors', () => {
     expect(next[0].plannedWeight).toBeNull();
   });
 
+  it('keeps extra-set kg empty', () => {
+    const next = refreshSetAnchors([
+      { plannedWeight: 180, plannedReps: 5, plannedRpe: 8 },
+      { plannedWeight: null, plannedReps: 5, plannedRpe: 8, isAuto: true, dropPercent: -10 },
+    ]);
+    expect(next[1].plannedWeight).toBeNull();
+  });
+
   it('keeps a typed top-set weight', () => {
     const next = refreshSetAnchors([
       {

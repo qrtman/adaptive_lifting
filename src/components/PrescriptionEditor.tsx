@@ -53,7 +53,8 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
         type="button"
         onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
         className="h-6 px-0.5 text-[10px] text-[#AEAEB2] hover:text-white"
-        title="Toggle RPE / %"
+        data-testid="rx-intensity"
+        title="Switch between RPE and %"
       >
         {intensityType === "PERCENT" ? "%" : "RPE"}
       </button>

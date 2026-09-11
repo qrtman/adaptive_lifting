@@ -43,6 +43,7 @@ import uuid
 import hashlib
 import secrets
 
+from .set_writes import replace_exercise_sets
 from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
 from .accessory_migration import coerce_float, coerce_int
 
@@ -100,6 +101,11 @@ def migrate_db():
         db.rollback()
     try:
         db.execute(text("ALTER TABLE workouts ADD COLUMN owner_id VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN intensity_type VARCHAR"))
         db.commit()
     except Exception:
         db.rollback()
@@ -449,6 +455,7 @@ def format_exercise(e: Exercise) -> dict:
             "hrv": coerce_float(s.hrv),
             "isAuto": s.isAuto,
             "isTop": s.isTop,
+            "intensityType": getattr(s, "intensity_type", None) or "RPE",
         }
         planned_preview = getattr(s, "planned", None)
         if planned_preview is not None:
@@ -1351,6 +1358,24 @@ class UpdateExerciseRequest(BaseModel):
     move: Optional[str] = None
 
 
+class PlannedSetWrite(BaseModel):
+    id: Optional[str] = None
+    label: Optional[str] = None
+    plannedWeight: Optional[float] = None
+    plannedReps: Optional[int] = None
+    plannedRpe: Optional[float] = None
+    intensityType: Optional[str] = None
+    isAuto: bool = False
+    isTop: Optional[bool] = None
+    actual: Optional[float] = None
+    reps: Optional[int] = None
+    executedRpe: Optional[float] = None
+
+
+class ReplaceExerciseSetsRequest(BaseModel):
+    sets: List[PlannedSetWrite]
+
+
 def live_exercises(workout: Workout):
     return sorted(
         [e for e in (workout.exercises or []) if is_live(e)],
@@ -1451,6 +1476,7 @@ def clone_session_prescription(
                 plannedWeight=exercise_set.plannedWeight,
                 plannedReps=exercise_set.plannedReps,
                 plannedRpe=exercise_set.plannedRpe,
+                intensity_type=getattr(exercise_set, "intensity_type", None) or "RPE",
                 dropPercent=exercise_set.dropPercent,
                 isAuto=exercise_set.isAuto,
                 actual=exercise_set.actual if include_logs else None,
@@ -1619,6 +1645,25 @@ def add_session_exercise(
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
+
+
+@app.put("/api/sessions/{session_id}/exercises/{exercise_id}/sets")
+def replace_session_exercise_sets(
+    session_id: str,
+    exercise_id: str,
+    req: ReplaceExerciseSetsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+    exercise = next((e for e in (workout.exercises or []) if e.id == exercise_id and is_live(e)), None)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Lift not found")
+    rows = [row.model_dump() if hasattr(row, "model_dump") else row.dict() for row in req.sets]
+    replace_exercise_sets(exercise, rows)
+    db.commit()
+    db.refresh(exercise)
+    return format_exercise(exercise)
 
 
 @app.delete("/api/sessions/{session_id}/exercises/{exercise_id}")

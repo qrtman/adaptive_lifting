@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import { saveSnapshot, getSnapshot, evictOldSyncedData } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
@@ -112,6 +112,32 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
   const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
+  const saveTimers = useRef<Record<string, number>>({});
+
+  const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
+    if (!activeWorkoutId) return;
+    const payload = updatedSets.map((row, index) => ({
+      id: row.id,
+      label: row.label || `Set ${index + 1}`,
+      plannedWeight: row.plannedWeight ?? null,
+      plannedReps: row.plannedReps ?? null,
+      plannedRpe: row.target_value ?? row.plannedRpe ?? null,
+      intensityType: row.intensity_type || row.intensityType || 'RPE',
+      isAuto: false,
+      isTop: index === 0,
+      actual: row.actual ?? null,
+      reps: row.reps ?? null,
+      executedRpe: row.executedRpe ?? null,
+    }));
+    void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload });
+    window.clearTimeout(saveTimers.current[exerciseId]);
+    saveTimers.current[exerciseId] = window.setTimeout(() => {
+      void apiService.replaceExerciseSets(activeWorkoutId, exerciseId, payload).catch((err) => {
+        console.error('Failed to save sets', err);
+      });
+    }, 400);
+  }, [activeWorkoutId]);
+
   const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
     if (!activeMicrocycleId || !activeWorkoutId) return;
 
@@ -158,7 +184,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       };
     }));
 
-    void queueMutation(activeWorkoutId, 'ExerciseSet', exerciseId, { sets: updatedSets });
+    persistExerciseSets(exerciseId, updatedSets);
   };
 
   const finishSession = async (status: WorkoutStatus) => {
