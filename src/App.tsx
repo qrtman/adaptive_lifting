@@ -15,7 +15,8 @@ import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
 import { CoachDashboardView } from './components/CoachDashboardView';
-import { splitWorkoutExercises } from './types';
+import { splitWorkoutExercises, isWorkoutCompleted } from './types';
+import { AddLiftBar } from './components/AddLiftBar';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
@@ -30,6 +31,8 @@ export default function App() {
     updateExerciseSets,
     finishSession,
     resetPlan,
+    reloadMicrocycles,
+    activeAthleteId,
   } = usePeriodization();
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
@@ -189,6 +192,11 @@ export default function App() {
                     </div>
                   ) : (
                     <div>
+                      {activeWorkout.exercises.length === 0 && (
+                        <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
+                          No lifts yet. Add squat, bench, or deadlift.
+                        </p>
+                      )}
                       {splitWorkoutExercises(activeWorkout.exercises).main.map(ex => (
                         <ExerciseCard 
                           key={ex.id}
@@ -207,6 +215,12 @@ export default function App() {
                         exercises={splitWorkoutExercises(activeWorkout.exercises).accessories}
                         onUpdateSets={updateExerciseSets}
                         roleMode={roleMode}
+                      />
+
+                      <AddLiftBar
+                        sessionId={activeWorkout.id}
+                        locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
+                        onAdded={() => reloadMicrocycles(activeAthleteId)}
                       />
                     </div>
                   )}

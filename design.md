@@ -1877,6 +1877,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
 - [ ] Block/Week labels can be set or changed anytime (including after create).
 - [ ] Copy week duplicates a labeled group by a user-chosen day offset with prescriptions only (no logged actuals).
+- [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing.
 - [ ] LexoRank reorder controls are visible and stable.

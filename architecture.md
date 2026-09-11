@@ -947,6 +947,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `GET` | `/api/coach/roster` | List linked athletes | Coach |
 | `GET` | `/api/microcycles?athlete_id=` | Retrieve periodization tree for athlete plan space (empty array if none; never auto-seed) | Coach / Athlete |
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
+| `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}` | Update session including labels anytime | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |

@@ -548,6 +548,37 @@ export const apiService = {
     return await response.json();
   },
 
+  async addSessionExercise(sessionId: string, payload: {
+    title: string;
+    variation?: string;
+    tier?: 'Comp' | 'Variation' | 'Accessory';
+    liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
+    plannedWeight?: number | null;
+    plannedReps?: number | null;
+    plannedRpe?: number | null;
+  }): Promise<import('../types').ExerciseData> {
+    const body: Record<string, unknown> = {
+      title: payload.title,
+      variation: payload.variation,
+      tier: payload.tier,
+      liftCategory: payload.liftCategory,
+    };
+    if (payload.plannedWeight != null) body.plannedWeight = payload.plannedWeight;
+    if (payload.plannedReps != null) body.plannedReps = payload.plannedReps;
+    if (payload.plannedRpe != null) body.plannedRpe = payload.plannedRpe;
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to add lift');
+    }
+    return await response.json();
+  },
+
   async deleteSession(sessionId: string): Promise<{ status: string }> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`, {
       method: 'DELETE',

@@ -426,48 +426,53 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
 
 # --- Response Formatting Helpers ---
 
+def format_exercise(e: Exercise) -> dict:
+    sets_list = []
+    for s in sorted(e.sets, key=lambda x: (x.lexo_rank or "", x.id)):
+        set_dict = {
+            "id": s.id,
+            "label": s.label,
+            "plannedWeight": coerce_float(s.plannedWeight),
+            "plannedReps": coerce_int(s.plannedReps),
+            "plannedRpe": coerce_float(s.plannedRpe),
+            "actual": coerce_float(s.actual),
+            "reps": coerce_int(s.reps),
+            "executedRpe": coerce_float(s.executedRpe),
+            "velocity": coerce_float(s.velocity),
+            "readiness": coerce_int(s.readiness),
+            "hrv": coerce_float(s.hrv),
+            "isAuto": s.isAuto,
+            "isTop": s.isTop,
+        }
+        planned_preview = getattr(s, "planned", None)
+        if planned_preview is not None:
+            set_dict["planned"] = planned_preview
+        if s.dropPercent is not None:
+            set_dict["dropPercent"] = s.dropPercent
+        if s.note is not None:
+            set_dict["note"] = s.note
+        sets_list.append(set_dict)
+
+    return {
+        "id": e.id,
+        "title": e.title,
+        "variation": e.variation,
+        "tier": e.tier or "Comp",
+        "liftCategory": e.lift_category or "Other",
+        "tags": e.tags,
+        "top": e.top,
+        "vol": e.vol,
+        "sets": sets_list,
+    }
+
+
 def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
-        exercises_list = []
-        for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id)):
-            sets_list = []
-            for s in sorted(e.sets, key=lambda x: (x.lexo_rank or "", x.id)):
-                set_dict = {
-                    "id": s.id,
-                    "label": s.label,
-                    "plannedWeight": coerce_float(s.plannedWeight),
-                    "plannedReps": coerce_int(s.plannedReps),
-                    "plannedRpe": coerce_float(s.plannedRpe),
-                    "actual": coerce_float(s.actual),
-                    "reps": coerce_int(s.reps),
-                    "executedRpe": coerce_float(s.executedRpe),
-                    "velocity": coerce_float(s.velocity),
-                    "readiness": coerce_int(s.readiness),
-                    "hrv": coerce_float(s.hrv),
-                    "isAuto": s.isAuto,
-                    "isTop": s.isTop,
-                }
-                planned_preview = getattr(s, "planned", None)
-                if planned_preview is not None:
-                    set_dict["planned"] = planned_preview
-                if s.dropPercent is not None:
-                    set_dict["dropPercent"] = s.dropPercent
-                if s.note is not None:
-                    set_dict["note"] = s.note
-                sets_list.append(set_dict)
-
-            exercises_list.append({
-                "id": e.id,
-                "title": e.title,
-                "variation": e.variation,
-                "tier": e.tier or "Comp",
-                "liftCategory": e.lift_category or "Other",
-                "tags": e.tags,
-                "top": e.top,
-                "vol": e.vol,
-                "sets": sets_list
-            })
+        exercises_list = [
+            format_exercise(e)
+            for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
+        ]
 
         workouts_list.append({
             "id": w.id,
@@ -1317,6 +1322,33 @@ class CopyWeekRequest(BaseModel):
     targetWeekLabel: Optional[str] = None
 
 
+ALLOWED_LIFT_CATEGORIES = {"Squat", "Bench", "Deadlift", "Other"}
+ALLOWED_TIERS = {"Comp", "Variation", "Accessory"}
+
+
+class AddExerciseRequest(BaseModel):
+    title: str
+    variation: Optional[str] = None
+    tier: Optional[str] = "Comp"
+    liftCategory: Optional[str] = "Other"
+    plannedWeight: Optional[float] = None
+    plannedReps: Optional[int] = 5
+    plannedRpe: Optional[float] = 8.0
+
+
+def require_session_for_write(db: Session, current_user: User, session_id: str) -> Workout:
+    workout = db.query(Workout).filter(Workout.id == session_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Session not found")
+    owner_id = session_owner_id(db, workout)
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Session has no owner")
+    assert_plan_access(db, current_user, owner_id)
+    if workout.status in ("COMPLETED", "MISSED"):
+        raise HTTPException(status_code=409, detail="Session is locked")
+    return workout
+
+
 def session_owner_id(db: Session, workout: Workout) -> Optional[str]:
     if workout.owner_id:
         return workout.owner_id
@@ -1487,6 +1519,68 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
         "ownerId": workout.owner_id,
         "exercises": [],
     }
+
+
+@app.post("/api/sessions/{session_id}/exercises")
+def add_session_exercise(
+    session_id: str,
+    req: AddExerciseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+
+    title = (req.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+
+    tier = req.tier or "Comp"
+    lift_category = req.liftCategory or "Other"
+    if tier not in ALLOWED_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid tier")
+    if lift_category not in ALLOWED_LIFT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid liftCategory")
+
+    variation = (req.variation or "").strip() or (
+        "Accessory" if tier == "Accessory" else "Competition"
+    )
+    tags = [lift_category] if lift_category != "Other" else ([tier] if tier == "Accessory" else [])
+
+    existing_count = len(workout.exercises or [])
+    exercise = Exercise(
+        id=f"e-{uuid.uuid4().hex[:10]}",
+        lexo_rank=f"a{existing_count}",
+        title=title,
+        variation=variation,
+        tier=tier,
+        lift_category=lift_category,
+        tags_raw=",".join(tags),
+        top="—",
+        vol="—",
+        workout_id=workout.id,
+    )
+    db.add(exercise)
+    db.flush()
+
+    planned_reps = req.plannedReps if req.plannedReps is not None else 5
+    planned_rpe = req.plannedRpe if req.plannedRpe is not None else 8.0
+    db.add(ExerciseSet(
+        id=f"s-{uuid.uuid4().hex[:10]}",
+        lexo_rank="a0",
+        label="Set 1",
+        plannedWeight=req.plannedWeight,
+        plannedReps=planned_reps,
+        plannedRpe=planned_rpe,
+        isAuto=False,
+        isTop=True,
+        actual=None,
+        reps=None,
+        executedRpe=None,
+        exercise_id=exercise.id,
+    ))
+    db.commit()
+    persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
+    return format_exercise(persisted)
 
 
 @app.patch("/api/sessions/{session_id}")

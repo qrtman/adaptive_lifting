@@ -191,3 +191,64 @@ def test_copy_week_shifts_dates_and_increments_week_label():
     tree = client.get("/api/microcycles", cookies=cookies)
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     assert len(workouts) == 4
+
+
+def test_add_lift_to_empty_session():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Session"},
+        cookies=cookies,
+    )
+    assert created.status_code == 200
+    sid = created.json()["id"]
+    assert created.json()["exercises"] == []
+
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat", "tier": "Comp", "plannedReps": 5, "plannedRpe": 8},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    body = squat.json()
+    assert body["title"] == "Squat"
+    assert body["liftCategory"] == "Squat"
+    assert body["tier"] == "Comp"
+    assert len(body["sets"]) == 1
+    assert body["sets"][0]["plannedReps"] == 5
+    assert body["sets"][0]["plannedRpe"] == 8.0
+    assert body["sets"][0]["actual"] is None
+
+    locked = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert locked.status_code == 200
+    blocked = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Bench", "liftCategory": "Bench"},
+        cookies=cookies,
+    )
+    assert blocked.status_code == 409
+
+    other = client.post(
+        "/api/auth/register",
+        json={"email": f"other-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    other_cookies = dict(other.cookies)
+    forbidden = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Bench", "liftCategory": "Bench"},
+        cookies=other_cookies,
+    )
+    assert forbidden.status_code == 403
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    match = next(w for w in workouts if w["id"] == sid)
+    assert len(match["exercises"]) == 1
+    assert match["exercises"][0]["title"] == "Squat"
