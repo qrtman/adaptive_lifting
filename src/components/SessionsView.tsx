@@ -80,7 +80,7 @@ export function SessionsView({
     activeAthleteId,
   } = usePeriodization();
 
-  const [labelDrafts, setLabelDrafts] = useState<Record<string, { block: string; week: string }>>({});
+  const [labelDrafts, setLabelDrafts] = useState<Record<string, { title: string; block: string; week: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
 
@@ -113,9 +113,10 @@ export function SessionsView({
   }, [allSessions]);
 
   useEffect(() => {
-    const drafts: Record<string, { block: string; week: string }> = {};
+    const drafts: Record<string, { title: string; block: string; week: string }> = {};
     allSessions.forEach(({ workout }) => {
       drafts[workout.id] = {
+        title: workout.title || '',
         block: workout.blockLabel || '',
         week: workout.weekLabel || '',
       };
@@ -129,6 +130,7 @@ export function SessionsView({
     setSavingId(workoutId);
     try {
       await apiService.updateSession(workoutId, {
+        title: draft.title.trim() || 'Session',
         blockLabel: draft.block.trim() || null,
         weekLabel: draft.week.trim() || null,
       });
@@ -295,7 +297,7 @@ export function SessionsView({
                   </div>
                   <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                     {entries.map(({ workout, microId }) => {
-                      const draft = labelDrafts[workout.id] || { block: '', week: '' };
+                      const draft = labelDrafts[workout.id] || { title: '', block: '', week: '' };
                       const isWorkoutActive = activeWorkoutId === workout.id;
                       return (
                         <div
@@ -313,9 +315,7 @@ export function SessionsView({
                             className="text-left flex flex-col gap-1 hover:opacity-90"
                           >
                             <div className="flex items-center justify-between gap-2 h-6">
-                              <span className="text-xs text-white truncate">
-                                {workout.date} · {workout.title}
-                              </span>
+                              <span className="text-xs text-white truncate">{workout.date}</span>
                               <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
                                 {workout.status} · {workout.tonnage}kg
                               </span>
@@ -344,6 +344,19 @@ export function SessionsView({
                             </div>
                           </button>
                           <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-white/5">
+                            <label className="flex flex-col gap-0.5 min-w-[120px] flex-1">
+                              <span className="text-[10px] text-[#636366]">Title</span>
+                              <input
+                                type="text"
+                                data-testid={`sessions-title-${workout.id}`}
+                                value={draft.title}
+                                onChange={(e) => setLabelDrafts(prev => ({
+                                  ...prev,
+                                  [workout.id]: { ...draft, title: e.target.value },
+                                }))}
+                                className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                              />
+                            </label>
                             <label className="flex flex-col gap-0.5">
                               <span className="text-[10px] text-[#636366]">Block</span>
                               <input
@@ -374,7 +387,7 @@ export function SessionsView({
                               disabled={savingId === workout.id}
                               className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
                             >
-                              {savingId === workout.id ? 'Saving…' : 'Save labels'}
+                              {savingId === workout.id ? 'Saving…' : 'Save'}
                             </button>
                             <button
                               type="button"

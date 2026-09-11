@@ -137,10 +137,11 @@ def test_session_labels_anytime_and_reset_stays_empty():
 
     labeled = client.patch(
         f"/api/sessions/{sid}",
-        json={"blockLabel": "Block1", "weekLabel": "Week1"},
+        json={"title": "Heavy Bench", "blockLabel": "Block1", "weekLabel": "Week1"},
         cookies=cookies,
     )
     assert labeled.status_code == 200
+    assert labeled.json()["title"] == "Heavy Bench"
     assert labeled.json()["blockLabel"] == "Block1"
     assert labeled.json()["weekLabel"] == "Week1"
 

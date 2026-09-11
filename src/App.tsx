@@ -96,6 +96,18 @@ export default function App() {
     }
   };
 
+  const handleSaveTitle = async (title: string) => {
+    if (!activeWorkout) return;
+    const next = title.trim() || 'Session';
+    if (next === activeWorkout.title) return;
+    try {
+      await apiService.updateSession(activeWorkout.id, { title: next });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to rename session');
+    }
+  };
+
   if (!user) {
     return <LoginView />;
   }
@@ -173,7 +185,19 @@ export default function App() {
                         >
                           Back
                         </button>
-                        <h2 className="text-sm text-white truncate">{activeWorkout.title}</h2>
+                        <input
+                          type="text"
+                          data-testid="session-title"
+                          defaultValue={activeWorkout.title}
+                          key={activeWorkout.id + activeWorkout.title}
+                          onBlur={(e) => void handleSaveTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="h-7 min-w-0 flex-1 max-w-[220px] px-1.5 text-sm text-white bg-transparent border border-transparent hover:border-white/10 focus:border-white/20 rounded"
+                        />
                         <p data-testid="workout-tonnage" className="text-[11px] text-[#AEAEB2] font-mono shrink-0">
                           {activeWorkout.tonnage}kg
                         </p>

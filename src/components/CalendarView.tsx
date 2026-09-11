@@ -188,6 +188,22 @@ export function CalendarView({
     }
   };
 
+  const handleSaveTitle = async (sessionId: string, title: string) => {
+    const next = title.trim() || 'Session';
+    try {
+      await apiService.updateSession(sessionId, { title: next });
+      setSelectedWorkout((prev) =>
+        prev && prev.workout.id === sessionId
+          ? { ...prev, workout: { ...prev.workout, title: next } }
+          : prev
+      );
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to rename session');
+    }
+  };
+
   const handleDeleteSession = async (sessionId: string) => {
     if (!window.confirm('Delete this session?')) return;
     setDeletingId(sessionId);
@@ -686,7 +702,17 @@ export function CalendarView({
             <div className="px-3 py-2 border-b border-white/10 flex justify-between items-start gap-2">
               <div className="min-w-0">
                 <h3 className="text-sm text-white truncate">
-                  {selectedWorkout.workout.title}
+                  <input
+                    type="text"
+                    data-testid="calendar-session-title"
+                    defaultValue={selectedWorkout.workout.title}
+                    key={selectedWorkout.workout.id + selectedWorkout.workout.title}
+                    onBlur={(e) => void handleSaveTitle(selectedWorkout.workout.id, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    className="w-full bg-transparent text-sm text-white border border-transparent hover:border-white/10 focus:border-white/20 rounded px-0.5"
+                  />
                 </h3>
                 <div className="flex gap-2 mt-0.5 items-center text-[11px] font-mono text-[#AEAEB2]">
                   <span>{selectedWorkout.workout.date}</span>
