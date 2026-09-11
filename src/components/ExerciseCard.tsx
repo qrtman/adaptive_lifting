@@ -3,6 +3,7 @@ import { ArrowRight, Trash2, Copy } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
+import { CenteredDialog } from './CenteredDialog';
 import { 
   calculateCapacityScaledWeight, 
   calculateE1RM, 
@@ -142,6 +143,7 @@ export const ExerciseCard = ({
 
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
   const [removing, setRemoving] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   // Keep state in sync when workout changes
   useEffect(() => {
@@ -207,25 +209,20 @@ export const ExerciseCard = ({
     <div className="border-b border-white/10">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-start gap-2 min-w-0">
-          {tier === 'Accessory' || !onUpdateMeta ? (
-            <>
-              <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
-              <span className="text-xs text-[#AEAEB2] truncate">
-                {tier ? `${tier} · ${variation}` : variation}
-              </span>
-            </>
-          ) : (
-            <>
-              <h4 className="text-lg leading-7 text-white shrink-0">{title}</h4>
-              <LiftVariationPicker
-                title={title}
-                variation={variation}
-                liftCategory={liftCategory}
-                locked={locked}
-                onChange={onUpdateMeta}
-              />
-            </>
-          )}
+          <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
+          <span className="text-xs text-[#AEAEB2] truncate">
+            {tier ? `${tier} · ${variation}` : variation}
+          </span>
+          {onUpdateMeta ? (
+            <button
+              type="button"
+              data-testid={`edit-lift-${id}`}
+              onClick={() => setEditOpen(true)}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white shrink-0"
+            >
+              Edit
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
@@ -517,6 +514,32 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      {editOpen && onUpdateMeta && (
+        <CenteredDialog
+          title={`Edit lift · ${title}`}
+          subtitle="Bar, tempo, ROM, and gear. The compiled name stays readonly."
+          onClose={() => setEditOpen(false)}
+          testId="edit-lift-dialog"
+          footer={(
+            <button
+              type="button"
+              data-testid="edit-lift-done"
+              onClick={() => setEditOpen(false)}
+              className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded"
+            >
+              Done
+            </button>
+          )}
+        >
+          <LiftVariationPicker
+            title={title}
+            variation={variation}
+            liftCategory={liftCategory}
+            locked={locked}
+            onChange={onUpdateMeta}
+          />
+        </CenteredDialog>
+      )}
     </div>
   );
 };

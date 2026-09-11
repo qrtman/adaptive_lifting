@@ -114,7 +114,7 @@ export function LiftVariationPicker({
   };
 
   return (
-    <div className="flex flex-col gap-1 min-w-0">
+    <div className="flex flex-col gap-1 min-w-0" data-testid="lift-constructor">
       <p className="text-xs text-[#AEAEB2] truncate" data-testid={`lift-name-${title}`}>
         {compileVariation(title, mods)}
       </p>

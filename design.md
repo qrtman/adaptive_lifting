@@ -114,7 +114,7 @@ The design system follows three product principles:
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
 | Calendar workspace | Coach / Athlete | Date-first session timeline | Hover a day shows New session (and Copy to when a session exists). Copy to then click the destination day on the same calendar. |
-| Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Finished sessions are read-only until Open. |
+| Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for name/block/week |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
 | Telegram Mini App + bot | Athlete / Coach | Later: Telegram-native logging and alerts | Deferred until the web constructor is done. Do not gate current session UI on Mini App. |
@@ -1885,7 +1885,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
 - [ ] Coach or athlete can remove a lift from an unlocked session; completed sessions stay locked until Open.
 - [ ] Finished sessions reopen with a single Open action (same as opening a folder). No lock ceremony.
-- [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) compiling a readonly name, not a freeform program.
+- [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) in the Edit lift dialog, compiling a readonly name. Chips are not always-open on the session.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing.
 - [ ] Coach or athlete can reorder lifts with Up/Down on an unlocked session; order persists as `lexo_rank`.
