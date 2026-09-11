@@ -22,8 +22,9 @@ Persistent context for Cursor agents. Keep this short and aligned with `architec
 - **Coach code**: Coach publishes a code; athlete enters it to link. Not email-as-code.
 - **Session-first**: Session (workout on a date) is the primary entity. Block/Week are optional grouping labels (block prefixes week). Assign or change labels anytime; unlabeled sessions are allowed.
 - **No demo seed**: Empty athletes start empty. Never auto-inject sample microcycles on fetch/reset/push.
-- **Surfaces**: Calendar = hover New session for a centered create dialog; click an existing session to open it. Sessions = group/filter by Block/Week when present; ungrouped bucket otherwise. Coach shell has an athlete switcher that drives Calendar/Sessions.
-- **Add lift**: Centered dialog to pick the lift and variation chips. No starting-set editor in that dialog.
+- **Surfaces**: Calendar = hover a day to show New session (and Copy to if a session exists). Click an existing session to open it. Sessions = group/filter by Block/Week when present.
+- **Add lift**: Centered dialog groups exercises like RTS (category, search, exercise), then variation chips. No starting-set editor in that dialog.
+- **Copy**: Copy to from a calendar session picks the destination date. Sessions list still has copy lifts / copy with logs.
 - **Web first**: Coach and athlete use the same web session screen to add lifts and log sets. Telegram Mini App / phone logging is deferred until the web constructor is done. Do not build or gate session work on the phone mock.
 - **Copy**: Copy lifts (plan only) or copy with logs (plan plus logged sets). The copy keeps the session name; rename it on the session or Sessions card.
 - **Reorder lifts**: Up/Down on the session screen. Order is stored as `lexo_rank`. Finished sessions stay locked until Open.

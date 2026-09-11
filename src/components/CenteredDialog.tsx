@@ -2,12 +2,14 @@ import { useEffect, type ReactNode } from 'react';
 
 export function CenteredDialog({
   title,
+  subtitle,
   onClose,
   children,
   footer,
   testId,
 }: {
   title: string;
+  subtitle?: string;
   onClose: () => void;
   children: ReactNode;
   footer: ReactNode;
@@ -37,9 +39,12 @@ export function CenteredDialog({
         className="relative z-10 w-full max-w-lg max-h-[85dvh] overflow-y-auto bg-[#131313] border border-white/10 rounded-lg p-4"
       >
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h2 id="centered-dialog-title" className="text-sm text-white">
-            {title}
-          </h2>
+          <div>
+            <h2 id="centered-dialog-title" className="text-sm text-white">
+              {title}
+            </h2>
+            {subtitle ? <p className="text-xs text-[#AEAEB2] mt-1">{subtitle}</p> : null}
+          </div>
           <button
             type="button"
             data-testid="dialog-close"

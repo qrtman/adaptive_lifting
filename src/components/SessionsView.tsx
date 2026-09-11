@@ -399,7 +399,6 @@ export function SessionsView({
         <NewSessionDialog
           date={new Date().toISOString().slice(0, 10)}
           allowDateEdit
-          sessions={allSessions}
           athleteId={activeAthleteId}
           onClose={() => setShowNewSession(false)}
           onCreated={async () => {

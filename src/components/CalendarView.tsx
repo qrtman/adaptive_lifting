@@ -9,6 +9,7 @@ import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { NewSessionDialog } from './NewSessionDialog';
+import { CopyToDialog } from './CopyToDialog';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
 interface CalendarViewProps {
@@ -44,6 +45,8 @@ export function CalendarView({
   } | null>(null);
 
   const [newSessionDate, setNewSessionDate] = useState<string | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [copySource, setCopySource] = useState<WorkoutData | null>(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -296,7 +299,7 @@ export function CalendarView({
         <>
 
         {workoutList.length === 0 && (
-          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day and press New session.</p>
+          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day — New session appears.</p>
         )}
 
         {/* Calendar Grid Container */}
@@ -395,35 +398,26 @@ export function CalendarView({
                                 data-testid={`calendar-day-${dateStr}`}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, dateStr)}
+                                onMouseEnter={() => {
+                                  if (cell.isCurrentMonth && !showCoachSelectAthlete) setHoveredDate(dateStr);
+                                }}
+                                onMouseLeave={() => setHoveredDate((current) => current === dateStr ? null : current)}
                                 onClick={() => {
                                   if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
                                   if (dayWorkouts.length === 1) {
                                     onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
                                   }
                                 }}
-                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative group cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
-                                  !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
+                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
+                                  !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : 'hover:border-white/25 hover:bg-[#161616]'
                                 } ${
-                                  newSessionDate === dateStr ? 'ring-1 ring-[#007AFF]' : ''
+                                  newSessionDate === dateStr || hoveredDate === dateStr ? 'ring-1 ring-[#007AFF] border-[#007AFF]/40' : ''
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
                                   <span className="font-mono text-[11px] text-[#AEAEB2]">
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
-                                  {cell.isCurrentMonth && !showCoachSelectAthlete && (
-                                    <button
-                                      type="button"
-                                      data-testid={`calendar-new-session-${dateStr}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        openNewSession(dateStr);
-                                      }}
-                                      className="h-6 px-1.5 text-[10px] text-white bg-[#007AFF] rounded opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                    >
-                                      New session
-                                    </button>
-                                  )}
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
                                   .filter(item => {
@@ -499,6 +493,34 @@ export function CalendarView({
                                       </div>
                                     );
                                   })}
+                                {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && (
+                                  <div className="mt-auto pt-1 flex flex-col gap-1">
+                                    <button
+                                      type="button"
+                                      data-testid={`calendar-new-session-${dateStr}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openNewSession(dateStr);
+                                      }}
+                                      className="h-7 w-full px-1.5 text-[11px] text-white bg-[#007AFF] rounded"
+                                    >
+                                      New session
+                                    </button>
+                                    {dayWorkouts[0] && (
+                                      <button
+                                        type="button"
+                                        data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setCopySource(dayWorkouts[0].workout);
+                                        }}
+                                        className="h-7 w-full px-1.5 text-[11px] text-white bg-white/15 rounded"
+                                      >
+                                        Copy to
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -526,7 +548,6 @@ export function CalendarView({
       {newSessionDate && (
         <NewSessionDialog
           date={newSessionDate}
-          sessions={workoutList}
           athleteId={activeAthleteId}
           onClose={() => setNewSessionDate(null)}
           onCreated={async (created) => {
@@ -535,6 +556,17 @@ export function CalendarView({
             const match = workoutList.find((item) => item.workout.id === created.id);
             const microId = created.microcycleId || match?.microId;
             if (microId) onViewSession({ id: created.id } as WorkoutData, microId);
+          }}
+        />
+      )}
+      {copySource && (
+        <CopyToDialog
+          source={copySource}
+          athleteId={activeAthleteId}
+          onClose={() => setCopySource(null)}
+          onCopied={async () => {
+            await reloadMicrocycles(activeAthleteId);
+            setCopySource(null);
           }}
         />
       )}

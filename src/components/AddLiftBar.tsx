@@ -1,28 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { apiService } from '../services/api';
-import { compileVariation, defaultModifiers, type LiftCategory } from '../services/liftVariation';
+import {
+  CATALOG_EXERCISES,
+  EXERCISE_CATEGORIES,
+  filterCatalog,
+  type CatalogExercise,
+  type ExerciseCategory,
+} from '../services/exerciseCatalog';
+import { compileVariation, defaultModifiers } from '../services/liftVariation';
 import { CenteredDialog } from './CenteredDialog';
 import { LiftVariationPicker } from './LiftVariationPicker';
-
-type LiftPreset = 'Squat' | 'Bench' | 'Deadlift' | 'Accessory';
-
-const PRESETS: Record<Exclude<LiftPreset, 'Accessory'>, {
-  title: string;
-  liftCategory: 'Squat' | 'Bench' | 'Deadlift';
-}> = {
-  Squat: { title: 'Squat', liftCategory: 'Squat' },
-  Bench: { title: 'Bench', liftCategory: 'Bench' },
-  Deadlift: { title: 'Deadlift', liftCategory: 'Deadlift' },
-};
-
-function categoryFor(preset: LiftPreset): LiftCategory {
-  return preset === 'Accessory' ? 'Other' : preset;
-}
-
-function titleFor(preset: LiftPreset, accessoryName: string): string {
-  if (preset === 'Accessory') return accessoryName.trim() || 'Accessory';
-  return PRESETS[preset].title;
-}
 
 export function AddLiftBar({
   sessionId,
@@ -34,46 +21,57 @@ export function AddLiftBar({
   onAdded: () => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
-  const [preset, setPreset] = useState<LiftPreset>('Squat');
-  const [accessoryName, setAccessoryName] = useState('');
-  const [variation, setVariation] = useState(() => compileVariation('Squat', defaultModifiers('Squat')));
-  const [tier, setTier] = useState<'Comp' | 'Variation'>('Comp');
+  const [category, setCategory] = useState<ExerciseCategory | ''>('');
+  const [search, setSearch] = useState('');
+  const [exerciseName, setExerciseName] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [variation, setVariation] = useState('');
+  const [tier, setTier] = useState<'Comp' | 'Variation' | 'Accessory'>('Comp');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const applyPreset = (next: LiftPreset) => {
-    setPreset(next);
-    const title = titleFor(next, accessoryName);
-    const mods = defaultModifiers(categoryFor(next));
-    setVariation(compileVariation(title, mods));
-    setTier(next === 'Accessory' ? 'Variation' : 'Comp');
+  const options = useMemo(() => filterCatalog(category, search), [category, search]);
+  const selected: CatalogExercise | null = useMemo(() => {
+    if (category === 'User Defined') {
+      const name = customName.trim() || 'Accessory';
+      return { name, category: 'User Defined', liftCategory: 'Other', tier: 'Accessory' };
+    }
+    return CATALOG_EXERCISES.find((item) => item.name === exerciseName) ?? null;
+  }, [category, customName, exerciseName]);
+
+  const reset = () => {
+    setCategory('');
+    setSearch('');
+    setExerciseName('');
+    setCustomName('');
+    setVariation('');
+    setTier('Comp');
+    setError(null);
+  };
+
+  const pickExercise = (name: string) => {
+    setExerciseName(name);
+    const item = CATALOG_EXERCISES.find((row) => row.name === name);
+    if (!item) return;
+    if (!category) setCategory(item.category);
+    setVariation(compileVariation(item.name, defaultModifiers(item.liftCategory)));
+    setTier(item.tier);
   };
 
   const addLift = async () => {
-    if (locked || busy) return;
+    if (locked || busy || !selected) return;
     setBusy(true);
     setError(null);
-    const title = titleFor(preset, accessoryName);
     try {
-      if (preset === 'Accessory') {
-        await apiService.addSessionExercise(sessionId, {
-          title,
-          variation: variation || 'Accessory',
-          tier: 'Accessory',
-          liftCategory: 'Other',
-        });
-      } else {
-        await apiService.addSessionExercise(sessionId, {
-          title,
-          variation,
-          tier,
-          liftCategory: PRESETS[preset].liftCategory,
-        });
-      }
+      await apiService.addSessionExercise(sessionId, {
+        title: selected.name,
+        variation: variation || selected.name,
+        tier: selected.tier === 'Accessory' ? 'Accessory' : tier,
+        liftCategory: selected.liftCategory,
+      });
       await onAdded();
       setOpen(false);
-      setAccessoryName('');
-      applyPreset('Squat');
+      reset();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to add lift');
     } finally {
@@ -90,7 +88,7 @@ export function AddLiftBar({
           type="button"
           data-testid="add-lift"
           onClick={() => {
-            setError(null);
+            reset();
             setOpen(true);
           }}
           className="h-8 px-3 text-xs text-white bg-white/10 rounded"
@@ -100,7 +98,8 @@ export function AddLiftBar({
       )}
       {open && (
         <CenteredDialog
-          title="Add lift"
+          title="Select Exercise & Modifiers"
+          subtitle="Choose an exercise, configure its modifiers, then confirm."
           onClose={() => setOpen(false)}
           testId="add-lift-dialog"
           footer={(
@@ -116,51 +115,93 @@ export function AddLiftBar({
               <button
                 type="button"
                 data-testid="add-lift-confirm"
-                disabled={busy}
+                disabled={busy || !selected}
                 onClick={() => void addLift()}
                 className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
               >
-                {busy ? 'Adding…' : 'Add'}
+                {busy ? 'Adding…' : 'Confirm'}
               </button>
             </>
           )}
         >
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2">
-              {(['Squat', 'Bench', 'Deadlift', 'Accessory'] as LiftPreset[]).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  data-testid={`add-lift-${item.toLowerCase()}`}
-                  onClick={() => applyPreset(item)}
-                  className={`h-8 px-3 text-xs rounded ${preset === item ? 'bg-white/15 text-white' : 'text-[#AEAEB2]'}`}
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Category</span>
+                <select
+                  data-testid="add-lift-category"
+                  value={category}
+                  onChange={(event) => {
+                    const next = event.target.value as ExerciseCategory | '';
+                    setCategory(next);
+                    setExerciseName('');
+                    setVariation('');
+                  }}
+                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
                 >
-                  {item}
-                </button>
-              ))}
+                  <option value="">—</option>
+                  {EXERCISE_CATEGORIES.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Search Exercises</span>
+                <input
+                  data-testid="add-lift-search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search"
+                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                />
+              </label>
             </div>
-            {preset === 'Accessory' && (
-              <input
-                type="text"
-                value={accessoryName}
-                onChange={(event) => {
-                  setAccessoryName(event.target.value);
-                  setVariation(compileVariation(event.target.value.trim() || 'Accessory', defaultModifiers('Other')));
-                }}
-                placeholder="Accessory name"
-                data-testid="add-lift-accessory-name"
-                className="h-8 min-w-[140px] px-2 text-xs bg-black border border-white/10 rounded text-white"
-              />
+            {category === 'User Defined' ? (
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <input
+                  data-testid="add-lift-custom-name"
+                  value={customName}
+                  onChange={(event) => {
+                    setCustomName(event.target.value);
+                    setVariation(compileVariation(event.target.value.trim() || 'Accessory', defaultModifiers('Other')));
+                    setTier('Accessory');
+                  }}
+                  placeholder="Name this lift"
+                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                />
+              </label>
+            ) : (
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <select
+                  data-testid="add-lift-exercise"
+                  value={exerciseName}
+                  onChange={(event) => pickExercise(event.target.value)}
+                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                >
+                  <option value="">Select exercise</option>
+                  {options.map((item) => (
+                    <option key={`${item.category}-${item.name}`} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
-            <LiftVariationPicker
-              title={titleFor(preset, accessoryName)}
-              variation={variation}
-              liftCategory={categoryFor(preset)}
-              onChange={(patch) => {
-                setVariation(patch.variation);
-                setTier(patch.tier);
-              }}
-            />
+            {selected ? (
+              <LiftVariationPicker
+                title={selected.name}
+                variation={variation || compileVariation(selected.name, defaultModifiers(selected.liftCategory))}
+                liftCategory={selected.liftCategory}
+                onChange={(patch) => {
+                  setVariation(patch.variation);
+                  if (selected.tier !== 'Accessory') setTier(patch.tier);
+                }}
+              />
+            ) : (
+              <p className="text-xs text-[#AEAEB2]">Select an exercise to configure modifiers.</p>
+            )}
             {error && (
               <p className="text-xs text-[#FF453A]" data-testid="add-lift-error">{error}</p>
             )}

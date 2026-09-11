@@ -113,7 +113,7 @@ The design system follows three product principles:
 | :--- | :--- | :--- | :--- |
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
-| Calendar workspace | Coach / Athlete | Date-first session timeline | Hover a day and press New session. Centered dialog: name, optional block/week, blank or copy from another day. Cancel creates nothing. Existing session cards still open the session. |
+| Calendar workspace | Coach / Athlete | Date-first session timeline | Hover a day shows New session (and Copy to when a session exists). New session dialog is name + optional block/week only. |
 | Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Finished sessions are read-only until Open. |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; labels editable anytime |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
@@ -1879,7 +1879,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
-- [ ] Clicking a calendar session card opens the session. New session is a hover control that opens a centered dialog (name, optional block/week, blank or copy). Cancel does not create.
+- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to. New session dialog is name + optional block/week; cancel does not create.
 - [ ] Block/Week labels can be set or changed anytime (including after create).
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
