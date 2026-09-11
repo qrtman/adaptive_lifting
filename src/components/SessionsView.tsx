@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ExerciseData, WorkoutData } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { NewSessionDialog } from './NewSessionDialog';
+import { EditSessionDialog } from './EditSessionDialog';
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
@@ -81,8 +82,7 @@ export function SessionsView({
     activeAthleteId,
   } = usePeriodization();
 
-  const [labelDrafts, setLabelDrafts] = useState<Record<string, { title: string; block: string; week: string }>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [editingSession, setEditingSession] = useState<WorkoutData | null>(null);
   const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
 
   const allSessions = useMemo(() => {
@@ -112,37 +112,6 @@ export function SessionsView({
     });
     return keys.map((key) => ({ key, label: sessionGroupLabel(key), entries: groups.get(key)! }));
   }, [allSessions]);
-
-  useEffect(() => {
-    const drafts: Record<string, { title: string; block: string; week: string }> = {};
-    allSessions.forEach(({ workout }) => {
-      drafts[workout.id] = {
-        title: workout.title || '',
-        block: workout.blockLabel || '',
-        week: workout.weekLabel || '',
-      };
-    });
-    setLabelDrafts(drafts);
-  }, [allSessions]);
-
-  const saveLabels = async (workoutId: string) => {
-    const draft = labelDrafts[workoutId];
-    if (!draft) return;
-    setSavingId(workoutId);
-    try {
-      await apiService.updateSession(workoutId, {
-        title: draft.title.trim() || 'Session',
-        blockLabel: draft.block.trim(),
-        weekLabel: draft.week.trim(),
-      });
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save session labels');
-    } finally {
-      setSavingId(null);
-    }
-  };
 
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   const [showNewSession, setShowNewSession] = useState(false);
@@ -257,8 +226,8 @@ export function SessionsView({
                   </div>
                   <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                     {entries.map(({ workout, microId }) => {
-                      const draft = labelDrafts[workout.id] || { title: '', block: '', week: '' };
                       const isWorkoutActive = activeWorkoutId === workout.id;
+                      const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
                       return (
                         <div
                           key={workout.id}
@@ -280,6 +249,8 @@ export function SessionsView({
                                 {workout.status} · {workout.tonnage}kg
                               </span>
                             </div>
+                            <p className="text-xs text-white truncate">{workout.title || 'Session'}</p>
+                            <p className="text-[10px] text-[#AEAEB2] truncate">{labels || 'No block/week'}</p>
                             <div className="flex flex-col gap-0.5">
                               {workout.exercises.map(ex => {
                                 const { planned, logged } = setLine(ex);
@@ -303,90 +274,14 @@ export function SessionsView({
                               })}
                             </div>
                           </button>
-                          <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-white/5">
-                            <label className="flex flex-col gap-0.5 min-w-[120px] flex-1">
-                              <span className="text-[10px] text-[#636366]">Title</span>
-                              <input
-                                type="text"
-                                data-testid={`sessions-title-${workout.id}`}
-                                value={draft.title}
-                                onChange={(e) => setLabelDrafts(prev => ({
-                                  ...prev,
-                                  [workout.id]: { ...draft, title: e.target.value },
-                                }))}
-                                className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                              />
-                            </label>
-                            <label className="flex flex-col gap-0.5">
-                              <span className="text-[10px] text-[#636366]">Block</span>
-                              <input
-                                type="text"
-                                data-testid={`sessions-block-${workout.id}`}
-                                value={draft.block}
-                                onChange={(e) => setLabelDrafts(prev => ({
-                                  ...prev,
-                                  [workout.id]: { ...draft, block: e.target.value },
-                                }))}
-                                className="h-7 w-20 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                              />
-                            </label>
-                            <label className="flex flex-col gap-0.5">
-                              <span className="text-[10px] text-[#636366]">Week</span>
-                              <input
-                                type="text"
-                                data-testid={`sessions-week-${workout.id}`}
-                                value={draft.week}
-                                onChange={(e) => setLabelDrafts(prev => ({
-                                  ...prev,
-                                  [workout.id]: { ...draft, week: e.target.value },
-                                }))}
-                                className="h-7 w-20 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => saveLabels(workout.id)}
-                              disabled={savingId === workout.id}
-                              className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
-                            >
-                              {savingId === workout.id ? 'Saving…' : 'Save'}
-                            </button>
-                            <button
-                              type="button"
-                              data-testid={`sessions-copy-lifts-${workout.id}`}
-                              onClick={() => handleCopySessions(`${workout.id}::lifts`, [workout.id], false, copyOffsetDays[key] ?? 7)}
-                              disabled={copyingKey === `${workout.id}::lifts`}
-                              className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
-                            >
-                              {copyingKey === `${workout.id}::lifts` ? 'Copying…' : 'Copy lifts'}
-                            </button>
-                            <button
-                              type="button"
-                              data-testid={`sessions-copy-logs-${workout.id}`}
-                              onClick={() => handleCopySessions(`${workout.id}::logs`, [workout.id], true, copyOffsetDays[key] ?? 7)}
-                              disabled={copyingKey === `${workout.id}::logs`}
-                              className="h-7 px-2 rounded bg-white/10 text-white text-[11px] hover:bg-white/15 disabled:opacity-50"
-                            >
-                              {copyingKey === `${workout.id}::logs` ? 'Copying…' : 'Copy with logs'}
-                            </button>
-                            <button
-                              type="button"
-                              data-testid={`sessions-delete-${workout.id}`}
-                              onClick={async () => {
-                                if (!window.confirm('Delete this session?')) return;
-                                try {
-                                  await apiService.deleteSession(workout.id);
-                                  await reloadMicrocycles(activeAthleteId);
-                                } catch (err) {
-                                  console.error(err);
-                                  alert('Failed to delete session');
-                                }
-                              }}
-                              className="h-7 px-2 rounded border border-[#FF453A]/40 text-[#FF453A] text-[11px]"
-                            >
-                              Delete
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            data-testid={`sessions-edit-${workout.id}`}
+                            onClick={() => setEditingSession(workout)}
+                            className="self-start h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
+                          >
+                            Edit
+                          </button>
                         </div>
                       );
                     })}
@@ -406,6 +301,20 @@ export function SessionsView({
           onCreated={async () => {
             await reloadMicrocycles(activeAthleteId);
             setShowNewSession(false);
+          }}
+        />
+      )}
+      {editingSession && (
+        <EditSessionDialog
+          session={editingSession}
+          onClose={() => setEditingSession(null)}
+          onSaved={async () => {
+            await reloadMicrocycles(activeAthleteId);
+            setEditingSession(null);
+          }}
+          onDeleted={async () => {
+            await reloadMicrocycles(activeAthleteId);
+            setEditingSession(null);
           }}
         />
       )}

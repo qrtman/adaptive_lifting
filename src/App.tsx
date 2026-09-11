@@ -15,6 +15,7 @@ import { SecurityView } from './components/SecurityView';
 import { CoachDashboardView } from './components/CoachDashboardView';
 import { isWorkoutLocked } from './types';
 import { AddLiftBar } from './components/AddLiftBar';
+import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
@@ -44,6 +45,7 @@ export default function App() {
   });
 
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
+  const [editSessionOpen, setEditSessionOpen] = useState(false);
 
   useEffect(() => {
     setUiPref(UI_KEYS.appView, currentView);
@@ -102,31 +104,6 @@ export default function App() {
       await reloadMicrocycles(activeAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to open session');
-    }
-  };
-
-  const handleSaveTitle = async (title: string) => {
-    if (!activeWorkout) return;
-    const next = title.trim() || 'Session';
-    if (next === activeWorkout.title) return;
-    try {
-      await apiService.updateSession(activeWorkout.id, { title: next });
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to rename session');
-    }
-  };
-
-  const handleSaveLabels = async (field: 'blockLabel' | 'weekLabel', value: string) => {
-    if (!activeWorkout) return;
-    const next = value.trim() || null;
-    const current = field === 'blockLabel' ? (activeWorkout.blockLabel || null) : (activeWorkout.weekLabel || null);
-    if (next === current) return;
-    try {
-      await apiService.updateSession(activeWorkout.id, { [field]: next ?? '' });
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save block/week');
     }
   };
 
@@ -202,53 +179,31 @@ export default function App() {
                   <div id="training-focus" className="min-h-7 flex flex-wrap items-center justify-between gap-2 px-1">
                     <div className="flex flex-wrap items-center gap-2 min-w-0">
                         <button 
-                          onClick={() => setCurrentView('dashboard')}
+                          onClick={() => {
+                            setEditSessionOpen(false);
+                            setCurrentView('dashboard');
+                          }}
                           className="text-xs text-[#AEAEB2] hover:text-white shrink-0"
                         >
                           Back
                         </button>
-                        <input
-                          type="text"
-                          data-testid="session-title"
-                          defaultValue={activeWorkout.title}
-                          key={activeWorkout.id + activeWorkout.title}
-                          onBlur={(e) => void handleSaveTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="h-7 min-w-0 flex-1 max-w-[220px] px-1.5 text-sm text-white bg-transparent border border-transparent hover:border-white/10 focus:border-white/20 rounded"
-                        />
+                        <p data-testid="session-name" className="text-sm text-white truncate max-w-[220px]">
+                          {activeWorkout.title}
+                        </p>
                         <p data-testid="workout-tonnage" className="text-[11px] text-[#AEAEB2] font-mono shrink-0">
                           {activeWorkout.tonnage}kg
                         </p>
-                        <input
-                          type="text"
-                          data-testid="session-block"
-                          defaultValue={activeWorkout.blockLabel || ''}
-                          key={`${activeWorkout.id}-block-${activeWorkout.blockLabel || ''}`}
-                          placeholder="Block"
-                          aria-label="Block"
-                          onBlur={(e) => void handleSaveLabels('blockLabel', e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                          }}
-                          className="h-7 w-20 px-1.5 text-[11px] text-white bg-transparent border border-white/10 rounded placeholder:text-[#636366]"
-                        />
-                        <input
-                          type="text"
-                          data-testid="session-week"
-                          defaultValue={activeWorkout.weekLabel || ''}
-                          key={`${activeWorkout.id}-week-${activeWorkout.weekLabel || ''}`}
-                          placeholder="Week"
-                          aria-label="Week"
-                          onBlur={(e) => void handleSaveLabels('weekLabel', e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                          }}
-                          className="h-7 w-20 px-1.5 text-[11px] text-white bg-transparent border border-white/10 rounded placeholder:text-[#636366]"
-                        />
+                        <p data-testid="session-labels" className="text-[11px] text-[#AEAEB2] truncate">
+                          {[activeWorkout.blockLabel, activeWorkout.weekLabel].filter(Boolean).join(' · ') || 'No block/week'}
+                        </p>
+                        <button
+                          type="button"
+                          data-testid="session-edit"
+                          onClick={() => setEditSessionOpen(true)}
+                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
+                        >
+                          Edit
+                        </button>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
@@ -324,6 +279,21 @@ export default function App() {
                       onAdded={() => reloadMicrocycles(activeAthleteId)}
                     />
                   </div>
+                  {editSessionOpen && (
+                    <EditSessionDialog
+                      session={activeWorkout}
+                      onClose={() => setEditSessionOpen(false)}
+                      onSaved={async () => {
+                        await reloadMicrocycles(activeAthleteId);
+                        setEditSessionOpen(false);
+                      }}
+                      onDeleted={async () => {
+                        await reloadMicrocycles(activeAthleteId);
+                        setEditSessionOpen(false);
+                        setCurrentView('dashboard');
+                      }}
+                    />
+                  )}
                 </>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20">

@@ -34,8 +34,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
-  await expect(page.getByTestId('session-block')).toHaveValue('Hypertrophy');
-  await expect(page.getByTestId('session-week')).toHaveValue('Week1');
+  await expect(page.getByTestId('session-labels')).toHaveText('Hypertrophy · Week1');
+  await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Back' }).click();
   await day.hover();
   await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
@@ -48,13 +48,14 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(copiedCard).toContainText('Hypertrophy · Week1');
 
   await copiedCard.click();
-  await expect(page.getByTestId('session-block')).toHaveValue('Hypertrophy');
+  await expect(page.getByTestId('session-labels')).toHaveText('Hypertrophy · Week1');
+  await page.getByTestId('session-edit').click();
+  await expect(page.getByTestId('edit-session-dialog')).toBeVisible();
   await page.getByTestId('session-block').fill('Meet');
-  await page.getByTestId('session-block').blur();
   await page.getByTestId('session-week').fill('Week2');
-  await page.getByTestId('session-week').blur();
-  await expect(page.getByTestId('session-block')).toHaveValue('Meet');
-  await expect(page.getByTestId('session-week')).toHaveValue('Week2');
+  await page.getByTestId('edit-session-save').click();
+  await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('session-labels')).toHaveText('Meet · Week2');
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(copiedCard).toContainText('Meet · Week2');
 });
