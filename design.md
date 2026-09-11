@@ -113,7 +113,7 @@ The design system follows three product principles:
 | :--- | :--- | :--- | :--- |
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
-| Calendar workspace | Coach / Athlete | Date-first session timeline | Sessions appear by date regardless of labels; empty month allowed |
+| Calendar workspace | Coach / Athlete | Date-first session timeline | Click a day to open the session. Empty days create one. No invented W1-D labels. Optional week labels only if set. |
 | Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Finished sessions are read-only until Open. |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; labels editable anytime |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
@@ -1879,6 +1879,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
+- [ ] Clicking a calendar day opens the session (empty day creates one). No stub “logger” panel. No invented W1-D chips.
 - [ ] Block/Week labels can be set or changed anytime (including after create).
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.

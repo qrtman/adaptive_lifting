@@ -1,27 +1,25 @@
 import { expect, test } from '@playwright/test';
-import { html5Drag, signInCoach } from './helpers';
 
-test.describe('calendar drag and drop', () => {
-  test.beforeEach(async ({ page }) => {
-    await signInCoach(page, {
-      al_dashboard_mode: 'calendar',
-      al_app_view: 'dashboard',
-    });
-    await page.goto('/');
-    await page.getByTestId('nav-calendar').click();
-    await expect(page.getByTestId('workout-card-w-1-1')).toBeVisible();
-  });
+test.use({ baseURL: 'http://localhost:3000' });
 
-  test('moves a workout within the same microcycle week', async ({ page }) => {
-    await html5Drag(page, 'workout-card-w-1-1', 'calendar-day-2026-09-03');
-    await expect(page.getByTestId('calendar-day-2026-09-03').getByTestId('workout-card-w-1-1')).toBeVisible();
+test('clicking a calendar day opens the session', async ({ page, request }) => {
+  const email = `cal-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
   });
+  expect(register.ok()).toBeTruthy();
 
-  test('rejects a drop across a microcycle week boundary', async ({ page }) => {
-    await html5Drag(page, 'workout-card-w-1-1', 'calendar-day-2026-09-08');
-    await expect(page.getByTestId('calendar-boundary-lock')).toBeVisible();
-    await expect(page.getByTestId('calendar-boundary-lock')).toContainText('Periodization Boundary Lock');
-    await expect(page.getByTestId('calendar-day-2026-09-02').getByTestId('workout-card-w-1-1')).toBeVisible();
-    await expect(page.getByTestId('calendar-day-2026-09-08').getByTestId('workout-card-w-1-1')).toHaveCount(0);
-  });
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Calendar' }).click();
+  await page.getByTestId('calendar-day-2026-09-04').click();
+
+  await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  await expect(page.getByTestId('add-lift-squat')).toBeVisible();
+  await expect(page.getByText('Focus brace and bar path')).toHaveCount(0);
+  await expect(page.getByText('Open logger')).toHaveCount(0);
 });

@@ -1508,7 +1508,7 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | Use IndexedDB for offline queueing instead of LocalStorage | Accepted | Structured mutation queues need durability, larger capacity, and safer record-level recovery. |
 | Drop leftover Obsidian / Iron Box LocalStorage workout keys | Accepted | Early placeholders stored workout trees in LocalStorage. Canonical offline store is IndexedDB only. |
 | Keep backend math canonical while duplicating formulas on frontend | Accepted | Athletes need instant feedback, but persisted analytics must be server-authoritative. |
-| Enforce microcycle boundary locks on client and server | Accepted | Chronological workload metrics fail if workouts silently move across week boundaries. |
+| Enforce microcycle boundary locks on client and server | Accepted for labeled week groups only | Unlabeled sessions move by date. Do not invent Mon–Sun week boxes. |
 | Start with SQLite for deployment simplicity | Accepted | The initial target is single-coach or small-team deployment; PostgreSQL migration is reserved for multi-tenant SaaS. |
 | Use mutation IDs for offline sync idempotency | Accepted | Mobile reconnects and retries must not duplicate set logs or inflate workload metrics. |
 | Store lifecycle statuses as enums | Accepted | Analytics, filtering, and exports need stable machine values independent of UI copy. Mesocycle and microcycle stop at `COMPLETED`; workout uses `PLANNED`, `IN_PROGRESS`, `COMPLETED`, and `MISSED`. |

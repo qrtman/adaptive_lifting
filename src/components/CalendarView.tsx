@@ -11,19 +11,6 @@ import { usePeriodization } from '../contexts/PeriodizationContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 
-const getMondayOfDate = (dateStr: string) => {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const d = new Date(year, month - 1, day);
-  const dayOfWeek = d.getDay();
-  const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-  const monDate = new Date(year, month - 1, diffToMon);
-  
-  const y = monDate.getFullYear();
-  const m = String(monDate.getMonth() + 1).padStart(2, '0');
-  const r = String(monDate.getDate()).padStart(2, '0');
-  return `${y}-${m}-${r}`;
-};
-
 interface CalendarViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
   filter: LiftFilterValue;
@@ -47,10 +34,7 @@ export function CalendarView({
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
   const [draggedFromMicrocycleId, setDraggedFromMicrocycleId] = useState<string | null>(null);
   const dragPayloadRef = useRef<{ workoutId: string; microId: string } | null>(null);
-  const [boundaryLockVisible, setBoundaryLockVisible] = useState(false);
-  const [boundaryFlashDate, setBoundaryFlashDate] = useState<string | null>(null);
-  
-  // Conflict Prompt states
+
   const [conflictModal, setConflictModal] = useState<{
     workout: WorkoutData;
     sourceMicroId: string;
@@ -59,11 +43,7 @@ export function CalendarView({
     conflictType: 'overlap' | 'periodization_breach' | 'normal';
   } | null>(null);
 
-  // Added state for high-fidelity Stitch Side Panel Session Analysis
-  const [selectedWorkout, setSelectedWorkout] = useState<{ workout: WorkoutData; microId: string } | null>(null);
   const [creatingDate, setCreatingDate] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [copyingKey, setCopyingKey] = useState<string | null>(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -155,67 +135,20 @@ export function CalendarView({
     if (showCoachSelectAthlete || creatingDate) return;
     setCreatingDate(dateStr);
     try {
-      await apiService.createSession({
+      const created = await apiService.createSession({
         date: dateStr,
         title: 'Session',
         athleteId: activeAthleteId || undefined,
       });
       await reloadMicrocycles(activeAthleteId);
+      if (created.microcycleId) {
+        onViewSession(created, created.microcycleId);
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to add session');
     } finally {
       setCreatingDate(null);
-    }
-  };
-
-  const handleCopySession = async (sessionId: string, includeLogs: boolean) => {
-    const copyKey = `${sessionId}::${includeLogs ? 'logs' : 'lifts'}`;
-    setCopyingKey(copyKey);
-    try {
-      await apiService.copyWeek({
-        sessionIds: [sessionId],
-        athleteId: activeAthleteId || undefined,
-        dateOffsetDays: 7,
-        includeLogs,
-      });
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to copy session');
-    } finally {
-      setCopyingKey(null);
-    }
-  };
-
-  const handleSaveTitle = async (sessionId: string, title: string) => {
-    const next = title.trim() || 'Session';
-    try {
-      await apiService.updateSession(sessionId, { title: next });
-      setSelectedWorkout((prev) =>
-        prev && prev.workout.id === sessionId
-          ? { ...prev, workout: { ...prev.workout, title: next } }
-          : prev
-      );
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to rename session');
-    }
-  };
-
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!window.confirm('Delete this session?')) return;
-    setDeletingId(sessionId);
-    try {
-      await apiService.deleteSession(sessionId);
-      setSelectedWorkout(null);
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to delete session');
-    } finally {
-      setDeletingId(null);
     }
   };
 
@@ -258,40 +191,20 @@ export function CalendarView({
     const sourceDateStr = (targetWorkout as WorkoutData).date;
     if (sourceDateStr === targetDate) return; // Dropped on same day
 
-    // Restrict dragging across microcycle boundaries to preserve periodization integrity
-    const dropMon = getMondayOfDate(targetDate);
-    const origMon = getMondayOfDate(sourceDateStr);
-
-    if (dropMon !== origMon) {
-      setBoundaryLockVisible(true);
-      setBoundaryFlashDate(sourceDateStr);
-      dragPayloadRef.current = null;
-      setDraggedWorkoutId(null);
-      setDraggedFromMicrocycleId(null);
-      return;
-    }
-
     const sourceDate = new Date(sourceDateStr);
     const dropDate = new Date(targetDate);
     const diffTime = Math.abs(dropDate.getTime() - sourceDate.getTime());
     const daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) * (dropDate > sourceDate ? 1 : -1);
 
-    // Look for scheduling conflict (workout on the same target date)
     const existingWorkoutOnTarget = workoutList.find(item => item.workout.date === targetDate);
-    
-    const currentMicro = microcycles.find(m => m.id === microId);
-    const isPeriodizationBreach = Boolean(currentMicro && Math.abs(daysDiff) > 7);
 
-    setBoundaryLockVisible(false);
-    setBoundaryFlashDate(null);
-
-    if (existingWorkoutOnTarget || isPeriodizationBreach || Math.abs(daysDiff) > 3) {
+    if (existingWorkoutOnTarget) {
       setConflictModal({
         workout: targetWorkout,
         sourceMicroId: microId,
         newDate: targetDate,
         daysDiff: daysDiff,
-        conflictType: existingWorkoutOnTarget ? 'overlap' : 'periodization_breach'
+        conflictType: 'overlap'
       });
     } else {
       executeMove(targetWorkout, microId, targetDate, false, 0);
@@ -352,52 +265,6 @@ export function CalendarView({
     setDraggedFromMicrocycleId(null);
   };
 
-  // Helper to fetch microcycle visual specs based on index
-  const getMicrocycleColorInfo = (microIdx: number) => {
-    switch (microIdx) {
-      case 0: // Microcycle 1: Jade
-        return {
-          borderClass: "border-[#54e083]",
-          bgClass: "bg-[#54e083]/5",
-          textClass: "text-[#54e083]",
-          labelBg: "bg-[#54e083]/15 text-[#54e083] border border-[#54e083]/20",
-          accentColor: "#54e083"
-        };
-      case 1: // Microcycle 2: RTS Comp Blue
-        return {
-          borderClass: "border-[#007aff]",
-          bgClass: "bg-[#007aff]/5",
-          textClass: "text-[#007aff]",
-          labelBg: "bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/20",
-          accentColor: "#007aff"
-        };
-      case 2: // Microcycle 3: Supercompensation Green
-        return {
-          borderClass: "border-[#53e16f]",
-          bgClass: "bg-[#53e16f]/5",
-          textClass: "text-[#53e16f]",
-          labelBg: "bg-[#53e16f]/15 text-[#53e16f] border border-[#53e16f]/20",
-          accentColor: "#53e16f"
-        };
-      case 3: // Microcycle 4: CNS Warning Orange
-        return {
-          borderClass: "border-[#F5A623]",
-          bgClass: "bg-[#F5A623]/5",
-          textClass: "text-[#F5A623]",
-          labelBg: "bg-[#F5A623]/15 text-[#F5A623] border border-[#F5A623]/20",
-          accentColor: "#F5A623"
-        };
-      default:
-        return {
-          borderClass: "border-[#20201F]",
-          bgClass: "bg-white/[0.01]",
-          textClass: "text-gray-400",
-          labelBg: "bg-white/5 text-gray-400 border border-white/5",
-          accentColor: "#20201F"
-        };
-    }
-  };
-
   const triggerHaptic = () => {
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(10);
@@ -445,17 +312,7 @@ export function CalendarView({
         <>
 
         {workoutList.length === 0 && (
-          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Click an empty day to add one.</p>
-        )}
-
-        {boundaryLockVisible && (
-          <div
-            data-testid="calendar-boundary-lock"
-            role="alert"
-            className="border border-[#FF453A]/50 bg-[#FF453A]/10 text-[#FF453A] px-3 py-1.5 rounded font-mono text-xs"
-          >
-            Periodization Boundary Lock: Workouts cannot be dragged across microcycle week boundaries.
-          </div>
+          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Click a day to open one.</p>
         )}
 
         {/* Calendar Grid Container */}
@@ -548,25 +405,6 @@ export function CalendarView({
                             const dateStr = cell.dateString;
                             const dayWorkouts = workoutList.filter(item => item.workout.date === dateStr);
 
-                            // Day label & rank calculation for workouts
-                            let labelMicro: (typeof microcycles)[0] | null = null;
-                            let workoutRankInMicro = 0;
-                            let labelColorInfo = {
-                              labelBg: "bg-white/5 text-[#AEAEB2] border border-white/10",
-                            };
-
-                            if (dayWorkouts.length > 0) {
-                              const firstW = dayWorkouts[0];
-                              const wMicro = microcycles.find(m => m.id === firstW.microId);
-                              if (wMicro) {
-                                labelMicro = wMicro;
-                                const labelMicroIdx = microcycles.findIndex(m => m.id === wMicro.id);
-                                labelColorInfo = getMicrocycleColorInfo(labelMicroIdx);
-                                const sortedW = [...wMicro.workouts].sort((a, b) => a.date.localeCompare(b.date));
-                                workoutRankInMicro = sortedW.findIndex(w => w.id === firstW.workout.id) + 1;
-                              }
-                            }
-
                             return (
                               <div
                                 key={dateStr}
@@ -577,23 +415,20 @@ export function CalendarView({
                                   if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
                                   if (dayWorkouts.length === 0) {
                                     void handleCreateOnDate(dateStr);
+                                  } else if (dayWorkouts.length === 1) {
+                                    onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
                                   }
                                 }}
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative group cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : ''
                                 } ${
-                                  boundaryFlashDate === dateStr ? 'ring-2 ring-[#FF453A] bg-[#FF453A]/10' : ''
+                                  creatingDate === dateStr ? 'ring-1 ring-[#007AFF]' : ''
                                 }`}
                               >
                                 <div className="flex items-center gap-1.5 relative z-10 mb-1">
                                   <span className="font-mono text-[11px] text-[#AEAEB2]">
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
-                                  {labelMicro && workoutRankInMicro > 0 && (
-                                    <span className={`font-mono text-[9px] px-1 rounded ${labelColorInfo.labelBg}`}>
-                                      W{microcycles.indexOf(labelMicro) + 1}·D{workoutRankInMicro}
-                                    </span>
-                                  )}
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
                                   .filter(item => {
@@ -607,7 +442,6 @@ export function CalendarView({
                                     return false;
                                   })
                                   .map(({ workout, microId }) => {
-                                    const isSelected = selectedWorkout?.workout.id === workout.id;
                                     return (
                                       <div
                                         key={workout.id}
@@ -617,25 +451,30 @@ export function CalendarView({
                                         onDragStart={(e) => handleDragStart(e, workout.id, microId)}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setSelectedWorkout({ workout, microId });
+                                          onViewSession(workout, microId);
                                         }}
-                                        className={`mt-1 border rounded flex flex-col overflow-hidden relative z-10 p-1.5 gap-0.5 cursor-grab active:cursor-grabbing ${
-                                          isSelected 
-                                            ? 'bg-[#1C1C1E] border-[#007AFF]' 
-                                            : 'bg-[#161616] border-white/10 hover:border-white/20'
-                                        }`}
+                                        className="mt-1 border rounded flex flex-col overflow-hidden relative z-10 p-1.5 gap-0.5 cursor-pointer bg-[#161616] border-white/10 hover:border-white/20"
                                       >
+                                        {workout.weekLabel ? (
+                                          <span className="font-mono text-[9px] text-[#AEAEB2] truncate">{workout.weekLabel}</span>
+                                        ) : null}
                                         <div className="flex flex-col gap-0.5">
+                                          {workout.exercises.length === 0 && (
+                                            <span className="text-[10px] text-[#AEAEB2] truncate">{workout.title || 'Session'}</span>
+                                          )}
                                           {workout.exercises.map((ex) => {
                                             const isSquat = ex.title.toLowerCase().includes('squat');
                                             const isBench = ex.title.toLowerCase().includes('bench');
-                                            const movementName = isSquat ? 'SQ' : (isBench ? 'BP' : 'DL');
+                                            const isDead = ex.title.toLowerCase().includes('deadlift') || ex.title.toLowerCase().includes('dead');
+                                            const movementName = isSquat ? 'SQ' : (isBench ? 'BP' : (isDead ? 'DL' : ex.title.slice(0, 3).toUpperCase()));
                                             
                                             const movementColorClass = isSquat 
                                               ? 'text-[#007aff]'
                                               : (isBench 
                                                 ? 'text-[#54e083]'
-                                                : 'text-[#F5A623]');
+                                                : isDead
+                                                ? 'text-[#F5A623]'
+                                                : 'text-[#AEAEB2]');
                                             
                                             const targetSet = ex.sets[0];
                                             const plannedW = targetSet?.plannedWeight || '—';
@@ -683,183 +522,11 @@ export function CalendarView({
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
           </div>
-          <span className="font-mono truncate">Drag within microcycle week · boundary lock across weeks</span>
+          <span className="truncate">Click a day to open the session</span>
         </div>
         </>
         )}
       </div>
-
-      {/* Slide-out Session Analysis Side Panel (Stitch Premium Detail View Refinement) */}
-      <AnimatePresence>
-        {selectedWorkout && (
-          <motion.aside
-            initial={{ x: 450, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 450, opacity: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 220 }}
-            className="w-[360px] border-l border-white/10 bg-[#131313] flex flex-col z-20 h-full shrink-0"
-          >
-            <div className="px-3 py-2 border-b border-white/10 flex justify-between items-start gap-2">
-              <div className="min-w-0">
-                <h3 className="text-sm text-white truncate">
-                  <input
-                    type="text"
-                    data-testid="calendar-session-title"
-                    defaultValue={selectedWorkout.workout.title}
-                    key={selectedWorkout.workout.id + selectedWorkout.workout.title}
-                    onBlur={(e) => void handleSaveTitle(selectedWorkout.workout.id, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    }}
-                    className="w-full bg-transparent text-sm text-white border border-transparent hover:border-white/10 focus:border-white/20 rounded px-0.5"
-                  />
-                </h3>
-                <div className="flex gap-2 mt-0.5 items-center text-[11px] font-mono text-[#AEAEB2]">
-                  <span>{selectedWorkout.workout.date}</span>
-                  <span className={
-                    isWorkoutCompleted(selectedWorkout.workout.status) ? 'text-[#54e083]' : ''
-                  }>
-                    {selectedWorkout.workout.status}
-                  </span>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedWorkout(null)}
-                className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white"
-              >
-                <span className="material-symbols-outlined !text-[18px]">close</span>
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              <div className="h-8 px-2 flex items-center justify-between gap-3 border border-white/10 rounded text-[11px] font-mono">
-                <span className="text-[#AEAEB2]">Vol <span className="text-white">{selectedWorkout.workout.tonnage.toLocaleString()}kg</span></span>
-                <span className="text-[#AEAEB2]">Sets <span className="text-white">{selectedWorkout.workout.exercises.reduce((n, e) => n + e.sets.length, 0)}</span></span>
-                <span className="text-[#AEAEB2]">Lifts <span className="text-white">{selectedWorkout.workout.exercises.length}</span></span>
-              </div>
-
-              <div className="border border-white/10 rounded overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="px-2 py-1.5 font-mono text-[10px] text-[#AEAEB2] font-normal">Exercise</th>
-                      <th className="px-2 py-1.5 font-mono text-[10px] text-[#AEAEB2] font-normal">Target</th>
-                      <th className="px-2 py-1.5 font-mono text-[10px] text-[#AEAEB2] font-normal text-right">Actual</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-mono text-[11px]">
-                    {selectedWorkout.workout.exercises.map((ex) => {
-                      const targetSet = ex.sets[0];
-                      const plannedW = targetSet?.plannedWeight || '—';
-                      const plannedR = targetSet?.plannedReps || '—';
-                      const plannedRp = targetSet?.plannedRpe || '—';
-                      
-                      const actualW = targetSet?.actual || '';
-                      const actualR = targetSet?.reps || '';
-                      const actualRp = targetSet?.executedRpe || '';
-
-                      return (
-                        <tr key={ex.id} className="border-b border-white/5 last:border-0">
-                          <td className="px-2 py-1.5 text-white truncate max-w-[110px]">{ex.title}</td>
-                          <td className="px-2 py-1.5 text-[#AEAEB2] whitespace-nowrap">{plannedW}×{plannedR}@{plannedRp}</td>
-                          <td className="px-2 py-1.5 text-right text-[#54e083] whitespace-nowrap">
-                            {actualW ? `${actualW}×${actualR}@${actualRp}` : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <p className="text-[11px] text-[#AEAEB2] leading-snug px-0.5">
-                {isWorkoutCompleted(selectedWorkout.workout.status) 
-                  ? "Logged session. Open logger to review or adjust sets."
-                  : "Focus brace and bar path. Open logger to record sets."}
-              </p>
-            </div>
-
-            <div className="p-2 border-t border-white/10 flex gap-1.5">
-              <button 
-                onClick={() => onViewSession(selectedWorkout.workout, selectedWorkout.microId)}
-                onMouseDown={triggerHaptic}
-                className="flex-1 h-8 bg-[#007AFF] hover:bg-[#0066d6] text-white text-xs rounded"
-              >
-                Open session
-              </button>
-              <button
-                type="button"
-                data-testid="calendar-copy-lifts"
-                onClick={() => void handleCopySession(selectedWorkout.workout.id, false)}
-                disabled={copyingKey === `${selectedWorkout.workout.id}::lifts`}
-                className="h-8 px-2 border border-white/10 text-white text-xs rounded disabled:opacity-50"
-              >
-                {copyingKey === `${selectedWorkout.workout.id}::lifts` ? 'Copying…' : 'Copy lifts'}
-              </button>
-              <button
-                type="button"
-                data-testid="calendar-copy-logs"
-                onClick={() => void handleCopySession(selectedWorkout.workout.id, true)}
-                disabled={copyingKey === `${selectedWorkout.workout.id}::logs`}
-                className="h-8 px-2 border border-white/10 text-white text-xs rounded disabled:opacity-50"
-              >
-                {copyingKey === `${selectedWorkout.workout.id}::logs` ? 'Copying…' : 'Copy with logs'}
-              </button>
-              <button
-                type="button"
-                data-testid="calendar-delete-session"
-                onClick={() => void handleDeleteSession(selectedWorkout.workout.id)}
-                disabled={deletingId === selectedWorkout.workout.id}
-                className="h-8 px-2 border border-[#FF453A]/40 text-[#FF453A] text-xs rounded disabled:opacity-50"
-              >
-                {deletingId === selectedWorkout.workout.id ? 'Deleting…' : 'Delete'}
-              </button>
-              <button 
-                onClick={async () => {
-                  try {
-                    const blob = await apiService.downloadExportCSV(filter);
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `adaptive_lifting_export_${filter.toLowerCase()}.csv`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
-                  } catch (err) {
-                    alert('Failed to download CSV export. Please check server connection.');
-                  }
-                }}
-                onMouseDown={triggerHaptic}
-                className="h-8 px-2 border border-white/10 text-[#54e083] text-xs rounded"
-              >
-                CSV
-              </button>
-              <button 
-                onClick={async () => {
-                  try {
-                    const blob = await apiService.downloadExportJSON();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'adaptive_lifting_export.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
-                  } catch (err) {
-                    alert('Failed to download JSON export. Please check server connection.');
-                  }
-                }}
-                onMouseDown={triggerHaptic}
-                className="h-8 px-2 border border-white/10 text-[#007AFF] text-xs rounded"
-              >
-                JSON
-              </button>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
 
       {/* Conflict Decision Modal */}
       <AnimatePresence>
