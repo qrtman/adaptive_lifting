@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -9,8 +9,8 @@ import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { NewSessionDialog } from './NewSessionDialog';
-import { CopyToDialog } from './CopyToDialog';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { apiService } from '../services/api';
 
 interface CalendarViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
@@ -47,6 +47,9 @@ export function CalendarView({
   const [newSessionDate, setNewSessionDate] = useState<string | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [copySource, setCopySource] = useState<WorkoutData | null>(null);
+  const [copyWithLogs, setCopyWithLogs] = useState(false);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -135,9 +138,52 @@ export function CalendarView({
   };
 
   const openNewSession = (dateStr: string) => {
-    if (showCoachSelectAthlete) return;
+    if (showCoachSelectAthlete || copySource) return;
     setNewSessionDate(dateStr);
   };
+
+  const cancelCopyTo = () => {
+    setCopySource(null);
+    setCopyBusy(false);
+    setCopyError(null);
+  };
+
+  const copyToDate = async (dateStr: string) => {
+    if (!copySource || copyBusy || showCoachSelectAthlete) return;
+    if (dateStr === copySource.date) {
+      setCopyError('Pick a different day.');
+      return;
+    }
+    setCopyBusy(true);
+    setCopyError(null);
+    const start = new Date(`${copySource.date}T00:00:00`);
+    const end = new Date(`${dateStr}T00:00:00`);
+    const offset = Math.round((end.getTime() - start.getTime()) / 86400000);
+    try {
+      await apiService.copyWeek({
+        sessionIds: [copySource.id],
+        athleteId: activeAthleteId || undefined,
+        dateOffsetDays: offset,
+        targetBlockLabel: copySource.blockLabel ?? null,
+        targetWeekLabel: copySource.weekLabel ?? null,
+        includeLogs: copyWithLogs,
+      });
+      await reloadMicrocycles(activeAthleteId);
+      cancelCopyTo();
+    } catch (err) {
+      setCopyError(err instanceof Error ? err.message : 'Failed to copy');
+      setCopyBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!copySource) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelCopyTo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [copySource]);
 
   const readDragPayload = (e: React.DragEvent): { workoutId: string; microId: string } | null => {
     if (dragPayloadRef.current) return dragPayloadRef.current;
@@ -298,8 +344,47 @@ export function CalendarView({
         ) : (
         <>
 
-        {workoutList.length === 0 && (
+        {workoutList.length === 0 && !copySource && (
           <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day — New session appears.</p>
+        )}
+
+        {copySource && (
+          <div
+            data-testid="copy-to-banner"
+            className="min-h-8 px-2 py-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-white bg-[#007AFF]/15 border border-[#007AFF]/40 rounded"
+          >
+            <span className="truncate">
+              Copy {copySource.title} — click a day
+              {copyBusy ? ' · Copying…' : ''}
+              {copyError ? ` · ${copyError}` : ''}
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                data-testid="copy-to-lifts"
+                onClick={() => setCopyWithLogs(false)}
+                className={`h-6 px-2 rounded ${!copyWithLogs ? 'bg-white/20' : 'text-[#AEAEB2]'}`}
+              >
+                Lifts only
+              </button>
+              <button
+                type="button"
+                data-testid="copy-to-logs"
+                onClick={() => setCopyWithLogs(true)}
+                className={`h-6 px-2 rounded ${copyWithLogs ? 'bg-white/20' : 'text-[#AEAEB2]'}`}
+              >
+                With logs
+              </button>
+              <button
+                type="button"
+                data-testid="copy-to-cancel"
+                onClick={cancelCopyTo}
+                className="h-6 px-2 text-[#AEAEB2] hover:text-white"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Calendar Grid Container */}
@@ -404,6 +489,10 @@ export function CalendarView({
                                 onMouseLeave={() => setHoveredDate((current) => current === dateStr ? null : current)}
                                 onClick={() => {
                                   if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
+                                  if (copySource) {
+                                    void copyToDate(dateStr);
+                                    return;
+                                  }
                                   if (dayWorkouts.length === 1) {
                                     onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
                                   }
@@ -411,7 +500,11 @@ export function CalendarView({
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : 'hover:border-white/25 hover:bg-[#161616]'
                                 } ${
-                                  newSessionDate === dateStr || hoveredDate === dateStr ? 'ring-1 ring-[#007AFF] border-[#007AFF]/40' : ''
+                                  copySource && cell.isCurrentMonth && dateStr !== copySource.date ? 'ring-1 ring-[#007AFF]/50' : ''
+                                } ${
+                                  copySource && dateStr === copySource.date ? 'ring-1 ring-white/30' : ''
+                                } ${
+                                  !copySource && (newSessionDate === dateStr || hoveredDate === dateStr) ? 'ring-1 ring-[#007AFF] border-[#007AFF]/40' : ''
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
@@ -440,6 +533,10 @@ export function CalendarView({
                                         onDragStart={(e) => handleDragStart(e, workout.id, microId)}
                                         onClick={(e) => {
                                           e.stopPropagation();
+                                          if (copySource) {
+                                            void copyToDate(dateStr);
+                                            return;
+                                          }
                                           onViewSession(workout, microId);
                                         }}
                                         className="mt-1 border rounded flex flex-col overflow-hidden relative z-10 p-1.5 gap-0.5 cursor-pointer bg-[#161616] border-white/10 hover:border-white/20"
@@ -493,7 +590,7 @@ export function CalendarView({
                                       </div>
                                     );
                                   })}
-                                {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && (
+                                {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copySource && (
                                   <div className="mt-auto pt-1 flex flex-col gap-1">
                                     <button
                                       type="button"
@@ -512,6 +609,8 @@ export function CalendarView({
                                         data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
                                         onClick={(event) => {
                                           event.stopPropagation();
+                                          setCopyWithLogs(false);
+                                          setCopyError(null);
                                           setCopySource(dayWorkouts[0].workout);
                                         }}
                                         className="h-7 w-full px-1.5 text-[11px] text-white bg-white/15 rounded"
@@ -539,7 +638,7 @@ export function CalendarView({
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
           </div>
-          <span className="truncate">Hover a day · New session</span>
+          <span className="truncate">{copySource ? 'Click a day to drop the copy' : 'Hover a day · New session'}</span>
         </div>
         </>
         )}
@@ -556,17 +655,6 @@ export function CalendarView({
             const match = workoutList.find((item) => item.workout.id === created.id);
             const microId = created.microcycleId || match?.microId;
             if (microId) onViewSession({ id: created.id } as WorkoutData, microId);
-          }}
-        />
-      )}
-      {copySource && (
-        <CopyToDialog
-          source={copySource}
-          athleteId={activeAthleteId}
-          onClose={() => setCopySource(null)}
-          onCopied={async () => {
-            await reloadMicrocycles(activeAthleteId);
-            setCopySource(null);
           }}
         />
       )}

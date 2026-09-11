@@ -35,4 +35,9 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByRole('button', { name: 'Back' }).click();
   await day.hover();
   await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
+  await page.getByRole('button', { name: 'Copy to' }).click();
+  await expect(page.getByTestId('copy-to-banner')).toBeVisible();
+  await page.getByTestId('calendar-day-2026-09-11').click();
+  await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
+  await expect(page.getByTestId('calendar-day-2026-09-11').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
 });
