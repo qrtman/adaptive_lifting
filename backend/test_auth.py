@@ -252,3 +252,53 @@ def test_add_lift_to_empty_session():
     match = next(w for w in workouts if w["id"] == sid)
     assert len(match["exercises"]) == 1
     assert match["exercises"][0]["title"] == "Squat"
+
+
+def test_remove_lift_from_session():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Session"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    )
+    bench = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Bench", "liftCategory": "Bench"},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    assert bench.status_code == 200
+    squat_id = squat.json()["id"]
+
+    removed = client.delete(f"/api/sessions/{sid}/exercises/{squat_id}", cookies=cookies)
+    assert removed.status_code == 200
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    match = next(w for w in workouts if w["id"] == sid)
+    titles = [e["title"] for e in match["exercises"]]
+    assert titles == ["Bench"]
+
+    missing = client.delete(f"/api/sessions/{sid}/exercises/{squat_id}", cookies=cookies)
+    assert missing.status_code == 404
+
+    locked = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert locked.status_code == 200
+    blocked = client.delete(
+        f"/api/sessions/{sid}/exercises/{bench.json()['id']}",
+        cookies=cookies,
+    )
+    assert blocked.status_code == 409

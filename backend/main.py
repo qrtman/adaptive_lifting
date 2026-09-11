@@ -426,9 +426,15 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
 
 # --- Response Formatting Helpers ---
 
+def is_live(entity) -> bool:
+    return getattr(entity, "deleted_at", None) is None
+
+
 def format_exercise(e: Exercise) -> dict:
     sets_list = []
     for s in sorted(e.sets, key=lambda x: (x.lexo_rank or "", x.id)):
+        if not is_live(s):
+            continue
         set_dict = {
             "id": s.id,
             "label": s.label,
@@ -472,6 +478,7 @@ def format_microcycle(mc: Microcycle) -> dict:
         exercises_list = [
             format_exercise(e)
             for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
+            if is_live(e)
         ]
 
         workouts_list.append({
@@ -1391,6 +1398,8 @@ def clone_session_prescription(db: Session, source: Workout, new_date: str, bloc
     db.add(clone)
     db.flush()
     for exercise in sorted(source.exercises, key=lambda item: (item.lexo_rank or "", item.id)):
+        if not is_live(exercise):
+            continue
         cloned_exercise = Exercise(
             id=f"e-{uuid.uuid4().hex[:10]}",
             lexo_rank=exercise.lexo_rank or "a0",
@@ -1406,6 +1415,8 @@ def clone_session_prescription(db: Session, source: Workout, new_date: str, bloc
         db.add(cloned_exercise)
         db.flush()
         for exercise_set in sorted(exercise.sets, key=lambda item: (item.lexo_rank or "", item.id)):
+            if not is_live(exercise_set):
+                continue
             db.add(ExerciseSet(
                 id=f"s-{uuid.uuid4().hex[:10]}",
                 lexo_rank=exercise_set.lexo_rank or "a0",
@@ -1546,7 +1557,7 @@ def add_session_exercise(
     )
     tags = [lift_category] if lift_category != "Other" else ([tier] if tier == "Accessory" else [])
 
-    existing_count = len(workout.exercises or [])
+    existing_count = len([e for e in (workout.exercises or []) if is_live(e)])
     exercise = Exercise(
         id=f"e-{uuid.uuid4().hex[:10]}",
         lexo_rank=f"a{existing_count}",
@@ -1581,6 +1592,26 @@ def add_session_exercise(
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
+
+
+@app.delete("/api/sessions/{session_id}/exercises/{exercise_id}")
+def remove_session_exercise(
+    session_id: str,
+    exercise_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+    exercise = next((e for e in (workout.exercises or []) if e.id == exercise_id and is_live(e)), None)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Lift not found")
+    now = datetime.utcnow()
+    exercise.deleted_at = now
+    for exercise_set in exercise.sets or []:
+        if is_live(exercise_set):
+            exercise_set.deleted_at = now
+    db.commit()
+    return {"status": "success", "id": exercise_id}
 
 
 @app.patch("/api/sessions/{session_id}")

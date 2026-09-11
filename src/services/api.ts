@@ -579,6 +579,18 @@ export const apiService = {
     return await response.json();
   },
 
+  async removeSessionExercise(sessionId: string, exerciseId: string): Promise<{ status: string; id: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to remove lift');
+    }
+    return await response.json();
+  },
+
   async deleteSession(sessionId: string): Promise<{ status: string }> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`, {
       method: 'DELETE',

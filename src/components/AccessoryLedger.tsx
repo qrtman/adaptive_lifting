@@ -4,10 +4,14 @@ import { ExerciseData } from '../types';
 export const AccessoryLedger = ({
   exercises,
   onUpdateSets,
+  onRemove,
+  locked = false,
   roleMode = 'athlete'
 }: {
   exercises: ExerciseData[],
   onUpdateSets: (exerciseId: string, sets: ExerciseData['sets']) => void,
+  onRemove?: (exerciseId: string) => void | Promise<void>,
+  locked?: boolean,
   roleMode?: 'coach' | 'athlete'
 }) => {
   if (exercises.length === 0) return null;
@@ -31,6 +35,8 @@ export const AccessoryLedger = ({
           tier={exercise.tier}
           initialSets={exercise.sets}
           onUpdateSets={(updatedSets) => onUpdateSets(exercise.id, updatedSets)}
+          onRemove={onRemove ? () => onRemove(exercise.id) : undefined}
+          locked={locked}
           roleMode={roleMode}
         />
       ))}

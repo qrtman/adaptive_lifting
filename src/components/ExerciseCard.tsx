@@ -18,6 +18,8 @@ export const ExerciseCard = ({
   tier,
   initialSets,
   onUpdateSets,
+  onRemove,
+  locked = false,
   roleMode = 'coach'
 }: { 
   id: string,
@@ -27,6 +29,8 @@ export const ExerciseCard = ({
   tier?: 'Comp' | 'Variation' | 'Accessory',
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
+  onRemove?: () => void | Promise<void>,
+  locked?: boolean,
   roleMode?: 'coach' | 'athlete',
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => {
@@ -128,6 +132,7 @@ export const ExerciseCard = ({
   };
 
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
+  const [removing, setRemoving] = useState(false);
 
   // Keep state in sync when workout changes
   useEffect(() => {
@@ -226,6 +231,22 @@ export const ExerciseCard = ({
           <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
             + Set
           </button>
+          {onRemove && (
+            <button
+              type="button"
+              data-testid={`remove-lift-${id}`}
+              disabled={locked || removing}
+              onClick={() => {
+                if (locked || removing) return;
+                if (!window.confirm(`Remove ${title} from this session?`)) return;
+                setRemoving(true);
+                void Promise.resolve(onRemove()).finally(() => setRemoving(false));
+              }}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            >
+              {removing ? 'Removing…' : 'Remove'}
+            </button>
+          )}
         </div>
       </div>
       <div className="overflow-x-auto">

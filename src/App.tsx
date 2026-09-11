@@ -18,6 +18,7 @@ import { splitWorkoutExercises, isWorkoutCompleted } from './types';
 import { AddLiftBar } from './components/AddLiftBar';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
+import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
 
 export default function App() {
@@ -62,6 +63,17 @@ export default function App() {
       const el = document.getElementById('training-focus');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  const handleRemoveLift = async (exerciseId: string) => {
+    if (!activeWorkout) return;
+    try {
+      await apiService.removeSessionExercise(activeWorkout.id, exerciseId);
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to remove lift');
+      throw err;
+    }
   };
 
   if (!user) {
@@ -177,36 +189,40 @@ export default function App() {
 
                   <div>
                     {activeWorkout.exercises.length === 0 && (
-                        <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
-                          No lifts yet. Add squat, bench, or deadlift.
-                        </p>
-                      )}
-                      {splitWorkoutExercises(activeWorkout.exercises).main.map(ex => (
-                        <ExerciseCard 
-                          key={ex.id}
-                          id={ex.id}
-                          title={ex.title}
-                          variation={ex.variation}
-                          tags={ex.tags}
-                          tier={ex.tier}
-                          initialSets={ex.sets}
-                          onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
-                          roleMode={roleMode}
-                        />
-                      ))}
-
-                      <AccessoryLedger 
-                        exercises={splitWorkoutExercises(activeWorkout.exercises).accessories}
-                        onUpdateSets={updateExerciseSets}
+                      <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
+                        No lifts yet. Add squat, bench, or deadlift.
+                      </p>
+                    )}
+                    {splitWorkoutExercises(activeWorkout.exercises).main.map(ex => (
+                      <ExerciseCard 
+                        key={ex.id}
+                        id={ex.id}
+                        title={ex.title}
+                        variation={ex.variation}
+                        tags={ex.tags}
+                        tier={ex.tier}
+                        initialSets={ex.sets}
+                        onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
+                        onRemove={() => handleRemoveLift(ex.id)}
+                        locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
                         roleMode={roleMode}
                       />
+                    ))}
 
-                      <AddLiftBar
-                        sessionId={activeWorkout.id}
-                        locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
-                        onAdded={() => reloadMicrocycles(activeAthleteId)}
-                      />
-                    </div>
+                    <AccessoryLedger 
+                      exercises={splitWorkoutExercises(activeWorkout.exercises).accessories}
+                      onUpdateSets={updateExerciseSets}
+                      onRemove={(exerciseId) => handleRemoveLift(exerciseId)}
+                      locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
+                      roleMode={roleMode}
+                    />
+
+                    <AddLiftBar
+                      sessionId={activeWorkout.id}
+                      locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
+                      onAdded={() => reloadMicrocycles(activeAthleteId)}
+                    />
+                  </div>
                 </>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20">
