@@ -453,7 +453,15 @@ export const apiService = {
       method: 'POST',
       headers: getHeaders(),
       credentials: 'include',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        date: payload.date,
+        title: payload.title,
+        blockLabel: payload.blockLabel,
+        weekLabel: payload.weekLabel,
+        athleteId: payload.athleteId,
+        microcycleId: payload.microcycleId,
+        dayLabel: payload.dayLabel,
+      }),
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
@@ -498,7 +506,14 @@ export const apiService = {
       method: 'PATCH',
       headers: getHeaders(),
       credentials: 'include',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        sessionIds: payload.sessionIds,
+        blockLabel: payload.blockLabel,
+        weekLabel: payload.weekLabel,
+        clearBlock: payload.clearBlock,
+        clearWeek: payload.clearWeek,
+        athleteId: payload.athleteId,
+      }),
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));

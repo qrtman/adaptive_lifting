@@ -142,6 +142,28 @@ export function SessionsView({
   };
 
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
+  const [creating, setCreating] = useState(false);
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newTitle, setNewTitle] = useState('Session');
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreateSession = async () => {
+    if (showCoachSelectAthlete) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await apiService.createSession({
+        date: newDate,
+        title: newTitle.trim() || 'Session',
+        athleteId: activeAthleteId || undefined,
+      });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create session');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex relative h-full overflow-hidden bg-[#0A0A0A]">
@@ -150,6 +172,39 @@ export function SessionsView({
           <div className="h-7 px-1 flex items-center justify-between gap-2">
             <LiftFilter value={filter} onChange={onFilterChange} />
           </div>
+
+          {!showCoachSelectAthlete && (
+            <div className="border border-white/10 rounded p-2 flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] text-[#636366]">Date</span>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 flex-1 min-w-[140px]">
+                <span className="text-[10px] text-[#636366]">Title</span>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
+                />
+              </label>
+              <button
+                type="button"
+                data-testid="sessions-add"
+                onClick={handleCreateSession}
+                disabled={creating || !newDate}
+                className="h-7 px-3 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+              >
+                {creating ? 'Adding…' : 'Add session'}
+              </button>
+              {createError && <p className="w-full text-[10px] text-red-400">{createError}</p>}
+            </div>
+          )}
 
           {showCoachSelectAthlete ? (
             <div
@@ -165,7 +220,7 @@ export function SessionsView({
               className="border border-white/10 rounded p-6 text-center"
             >
               <p className="text-sm text-white mb-1">No sessions yet</p>
-              <p className="text-xs text-[#AEAEB2]">Sessions appear here once created on this plan.</p>
+              <p className="text-xs text-[#AEAEB2]">Add a dated session above. Block/Week labels can be set anytime.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
