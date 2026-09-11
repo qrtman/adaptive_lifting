@@ -1,4 +1,4 @@
-import { MicrocycleData, INITIAL_MICROCYCLES, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress } from '../types';
+import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
 import { getSnapshot, saveSnapshot } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
@@ -76,7 +76,7 @@ async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
   } catch (err) {
     console.warn('IndexedDB snapshot read failed.', err);
   }
-  return INITIAL_MICROCYCLES;
+  return [];
 }
 
 async function saveOfflineMicrocycles(data: MicrocycleData[]): Promise<void> {
@@ -99,10 +99,11 @@ export const apiService = {
   /**
    * Fetches the complete microcycle training data.
    */
-  async fetchMicrocycles(): Promise<MicrocycleData[]> {
+  async fetchMicrocycles(athleteId?: string): Promise<MicrocycleData[]> {
     if (BACKEND_URL) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/microcycles`, { headers: getHeaders(), credentials: 'include' });
+        const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
+        const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
         if (!response.ok) throw new Error('API server returned error status');
         return await response.json();
       } catch (err) {
@@ -204,8 +205,8 @@ export const apiService = {
         console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
       }
     }
-    await saveOfflineMicrocycles(INITIAL_MICROCYCLES);
-    return INITIAL_MICROCYCLES;
+    await saveOfflineMicrocycles([]);
+    return [];
   },
 
   /**
@@ -339,7 +340,11 @@ export const apiService = {
       const errData = await response.json().catch(() => ({}));
       throw new Error(errData.detail || 'Failed to push program');
     }
-    return await response.json();
+    const data = await response.json();
+    return {
+      ...data,
+      message: data.message || 'Push acknowledged. Create sessions on the athlete plan — demo programs are not auto-injected.',
+    };
   },
 
   async fetchRoster() {
@@ -382,5 +387,135 @@ export const apiService = {
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
     removeUiPref(UI_KEYS.roleMode);
-  }
+  },
+
+  async createCoachCode(): Promise<{ code: string; expires_at?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/coach-code`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to create coach code');
+    }
+    return await response.json();
+  },
+
+  async getCoachCodeStatus(): Promise<{ active: boolean; code?: string | null; expires_at?: string; hint?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/coach-code`, {
+      headers: getHeaders(),
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to fetch coach code status');
+    }
+    return await response.json();
+  },
+
+  async linkAthlete(code: string): Promise<{ status: string; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/link-athlete`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to link coach');
+    }
+    return await response.json();
+  },
+
+  async unlinkCoach(): Promise<{ status: string; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/link`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to unlink coach');
+    }
+    return await response.json();
+  },
+
+  async createSession(payload: {
+    date: string;
+    title?: string;
+    blockLabel?: string | null;
+    weekLabel?: string | null;
+    athleteId?: string;
+    microcycleId?: string;
+    dayLabel?: string;
+  }): Promise<WorkoutData & { microcycleId?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to create session');
+    }
+    return await response.json();
+  },
+
+  async updateSession(
+    sessionId: string,
+    payload: {
+      date?: string;
+      title?: string;
+      dayLabel?: string;
+      blockLabel?: string | null;
+      weekLabel?: string | null;
+      status?: string;
+    }
+  ): Promise<Partial<WorkoutData>> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to update session');
+    }
+    return await response.json();
+  },
+
+  async bulkUpdateSessionLabels(payload: {
+    sessionIds: string[];
+    blockLabel?: string | null;
+    weekLabel?: string | null;
+    clearBlock?: boolean;
+    clearWeek?: boolean;
+    athleteId?: string;
+  }): Promise<{ status: string; updated: string[] }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/labels`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to update session labels');
+    }
+    return await response.json();
+  },
+
+  async deleteSession(sessionId: string): Promise<{ status: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to delete session');
+    }
+    return await response.json();
+  },
 };

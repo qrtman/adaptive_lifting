@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
+import { usePeriodization } from '../contexts/PeriodizationContext';
+import type { DashboardMode } from './AppShell';
 
-export const CoachDashboardView: React.FC = () => {
+export const CoachDashboardView: React.FC<{
+  onNavigate?: (mode: DashboardMode) => void;
+}> = ({ onNavigate }) => {
+  const { setActiveAthleteId } = usePeriodization();
   const [roster, setRoster] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState(getUiPref(UI_KEYS.email) || '');
+  const [coachCode, setCoachCode] = useState<string | null>(null);
+  const [codeActive, setCodeActive] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
   const [linkSuccess, setLinkSuccess] = useState('');
 
   // Drill-down state
@@ -41,7 +47,32 @@ export const CoachDashboardView: React.FC = () => {
 
   useEffect(() => {
     fetchRoster();
+    loadCoachCodeStatus();
   }, []);
+
+  const loadCoachCodeStatus = async () => {
+    try {
+      const status = await apiService.getCoachCodeStatus();
+      setCodeActive(status.active);
+      if (status.code) setCoachCode(status.code);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const generateCoachCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const result = await apiService.createCoachCode();
+      setCoachCode(result.code);
+      setCodeActive(true);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate coach code');
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
 
   const fetchRoster = async () => {
     try {
@@ -60,9 +91,15 @@ export const CoachDashboardView: React.FC = () => {
   };
 
   const copyLinkCode = () => {
-    navigator.clipboard.writeText(userEmail);
+    if (!coachCode) return;
+    navigator.clipboard.writeText(coachCode);
     setLinkSuccess('Copied to clipboard!');
     setTimeout(() => setLinkSuccess(''), 3000);
+  };
+
+  const openAthletePlan = (athleteId: string, mode: 'calendar' | 'sessions') => {
+    setActiveAthleteId(athleteId);
+    onNavigate?.(mode);
   };
 
   const handlePushProgram = async () => {
@@ -71,7 +108,7 @@ export const CoachDashboardView: React.FC = () => {
     setPushSuccess('');
     try {
       await apiService.pushProgramming(selectedAthlete.id, pushTemplate);
-      setPushSuccess('Program pushed successfully!');
+      setPushSuccess('Push acknowledged. Create sessions on the athlete plan.');
       setTimeout(() => {
         setShowPushModal(false);
         setPushSuccess('');
@@ -161,19 +198,33 @@ export const CoachDashboardView: React.FC = () => {
             
             <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 p-4">
               <p className="text-xs text-zinc-400 mb-2">Your Coach Link Code:</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-black rounded-lg px-3 py-2 text-sm text-mac-blue border border-zinc-800">
-                  {userEmail}
-                </code>
-                <button 
-                  onClick={copyLinkCode}
-                  className="bg-mac-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
-                >
-                  Copy
-                </button>
-              </div>
+              {coachCode ? (
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-black rounded-lg px-3 py-2 text-sm text-mac-blue border border-zinc-800">
+                    {coachCode}
+                  </code>
+                  <button 
+                    onClick={copyLinkCode}
+                    className="bg-mac-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+              ) : codeActive ? (
+                <p className="text-xs text-zinc-400 mb-2">An active code exists. Rotate to reveal a new code.</p>
+              ) : (
+                <p className="text-xs text-zinc-500 mb-2">No active coach code yet.</p>
+              )}
+              <button
+                type="button"
+                onClick={generateCoachCode}
+                disabled={generatingCode}
+                className="mt-2 h-8 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold disabled:opacity-50"
+              >
+                {generatingCode ? 'Generating…' : coachCode || codeActive ? 'Rotate code' : 'Generate code'}
+              </button>
               {linkSuccess && <p className="text-[#75ff9e] text-[10px] mt-2 font-bold">{linkSuccess}</p>}
-              <p className="text-[10px] text-zinc-500 mt-3">Athletes can enter this code in their settings to link to your roster.</p>
+              <p className="text-[10px] text-zinc-500 mt-3">Athletes enter this code in Security settings to link to your roster.</p>
             </div>
           </div>
         </>
@@ -197,6 +248,22 @@ export const CoachDashboardView: React.FC = () => {
               >
                 <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
                 Push Program
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => openAthletePlan(selectedAthlete.id, 'calendar')}
+                className="h-8 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold"
+              >
+                Open in Calendar
+              </button>
+              <button
+                type="button"
+                onClick={() => openAthletePlan(selectedAthlete.id, 'sessions')}
+                className="h-8 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold"
+              >
+                Open in Sessions
               </button>
             </div>
           </div>

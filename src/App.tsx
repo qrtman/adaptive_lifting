@@ -74,7 +74,7 @@ export default function App() {
         setCurrentView('dashboard');
       }}
       onResetPlan={async () => {
-        if (window.confirm('Reset plan? This clears logged sets and restores the seed microcycles.')) {
+        if (window.confirm('Reset plan? This clears all sessions and logged sets.')) {
           await resetPlan();
           window.location.reload();
         }
@@ -108,7 +108,10 @@ export default function App() {
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
                 ) : dashboardMode === 'roster' ? (
-                  <CoachDashboardView />
+                  <CoachDashboardView onNavigate={(mode) => {
+                    setDashboardMode(mode);
+                    setCurrentView('dashboard');
+                  }} />
                 ) : (
                   <div className="flex flex-col gap-4 p-4 w-full overflow-y-auto">
                     <TelegramLinkPanel />
