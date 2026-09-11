@@ -8,7 +8,6 @@ import { SessionsView } from './components/SessionsView';
 import { AppShell, type DashboardMode } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
 import { AccessoryLedger } from './components/AccessoryLedger';
-import TelegramSessionTerminal from './components/mobile/TelegramSessionTerminal';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
@@ -176,23 +175,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {roleMode === 'athlete' ? (
-                    <div className="flex flex-col items-center justify-center py-6 w-full bg-black/20 rounded-2xl border border-white/5 p-4 sm:p-8">
-                      <p className="text-xs font-mono text-zinc-500 mb-4">
-                        Telegram Mini App
-                      </p>
-                      <div className="w-[390px] h-[844px] bg-black rounded-[48px] border-[12px] border-zinc-800 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] overflow-hidden relative ring-1 ring-white/10 flex flex-col">
-                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-28 h-6 bg-zinc-800 rounded-full z-50 flex items-center justify-center">
-                          <div className="w-2.5 h-2.5 rounded-full bg-black ml-auto mr-4" />
-                        </div>
-                        <div className="flex-1 overflow-hidden pt-6">
-                          <TelegramSessionTerminal />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      {activeWorkout.exercises.length === 0 && (
+                  <div>
+                    {activeWorkout.exercises.length === 0 && (
                         <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
                           No lifts yet. Add squat, bench, or deadlift.
                         </p>
@@ -223,7 +207,6 @@ export default function App() {
                         onAdded={() => reloadMicrocycles(activeAthleteId)}
                       />
                     </div>
-                  )}
                 </>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20">

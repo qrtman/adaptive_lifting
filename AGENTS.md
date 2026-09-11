@@ -35,6 +35,7 @@ These rules are always active:
 - Sessions (dated workouts) are first-class. Block/Week are optional grouping labels (block is a prefix of week). Labels may be set at create or anytime later; unlabeled sessions are allowed.
 - Do not invent fixed Mon–Sun week containers or require creating a week before the first session.
 - Calendar is date-first. Sessions view groups by Block/Week labels when present. Coach Calendar/Sessions must follow the active athlete switcher.
+- **Web first:** Build Calendar, Sessions, and the web session screen (add lifts, prescribe, log) before Telegram Mini App / phone logging. Do not swap the web session into a phone mock. Do not block web logging on mobile work.
 
 ### Layer 2: Task Brief
 

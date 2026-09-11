@@ -112,11 +112,11 @@ The design system follows three product principles:
 | Surface | Primary User | Purpose | Design Constraint |
 | :--- | :--- | :--- | :--- |
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
-| Athlete mobile PWA | Athlete | Offline-capable set logging in the gym; own plan space | Thumb-first, high contrast, large numeric controls; empty plan shows empty states |
+| Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
 | Calendar workspace | Coach / Athlete | Date-first session timeline | Sessions appear by date regardless of labels; empty month allowed |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; labels editable anytime |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
-| Telegram Mini App + bot | Athlete / Coach | Telegram-native workout logging, summaries, guided fallbacks, alerts | Mini App reuses mobile logging patterns; bot text stays compact |
+| Telegram Mini App + bot | Athlete / Coach | Later: Telegram-native logging and alerts | Deferred until the web constructor is done. Do not gate current session UI on Mini App. |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
 | Staging/admin runtime views | Operator / Coach-owner | Connection health, webhook/OAuth status, backup status | Quiet operational dashboard, not marketing UI |
 
@@ -1331,6 +1331,8 @@ Tapping `[ Confirm Add ]` (minimum target size `48px x 48px`, background `--ok-b
 ---
 
 ## 8. Telegram Mini App WebView Companion
+
+**Deferred.** Current product work is the web constructor (Calendar, Sessions, session lifts). Do not implement Mini App logging or swap the web session into a phone mock until the web version is done.
 
 The Telegram Mini App WebView companion functions as a native extension of the athlete logging experience, sharing the exact mobile PWA database queue patterns under custom Telegram verification constraints.
 
