@@ -1887,7 +1887,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Finished sessions reopen with a single Open action (same as opening a folder). No lock ceremony.
 - [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) in the Edit lift dialog, compiling a readonly name. Chips are not always-open on the session.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
-- [ ] Workout builder uses structured prescription controls, not freeform parsing.
+- [ ] Workout builder uses structured prescription controls, not freeform parsing. Top-set Rx kg is typed; e1RM is a derived readout.
 - [ ] Coach or athlete can reorder lifts with Up/Down on an unlocked session; order persists as `lexo_rank`.
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Export and Google Sheets publish flows are separate.

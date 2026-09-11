@@ -5,12 +5,12 @@ import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
 import { CenteredDialog } from './CenteredDialog';
 import { 
-  calculateCapacityScaledWeight, 
   calculateE1RM, 
   calculateINOL,
   calculateWeightFromE1RM 
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
+import { refreshSetAnchors } from '../services/setPrescription';
 
 export const ExerciseCard = ({ 
   id,
@@ -26,7 +26,7 @@ export const ExerciseCard = ({
   onMoveUp,
   onMoveDown,
   locked = false,
-  roleMode = 'coach'
+  roleMode: _roleMode = 'coach'
 }: { 
   id: string,
   title: string, 
@@ -43,58 +43,7 @@ export const ExerciseCard = ({
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
 }) => {
-  const recalculatePresetsAndSugs = (setArray: any[]) => {
-    if (setArray.length === 0) return setArray;
-
-    // Use Set 0 baseline_e1rm as the primary anchor
-    const primaryAnchor = setArray[0].baseline_e1rm !== undefined ? trainingOrZero(setArray[0].baseline_e1rm) : 150;
-
-    return setArray.map((s, index) => {
-      // Find the most recent E1RM from logged preceding sets
-      let prevLogE1RM = 0;
-      for (let j = index - 1; j >= 0; j--) {
-        const prevSet = setArray[j];
-        const prevW = trainingOrZero(prevSet.actual);
-        const prevR = trainingIntOrZero(prevSet.reps);
-        const prevRp = trainingOrZero(prevSet.executedRpe);
-        const calcPrev = calculateE1RM(prevW, prevR, prevRp);
-        if (calcPrev > 0) {
-          prevLogE1RM = calcPrev;
-          break;
-        }
-      }
-
-      // Determine the active baseline E1RM for this set's prescription calculations:
-      const activeE1RM = index === 0
-        ? primaryAnchor
-        : (prevLogE1RM > 0 ? prevLogE1RM : primaryAnchor);
-
-      // Recalculate planned weight (prescribed weight) using the active E1RM
-      const repsVal = trainingInt(s.plannedReps) || 4;
-      const computedWeight = calculateCapacityScaledWeight(
-        activeE1RM,
-        s.intensity_type || "RPE",
-        s.target_value !== undefined ? s.target_value : 8,
-        repsVal,
-        s.adjustment_pct !== undefined ? s.adjustment_pct : 0
-      );
-
-      // Log suggested weight (if auto-scale applies for log side)
-      let suggestedWeight = s.suggestedWeight;
-      const anchorWeight = trainingOrZero(setArray[0].actual ?? setArray[0].plannedWeight);
-      if (anchorWeight > 0 && index > 0 && s.isAuto) {
-        const drop = s.dropPercent !== undefined ? s.dropPercent : -5;
-        suggestedWeight = anchorWeight * (1 + drop / 100);
-      }
-
-      return {
-        ...s,
-        baseline_e1rm: activeE1RM,
-        suggestedWeight,
-        plannedWeight: computedWeight > 0 ? computedWeight : trainingNumber(s.plannedWeight)
-      };
-    });
-  };
+  const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
 
   const mapInitialSets = (setsList: any[]) => {
     const mapped = setsList.map((s, i) => {
@@ -105,17 +54,10 @@ export const ExerciseCard = ({
       const plannedRpe = trainingNumber(s.plannedRpe ?? s.rpe);
       const plannedWeight = trainingNumber(s.plannedWeight) ?? (plannedWeightMatch ? trainingNumber(plannedWeightMatch[1]) : null);
 
-      const repsVal = plannedReps || 4;
-      const rpeVal = plannedRpe || 8;
-      const weightVal = plannedWeight || 100;
-
-      const calculatedBase = calculateE1RM(weightVal, repsVal, rpeVal);
-      const baseline_e1rm = s.baseline_e1rm !== undefined ? s.baseline_e1rm : (calculatedBase > 0 ? calculatedBase : 150);
-
       const intensity_type = s.intensity_type || "RPE";
       const target_value = s.target_value !== undefined 
         ? s.target_value 
-        : (intensity_type === "PERCENT" ? 80 : rpeVal);
+        : (intensity_type === "RPE" ? plannedRpe : (intensity_type === "PERCENT" ? 80 : plannedRpe));
 
       const adjustment_pct = s.adjustment_pct !== undefined 
         ? s.adjustment_pct 
@@ -123,10 +65,9 @@ export const ExerciseCard = ({
 
       return {
         ...s,
-        plannedWeight: plannedWeight ?? (weightVal > 0 ? weightVal : 137.5),
-        plannedReps: plannedReps ?? 4,
-        plannedRpe: intensity_type === "RPE" ? target_value : (plannedRpe ?? 8),
-        baseline_e1rm,
+        plannedWeight,
+        plannedReps,
+        plannedRpe: intensity_type === "RPE" ? (target_value ?? plannedRpe) : plannedRpe,
         intensity_type,
         target_value,
         adjustment_pct,
@@ -227,23 +168,9 @@ export const ExerciseCard = ({
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
-            {roleMode === 'coach' && sets[0] ? (
-              <EditablePerformanceCell
-                value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
-                onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
-                placeholder="150"
-                fieldKey={`${id}-baseline_e1rm`}
-                label="Baseline e1RM"
-                step={5}
-                variant="transparent"
-                widthClass="w-10"
-                rowIndex={0}
-              />
-            ) : (
-              <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
-                {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
-              </span>
-            )}
+            <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+              {sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—'}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
@@ -373,7 +300,7 @@ export const ExerciseCard = ({
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
                   <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
                   <td className={`${td} pr-3`}>
-                    {roleMode === 'coach' ? (
+                    {!locked ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
                           <PrescriptionEditor
                             reps={set.plannedReps}

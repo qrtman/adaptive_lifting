@@ -24,7 +24,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
         value={weight !== null && weight !== undefined ? weight.toString() : ""}
         onChange={(val) => onChange({ weight: val ? parseFloat(val) : null })}
         placeholder="—"
-        fieldKey="weight"
+        fieldKey="rx-weight"
         label="Weight"
         widthClass="w-12"
         step={2.5}

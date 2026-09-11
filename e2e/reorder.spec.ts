@@ -33,6 +33,11 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
     await expect(page.getByRole('heading', { name: exercise, exact: true })).toBeVisible();
   };
   await addNamedLift('Knee Dominant', 'Squat');
+  await expect(page.getByTestId('rx-weight').first()).toHaveText('—');
+  await page.getByTestId('rx-weight').first().click();
+  await page.getByTestId('rx-weight').first().fill('180');
+  await page.getByTestId('rx-weight').first().press('Enter');
+  await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
   await expect(page.getByTestId('lift-constructor')).toHaveCount(0);
   await page.getByTestId(/^edit-lift-/).first().click();
   await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
