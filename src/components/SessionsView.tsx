@@ -168,24 +168,24 @@ export function SessionsView({
     }
   };
 
-  const handleCopyWeek = async (groupKey: string, entries: SessionEntry[]) => {
-    if (showCoachSelectAthlete || groupKey === 'Ungrouped' || entries.length === 0) return;
-    const days = copyOffsetDays[groupKey] ?? 7;
+  const handleCopySessions = async (copyKey: string, sessionIds: string[], includeLogs: boolean, days: number) => {
+    if (showCoachSelectAthlete || sessionIds.length === 0) return;
     if (!Number.isFinite(days) || days < 1) {
       setCopyError('Shift days must be at least 1');
       return;
     }
-    setCopyingKey(groupKey);
+    setCopyingKey(copyKey);
     setCopyError(null);
     try {
       await apiService.copyWeek({
-        sessionIds: entries.map(({ workout }) => workout.id),
+        sessionIds,
         athleteId: activeAthleteId || undefined,
         dateOffsetDays: days,
+        includeLogs,
       });
       await reloadMicrocycles(activeAthleteId);
     } catch (err: any) {
-      setCopyError(err?.message || 'Failed to copy week');
+      setCopyError(err?.message || 'Failed to copy');
     } finally {
       setCopyingKey(null);
     }
@@ -256,35 +256,40 @@ export function SessionsView({
                   <div className="min-h-8 px-3 py-1 border-b border-white/10 flex items-center justify-between gap-2 bg-[#131313]">
                     <h4 className="text-xs text-white">{label}</h4>
                     <div className="flex items-center gap-2">
-                      {key !== 'Ungrouped' && (
-                        <>
-                          <label className="flex items-center gap-1">
-                            <span className="text-[10px] text-[#636366]">Shift</span>
-                            <input
-                              type="number"
-                              min={1}
-                              step={1}
-                              data-testid={`sessions-copy-days-${key}`}
-                              value={copyOffsetDays[key] ?? 7}
-                              onChange={(e) => {
-                                const next = Number(e.target.value);
-                                setCopyOffsetDays(prev => ({ ...prev, [key]: next }));
-                              }}
-                              className="h-6 w-12 px-1 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white font-mono"
-                            />
-                            <span className="text-[10px] text-[#636366]">days</span>
-                          </label>
-                          <button
-                            type="button"
-                            data-testid={`sessions-copy-week-${key}`}
-                            onClick={() => handleCopyWeek(key, entries)}
-                            disabled={copyingKey === key}
-                            className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
-                          >
-                            {copyingKey === key ? 'Copying…' : 'Copy week'}
-                          </button>
-                        </>
-                      )}
+                      <label className="flex items-center gap-1">
+                        <span className="text-[10px] text-[#636366]">Shift</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          data-testid={`sessions-copy-days-${key}`}
+                          value={copyOffsetDays[key] ?? 7}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setCopyOffsetDays(prev => ({ ...prev, [key]: next }));
+                          }}
+                          className="h-6 w-12 px-1 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white font-mono"
+                        />
+                        <span className="text-[10px] text-[#636366]">days</span>
+                      </label>
+                      <button
+                        type="button"
+                        data-testid={`sessions-copy-lifts-${key}`}
+                        onClick={() => handleCopySessions(`${key}::lifts`, entries.map(({ workout }) => workout.id), false, copyOffsetDays[key] ?? 7)}
+                        disabled={copyingKey === `${key}::lifts`}
+                        className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                      >
+                        {copyingKey === `${key}::lifts` ? 'Copying…' : 'Copy lifts'}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`sessions-copy-logs-${key}`}
+                        onClick={() => handleCopySessions(`${key}::logs`, entries.map(({ workout }) => workout.id), true, copyOffsetDays[key] ?? 7)}
+                        disabled={copyingKey === `${key}::logs`}
+                        className="h-6 px-2 rounded bg-white/10 text-white text-[10px] hover:bg-white/15 disabled:opacity-50"
+                      >
+                        {copyingKey === `${key}::logs` ? 'Copying…' : 'Copy with logs'}
+                      </button>
                       <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
@@ -370,6 +375,24 @@ export function SessionsView({
                               className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
                             >
                               {savingId === workout.id ? 'Saving…' : 'Save labels'}
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`sessions-copy-lifts-${workout.id}`}
+                              onClick={() => handleCopySessions(`${workout.id}::lifts`, [workout.id], false, copyOffsetDays[key] ?? 7)}
+                              disabled={copyingKey === `${workout.id}::lifts`}
+                              className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                            >
+                              {copyingKey === `${workout.id}::lifts` ? 'Copying…' : 'Copy lifts'}
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`sessions-copy-logs-${workout.id}`}
+                              onClick={() => handleCopySessions(`${workout.id}::logs`, [workout.id], true, copyOffsetDays[key] ?? 7)}
+                              disabled={copyingKey === `${workout.id}::logs`}
+                              className="h-7 px-2 rounded bg-white/10 text-white text-[11px] hover:bg-white/15 disabled:opacity-50"
+                            >
+                              {copyingKey === `${workout.id}::logs` ? 'Copying…' : 'Copy with logs'}
                             </button>
                             <button
                               type="button"

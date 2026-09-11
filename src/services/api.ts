@@ -528,6 +528,7 @@ export const apiService = {
     dateOffsetDays?: number;
     targetBlockLabel?: string | null;
     targetWeekLabel?: string | null;
+    includeLogs?: boolean;
   }): Promise<{ status: string; copied: Array<{ id: string; date: string; title: string; blockLabel: string | null; weekLabel: string | null; sourceId: string }> }> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/copy-week`, {
       method: 'POST',
@@ -539,6 +540,7 @@ export const apiService = {
         dateOffsetDays: payload.dateOffsetDays ?? 7,
         targetBlockLabel: payload.targetBlockLabel,
         targetWeekLabel: payload.targetWeekLabel,
+        includeLogs: payload.includeLogs === true,
       }),
     });
     if (!response.ok) {

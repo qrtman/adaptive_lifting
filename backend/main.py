@@ -1327,6 +1327,7 @@ class CopyWeekRequest(BaseModel):
     dateOffsetDays: int = 7
     targetBlockLabel: Optional[str] = None
     targetWeekLabel: Optional[str] = None
+    includeLogs: bool = False
 
 
 ALLOWED_LIFT_CATEGORIES = {"Squat", "Bench", "Deadlift", "Other"}
@@ -1385,13 +1386,20 @@ def next_week_label(week: Optional[str]) -> Optional[str]:
     return f"{prefix}{int(digits) + 1}"
 
 
-def clone_session_prescription(db: Session, source: Workout, new_date: str, block_label: Optional[str], week_label: Optional[str]) -> Workout:
+def clone_session_prescription(
+    db: Session,
+    source: Workout,
+    new_date: str,
+    block_label: Optional[str],
+    week_label: Optional[str],
+    include_logs: bool = False,
+) -> Workout:
     clone = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
         date=new_date,
         dayLabel=new_date,
         title=source.title,
-        tonnage=0.0,
+        tonnage=source.tonnage if include_logs else 0.0,
         delta=0.0,
         color="mac-blue",
         status="PLANNED",
@@ -1414,8 +1422,8 @@ def clone_session_prescription(db: Session, source: Workout, new_date: str, bloc
             tier=exercise.tier or "Comp",
             lift_category=exercise.lift_category or "Other",
             tags_raw=exercise.tags_raw or "",
-            top="—",
-            vol="—",
+            top=exercise.top if include_logs else "—",
+            vol=exercise.vol if include_logs else "—",
             workout_id=clone.id,
         )
         db.add(cloned_exercise)
@@ -1432,14 +1440,14 @@ def clone_session_prescription(db: Session, source: Workout, new_date: str, bloc
                 plannedRpe=exercise_set.plannedRpe,
                 dropPercent=exercise_set.dropPercent,
                 isAuto=exercise_set.isAuto,
-                actual=None,
-                reps=None,
-                executedRpe=None,
+                actual=exercise_set.actual if include_logs else None,
+                reps=exercise_set.reps if include_logs else None,
+                executedRpe=exercise_set.executedRpe if include_logs else None,
                 isTop=exercise_set.isTop,
                 note=exercise_set.note,
-                velocity=None,
-                readiness=None,
-                hrv=None,
+                velocity=exercise_set.velocity if include_logs else None,
+                readiness=exercise_set.readiness if include_logs else None,
+                hrv=exercise_set.hrv if include_logs else None,
                 exercise_id=cloned_exercise.id,
             ))
     return clone
@@ -1479,6 +1487,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
             shift_iso_date(source.date, req.dateOffsetDays),
             target_block,
             target_week,
+            include_logs=req.includeLogs,
         )
         created.append({
             "id": clone.id,

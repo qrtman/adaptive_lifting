@@ -193,6 +193,58 @@ def test_copy_week_shifts_dates_and_increments_week_label():
     assert len(workouts) == 4
 
 
+def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-15", "title": "Squat", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat", "plannedWeight": 180, "plannedReps": 5, "plannedRpe": 8},
+        cookies=cookies,
+    )
+    set_id = squat.json()["sets"][0]["id"]
+    logged = client.post(
+        "/api/sets/log",
+        json={"workoutId": sid, "exerciseId": squat.json()["id"], "setId": set_id, "weight": 182.5, "reps": 5, "rpe": 8.5},
+        cookies=cookies,
+    )
+    assert logged.status_code == 200
+
+    lifts_only = client.post(
+        "/api/sessions/copy-week",
+        json={"sessionIds": [sid], "dateOffsetDays": 7, "includeLogs": False},
+        cookies=cookies,
+    )
+    with_logs = client.post(
+        "/api/sessions/copy-week",
+        json={"sessionIds": [sid], "dateOffsetDays": 14, "includeLogs": True},
+        cookies=cookies,
+    )
+    assert lifts_only.status_code == 200
+    assert with_logs.status_code == 200
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = {w["id"]: w for mc in tree.json() for w in mc["workouts"]}
+    lifts_copy = workouts[lifts_only.json()["copied"][0]["id"]]
+    logs_copy = workouts[with_logs.json()["copied"][0]["id"]]
+    assert lifts_copy["exercises"][0]["sets"][0]["plannedWeight"] == 180.0
+    assert lifts_copy["exercises"][0]["sets"][0]["actual"] is None
+    assert logs_copy["exercises"][0]["sets"][0]["plannedWeight"] == 180.0
+    assert logs_copy["exercises"][0]["sets"][0]["actual"] == 182.5
+    assert logs_copy["exercises"][0]["sets"][0]["reps"] == 5
+    assert logs_copy["exercises"][0]["sets"][0]["executedRpe"] == 8.5
+
+
 def test_add_lift_to_empty_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]

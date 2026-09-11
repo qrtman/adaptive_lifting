@@ -63,6 +63,7 @@ export function CalendarView({
   const [selectedWorkout, setSelectedWorkout] = useState<{ workout: WorkoutData; microId: string } | null>(null);
   const [creatingDate, setCreatingDate] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [copyingKey, setCopyingKey] = useState<string | null>(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -165,6 +166,25 @@ export function CalendarView({
       alert('Failed to add session');
     } finally {
       setCreatingDate(null);
+    }
+  };
+
+  const handleCopySession = async (sessionId: string, includeLogs: boolean) => {
+    const copyKey = `${sessionId}::${includeLogs ? 'logs' : 'lifts'}`;
+    setCopyingKey(copyKey);
+    try {
+      await apiService.copyWeek({
+        sessionIds: [sessionId],
+        athleteId: activeAthleteId || undefined,
+        dateOffsetDays: 7,
+        includeLogs,
+      });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to copy session');
+    } finally {
+      setCopyingKey(null);
     }
   };
 
@@ -740,6 +760,24 @@ export function CalendarView({
                 className="flex-1 h-8 bg-[#007AFF] hover:bg-[#0066d6] text-white text-xs rounded"
               >
                 Open session
+              </button>
+              <button
+                type="button"
+                data-testid="calendar-copy-lifts"
+                onClick={() => void handleCopySession(selectedWorkout.workout.id, false)}
+                disabled={copyingKey === `${selectedWorkout.workout.id}::lifts`}
+                className="h-8 px-2 border border-white/10 text-white text-xs rounded disabled:opacity-50"
+              >
+                {copyingKey === `${selectedWorkout.workout.id}::lifts` ? 'Copying…' : 'Copy lifts'}
+              </button>
+              <button
+                type="button"
+                data-testid="calendar-copy-logs"
+                onClick={() => void handleCopySession(selectedWorkout.workout.id, true)}
+                disabled={copyingKey === `${selectedWorkout.workout.id}::logs`}
+                className="h-8 px-2 border border-white/10 text-white text-xs rounded disabled:opacity-50"
+              >
+                {copyingKey === `${selectedWorkout.workout.id}::logs` ? 'Copying…' : 'Copy with logs'}
               </button>
               <button
                 type="button"
