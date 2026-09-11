@@ -90,6 +90,10 @@ export function isWorkoutCompleted(status: string): boolean {
   return status === 'COMPLETED' || status === 'Completed';
 }
 
+export function isWorkoutLocked(status: string): boolean {
+  return isWorkoutCompleted(status) || status === 'MISSED';
+}
+
 export function isWorkoutInProgress(status: string): boolean {
   return status === 'IN_PROGRESS' || status === 'Today';
 }

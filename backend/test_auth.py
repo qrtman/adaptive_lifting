@@ -302,3 +302,51 @@ def test_remove_lift_from_session():
         cookies=cookies,
     )
     assert blocked.status_code == 409
+
+
+def test_open_finished_session():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Session"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    )
+    done = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert done.status_code == 200
+    assert done.json()["status"] == "COMPLETED"
+
+    blocked = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Bench", "liftCategory": "Bench"},
+        cookies=cookies,
+    )
+    assert blocked.status_code == 409
+
+    opened = client.patch(f"/api/sessions/{sid}", json={"status": "IN_PROGRESS"}, cookies=cookies)
+    assert opened.status_code == 200
+    assert opened.json()["status"] == "IN_PROGRESS"
+
+    bench = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Bench", "liftCategory": "Bench"},
+        cookies=cookies,
+    )
+    assert bench.status_code == 200
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    match = next(w for w in workouts if w["id"] == sid)
+    assert [e["title"] for e in match["exercises"]] == ["Squat", "Bench"]

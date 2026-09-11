@@ -418,7 +418,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
 * **Workout Cards Sizing & Functional States:**
   * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
-  * **Completed Workout State (State Machine Lock Active):** Shaded background `--ok-surface-1` with a prominent green check badge `[✓] Lock Engaged` (`hsl(142, 70%, 45%)`). Clicking this locked state prevents any accidental drag-and-drop or set editing modifications. The coach or athlete must explicitly trigger the `[ RE-OPEN SESSION ]` option to revert the session status to `IN_PROGRESS` and resume editing.
+  * **Completed Workout State:** Session is finished and not editable. A single **Open** control (same idea as opening a folder) sets status to `IN_PROGRESS` and restores add/remove/log. No lock banner or ceremony.
   * **Missed Workout State:** Renders with a distinct red boundary treatment `--ok-red` (`hsl(0, 84%, 60%)`) and bold warning metadata text `"Missed Session"` if a planned training day passes the hydration window without any recorded sets.
   * **In-Progress Workout State:** Displays an active, pulsing telemetry label (`[ LIVE TELEMETRY ]`), a dense horizontal completion progress bar tracking logged sets against planned sets, and direct hover options to sync or pause the telemetry feed.
 * **Vertical Stack Planned vs. Executed (Actual) Set Styling Rules:**
@@ -1880,7 +1880,8 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Block/Week labels can be set or changed anytime (including after create).
 - [ ] Copy week duplicates a labeled group by a user-chosen day offset with prescriptions only (no logged actuals).
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
-- [ ] Coach or athlete can remove a lift from an unlocked session; completed sessions stay locked.
+- [ ] Coach or athlete can remove a lift from an unlocked session; completed sessions stay locked until Open.
+- [ ] Finished sessions reopen with a single Open action (same as opening a folder). No lock ceremony.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing.
 - [ ] LexoRank reorder controls are visible and stable.

@@ -14,7 +14,7 @@ import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
 import { CoachDashboardView } from './components/CoachDashboardView';
-import { splitWorkoutExercises, isWorkoutCompleted } from './types';
+import { splitWorkoutExercises, isWorkoutLocked } from './types';
 import { AddLiftBar } from './components/AddLiftBar';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
@@ -73,6 +73,16 @@ export default function App() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to remove lift');
       throw err;
+    }
+  };
+
+  const handleOpenSession = async () => {
+    if (!activeWorkout) return;
+    try {
+      await apiService.updateSession(activeWorkout.id, { status: 'IN_PROGRESS' });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to open session');
     }
   };
 
@@ -175,15 +185,28 @@ export default function App() {
                       >
                         Athlete
                       </button>
-                      <button
-                        onClick={async () => {
-                          await finishSession('COMPLETED');
-                          setCurrentView('dashboard');
-                        }}
-                        className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
-                      >
-                        Complete
-                      </button>
+                      {isWorkoutLocked(activeWorkout.status) ? (
+                        <button
+                          type="button"
+                          data-testid="session-open"
+                          onClick={() => void handleOpenSession()}
+                          className="h-7 px-2 text-[11px] text-white bg-white/10 rounded"
+                        >
+                          Open
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          data-testid="session-complete"
+                          onClick={async () => {
+                            await finishSession('COMPLETED');
+                            setCurrentView('dashboard');
+                          }}
+                          className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
+                        >
+                          Complete
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -204,7 +227,7 @@ export default function App() {
                         initialSets={ex.sets}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onRemove={() => handleRemoveLift(ex.id)}
-                        locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
+                        locked={isWorkoutLocked(activeWorkout.status)}
                         roleMode={roleMode}
                       />
                     ))}
@@ -213,13 +236,13 @@ export default function App() {
                       exercises={splitWorkoutExercises(activeWorkout.exercises).accessories}
                       onUpdateSets={updateExerciseSets}
                       onRemove={(exerciseId) => handleRemoveLift(exerciseId)}
-                      locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
+                      locked={isWorkoutLocked(activeWorkout.status)}
                       roleMode={roleMode}
                     />
 
                     <AddLiftBar
                       sessionId={activeWorkout.id}
-                      locked={isWorkoutCompleted(activeWorkout.status) || activeWorkout.status === 'MISSED'}
+                      locked={isWorkoutLocked(activeWorkout.status)}
                       onAdded={() => reloadMicrocycles(activeAthleteId)}
                     />
                   </div>

@@ -72,7 +72,7 @@ export function AddLiftBar({
   return (
     <div className="px-2 py-3 border-t border-white/10">
       {locked ? (
-        <p className="text-xs text-[#AEAEB2]">Session is locked. Re-open it to add lifts.</p>
+        <p className="text-xs text-[#AEAEB2]">Finished. Tap Open to edit.</p>
       ) : (
         <>
           <p className="text-[10px] uppercase tracking-wider text-[#636366] mb-2">Add lift</p>

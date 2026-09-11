@@ -1638,7 +1638,15 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if req.weekLabel is not None:
         workout.week_label = req.weekLabel
     if req.status is not None:
+        if req.status not in ("PLANNED", "IN_PROGRESS", "COMPLETED", "MISSED"):
+            raise HTTPException(status_code=400, detail="Invalid status")
         workout.status = req.status
+        if req.status == "COMPLETED":
+            workout.color = "mac-green"
+        elif req.status == "MISSED":
+            workout.color = "gray"
+        else:
+            workout.color = "mac-blue"
     db.commit()
     db.refresh(workout)
     return {
