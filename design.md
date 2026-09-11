@@ -111,8 +111,11 @@ The design system follows three product principles:
 
 | Surface | Primary User | Purpose | Design Constraint |
 | :--- | :--- | :--- | :--- |
-| Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient |
-| Athlete mobile PWA | Athlete | Offline-capable set logging in the gym | Thumb-first, high contrast, large numeric controls |
+| Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
+| Athlete mobile PWA | Athlete | Offline-capable set logging in the gym; own plan space | Thumb-first, high contrast, large numeric controls; empty plan shows empty states |
+| Calendar workspace | Coach / Athlete | Date-first session timeline | Sessions appear by date regardless of labels; empty month allowed |
+| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; labels editable anytime |
+| Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
 | Telegram Mini App + bot | Athlete / Coach | Telegram-native workout logging, summaries, guided fallbacks, alerts | Mini App reuses mobile logging patterns; bot text stays compact |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
 | Staging/admin runtime views | Operator / Coach-owner | Connection health, webhook/OAuth status, backup status | Quiet operational dashboard, not marketing UI |
