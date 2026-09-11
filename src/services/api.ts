@@ -4,7 +4,7 @@ import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 
-const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
+const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 /**
  * Recalculates metrics for a workout: exercise volumes, top single labels, and day's overall tonnage.
