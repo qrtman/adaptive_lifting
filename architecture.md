@@ -949,6 +949,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
 | `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) on an unlocked session | Coach / Athlete |
+| `DELETE` | `/api/sessions/{id}/exercises/{exercise_id}` | Tombstone a lift on an unlocked session | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}` | Update session including labels anytime; set `IN_PROGRESS` to open a finished session | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
