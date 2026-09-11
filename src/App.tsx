@@ -117,6 +117,19 @@ export default function App() {
     }
   };
 
+  const handleSaveLabels = async (field: 'blockLabel' | 'weekLabel', value: string) => {
+    if (!activeWorkout) return;
+    const next = value.trim() || null;
+    const current = field === 'blockLabel' ? (activeWorkout.blockLabel || null) : (activeWorkout.weekLabel || null);
+    if (next === current) return;
+    try {
+      await apiService.updateSession(activeWorkout.id, { [field]: next ?? '' });
+      await reloadMicrocycles(activeAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save block/week');
+    }
+  };
+
   if (!user) {
     return <LoginView />;
   }
@@ -186,8 +199,8 @@ export default function App() {
             >
               {activeWorkout ? (
                 <>
-                  <div id="training-focus" className="h-7 flex items-center justify-between gap-2 px-1">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div id="training-focus" className="min-h-7 flex flex-wrap items-center justify-between gap-2 px-1">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
                         <button 
                           onClick={() => setCurrentView('dashboard')}
                           className="text-xs text-[#AEAEB2] hover:text-white shrink-0"
@@ -210,6 +223,32 @@ export default function App() {
                         <p data-testid="workout-tonnage" className="text-[11px] text-[#AEAEB2] font-mono shrink-0">
                           {activeWorkout.tonnage}kg
                         </p>
+                        <input
+                          type="text"
+                          data-testid="session-block"
+                          defaultValue={activeWorkout.blockLabel || ''}
+                          key={`${activeWorkout.id}-block-${activeWorkout.blockLabel || ''}`}
+                          placeholder="Block"
+                          aria-label="Block"
+                          onBlur={(e) => void handleSaveLabels('blockLabel', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          }}
+                          className="h-7 w-20 px-1.5 text-[11px] text-white bg-transparent border border-white/10 rounded placeholder:text-[#636366]"
+                        />
+                        <input
+                          type="text"
+                          data-testid="session-week"
+                          defaultValue={activeWorkout.weekLabel || ''}
+                          key={`${activeWorkout.id}-week-${activeWorkout.weekLabel || ''}`}
+                          placeholder="Week"
+                          aria-label="Week"
+                          onBlur={(e) => void handleSaveLabels('weekLabel', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          }}
+                          className="h-7 w-20 px-1.5 text-[11px] text-white bg-transparent border border-white/10 rounded placeholder:text-[#636366]"
+                        />
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button

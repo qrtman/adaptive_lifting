@@ -29,9 +29,13 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await day.hover();
   await newSession.click();
   await page.getByTestId('new-session-title').fill('Meet day');
+  await page.getByTestId('new-session-block').fill('Hypertrophy');
+  await page.getByTestId('new-session-week').fill('Week1');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
+  await expect(page.getByTestId('session-block')).toHaveValue('Hypertrophy');
+  await expect(page.getByTestId('session-week')).toHaveValue('Week1');
   await page.getByRole('button', { name: 'Back' }).click();
   await day.hover();
   await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
@@ -39,5 +43,18 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('copy-to-banner')).toBeVisible();
   await page.getByTestId('calendar-day-2026-09-11').click();
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
-  await expect(page.getByTestId('calendar-day-2026-09-11').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
+  const copiedCard = page.getByTestId('calendar-day-2026-09-11').locator('[data-testid^="workout-card-"]');
+  await expect(copiedCard).toHaveCount(1);
+  await expect(copiedCard).toContainText('Hypertrophy · Week1');
+
+  await copiedCard.click();
+  await expect(page.getByTestId('session-block')).toHaveValue('Hypertrophy');
+  await page.getByTestId('session-block').fill('Meet');
+  await page.getByTestId('session-block').blur();
+  await page.getByTestId('session-week').fill('Week2');
+  await page.getByTestId('session-week').blur();
+  await expect(page.getByTestId('session-block')).toHaveValue('Meet');
+  await expect(page.getByTestId('session-week')).toHaveValue('Week2');
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(copiedCard).toContainText('Meet · Week2');
 });

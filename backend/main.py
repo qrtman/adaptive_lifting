@@ -1705,9 +1705,9 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if req.dayLabel is not None:
         workout.dayLabel = req.dayLabel
     if req.blockLabel is not None:
-        workout.block_label = req.blockLabel
+        workout.block_label = req.blockLabel.strip() or None
     if req.weekLabel is not None:
-        workout.week_label = req.weekLabel
+        workout.week_label = req.weekLabel.strip() or None
     if req.status is not None:
         if req.status not in ("PLANNED", "IN_PROGRESS", "COMPLETED", "MISSED"):
             raise HTTPException(status_code=400, detail="Invalid status")

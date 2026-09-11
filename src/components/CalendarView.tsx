@@ -541,8 +541,10 @@ export function CalendarView({
                                         }}
                                         className="mt-1 border rounded flex flex-col overflow-hidden relative z-10 p-1.5 gap-0.5 cursor-pointer bg-[#161616] border-white/10 hover:border-white/20"
                                       >
-                                        {workout.weekLabel ? (
-                                          <span className="font-mono text-[9px] text-[#AEAEB2] truncate">{workout.weekLabel}</span>
+                                        {(workout.blockLabel || workout.weekLabel) ? (
+                                          <span className="font-mono text-[9px] text-[#AEAEB2] truncate">
+                                            {[workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ')}
+                                          </span>
                                         ) : null}
                                         <div className="flex flex-col gap-0.5">
                                           {workout.exercises.length === 0 && (

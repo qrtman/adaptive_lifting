@@ -193,6 +193,24 @@ def test_copy_week_shifts_dates_and_increments_week_label():
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     assert len(workouts) == 4
 
+    copied_id = payload["copied"][0]["id"]
+    relabeled = client.patch(
+        f"/api/sessions/{copied_id}",
+        json={"blockLabel": "Meet", "weekLabel": "Week1"},
+        cookies=cookies,
+    )
+    assert relabeled.status_code == 200
+    assert relabeled.json()["blockLabel"] == "Meet"
+    assert relabeled.json()["weekLabel"] == "Week1"
+    cleared = client.patch(
+        f"/api/sessions/{copied_id}",
+        json={"blockLabel": "", "weekLabel": ""},
+        cookies=cookies,
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["blockLabel"] is None
+    assert cleared.json()["weekLabel"] is None
+
 
 def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
     client = TestClient(app)

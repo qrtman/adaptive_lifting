@@ -132,8 +132,8 @@ export function SessionsView({
     try {
       await apiService.updateSession(workoutId, {
         title: draft.title.trim() || 'Session',
-        blockLabel: draft.block.trim() || null,
-        weekLabel: draft.week.trim() || null,
+        blockLabel: draft.block.trim(),
+        weekLabel: draft.week.trim(),
       });
       await reloadMicrocycles(activeAthleteId);
     } catch (err) {
@@ -321,6 +321,7 @@ export function SessionsView({
                               <span className="text-[10px] text-[#636366]">Block</span>
                               <input
                                 type="text"
+                                data-testid={`sessions-block-${workout.id}`}
                                 value={draft.block}
                                 onChange={(e) => setLabelDrafts(prev => ({
                                   ...prev,
@@ -333,6 +334,7 @@ export function SessionsView({
                               <span className="text-[10px] text-[#636366]">Week</span>
                               <input
                                 type="text"
+                                data-testid={`sessions-week-${workout.id}`}
                                 value={draft.week}
                                 onChange={(e) => setLabelDrafts(prev => ({
                                   ...prev,

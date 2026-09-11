@@ -1880,7 +1880,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
 - [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is name + optional block/week; cancel does not create.
-- [ ] Block/Week labels can be set or changed anytime (including after create).
+- [ ] Block/Week labels can be set or changed anytime, including after Copy to. Session header and Sessions list both edit them; empty clears the label.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
 - [ ] Coach or athlete can remove a lift from an unlocked session; completed sessions stay locked until Open.
