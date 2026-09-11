@@ -148,6 +148,7 @@ export function SessionsView({
   const [createError, setCreateError] = useState<string | null>(null);
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [copyOffsetDays, setCopyOffsetDays] = useState<Record<string, number>>({});
 
   const handleCreateSession = async () => {
     if (showCoachSelectAthlete) return;
@@ -169,13 +170,18 @@ export function SessionsView({
 
   const handleCopyWeek = async (groupKey: string, entries: SessionEntry[]) => {
     if (showCoachSelectAthlete || groupKey === 'Ungrouped' || entries.length === 0) return;
+    const days = copyOffsetDays[groupKey] ?? 7;
+    if (!Number.isFinite(days) || days < 1) {
+      setCopyError('Shift days must be at least 1');
+      return;
+    }
     setCopyingKey(groupKey);
     setCopyError(null);
     try {
       await apiService.copyWeek({
         sessionIds: entries.map(({ workout }) => workout.id),
         athleteId: activeAthleteId || undefined,
-        dateOffsetDays: 7,
+        dateOffsetDays: days,
       });
       await reloadMicrocycles(activeAthleteId);
     } catch (err: any) {
@@ -247,19 +253,37 @@ export function SessionsView({
             <div className="flex flex-col gap-4">
               {groupedSessions.map(({ key, label, entries }) => (
                 <section key={key} className="border border-white/10 rounded overflow-hidden">
-                  <div className="h-8 px-3 border-b border-white/10 flex items-center justify-between gap-2 bg-[#131313]">
+                  <div className="min-h-8 px-3 py-1 border-b border-white/10 flex items-center justify-between gap-2 bg-[#131313]">
                     <h4 className="text-xs text-white">{label}</h4>
                     <div className="flex items-center gap-2">
                       {key !== 'Ungrouped' && (
-                        <button
-                          type="button"
-                          data-testid={`sessions-copy-week-${key}`}
-                          onClick={() => handleCopyWeek(key, entries)}
-                          disabled={copyingKey === key}
-                          className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
-                        >
-                          {copyingKey === key ? 'Copying…' : 'Copy week +7d'}
-                        </button>
+                        <>
+                          <label className="flex items-center gap-1">
+                            <span className="text-[10px] text-[#636366]">Shift</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              data-testid={`sessions-copy-days-${key}`}
+                              value={copyOffsetDays[key] ?? 7}
+                              onChange={(e) => {
+                                const next = Number(e.target.value);
+                                setCopyOffsetDays(prev => ({ ...prev, [key]: next }));
+                              }}
+                              className="h-6 w-12 px-1 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white font-mono"
+                            />
+                            <span className="text-[10px] text-[#636366]">days</span>
+                          </label>
+                          <button
+                            type="button"
+                            data-testid={`sessions-copy-week-${key}`}
+                            onClick={() => handleCopyWeek(key, entries)}
+                            disabled={copyingKey === key}
+                            className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                          >
+                            {copyingKey === key ? 'Copying…' : 'Copy week'}
+                          </button>
+                        </>
                       )}
                       <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
                     </div>

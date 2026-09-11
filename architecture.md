@@ -950,7 +950,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `PATCH` | `/api/sessions/{id}` | Update session including labels anytime | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
-| `POST` | `/api/sessions/copy-week` | Copy labeled sessions +7 days; prescriptions only; week label increments | Coach / Athlete |
+| `POST` | `/api/sessions/copy-week` | Copy labeled sessions by a user-chosen day offset; prescriptions only; week label increments | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (with tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |

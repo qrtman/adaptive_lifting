@@ -173,7 +173,7 @@ def test_copy_week_shifts_dates_and_increments_week_label():
 
     copied = client.post(
         "/api/sessions/copy-week",
-        json={"sessionIds": [squat.json()["id"], bench.json()["id"]]},
+        json={"sessionIds": [squat.json()["id"], bench.json()["id"]], "dateOffsetDays": 3},
         cookies=cookies,
     )
     assert copied.status_code == 200
@@ -181,7 +181,7 @@ def test_copy_week_shifts_dates_and_increments_week_label():
     assert payload["status"] == "success"
     assert len(payload["copied"]) == 2
     dates = sorted(row["date"] for row in payload["copied"])
-    assert dates == ["2026-09-22", "2026-09-24"]
+    assert dates == ["2026-09-18", "2026-09-20"]
     assert all(row["blockLabel"] == "Block2" for row in payload["copied"])
     assert all(row["weekLabel"] == "Week4" for row in payload["copied"])
 
