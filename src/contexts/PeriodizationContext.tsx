@@ -248,7 +248,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const finishSession = async (status: WorkoutStatus) => {
     if (!activeWorkoutId) return;
 
-    Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer));
+    Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer as number));
     saveTimers.current = {};
 
     await apiService.updateSession(activeWorkoutId, { status });

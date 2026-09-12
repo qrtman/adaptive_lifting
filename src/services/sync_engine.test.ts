@@ -74,7 +74,8 @@ describe('processSyncQueue mixed payload', () => {
     const conflicts = await processSyncQueue('w-a');
     expect(conflicts).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const posted = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    const posted = JSON.parse(requestInit.body);
     expect(posted.workout_id).toBe('w-a');
     expect(posted.changes).toHaveLength(1);
     expect(posted.changes[0].id).toBe('ex-1');

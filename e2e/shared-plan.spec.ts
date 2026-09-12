@@ -27,15 +27,18 @@ test('athlete sees sessions the linked coach created after reload', async ({ bro
     });
     expect(coachReg.ok()).toBeTruthy();
     expect(athleteReg.ok()).toBeTruthy();
-    const athleteBody = await athleteReg.json() as { user?: { id?: string }; id?: string };
-    const athleteId = athleteBody.user?.id || athleteBody.id;
-    expect(athleteId).toBeTruthy();
 
     const codeResp = await coachApi.post('/api/auth/coach-code');
     expect(codeResp.ok()).toBeTruthy();
     const code = (await codeResp.json()).code as string;
     const link = await athleteApi.post('/api/auth/link-athlete', { data: { code } });
     expect(link.ok()).toBeTruthy();
+
+    const roster = await coachApi.get('/api/coach/roster');
+    expect(roster.ok()).toBeTruthy();
+    const athleteId = ((await roster.json()) as { id: string; email: string }[])
+      .find((row) => row.email === athleteEmail)?.id;
+    expect(athleteId).toBeTruthy();
 
     const created = await coachApi.post('/api/sessions', {
       data: {

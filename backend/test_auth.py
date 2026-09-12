@@ -851,6 +851,8 @@ def test_sync_mixed_workout_payload_rejects_foreign_entities():
         json={"title": "Bench", "liftCategory": "Bench"},
         cookies=cookies,
     ).json()
+    squat_set = squat["sets"][0]["id"]
+    bench_set = bench["sets"][0]["id"]
 
     mixed = client.post(
         f"/api/workouts/{second['id']}/sync",
@@ -861,18 +863,18 @@ def test_sync_mixed_workout_payload_rejects_foreign_entities():
             "last_updated_at": "2026-09-12T00:00:00Z",
             "changes": [
                 {
-                    "entity": "Exercise",
-                    "id": bench["id"],
-                    "mutation_id": "mut-own",
+                    "entity": "ExerciseSet",
+                    "id": bench_set,
+                    "mutation_id": f"mut-own-{suffix}",
                     "updated_at": "2026-09-12T00:00:00Z",
-                    "fields": {"variation": "Close Grip Bench"},
+                    "fields": {"actual": 110, "reps": 5, "executedRpe": 8},
                 },
                 {
-                    "entity": "Exercise",
-                    "id": squat["id"],
-                    "mutation_id": "mut-foreign",
+                    "entity": "ExerciseSet",
+                    "id": squat_set,
+                    "mutation_id": f"mut-foreign-{suffix}",
                     "updated_at": "2026-09-12T00:00:00Z",
-                    "fields": {"variation": "Should not apply"},
+                    "fields": {"actual": 999, "reps": 1, "executedRpe": 10},
                 },
             ],
         },
@@ -880,16 +882,16 @@ def test_sync_mixed_workout_payload_rejects_foreign_entities():
     )
     assert mixed.status_code == 200
     body = mixed.json()
-    assert "mut-own" in body.get("accepted_mutation_ids", [])
-    assert "mut-foreign" in body.get("rejected_mutations", [])
+    assert f"mut-own-{suffix}" in body.get("accepted_mutation_ids", [])
+    assert f"mut-foreign-{suffix}" in body.get("rejected_mutations", [])
     assert any(item.get("reason") == "WORKOUT_MISMATCH" for item in body.get("conflicts", []))
 
     tree = client.get("/api/microcycles", cookies=cookies)
     workouts = {w["id"]: w for mc in tree.json() for w in mc["workouts"]}
     squat_row = next(e for e in workouts[first["id"]]["exercises"] if e["id"] == squat["id"])
     bench_row = next(e for e in workouts[second["id"]]["exercises"] if e["id"] == bench["id"])
-    assert squat_row["variation"] != "Should not apply"
-    assert bench_row["variation"] == "Close Grip Bench"
+    assert squat_row["sets"][0]["actual"] != 999
+    assert bench_row["sets"][0]["actual"] == 110
 
 
 def test_auth_link_reset_is_not_a_plan_conflict():
