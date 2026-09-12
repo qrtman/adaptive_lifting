@@ -13,11 +13,9 @@ import { LiftVariationPicker } from './LiftVariationPicker';
 
 export function AddLiftBar({
   sessionId,
-  locked,
   onAdded,
 }: {
   sessionId: string;
-  locked: boolean;
   onAdded: () => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
@@ -59,7 +57,7 @@ export function AddLiftBar({
   };
 
   const addLift = async () => {
-    if (locked || busy || !selected) return;
+    if (busy || !selected) return;
     setBusy(true);
     setError(null);
     try {
@@ -78,8 +76,6 @@ export function AddLiftBar({
       setBusy(false);
     }
   };
-
-  if (locked) return null;
 
   return (
     <div className="px-2 py-3 border-t border-white/10">

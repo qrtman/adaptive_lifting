@@ -227,7 +227,7 @@ Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `
 | Invariant | Enforcement |
 | :--- | :--- |
 | **Tombstone Integrity**: Updates to records with `deleted_at != null` are strictly rejected. | Service-layer sync validation |
-| **State Machine Lock**: A workout in `COMPLETED` state rejects execution mutations unless reverted to `IN_PROGRESS`. | Pydantic schema / Service layer |
+| **Completed sessions stay writable**: `COMPLETED` / `MISSED` are status labels only. Plan and log mutations remain allowed. Concurrent `WorkoutLock` still serializes writers. | Service-layer lock lease |
 | **LexoRank Order**: Ordering strings (`lexo_rank`) must maintain lexical sortability without integer collisions. | Client generation, DB indexing |
 | **Accessory identity**: Isolation work is `Exercise.tier = Accessory`, never a workout-level blob without sets. | Schema + sync entity allow-list |
 | Session `date` is required (`YYYY-MM-DD`); Block/Week labels are optional and independently nullable | Schema + service validation |
@@ -241,7 +241,7 @@ Statuses are stored as enums rather than display strings. Transitions are strict
 | :--- | :--- | :--- |
 | `Mesocycle` | `DRAFT`, `ACTIVE`, `COMPLETED` | `COMPLETED` prevents structural edits to the block. |
 | `Microcycle` | `DRAFT`, `ACTIVE`, `COMPLETED` | `COMPLETED` prevents structural edits to the week. |
-| `Workout` | `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `MISSED` | `COMPLETED` and `MISSED` lock set-level mutations. |
+| `Workout` | `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `MISSED` | Status labels only; set-level mutations stay allowed. Concurrent `WorkoutLock` still serializes writers. |
 
 Allowed transitions are explicit:
 
@@ -249,7 +249,7 @@ Allowed transitions are explicit:
 | :--- | :--- |
 | `Mesocycle` | `DRAFT -> ACTIVE -> COMPLETED` |
 | `Microcycle` | `DRAFT -> ACTIVE -> COMPLETED` |
-| `Workout` | `PLANNED -> IN_PROGRESS -> COMPLETED`; `PLANNED -> MISSED`; `COMPLETED -> IN_PROGRESS` only through explicit reopen |
+| `Workout` | `PLANNED -> IN_PROGRESS -> COMPLETED`; `PLANNED -> MISSED`; `COMPLETED` / `MISSED` remain writable without reopen |
 
 Only one mesocycle may be `ACTIVE` per athlete at a time.
 
@@ -635,9 +635,11 @@ When an entity is deleted, it is flagged with `deleted_at = current_timestamp`.
 - **The Client:** Filters out all entities where `deleted_at != null` in views.
 - **The Sync Engine:** If an offline client attempts to modify an `ExerciseSet` that a coach deleted on the desktop, the backend detects `deleted_at != null` and rejects the mutation, passing down the tombstone to purge it from the client's local store.
 
-### 7.4 State Machine Execution Locks
+### 7.4 Session Status vs Concurrent Workout Lock
 
-When an athlete finishes a workout, they mark it as `COMPLETED`. This locks the workout. Any subsequent offline mutations remaining in the queue, or accidental future touches on the screen, are rejected by the sync engine unless the user explicitly clicks "Re-open Session" (transitioning to `IN_PROGRESS`).
+Marking a workout `COMPLETED` is a status label only. The session stays fully editable for plan and log writes (add/remove lifts, PUT sets, `/api/sets/log`, and workout sync). There is no reopen / Open step.
+
+Concurrent writer contention is a different concept: the `WorkoutLock` lease in 7.4.1. Sync rejects mutations from a non-holder with `409 WORKOUT_LOCKED` while another user holds the lease. Do not treat `COMPLETED` as `WORKOUT_LOCKED`.
 
 #### 7.4.1 Workout Lock Lease & Concurrency Engine
 To enforce the single-writer-per-workout constraint and prevent state desynchronization during rapid multi-device logging or offline merging, the system implements a robust, SQL-backed distributed lease model.
@@ -950,10 +952,10 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `GET` | `/api/microcycles?athlete_id=` | Retrieve periodization tree for athlete plan space (empty array if none; never auto-seed) | Coach / Athlete |
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
 | `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
-| `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) or `move` (`up`/`down`) on an unlocked session | Coach / Athlete |
+| `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) or `move` (`up`/`down`) | Coach / Athlete |
 | `PUT` | `/api/sessions/{id}/exercises/{exercise_id}/sets` | Replace planned/logged sets (typed kg; extra sets may have empty kg) | Coach / Athlete |
-| `DELETE` | `/api/sessions/{id}/exercises/{exercise_id}` | Tombstone a lift on an unlocked session | Coach / Athlete |
-| `PATCH` | `/api/sessions/{id}` | Update session including labels anytime (`blockLabel`/`weekLabel`; empty string clears); set `IN_PROGRESS` to open a finished session | Coach / Athlete |
+| `DELETE` | `/api/sessions/{id}/exercises/{exercise_id}` | Tombstone a lift | Coach / Athlete |
+| `PATCH` | `/api/sessions/{id}` | Update session including labels anytime (`blockLabel`/`weekLabel`; empty string clears); `COMPLETED` is a status label and does not freeze writes | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |

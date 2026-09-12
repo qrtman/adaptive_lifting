@@ -4,7 +4,6 @@ import { Lock, X } from 'lucide-react';
 interface WorkoutLockBannerProps {
   holderName?: string;
   expiresAt?: Date | null;
-  mode?: 'other_writer' | 'completed';
   message?: string;
   onDismiss?: () => void;
 }
@@ -12,22 +11,19 @@ interface WorkoutLockBannerProps {
 export const WorkoutLockBanner: React.FC<WorkoutLockBannerProps> = ({
   holderName,
   expiresAt,
-  mode = 'other_writer',
   message,
   onDismiss,
 }) => {
   const minutesLeft = expiresAt ? Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 60000)) : null;
   const body = message
-    || (mode === 'completed'
-      ? 'Session is locked. Completed sessions stay read-only.'
-      : holderName
-        ? `Currently locked by ${holderName}.${minutesLeft ? ` Try again in ${minutesLeft}m.` : ''}`
-        : 'This workout is locked right now. Inputs stay read-only until the lock is released.');
+    || (holderName
+      ? `Currently locked by ${holderName}.${minutesLeft ? ` Try again in ${minutesLeft}m.` : ''}`
+      : 'This workout is locked right now. Inputs stay read-only until the lock is released.');
 
   return (
     <div
       data-testid="workout-lock-banner"
-      data-mode={mode}
+      data-mode="other_writer"
       className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 mb-4 flex items-center justify-between gap-3"
     >
       <div className="flex items-center gap-3">
@@ -36,7 +32,7 @@ export const WorkoutLockBanner: React.FC<WorkoutLockBannerProps> = ({
         </div>
         <div>
           <h4 className="text-orange-400 font-bold text-sm uppercase tracking-widest leading-none mb-1">
-            {mode === 'completed' ? 'Session locked' : 'Read-only mode'}
+            Read-only mode
           </h4>
           <p className="text-xs text-orange-200/70">
             {body}

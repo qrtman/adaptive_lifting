@@ -125,7 +125,6 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
           {locks.map((lock) => (
             <div key={lock.workout_id} className="pointer-events-auto">
               <WorkoutLockBanner
-                mode={/session is locked/i.test(lock.message) ? 'completed' : 'other_writer'}
                 message={lock.message}
                 onDismiss={() => setLocks((prev) => prev.filter((item) => item.workout_id !== lock.workout_id))}
               />

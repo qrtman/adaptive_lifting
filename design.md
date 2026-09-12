@@ -419,7 +419,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
 * **Workout Cards Sizing & Functional States:**
   * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
-  * **Completed Workout State:** Session is finished and not editable. A single **Open** control (same idea as opening a folder) sets status to `IN_PROGRESS` and restores add/remove/log. No lock banner or ceremony.
+  * **Completed Workout State:** Session may show a Complete status label. Plan and log stay fully editable. No Open control and no SESSION LOCKED banner.
   * **Missed Workout State:** Renders with a distinct red boundary treatment `--ok-red` (`hsl(0, 84%, 60%)`) and bold warning metadata text `"Missed Session"` if a planned training day passes the hydration window without any recorded sets.
   * **In-Progress Workout State:** Displays an active, pulsing telemetry label (`[ LIVE TELEMETRY ]`), a dense horizontal completion progress bar tracking logged sets against planned sets, and direct hover options to sync or pause the telemetry feed.
 * **Vertical Stack Planned vs. Executed (Actual) Set Styling Rules:**
@@ -1622,7 +1622,7 @@ stateDiagram-v2
 The application UI handles API errors with prescriptive user feedback and structured recovery routes:
 
 - **`401 Unauthorized / 403 Forbidden` (RBAC Violation):** Immediately triggers the `AUTH_SESSION_REVOKED` overlay. Unsynced local mutations in IndexedDB are strictly preserved in local storage. User is prompted to re-authenticate.
-- **`409 Conflict / WORKOUT_LOCKED`:** Displays the persistent `WorkoutLockBanner` in the workout details pane, explaining that edit rights currently reside with another writer. Inputs transition to read-only until the lock expires or is released.
+- **`409 Conflict / WORKOUT_LOCKED`:** Displays the persistent `WorkoutLockBanner` in the workout details pane, explaining that edit rights currently reside with another writer. Inputs transition to read-only until the lock expires or is released. `COMPLETED` session status is not a lock and must not use this banner.
 - **`503 Service Unavailable`:** Standard API gateway key missing or server error. Displays a dark red-bordered alert container: `"AI Autoregulation gateway temporarily unconfigured. Please define GEMINI_API_KEY on the server."`
 - **`502 Bad Gateway`:** Model gateway timeout. Displays a non-intrusive alert strip with a prominent **Retry** button to re-trigger the AI calculation.
 
@@ -1777,7 +1777,7 @@ Every React component must strictly satisfy these data parameters and lifecycle 
 | `MetricCard` | `label`, `value`, `unit`, `delta`, `riskState` | loading, empty, normal, warning, critical | open detail when clickable | Mapped to **Section 6.1.3.2 & 6.5**. Flex columns CSS Grid (`repeat(3, 1fr)`). Spacing padding locked to `--space-3` (12px). |
 | `RiskBadge` | `state`, `label`, `icon`, `description` | neutral, success, warning, danger | tooltip on desktop | Mapped to **Section 6.1.3.2**. Inline label + icon status container. Margin `--space-1` (4px). Color WCAG AA/AAA guidelines. |
 | `WorkoutCalendar` | `microcycles`, `workouts`, `locks`, `activeAthlete` | loading, empty, dragging, rejected, locked | create workout, move within boundary | Mapped to **Section 6.1.2**. 7-Column CSS Grid. Min-width budget: `960px` (Microcycle View), `1024px` (Month View) to prevent card truncation. |
-| `WorkoutLockBanner` | `holder`, `expiresAt`, `mode`, `canRelease`, `canReopen` | locked by me, locked by other, expired, completed | release, reopen | Mapped to **Section 6.1.2.1 & 10.1**. Overlay alert block. Full cell width width block, height dynamic. |
+| `WorkoutLockBanner` | `holder`, `expiresAt`, `canRelease` | locked by me, locked by other, expired | release | Mapped to **Section 6.1.2.1 & 10.1**. Overlay alert block for concurrent `WorkoutLock` only — never for completed-session copy. Full cell width width block, height dynamic. |
 | `PrescriptionEditor` | structured prescription JSON, exercise metadata | draft, valid, invalid, readonly | edit mode, validate, save | Mapped to **Section 6.2**. Centered overlay modal layout. Width: `90vw` (min `800px`, max `1200px`), height: `85dvh`. Transitions to `100%` viewport on compact screen dimensions. |
 | `ExerciseReorderList` | ordered entities with `lexo_rank` | normal, dragging, syncing, conflict | reorder, undo local reorder | Mapped to **Section 6.1.2.1**. Drag-and-drop vertical list constrained strictly within active microcycle grid columns. |
 | `SetLogPanel` | active set, previous sets, unit preference, sync state | hydrated, offline, pending, accepted, rejected, locked | log set, edit allowed fields, add note | Mapped to **Section 7.1**. Mobile vertical feed chronological card. Height: `40px` collapsed, `260px` expanded inline. Touch targets min `48px x 48px`, gaps `12px` to prevent fat-finger skews. |
@@ -1807,7 +1807,6 @@ Every React component must strictly satisfy these data parameters and lifecycle 
 | Accepted | check |
 | Rejected | alert triangle or circle x |
 | Locked | lock |
-| Reopen | unlock |
 | Export/publish | upload/share |
 | Google Sheets | table/spreadsheet icon; do not use Google logo unless licensed |
 | Telegram | message/send icon; do not use Telegram logo unless licensed |
@@ -1870,7 +1869,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] RPE supports 0.5 increments.
 - [ ] Per-set sync state is visible.
 - [ ] Offline logging remains available.
-- [ ] Completed/locked workouts disable mutation controls and explain why.
+- [ ] Completed workouts remain fully editable; Complete is a status label only.
 - [ ] Rejected mutations show recovery actions.
 
 ### 16.3 Coach Desktop Acceptance
@@ -1882,13 +1881,13 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is name + optional block/week; cancel does not create.
 - [ ] Block/Week labels can be set or changed anytime, including after Copy to. Name/Block/Week edit through a centered dialog (not always-open fields). Empty clears the label.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
-- [ ] Coach or athlete can add squat, bench, deadlift, or accessory to an unlocked session.
-- [ ] Coach or athlete can remove a lift from an unlocked session; completed sessions stay locked until Open.
-- [ ] Finished sessions reopen with a single Open action (same as opening a folder). No lock ceremony.
+- [ ] Coach or athlete can add squat, bench, deadlift, or accessory to a session.
+- [ ] Coach or athlete can remove a lift from a session; completed sessions stay editable.
+- [ ] Complete does not freeze the session; there is no Open / reopen step.
 - [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) in the Edit lift dialog, compiling a readonly name. Chips are not always-open on the session.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
 - [ ] Workout builder uses structured prescription controls, not freeform parsing. Top-set Rx kg is typed; e1RM is a derived readout.
-- [ ] Coach or athlete can reorder lifts with Up/Down on an unlocked session; order persists as `lexo_rank`.
+- [ ] Coach or athlete can reorder lifts with Up/Down; order persists as `lexo_rank`.
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Export and Google Sheets publish flows are separate.
 - [ ] Audit/conflict access exists from the main shell or settings.

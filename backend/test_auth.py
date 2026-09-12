@@ -466,14 +466,14 @@ def test_add_lift_to_empty_session():
     assert body["sets"][0]["plannedRpe"] == 8.0
     assert body["sets"][0]["actual"] is None
 
-    locked = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
-    assert locked.status_code == 200
-    blocked = client.post(
+    done = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert done.status_code == 200
+    bench = client.post(
         f"/api/sessions/{sid}/exercises",
         json={"title": "Bench", "liftCategory": "Bench"},
         cookies=cookies,
     )
-    assert blocked.status_code == 409
+    assert bench.status_code == 200
 
     other = client.post(
         "/api/auth/register",
@@ -490,8 +490,8 @@ def test_add_lift_to_empty_session():
     tree = client.get("/api/microcycles", cookies=cookies)
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     match = next(w for w in workouts if w["id"] == sid)
-    assert len(match["exercises"]) == 1
-    assert match["exercises"][0]["title"] == "Squat"
+    assert len(match["exercises"]) == 2
+    assert [e["title"] for e in match["exercises"]] == ["Squat", "Bench"]
 
 
 def test_remove_lift_from_session():
@@ -535,16 +535,16 @@ def test_remove_lift_from_session():
     missing = client.delete(f"/api/sessions/{sid}/exercises/{squat_id}", cookies=cookies)
     assert missing.status_code == 404
 
-    locked = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
-    assert locked.status_code == 200
-    blocked = client.delete(
+    done = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert done.status_code == 200
+    removed_after = client.delete(
         f"/api/sessions/{sid}/exercises/{bench.json()['id']}",
         cookies=cookies,
     )
-    assert blocked.status_code == 409
+    assert removed_after.status_code == 200
 
 
-def test_open_finished_session():
+def test_completed_session_stays_writable():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     athlete = client.post(
@@ -568,17 +568,6 @@ def test_open_finished_session():
     assert done.status_code == 200
     assert done.json()["status"] == "COMPLETED"
 
-    blocked = client.post(
-        f"/api/sessions/{sid}/exercises",
-        json={"title": "Bench", "liftCategory": "Bench"},
-        cookies=cookies,
-    )
-    assert blocked.status_code == 409
-
-    opened = client.patch(f"/api/sessions/{sid}", json={"status": "IN_PROGRESS"}, cookies=cookies)
-    assert opened.status_code == 200
-    assert opened.json()["status"] == "IN_PROGRESS"
-
     bench = client.post(
         f"/api/sessions/{sid}/exercises",
         json={"title": "Bench", "liftCategory": "Bench"},
@@ -590,9 +579,10 @@ def test_open_finished_session():
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     match = next(w for w in workouts if w["id"] == sid)
     assert [e["title"] for e in match["exercises"]] == ["Squat", "Bench"]
+    assert match["status"] == "COMPLETED"
 
 
-def test_locked_session_rejects_set_writes():
+def test_completed_session_allows_set_writes():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     athlete = client.post(
@@ -621,14 +611,15 @@ def test_locked_session_rejects_set_writes():
         json={"workoutId": sid, "exerciseId": eid, "setId": set_id, "weight": 180, "reps": 5, "rpe": 8},
         cookies=cookies,
     )
-    assert logged.status_code == 409
+    assert logged.status_code == 200
 
     replaced = client.put(
         f"/api/sessions/{sid}/exercises/{eid}/sets",
-        json={"sets": [{"id": set_id, "label": "Set 1", "plannedWeight": 180, "plannedReps": 5, "plannedRpe": 8}]},
+        json={"sets": [{"id": set_id, "label": "Set 1", "plannedWeight": 185, "plannedReps": 5, "plannedRpe": 8}]},
         cookies=cookies,
     )
-    assert replaced.status_code == 409
+    assert replaced.status_code == 200
+    assert replaced.json()["sets"][0]["plannedWeight"] == 185.0
 
     other = client.post(
         "/api/sessions",
@@ -643,7 +634,7 @@ def test_locked_session_rejects_set_writes():
     )
     assert hijack.status_code == 404
 
-    locked_sync = client.post(
+    completed_sync = client.post(
         f"/api/workouts/{sid}/sync",
         json={
             "schema_version": 1,
@@ -653,21 +644,16 @@ def test_locked_session_rejects_set_writes():
             "changes": [{
                 "entity": "ExerciseSet",
                 "id": set_id,
-                "mutation_id": "mut-locked-1",
+                "mutation_id": "mut-completed-1",
                 "updated_at": "2026-09-12T00:00:00Z",
                 "fields": {"actual": 200, "reps": 5, "executedRpe": 8},
             }],
         },
         cookies=cookies,
     )
-    assert locked_sync.status_code == 409
-    locked_body = locked_sync.json()
-    locked_detail = locked_body.get("detail") or {}
-    if isinstance(locked_detail, dict):
-        locked_code = (locked_detail.get("error") or {}).get("code")
-    else:
-        locked_code = None
-    assert locked_code == "WORKOUT_LOCKED"
+    assert completed_sync.status_code == 200
+    completed_body = completed_sync.json()
+    assert "mut-completed-1" in completed_body.get("accepted_mutation_ids", [])
 
     mismatch_sync = client.post(
         f"/api/workouts/{other_id}/sync",
@@ -749,14 +735,18 @@ def test_reorder_lifts_in_session():
     match = next(w for w in workouts if w["id"] == sid)
     assert [e["title"] for e in match["exercises"]] == ["Bench", "Squat", "Deadlift"]
 
-    locked = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
-    assert locked.status_code == 200
-    blocked = client.patch(
+    done = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert done.status_code == 200
+    moved_after = client.patch(
         f"/api/sessions/{sid}/exercises/{bench_id}",
         json={"move": "down"},
         cookies=cookies,
     )
-    assert blocked.status_code == 409
+    assert moved_after.status_code == 200
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    match = next(w for w in workouts if w["id"] == sid)
+    assert [e["title"] for e in match["exercises"]] == ["Squat", "Bench", "Deadlift"]
 
 
 def test_name_lift_variation():

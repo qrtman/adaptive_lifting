@@ -75,6 +75,14 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
 
   await page.getByTestId('session-complete').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
-  await expect(page.getByTestId('session-open')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Up', exact: true }).first()).toBeDisabled();
+  await expect(page.getByTestId('session-open')).toHaveCount(0);
+  await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Up', exact: true }).first()).toBeEnabled();
+  const squatPlan = page.getByRole('heading', { name: 'Squat', exact: true })
+    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]')
+    .getByTestId('rx-weight').first();
+  await squatPlan.click();
+  await squatPlan.fill('182.5');
+  await squatPlan.press('Enter');
+  await expect(squatPlan).toHaveText('182.5');
 });

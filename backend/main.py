@@ -1427,8 +1427,6 @@ def require_session_for_write(db: Session, current_user: User, session_id: str) 
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
-    if workout.status in ("COMPLETED", "MISSED"):
-        raise HTTPException(status_code=409, detail="Session is locked")
     return workout
 
 

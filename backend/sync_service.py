@@ -36,8 +36,6 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
     lock = db.query(WorkoutLock).filter(WorkoutLock.workout_id == workout.id).first()
     if lock and lock.holder_user_id != current_user_id and lock.expires_at > datetime.utcnow():
         raise HTTPException(status_code=409, detail={"error": {"code": "WORKOUT_LOCKED", "message": "This workout is locked right now."}})
-    if workout.status in ("COMPLETED", "MISSED"):
-        raise HTTPException(status_code=409, detail={"error": {"code": "WORKOUT_LOCKED", "message": "Session is locked"}})
 
     # Process mutations
     accepted_ids = []

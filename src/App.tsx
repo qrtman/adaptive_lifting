@@ -10,8 +10,6 @@ import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
 import { CoachDashboardView } from './components/CoachDashboardView';
-import { isWorkoutLocked } from './types';
-import { WorkoutLockBanner } from './components/WorkoutLockBanner';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
@@ -92,16 +90,6 @@ export default function App() {
       await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to move lift');
-    }
-  };
-
-  const handleOpenSession = async () => {
-    if (!activeWorkout) return;
-    try {
-      await apiService.updateSession(activeWorkout.id, { status: 'IN_PROGRESS' });
-      await reloadMicrocycles(planAthleteId);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to open session');
     }
   };
 
@@ -220,44 +208,26 @@ export default function App() {
                       >
                         Athlete
                       </button>
-                      {isWorkoutLocked(activeWorkout.status) ? (
-                        <button
-                          type="button"
-                          data-testid="session-open"
-                          onClick={() => void handleOpenSession()}
-                          className="h-7 px-2 text-[11px] text-white bg-white/10 rounded"
-                        >
-                          Open
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          data-testid="session-complete"
-                          onClick={async () => {
-                            try {
-                              await finishSession('COMPLETED');
-                              setCurrentView('dashboard');
-                            } catch (err) {
-                              alert(err instanceof Error ? err.message : 'Failed to complete session');
-                            }
-                          }}
-                          className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
-                        >
-                          Complete
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        data-testid="session-complete"
+                        onClick={async () => {
+                          try {
+                            await finishSession('COMPLETED');
+                            setCurrentView('dashboard');
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : 'Failed to complete session');
+                          }
+                        }}
+                        className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
+                      >
+                        Complete
+                      </button>
                     </div>
                   </div>
 
-                  {isWorkoutLocked(activeWorkout.status) && (
-                    <WorkoutLockBanner
-                      mode="completed"
-                      message="Session is locked. Completed sessions stay read-only."
-                    />
-                  )}
-
                   <div>
-                    {activeWorkout.exercises.length === 0 && !isWorkoutLocked(activeWorkout.status) && (
+                    {activeWorkout.exercises.length === 0 && (
                       <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
@@ -277,14 +247,12 @@ export default function App() {
                         onRemove={() => handleRemoveLift(ex.id)}
                         onMoveUp={index > 0 ? () => handleMoveLift(ex.id, 'up') : undefined}
                         onMoveDown={index < activeWorkout.exercises.length - 1 ? () => handleMoveLift(ex.id, 'down') : undefined}
-                        locked={isWorkoutLocked(activeWorkout.status)}
                         roleMode={roleMode}
                       />
                     ))}
 
                     <AddLiftBar
                       sessionId={activeWorkout.id}
-                      locked={isWorkoutLocked(activeWorkout.status)}
                       onAdded={() => reloadMicrocycles(planAthleteId)}
                     />
                   </div>

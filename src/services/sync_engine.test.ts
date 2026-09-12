@@ -31,9 +31,9 @@ describe('sync queue workout scoping', () => {
   });
 
   it('parses FastAPI WORKOUT_LOCKED envelopes', () => {
-    const body = { detail: { error: { code: 'WORKOUT_LOCKED', message: 'Session is locked' } } };
+    const body = { detail: { error: { code: 'WORKOUT_LOCKED', message: 'This workout is locked right now.' } } };
     expect(parseSyncErrorCode(body)).toBe('WORKOUT_LOCKED');
-    expect(parseSyncErrorMessage(body, 'fallback')).toBe('Session is locked');
+    expect(parseSyncErrorMessage(body, 'fallback')).toBe('This workout is locked right now.');
     expect(isLockSyncCode(parseSyncErrorCode(body))).toBe(true);
   });
 
@@ -97,7 +97,7 @@ describe('processSyncQueue mixed payload', () => {
     const fetchMock = vi.fn(async () => ({
       ok: false,
       status: 409,
-      json: async () => ({ detail: { error: { code: 'WORKOUT_LOCKED', message: 'Session is locked' } } }),
+      json: async () => ({ detail: { error: { code: 'WORKOUT_LOCKED', message: 'This workout is locked right now.' } } }),
     }));
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('navigator', { onLine: true });

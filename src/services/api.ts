@@ -1,4 +1,4 @@
-import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, isWorkoutLocked, WorkoutData } from '../types';
+import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
 import { getSnapshot, saveSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
@@ -166,13 +166,9 @@ export const apiService = {
           credentials: 'include',
           body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv })
         });
-        if (response.status === 409) {
-          throw new Error('Session is locked');
-        }
         if (!response.ok) throw new Error('API set log request failed');
         return await response.json();
       } catch (err) {
-        if (err instanceof Error && err.message === 'Session is locked') throw err;
         console.warn('Backend server save failed. Queueing set on IndexedDB snapshot.', err);
       }
     }
@@ -202,9 +198,6 @@ export const apiService = {
     });
 
     if (!workoutObj) return data;
-    if (isWorkoutLocked(workoutObj.status)) {
-      throw new Error('Session is locked');
-    }
 
     // 2. Locate exercise and update target set
     const exercise = workoutObj.exercises.find((ex: any) => ex.id === exerciseId);

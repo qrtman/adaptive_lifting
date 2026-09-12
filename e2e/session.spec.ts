@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
-test('plans typed kg, suggests later kg after a log, then locks on Complete', async ({ page, request }) => {
+test('plans typed kg, suggests later kg after a log, then stays editable after Complete', async ({ page, request }) => {
   const email = `plan-log-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
     data: { email, password: 'password123', role: 'ATHLETE' },
@@ -65,9 +65,16 @@ test('plans typed kg, suggests later kg after a log, then locks on Complete', as
 
   await page.getByTestId('session-complete').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
-  await expect(page.getByTestId('session-open')).toBeVisible();
-  await expect(page.getByTestId('add-lift')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '+ Set' })).toHaveCount(0);
-  await expect(page.getByText(/tap Open/i)).toHaveCount(0);
-  await expect(page.getByText(/Finished/i)).toHaveCount(0);
+  await expect(page.getByTestId('session-open')).toHaveCount(0);
+  await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
+  await expect(page.getByText(/SESSION LOCKED/i)).toHaveCount(0);
+  await expect(page.getByTestId('session-complete')).toBeVisible();
+  await expect(page.getByTestId('add-lift')).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Set' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Set' }).click();
+  const extraPlan = page.getByTestId('rx-weight').nth(2);
+  await extraPlan.click();
+  await extraPlan.fill('175');
+  await extraPlan.press('Enter');
+  await expect(extraPlan).toHaveText('175');
 });

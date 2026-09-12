@@ -10,7 +10,6 @@ import {
   MicrocycleData,
   MesocycleData,
   WorkoutStatus,
-  isWorkoutLocked,
 } from '../types';
 
 interface PeriodizationState {
@@ -172,7 +171,6 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
   const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
     if (!activeWorkoutId) return;
-    if (activeWorkout && isWorkoutLocked(activeWorkout.status)) return;
     const payload = updatedSets.map((row, index) => ({
       id: row.id,
       label: row.label || `Set ${index + 1}`,
@@ -193,11 +191,10 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         console.error('Failed to save sets', err);
       });
     }, 400);
-  }, [activeWorkoutId, activeWorkout]);
+  }, [activeWorkoutId]);
 
   const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
     if (!activeMicrocycleId || !activeWorkoutId) return;
-    if (activeWorkout && isWorkoutLocked(activeWorkout.status)) return;
 
     setMicrocycles(prev => prev.map(m => {
       if (m.id !== activeMicrocycleId) return m;
