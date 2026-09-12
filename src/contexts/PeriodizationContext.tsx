@@ -168,6 +168,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
   const saveTimers = useRef<Record<string, number>>({});
+  const pendingSetWrites = useRef<Record<string, any[]>>({});
 
   const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
     if (!activeWorkoutId) return;
@@ -184,10 +185,15 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       reps: row.reps ?? null,
       executedRpe: row.executedRpe ?? null,
     }));
+    pendingSetWrites.current[exerciseId] = payload;
     void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload });
     window.clearTimeout(saveTimers.current[exerciseId]);
     saveTimers.current[exerciseId] = window.setTimeout(() => {
-      void apiService.replaceExerciseSets(activeWorkoutId, exerciseId, payload).catch((err) => {
+      const next = pendingSetWrites.current[exerciseId];
+      delete pendingSetWrites.current[exerciseId];
+      delete saveTimers.current[exerciseId];
+      if (!next) return;
+      void apiService.replaceExerciseSets(activeWorkoutId, exerciseId, next).catch((err) => {
         console.error('Failed to save sets', err);
       });
     }, 400);
@@ -245,10 +251,20 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const finishSession = async (status: WorkoutStatus) => {
     if (!activeWorkoutId) return;
 
+    const workoutId = activeWorkoutId;
     Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer as number));
     saveTimers.current = {};
+    const pending = pendingSetWrites.current;
+    pendingSetWrites.current = {};
+    await Promise.all(
+      Object.entries(pending).map(([exerciseId, payload]) =>
+        apiService.replaceExerciseSets(workoutId, exerciseId, payload).catch((err) => {
+          console.error('Failed to save sets', err);
+        })
+      )
+    );
 
-    await apiService.updateSession(activeWorkoutId, { status });
+    await apiService.updateSession(workoutId, { status });
     await reloadMicrocycles(planAthleteId);
   };
 

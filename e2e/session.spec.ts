@@ -64,6 +64,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(suggest).toHaveCount(0);
 
   await page.getByTestId('session-complete').click();
+  await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
   await expect(page.getByTestId('session-open')).toHaveCount(0);
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
@@ -71,10 +72,12 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('session-complete')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Set' })).toBeVisible();
+  const firstPlan = page.getByTestId('rx-weight').first();
+  await firstPlan.click();
+  await firstPlan.fill('175');
+  await firstPlan.press('Enter');
+  await expect(firstPlan).toHaveText('175');
+  const planCount = await page.getByTestId('rx-weight').count();
   await page.getByRole('button', { name: '+ Set' }).click();
-  const extraPlan = page.getByTestId('rx-weight').nth(2);
-  await extraPlan.click();
-  await extraPlan.fill('175');
-  await extraPlan.press('Enter');
-  await expect(extraPlan).toHaveText('175');
+  await expect(page.getByTestId('rx-weight')).toHaveCount(planCount + 1);
 });
