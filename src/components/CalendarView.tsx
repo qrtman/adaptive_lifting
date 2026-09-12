@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { NewSessionDialog } from './NewSessionDialog';
@@ -24,8 +25,9 @@ export function CalendarView({
   onFilterChange,
 }: CalendarViewProps) {
   const { microcycles, mesocycles, setMicrocycles, activeAthleteId, reloadMicrocycles } = usePeriodization();
+  const { user } = useAuth();
   const onUpdateWorkouts = setMicrocycles;
-  const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
+  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   // Navigation states (we start in September 2026)
   const [currentYear, setCurrentYear] = useState(2026);

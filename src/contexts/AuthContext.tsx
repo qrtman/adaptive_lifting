@@ -28,6 +28,10 @@ function roleFromPref(): RoleMode {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any | null>(() => {
+    const storedRole = getUiPref(UI_KEYS.role)?.toUpperCase();
+    if (storedRole === 'ATHLETE' || storedRole === 'COACH') {
+      return { role: storedRole, email: getUiPref(UI_KEYS.email) };
+    }
     const stored = getUiPref(UI_KEYS.roleMode);
     return stored === 'athlete' || stored === 'coach' ? { role: stored.toUpperCase() } : null;
   });
@@ -56,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const role = String(nextUser.role).toLowerCase();
       if (role === 'athlete' || role === 'coach') {
         setRoleMode(role);
+        setUiPref(UI_KEYS.role, String(nextUser.role).toUpperCase());
       }
     }
     if (nextUser?.email) {

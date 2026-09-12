@@ -545,6 +545,22 @@ def resolve_athlete_id(current_user: User, athlete_id: Optional[str]) -> str:
     return athlete_id
 
 
+def require_iso_date(value: str) -> str:
+    raw = (value or "").strip()
+    try:
+        datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+    return raw
+
+
+def optional_label(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 def get_or_create_ungrouped_microcycle(db: Session, owner_id: str) -> Microcycle:
     mc = db.query(Microcycle).filter(
         Microcycle.owner_id == owner_id,
@@ -1549,6 +1565,9 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
 def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     athlete_id = resolve_athlete_id(current_user, req.athleteId)
     assert_plan_access(db, current_user, athlete_id)
+    session_date = require_iso_date(req.date)
+    block_label = optional_label(req.blockLabel)
+    week_label = optional_label(req.weekLabel)
 
     microcycle_id = req.microcycleId
     if microcycle_id:
@@ -1559,18 +1578,18 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
         mc = get_or_create_ungrouped_microcycle(db, athlete_id)
         microcycle_id = mc.id
 
-    day_label = req.dayLabel or req.date
+    day_label = req.dayLabel or session_date
     workout = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
-        date=req.date,
+        date=session_date,
         dayLabel=day_label,
-        title=req.title or "Session",
+        title=(req.title or "").strip() or "Session",
         tonnage=0.0,
         delta=0.0,
         color="mac-blue",
         status="PLANNED",
-        block_label=req.blockLabel,
-        week_label=req.weekLabel,
+        block_label=block_label,
+        week_label=week_label,
         owner_id=athlete_id,
         microcycle_id=microcycle_id,
     )

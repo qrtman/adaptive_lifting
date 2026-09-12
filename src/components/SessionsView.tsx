@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ExerciseData, WorkoutData } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
@@ -83,7 +84,8 @@ export function SessionsView({
   } = usePeriodization();
 
   const [editingSession, setEditingSession] = useState<WorkoutData | null>(null);
-  const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
+  const { user } = useAuth();
+  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
 
   const allSessions = useMemo(() => {
     const entries: SessionEntry[] = [];

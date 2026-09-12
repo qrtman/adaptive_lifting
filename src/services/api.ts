@@ -93,6 +93,19 @@ function getHeaders() {
   };
 }
 
+function apiErrorMessage(errData: unknown, fallback: string): string {
+  const detail = errData && typeof errData === 'object' ? (errData as { detail?: unknown }).detail : undefined;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const first = detail[0];
+    if (typeof first === 'string' && first.trim()) return first;
+    if (first && typeof first === 'object' && 'msg' in first && typeof first.msg === 'string') {
+      return first.msg;
+    }
+  }
+  return fallback;
+}
+
 // --- Dual-Driver Service Layer Exports ---
 
 export const apiService = {
@@ -472,7 +485,7 @@ export const apiService = {
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to create session');
+      throw new Error(apiErrorMessage(errData, 'Failed to create session'));
     }
     return await response.json();
   },

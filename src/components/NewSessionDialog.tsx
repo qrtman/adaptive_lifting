@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { usePeriodization } from '../contexts/PeriodizationContext';
+import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
 import { CenteredDialog } from './CenteredDialog';
+import { LabelCombo, uniquePlanLabels } from './LabelCombo';
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function NewSessionDialog({
   date,
@@ -15,6 +21,13 @@ export function NewSessionDialog({
   onClose: () => void;
   onCreated: (workout: { id: string; microcycleId?: string }) => void | Promise<void>;
 }) {
+  const { user } = useAuth();
+  const { microcycles } = usePeriodization();
+  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
+  const needsAthlete = isCoach && !athleteId;
+  const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
+  const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
+
   const [targetDate, setTargetDate] = useState(date);
   const [title, setTitle] = useState('Session');
   const [blockLabel, setBlockLabel] = useState('');
@@ -24,6 +37,14 @@ export function NewSessionDialog({
 
   const create = async () => {
     if (busy) return;
+    if (needsAthlete) {
+      setError('Select an athlete');
+      return;
+    }
+    if (!ISO_DATE.test(targetDate)) {
+      setError('Pick a date');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -59,7 +80,7 @@ export function NewSessionDialog({
           <button
             type="button"
             data-testid="new-session-create"
-            disabled={busy || !targetDate}
+            disabled={busy || needsAthlete || !ISO_DATE.test(targetDate)}
             onClick={() => void create()}
             className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
           >
@@ -69,6 +90,11 @@ export function NewSessionDialog({
       )}
     >
       <div className="flex flex-col gap-3">
+        {needsAthlete && (
+          <p data-testid="new-session-need-athlete" className="text-xs text-[#AEAEB2]">
+            Select an athlete in the sidebar, then create a session on that plan.
+          </p>
+        )}
         {allowDateEdit && (
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Date</span>
@@ -91,24 +117,20 @@ export function NewSessionDialog({
           />
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Block (optional)</span>
-            <input
-              data-testid="new-session-block"
-              value={blockLabel}
-              onChange={(event) => setBlockLabel(event.target.value)}
-              className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Week (optional)</span>
-            <input
-              data-testid="new-session-week"
-              value={weekLabel}
-              onChange={(event) => setWeekLabel(event.target.value)}
-              className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-            />
-          </label>
+          <LabelCombo
+            label="Block (optional)"
+            value={blockLabel}
+            onChange={setBlockLabel}
+            options={blockOptions}
+            testId="new-session-block"
+          />
+          <LabelCombo
+            label="Week (optional)"
+            value={weekLabel}
+            onChange={setWeekLabel}
+            options={weekOptions}
+            testId="new-session-week"
+          />
         </div>
         {error && <p className="text-xs text-[#FF453A]">{error}</p>}
       </div>

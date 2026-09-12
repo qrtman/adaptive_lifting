@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
+import { usePeriodization } from '../contexts/PeriodizationContext';
 import { CenteredDialog } from './CenteredDialog';
+import { LabelCombo, uniquePlanLabels } from './LabelCombo';
 
 export function EditSessionDialog({
   session,
@@ -19,6 +21,9 @@ export function EditSessionDialog({
   onSaved: () => void | Promise<void>;
   onDeleted?: () => void | Promise<void>;
 }) {
+  const { microcycles } = usePeriodization();
+  const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
+  const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
   const [title, setTitle] = useState(session.title || 'Session');
   const [blockLabel, setBlockLabel] = useState(session.blockLabel || '');
   const [weekLabel, setWeekLabel] = useState(session.weekLabel || '');
@@ -105,24 +110,20 @@ export function EditSessionDialog({
           />
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Block (optional)</span>
-            <input
-              data-testid="session-block"
-              value={blockLabel}
-              onChange={(event) => setBlockLabel(event.target.value)}
-              className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Week (optional)</span>
-            <input
-              data-testid="session-week"
-              value={weekLabel}
-              onChange={(event) => setWeekLabel(event.target.value)}
-              className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-            />
-          </label>
+          <LabelCombo
+            label="Block (optional)"
+            value={blockLabel}
+            onChange={setBlockLabel}
+            options={blockOptions}
+            testId="session-block"
+          />
+          <LabelCombo
+            label="Week (optional)"
+            value={weekLabel}
+            onChange={setWeekLabel}
+            options={weekOptions}
+            testId="session-week"
+          />
         </div>
         {error && <p className="text-xs text-[#FF453A]">{error}</p>}
       </div>

@@ -113,6 +113,72 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     assert len(athlete1_after.json()) >= 1
 
 
+def test_coach_create_session_requires_linked_athlete():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    coach = client.post(
+        "/api/auth/register",
+        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
+    )
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    coach_cookies = dict(coach.cookies)
+    athlete_cookies = dict(athlete.cookies)
+
+    missing = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Squat"},
+        cookies=coach_cookies,
+    )
+    assert missing.status_code == 400
+    assert missing.json()["detail"] == "athlete_id is required for coaches"
+
+    bad_date = client.post(
+        "/api/sessions",
+        json={"date": "12-09-2026", "title": "Squat"},
+        cookies=athlete_cookies,
+    )
+    assert bad_date.status_code == 400
+    assert bad_date.json()["detail"] == "date must be YYYY-MM-DD"
+
+    unknown = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Squat", "athleteId": "not-linked"},
+        cookies=coach_cookies,
+    )
+    assert unknown.status_code == 403
+
+    code = client.post("/api/auth/coach-code", cookies=coach_cookies).json()["code"]
+    linked = client.post("/api/auth/link-athlete", json={"code": code}, cookies=athlete_cookies)
+    assert linked.status_code == 200
+    roster = client.get("/api/coach/roster", cookies=coach_cookies)
+    athlete_id = next(row["id"] for row in roster.json() if row["email"] == f"athlete-{suffix}@example.com")
+
+    created = client.post(
+        "/api/sessions",
+        json={
+            "date": "2026-09-12",
+            "title": "Squat day",
+            "blockLabel": "  Hypertrophy  ",
+            "weekLabel": "Week1",
+            "athleteId": athlete_id,
+        },
+        cookies=coach_cookies,
+    )
+    assert created.status_code == 200
+    body = created.json()
+    assert body["date"] == "2026-09-12"
+    assert body["blockLabel"] == "Hypertrophy"
+    assert body["weekLabel"] == "Week1"
+    assert body["ownerId"] == athlete_id
+
+    tree = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    assert any(w["id"] == body["id"] for w in workouts)
+
+
 def test_session_labels_anytime_and_reset_stays_empty():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
