@@ -1,6 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 test.use({ baseURL: 'http://localhost:3000' });
+
+async function typeCell(cell: Locator, value: string) {
+  await cell.click();
+  await expect(cell).toBeEditable();
+  await cell.fill(value);
+  await cell.press('Enter');
+}
 
 test('plans typed kg, suggests later kg after a log, then stays editable after Complete', async ({ page, request }) => {
   const email = `plan-log-${Date.now()}@example.com`;
@@ -34,24 +41,16 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Rx/ })).toHaveCount(0);
 
-  await page.getByTestId('rx-weight').first().click();
-  await page.getByTestId('rx-weight').first().fill('180');
-  await page.getByTestId('rx-weight').first().press('Enter');
+  await typeCell(page.getByTestId('rx-weight').first(), '180');
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
 
   await page.getByRole('button', { name: '+ Set' }).click();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 
-  await page.locator('[data-testid$="-actual-weight"]').first().click();
-  await page.locator('[data-testid$="-actual-weight"]').first().fill('180');
-  await page.locator('[data-testid$="-actual-weight"]').first().press('Enter');
-  await page.locator('[data-testid$="-reps"]').first().click();
-  await page.locator('[data-testid$="-reps"]').first().fill('5');
-  await page.locator('[data-testid$="-reps"]').first().press('Enter');
-  await page.locator('[data-testid$="-executedRpe"]').first().click();
-  await page.locator('[data-testid$="-executedRpe"]').first().fill('9');
-  await page.locator('[data-testid$="-executedRpe"]').first().press('Enter');
+  await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '180');
+  await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
+  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
 
   const suggest = page.getByTestId('plan-suggest');
   await expect(suggest).toBeVisible();
@@ -73,9 +72,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Set' })).toBeVisible();
   const firstPlan = page.getByTestId('rx-weight').first();
-  await firstPlan.click();
-  await firstPlan.fill('175');
-  await firstPlan.press('Enter');
+  await typeCell(firstPlan, '175');
   await expect(firstPlan).toHaveText('175');
   const planCount = await page.getByTestId('rx-weight').count();
   await page.getByRole('button', { name: '+ Set' }).click();

@@ -82,6 +82,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
     .locator('xpath=ancestor::div[contains(@class,"border-b")][1]')
     .getByTestId('rx-weight').first();
   await squatPlan.click();
+  await expect(squatPlan).toBeEditable();
   await squatPlan.fill('182.5');
   await squatPlan.press('Enter');
   await expect(squatPlan).toHaveText('182.5');
