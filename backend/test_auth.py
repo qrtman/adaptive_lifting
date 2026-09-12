@@ -519,6 +519,47 @@ def test_locked_session_rejects_set_writes():
     )
     assert hijack.status_code == 404
 
+    locked_sync = client.post(
+        f"/api/workouts/{sid}/sync",
+        json={
+            "schema_version": 1,
+            "client_device_id": "dev-lock-test",
+            "workout_id": sid,
+            "last_updated_at": "2026-09-12T00:00:00Z",
+            "changes": [{
+                "entity": "ExerciseSet",
+                "id": set_id,
+                "mutation_id": "mut-locked-1",
+                "updated_at": "2026-09-12T00:00:00Z",
+                "fields": {"actual": 200, "reps": 5, "executedRpe": 8},
+            }],
+        },
+        cookies=cookies,
+    )
+    assert locked_sync.status_code == 409
+
+    mismatch_sync = client.post(
+        f"/api/workouts/{other_id}/sync",
+        json={
+            "schema_version": 1,
+            "client_device_id": "dev-lock-test",
+            "workout_id": other_id,
+            "last_updated_at": "2026-09-12T00:00:00Z",
+            "changes": [{
+                "entity": "ExerciseSet",
+                "id": set_id,
+                "mutation_id": "mut-mismatch-1",
+                "updated_at": "2026-09-12T00:00:00Z",
+                "fields": {"actual": 200, "reps": 5, "executedRpe": 8},
+            }],
+        },
+        cookies=cookies,
+    )
+    assert mismatch_sync.status_code == 200
+    body = mismatch_sync.json()
+    assert "mut-mismatch-1" in body.get("rejected_mutations", [])
+    assert any(item.get("reason") == "WORKOUT_MISMATCH" for item in body.get("conflicts", []))
+
 
 def test_reorder_lifts_in_session():
     client = TestClient(app)

@@ -58,4 +58,13 @@ describe('refreshSetAnchors', () => {
     expect(next[1].suggestedWeight).toBeGreaterThan(0);
     expect(next[1].suggestedWeight).toBeLessThan(180);
   });
+
+  it('does not suggest kg from a fake baseline e1RM when nothing is logged', () => {
+    const next = refreshSetAnchors([
+      { plannedWeight: 180, plannedReps: 5, plannedRpe: 8, baseline_e1rm: 400 },
+      { plannedWeight: null, plannedReps: 5, plannedRpe: 8, intensity_type: 'RPE' },
+    ]);
+    expect(next[1].plannedWeight).toBeNull();
+    expect(next[1].suggestedWeight).toBeNull();
+  });
 });

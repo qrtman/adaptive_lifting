@@ -157,7 +157,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
             const topSet = updatedSets.find(s => s.isTop) || updatedSets[0];
             const topLabel = topSet ? `${topSet.actual || topSet.plannedWeight || '---'}kg x ${topSet.reps || topSet.plannedReps || '—'}` : '---';
             const totalVol = updatedSets.reduce((acc, s) => {
-              const wt = trainingOrZero(s.actual ?? s.suggestedWeight);
+              const wt = trainingOrZero(s.actual);
               const rp = trainingIntOrZero(s.reps);
               return acc + (wt * rp);
             }, 0);
@@ -172,7 +172,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
           const primaryTonnage = updatedExercises.reduce((acc, ex) => {
             return acc + ex.sets.reduce((sum, s) => {
-              const wt = trainingOrZero(s.actual ?? s.suggestedWeight);
+              const wt = trainingOrZero(s.actual);
               const rp = trainingIntOrZero(s.reps);
               return sum + (wt * rp);
             }, 0);

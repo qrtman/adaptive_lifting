@@ -119,7 +119,7 @@ export const ExerciseCard = ({
   const syncTarget = (index: number) => {
     if (locked) return;
     const set = sets[index];
-    const kg = trainingNumber(set.plannedWeight) ?? trainingNumber(set.suggestedWeight);
+    const kg = trainingNumber(set.plannedWeight);
     updateSet(index, { 
       actual: kg,
       reps: trainingInt(set.plannedReps),
@@ -128,7 +128,7 @@ export const ExerciseCard = ({
     });
   };
 
-  const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual ?? s.suggestedWeight) * trainingIntOrZero(s.reps)), 0);
+  const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
 
   const addSet = () => {
     const previous = sets[sets.length - 1];
@@ -258,7 +258,7 @@ export const ExerciseCard = ({
               </tr>
             )}
             {sets.map((set, i) => {
-              const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
+              const weight = trainingOrZero(set.actual);
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
               const e1RM = calculateE1RM(weight, reps, rpe);
