@@ -196,14 +196,16 @@ export const CoachDashboardView: React.FC<{
           <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
             <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4">Onboarding Tools</h2>
             
-            <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 p-4">
-              <p className="text-xs text-zinc-400 mb-2">Your Coach Link Code:</p>
+            <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 p-4" data-testid="coach-code-panel">
+              <p className="text-xs text-zinc-400 mb-2">Coach code:</p>
               {coachCode ? (
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-black rounded-lg px-3 py-2 text-sm text-mac-blue border border-zinc-800">
+                  <code data-testid="coach-code-value" className="flex-1 bg-black rounded-lg px-3 py-2 text-sm text-mac-blue border border-zinc-800">
                     {coachCode}
                   </code>
                   <button 
+                    type="button"
+                    data-testid="coach-code-copy"
                     onClick={copyLinkCode}
                     className="bg-mac-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
                   >
@@ -211,20 +213,21 @@ export const CoachDashboardView: React.FC<{
                   </button>
                 </div>
               ) : codeActive ? (
-                <p className="text-xs text-zinc-400 mb-2">An active code exists. Rotate to reveal a new code.</p>
+                <p data-testid="coach-code-active-hint" className="text-xs text-zinc-400 mb-2">An active code exists. Rotate to reveal a new code.</p>
               ) : (
-                <p className="text-xs text-zinc-500 mb-2">No active coach code yet.</p>
+                <p data-testid="coach-code-empty" className="text-xs text-zinc-500 mb-2">No active coach code yet.</p>
               )}
               <button
                 type="button"
+                data-testid="coach-code-generate"
                 onClick={generateCoachCode}
                 disabled={generatingCode}
                 className="mt-2 h-8 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold disabled:opacity-50"
               >
                 {generatingCode ? 'Generating…' : coachCode || codeActive ? 'Rotate code' : 'Generate code'}
               </button>
-              {linkSuccess && <p className="text-[#75ff9e] text-[10px] mt-2 font-bold">{linkSuccess}</p>}
-              <p className="text-[10px] text-zinc-500 mt-3">Athletes enter this code in Security settings to link to your roster.</p>
+              {linkSuccess && <p data-testid="coach-code-success" className="text-[#75ff9e] text-[10px] mt-2 font-bold">{linkSuccess}</p>}
+              <p className="text-[10px] text-zinc-500 mt-3">Athletes enter this coach code in Security to link.</p>
             </div>
           </div>
         </>
