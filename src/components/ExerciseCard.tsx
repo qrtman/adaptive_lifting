@@ -110,11 +110,13 @@ export const ExerciseCard = ({
   };
 
   const syncTarget = (index: number) => {
+    if (locked) return;
     const set = sets[index];
+    const kg = trainingNumber(set.plannedWeight) ?? trainingNumber(set.suggestedWeight);
     updateSet(index, { 
-      actual: trainingNumber(set.plannedWeight),
+      actual: kg,
       reps: trainingInt(set.plannedReps),
-      executedRpe: trainingNumber(set.plannedRpe),
+      executedRpe: set.intensity_type === 'PERCENT' ? null : trainingNumber(set.plannedRpe),
       isAuto: false
     });
   };
@@ -175,7 +177,7 @@ export const ExerciseCard = ({
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
             <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
           </div>
-          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
+          <button type="button" onClick={addSet} disabled={locked} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40">
             + Set
           </button>
           {onMoveUp && (
@@ -218,13 +220,16 @@ export const ExerciseCard = ({
           )}
         </div>
       </div>
+      {locked ? (
+        <p className="px-2 pb-1 text-[10px] text-[#AEAEB2]">Finished. Open to edit.</p>
+      ) : null}
       <div className="overflow-x-auto">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-white/5">
             <th className={`${th} w-6`}>#</th>
             <th className={`${th} pr-3`}>
-              <span className="text-[#AEAEB2]">Rx</span>
+              <span className="text-[#AEAEB2]">Plan</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
             </th>
             <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
@@ -282,6 +287,7 @@ export const ExerciseCard = ({
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
                             weight={set.plannedWeight}
+                            suggestedWeight={set.suggestedWeight}
                             onChange={(updates) => updateSet(i, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
@@ -290,6 +296,17 @@ export const ExerciseCard = ({
                               plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
                             })}
                           />
+                          {set.plannedWeight != null && set.suggestedWeight && set.suggestedWeight !== set.plannedWeight ? (
+                            <button
+                              type="button"
+                              data-testid="plan-suggest"
+                              onClick={() => updateSet(i, { plannedWeight: set.suggestedWeight })}
+                              className="h-6 px-1 text-[10px] text-[#AEAEB2] hover:text-white"
+                              title="Use kg from the set you just logged"
+                            >
+                              use {set.suggestedWeight}
+                            </button>
+                          ) : null}
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
@@ -304,14 +321,24 @@ export const ExerciseCard = ({
                   <td className={`${td} px-1`}>
                     <button
                       type="button"
+                      disabled={locked}
                       onClick={() => syncTarget(i)}
-                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
-                      title="Copy prescription to log"
+                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white disabled:opacity-40"
+                      title="Copy plan to log"
                     >
                       <ArrowRight size={12} />
                     </button>
                   </td>
                   <td className={`${td} pl-3 border-l border-white/5`}>
+                    {locked ? (
+                      <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
+                        <span className="text-white">{set.actual ?? '—'}</span>
+                        {sep('×')}
+                        <span>{set.reps ?? '—'}</span>
+                        {sep('@')}
+                        <span>{set.executedRpe ?? '—'}</span>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-0.5 whitespace-nowrap">
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.actual)}
@@ -351,6 +378,7 @@ export const ExerciseCard = ({
                         rowIndex={i}
                       />
                     </div>
+                    )}
                   </td>
                   <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
                     {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
@@ -372,15 +400,19 @@ export const ExerciseCard = ({
                   <td className={td}>
                     <div className="flex items-center justify-end">
                       <button 
+                        type="button"
+                        disabled={locked}
                         onClick={() => duplicateSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white disabled:opacity-40"
                         title="Duplicate set"
                       >
                         <Copy size={11} />
                       </button>
                       <button 
+                        type="button"
+                        disabled={locked}
                         onClick={() => deleteSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-red-400"
+                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-red-400 disabled:opacity-40"
                         title="Delete set"
                       >
                         <Trash2 size={11} />

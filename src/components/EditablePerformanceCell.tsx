@@ -83,7 +83,7 @@ export const EditablePerformanceCell = ({
           autoFocus
           type="text"
           data-testid={fieldKey}
-          defaultValue={value}
+          defaultValue={value || suggestedValue || ''}
           onBlur={(e) => {
             onChange(e.target.value);
             setIsEditing(false);
