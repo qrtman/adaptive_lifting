@@ -81,6 +81,7 @@ export function SessionsView({
     activeWorkoutId,
     reloadMicrocycles,
     activeAthleteId,
+    planAthleteId,
   } = usePeriodization();
 
   const [editingSession, setEditingSession] = useState<WorkoutData | null>(null);
@@ -132,11 +133,11 @@ export function SessionsView({
     try {
       await apiService.copyWeek({
         sessionIds,
-        athleteId: activeAthleteId || undefined,
+        athleteId: planAthleteId || undefined,
         dateOffsetDays: days,
         includeLogs,
       });
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
     } catch (err: any) {
       setCopyError(err?.message || 'Failed to copy');
     } finally {
@@ -296,10 +297,10 @@ export function SessionsView({
         <NewSessionDialog
           date={new Date().toISOString().slice(0, 10)}
           allowDateEdit
-          athleteId={activeAthleteId}
+          athleteId={planAthleteId}
           onClose={() => setShowNewSession(false)}
           onCreated={async () => {
-            await reloadMicrocycles(activeAthleteId);
+            await reloadMicrocycles(planAthleteId);
             setShowNewSession(false);
           }}
         />
@@ -309,11 +310,11 @@ export function SessionsView({
           session={editingSession}
           onClose={() => setEditingSession(null)}
           onSaved={async () => {
-            await reloadMicrocycles(activeAthleteId);
+            await reloadMicrocycles(planAthleteId);
             setEditingSession(null);
           }}
           onDeleted={async () => {
-            await reloadMicrocycles(activeAthleteId);
+            await reloadMicrocycles(planAthleteId);
             setEditingSession(null);
           }}
         />

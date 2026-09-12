@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { UI_KEYS, getUiPref, removeUiPref, setUiPref } from '../storage/uiPrefs';
+import { apiService } from '../services/api';
 
 export type RoleMode = 'coach' | 'athlete';
 
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       removeUiPref(UI_KEYS.role);
       removeUiPref(UI_KEYS.email);
       removeUiPref(UI_KEYS.userId);
+      removeUiPref(UI_KEYS.activeAthleteId);
       setUser(null);
       window.location.reload();
     };
@@ -78,10 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = () => {
+    void apiService.logout();
     removeUiPref(UI_KEYS.roleMode);
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
     removeUiPref(UI_KEYS.userId);
+    removeUiPref(UI_KEYS.activeAthleteId);
     setUser(null);
   };
 

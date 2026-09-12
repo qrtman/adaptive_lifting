@@ -24,7 +24,7 @@ export function CalendarView({
   filter,
   onFilterChange,
 }: CalendarViewProps) {
-  const { microcycles, mesocycles, setMicrocycles, activeAthleteId, reloadMicrocycles } = usePeriodization();
+  const { microcycles, mesocycles, setMicrocycles, activeAthleteId, planAthleteId, reloadMicrocycles } = usePeriodization();
   const { user } = useAuth();
   const onUpdateWorkouts = setMicrocycles;
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
@@ -164,13 +164,13 @@ export function CalendarView({
     try {
       await apiService.copyWeek({
         sessionIds: [copySource.id],
-        athleteId: activeAthleteId || undefined,
+        athleteId: planAthleteId || undefined,
         dateOffsetDays: offset,
         targetBlockLabel: copySource.blockLabel ?? null,
         targetWeekLabel: copySource.weekLabel ?? null,
         includeLogs: copyWithLogs,
       });
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
       cancelCopyTo();
     } catch (err) {
       setCopyError(err instanceof Error ? err.message : 'Failed to copy');
@@ -655,10 +655,10 @@ export function CalendarView({
       {newSessionDate && (
         <NewSessionDialog
           date={newSessionDate}
-          athleteId={activeAthleteId}
+          athleteId={planAthleteId}
           onClose={() => setNewSessionDate(null)}
           onCreated={async (created) => {
-            await reloadMicrocycles(activeAthleteId);
+            await reloadMicrocycles(planAthleteId);
             setNewSessionDate(null);
             if (created.microcycleId) onViewSession({ id: created.id } as WorkoutData, created.microcycleId);
           }}

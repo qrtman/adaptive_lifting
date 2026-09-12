@@ -623,7 +623,14 @@ def register_user(req: RegisterRequest, response: Response, db: Session = Depend
         secure=COOKIE_SECURE
     )
     
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role, "email": user.email}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "email": user.email,
+        "id": user.id,
+        "user": {"id": user.id, "email": user.email, "role": user.role},
+    }
 
 @app.post("/api/auth/coach-code")
 def create_coach_code(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

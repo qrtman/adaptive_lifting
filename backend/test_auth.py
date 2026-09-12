@@ -228,6 +228,14 @@ def test_coach_create_session_requires_linked_athlete():
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     assert any(w["id"] == body["id"] for w in workouts)
 
+    athlete_tree = client.get("/api/microcycles", cookies=athlete_cookies)
+    assert athlete_tree.status_code == 200
+    assert any(w["id"] == body["id"] for mc in athlete_tree.json() for w in mc["workouts"])
+
+    athlete_own = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=athlete_cookies)
+    assert athlete_own.status_code == 200
+    assert any(w["id"] == body["id"] for mc in athlete_own.json() for w in mc["workouts"])
+
 
 def test_session_labels_anytime_and_reset_stays_empty():
     client = TestClient(app)
@@ -653,6 +661,13 @@ def test_locked_session_rejects_set_writes():
         cookies=cookies,
     )
     assert locked_sync.status_code == 409
+    locked_body = locked_sync.json()
+    locked_detail = locked_body.get("detail") or {}
+    if isinstance(locked_detail, dict):
+        locked_code = (locked_detail.get("error") or {}).get("code")
+    else:
+        locked_code = None
+    assert locked_code == "WORKOUT_LOCKED"
 
     mismatch_sync = client.post(
         f"/api/workouts/{other_id}/sync",
@@ -778,3 +793,122 @@ def test_name_lift_variation():
     workouts = [w for mc in tree.json() for w in mc["workouts"]]
     match = next(w for w in workouts if w["id"] == sid)
     assert match["exercises"][0]["variation"] == "Pause High Bar Squat (3-2-0)"
+
+
+def test_athlete_sees_coach_created_session_on_own_id_fetch():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    coach = client.post(
+        "/api/auth/register",
+        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
+    )
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    coach_cookies = dict(coach.cookies)
+    athlete_cookies = dict(athlete.cookies)
+    athlete_id = athlete.json()["user"]["id"]
+
+    code = client.post("/api/auth/coach-code", cookies=coach_cookies).json()["code"]
+    linked = client.post("/api/auth/link", json={"code": code}, cookies=athlete_cookies)
+    assert linked.status_code == 200
+
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-08", "title": "Coach squat", "blockLabel": "Block1", "weekLabel": "Week1", "athleteId": athlete_id},
+        cookies=coach_cookies,
+    )
+    assert created.status_code == 200
+    session_id = created.json()["id"]
+
+    own = client.get("/api/microcycles", cookies=athlete_cookies)
+    assert own.status_code == 200
+    assert session_id in _workout_ids(own.json())
+
+    explicit = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=athlete_cookies)
+    assert explicit.status_code == 200
+    assert session_id in _workout_ids(explicit.json())
+
+
+def test_sync_mixed_workout_payload_rejects_foreign_entities():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    first = client.post("/api/sessions", json={"date": "2026-09-12", "title": "A"}, cookies=cookies).json()
+    second = client.post("/api/sessions", json={"date": "2026-09-13", "title": "B"}, cookies=cookies).json()
+    squat = client.post(
+        f"/api/sessions/{first['id']}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    ).json()
+    bench = client.post(
+        f"/api/sessions/{second['id']}/exercises",
+        json={"title": "Bench", "liftCategory": "Bench"},
+        cookies=cookies,
+    ).json()
+
+    mixed = client.post(
+        f"/api/workouts/{second['id']}/sync",
+        json={
+            "schema_version": 1,
+            "client_device_id": "dev-mixed",
+            "workout_id": second["id"],
+            "last_updated_at": "2026-09-12T00:00:00Z",
+            "changes": [
+                {
+                    "entity": "Exercise",
+                    "id": bench["id"],
+                    "mutation_id": "mut-own",
+                    "updated_at": "2026-09-12T00:00:00Z",
+                    "fields": {"variation": "Close Grip Bench"},
+                },
+                {
+                    "entity": "Exercise",
+                    "id": squat["id"],
+                    "mutation_id": "mut-foreign",
+                    "updated_at": "2026-09-12T00:00:00Z",
+                    "fields": {"variation": "Should not apply"},
+                },
+            ],
+        },
+        cookies=cookies,
+    )
+    assert mixed.status_code == 200
+    body = mixed.json()
+    assert "mut-own" in body.get("accepted_mutation_ids", [])
+    assert "mut-foreign" in body.get("rejected_mutations", [])
+    assert any(item.get("reason") == "WORKOUT_MISMATCH" for item in body.get("conflicts", []))
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = {w["id"]: w for mc in tree.json() for w in mc["workouts"]}
+    squat_row = next(e for e in workouts[first["id"]]["exercises"] if e["id"] == squat["id"])
+    bench_row = next(e for e in workouts[second["id"]]["exercises"] if e["id"] == bench["id"])
+    assert squat_row["variation"] != "Should not apply"
+    assert bench_row["variation"] == "Close Grip Bench"
+
+
+def test_auth_link_reset_is_not_a_plan_conflict():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-08", "title": "Keep me"},
+        cookies=cookies,
+    )
+    session_id = created.json()["id"]
+
+    reset = client.post("/api/auth/link/reset", cookies=cookies)
+    assert reset.status_code != 409
+    tree = client.get("/api/microcycles", cookies=cookies)
+    assert tree.status_code == 200
+    assert session_id in _workout_ids(tree.json())

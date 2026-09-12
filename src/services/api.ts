@@ -1,5 +1,5 @@
 import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, isWorkoutLocked, WorkoutData } from '../types';
-import { getSnapshot, saveSnapshot } from './db';
+import { getSnapshot, saveSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
@@ -67,10 +67,17 @@ export function recalculateWorkoutMetrics(
   workout.delta = previousWorkoutTonnage > 0 ? totalTonnage - previousWorkoutTonnage : 0;
 }
 
-async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
+async function getOfflineMicrocycles(ownerId?: string): Promise<MicrocycleData[]> {
   try {
+    if (ownerId) {
+      const cached = await getSnapshot(microcycleSnapshotKey(ownerId));
+      if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
+        return cached;
+      }
+      return [];
+    }
     const cached = await getSnapshot('microcycles');
-    if (cached && Array.isArray(cached) && cached[0]?.workouts) {
+    if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
       return cached;
     }
   } catch (err) {
@@ -79,9 +86,9 @@ async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
   return [];
 }
 
-async function saveOfflineMicrocycles(data: MicrocycleData[]): Promise<void> {
+async function saveOfflineMicrocycles(data: MicrocycleData[], ownerId?: string): Promise<void> {
   try {
-    await saveSnapshot('microcycles', data);
+    await saveSnapshot(ownerId ? microcycleSnapshotKey(ownerId) : 'microcycles', data);
   } catch (err) {
     console.error('Failed to write IndexedDB microcycles snapshot:', err);
   }
@@ -119,17 +126,21 @@ export const apiService = {
         const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
         const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
         if (!response.ok) throw new Error('API server returned error status');
-        return await response.json();
+        const data = await response.json();
+        if (athleteId) {
+          await saveOfflineMicrocycles(data, athleteId);
+        }
+        return data;
       } catch (err) {
         if (!allowOffline) {
           throw err instanceof Error ? err : new Error('Failed to load plan');
         }
         console.warn('Backend server unavailable. Falling back to IndexedDB snapshot.', err);
-        return getOfflineMicrocycles();
+        return getOfflineMicrocycles(athleteId);
       }
     }
     if (!allowOffline) throw new Error('Failed to load plan');
-    return getOfflineMicrocycles();
+    return getOfflineMicrocycles(athleteId);
   },
 
   /**
@@ -225,7 +236,8 @@ export const apiService = {
       try {
         const response = await fetch(`${BACKEND_URL}/api/reset`, { method: 'POST', credentials: 'include' });
         if (!response.ok) throw new Error('API server reset failed');
-        return await response.json();
+        const data = await response.json();
+        return data;
       } catch (err) {
         console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
       }
@@ -365,9 +377,10 @@ export const apiService = {
       throw new Error(errData.detail || 'Registration failed');
     }
     const data = await response.json();
-    setUiPref(UI_KEYS.role, data.role);
-    setUiPref(UI_KEYS.email, data.email);
-    if (data.id) setUiPref(UI_KEYS.userId, String(data.id));
+    setUiPref(UI_KEYS.role, data.role || data.user?.role);
+    setUiPref(UI_KEYS.email, data.email || data.user?.email);
+    const userId = data.id || data.user?.id;
+    if (userId) setUiPref(UI_KEYS.userId, String(userId));
     return data;
   },
 

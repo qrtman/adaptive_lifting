@@ -11,6 +11,7 @@ import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
 import { CoachDashboardView } from './components/CoachDashboardView';
 import { isWorkoutLocked } from './types';
+import { WorkoutLockBanner } from './components/WorkoutLockBanner';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
@@ -29,7 +30,7 @@ export default function App() {
     finishSession,
     resetPlan,
     reloadMicrocycles,
-    activeAthleteId,
+    planAthleteId,
   } = usePeriodization();
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
@@ -67,7 +68,7 @@ export default function App() {
     if (!activeWorkout) return;
     try {
       await apiService.removeSessionExercise(activeWorkout.id, exerciseId);
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to remove lift');
       throw err;
@@ -78,7 +79,7 @@ export default function App() {
     if (!activeWorkout) return;
     try {
       await apiService.updateSessionExercise(activeWorkout.id, exerciseId, patch);
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update lift');
     }
@@ -88,7 +89,7 @@ export default function App() {
     if (!activeWorkout) return;
     try {
       await apiService.updateSessionExercise(activeWorkout.id, exerciseId, { move });
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to move lift');
     }
@@ -98,7 +99,7 @@ export default function App() {
     if (!activeWorkout) return;
     try {
       await apiService.updateSession(activeWorkout.id, { status: 'IN_PROGRESS' });
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to open session');
     }
@@ -248,6 +249,13 @@ export default function App() {
                     </div>
                   </div>
 
+                  {isWorkoutLocked(activeWorkout.status) && (
+                    <WorkoutLockBanner
+                      mode="completed"
+                      message="Session is locked. Completed sessions stay read-only."
+                    />
+                  )}
+
                   <div>
                     {activeWorkout.exercises.length === 0 && !isWorkoutLocked(activeWorkout.status) && (
                       <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
@@ -277,7 +285,7 @@ export default function App() {
                     <AddLiftBar
                       sessionId={activeWorkout.id}
                       locked={isWorkoutLocked(activeWorkout.status)}
-                      onAdded={() => reloadMicrocycles(activeAthleteId)}
+                      onAdded={() => reloadMicrocycles(planAthleteId)}
                     />
                   </div>
                   {editSessionOpen && (
@@ -285,11 +293,11 @@ export default function App() {
                       session={activeWorkout}
                       onClose={() => setEditSessionOpen(false)}
                       onSaved={async () => {
-                        await reloadMicrocycles(activeAthleteId);
+                        await reloadMicrocycles(planAthleteId);
                         setEditSessionOpen(false);
                       }}
                       onDeleted={async () => {
-                        await reloadMicrocycles(activeAthleteId);
+                        await reloadMicrocycles(planAthleteId);
                         setEditSessionOpen(false);
                         setCurrentView('dashboard');
                       }}
