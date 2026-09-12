@@ -68,21 +68,35 @@ export const Sidebar = ({
   const { user, roleMode, signOut } = useAuth();
   const { activeAthleteId, setActiveAthleteId } = usePeriodization();
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
-  const storedRole = getUiPref(UI_KEYS.role)?.toUpperCase();
-  const isCoach = storedRole === 'COACH' || roleMode === 'coach';
+  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const [roster, setRoster] = useState<{ id: string; email: string }[]>([]);
 
   useEffect(() => {
     if (!isCoach) return;
+    let cancelled = false;
     apiService.fetchRoster()
       .then((data) => {
-        setRoster(data);
-        if (!activeAthleteId && data.length > 0) {
-          setActiveAthleteId(data[0].id);
+        if (cancelled) return;
+        const linked = Array.isArray(data) ? data : [];
+        setRoster(linked);
+        const ids = new Set(linked.map((athlete) => athlete.id));
+        if (linked.length === 0) {
+          setActiveAthleteId(null);
+          return;
+        }
+        if (!activeAthleteId || !ids.has(activeAthleteId)) {
+          setActiveAthleteId(linked[0].id);
         }
       })
-      .catch(() => setRoster([]));
-  }, [isCoach]);
+      .catch(() => {
+        if (cancelled) return;
+        setRoster([]);
+        setActiveAthleteId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCoach, setActiveAthleteId]);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[240px] min-w-[240px] max-w-[240px] bg-[#131313] border-r border-white/10 flex flex-col px-3 py-4 z-50">

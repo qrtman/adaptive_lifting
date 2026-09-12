@@ -150,6 +150,18 @@ def test_coach_create_session_requires_linked_athlete():
     )
     assert unknown.status_code == 403
 
+    login = client.post(
+        "/api/auth/login",
+        data={"username": f"coach-{suffix}@example.com", "password": "password123"},
+    )
+    coach_id = login.json()["user"]["id"]
+    own = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Squat", "athleteId": coach_id},
+        cookies=coach_cookies,
+    )
+    assert own.status_code == 403
+
     code = client.post("/api/auth/coach-code", cookies=coach_cookies).json()["code"]
     linked = client.post("/api/auth/link-athlete", json={"code": code}, cookies=athlete_cookies)
     assert linked.status_code == 200

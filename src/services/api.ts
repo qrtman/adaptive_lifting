@@ -112,7 +112,8 @@ export const apiService = {
   /**
    * Fetches the complete microcycle training data.
    */
-  async fetchMicrocycles(athleteId?: string): Promise<MicrocycleData[]> {
+  async fetchMicrocycles(athleteId?: string, options?: { allowOffline?: boolean }): Promise<MicrocycleData[]> {
+    const allowOffline = options?.allowOffline !== false;
     if (BACKEND_URL) {
       try {
         const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
@@ -120,10 +121,14 @@ export const apiService = {
         if (!response.ok) throw new Error('API server returned error status');
         return await response.json();
       } catch (err) {
+        if (!allowOffline) {
+          throw err instanceof Error ? err : new Error('Failed to load plan');
+        }
         console.warn('Backend server unavailable. Falling back to IndexedDB snapshot.', err);
         return getOfflineMicrocycles();
       }
     }
+    if (!allowOffline) throw new Error('Failed to load plan');
     return getOfflineMicrocycles();
   },
 
@@ -325,10 +330,26 @@ export const apiService = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Login failed');
+    if (!response.ok) throw new Error('Invalid credentials');
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.user.role);
     setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
+    return data;
+  },
+
+  async googleLogin(token: string, role = 'COACH') {
+    const response = await fetch(`${BACKEND_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ token, role }),
+    });
+    if (!response.ok) throw new Error('Google authentication failed');
+    const data = await response.json();
+    if (data.user?.role) setUiPref(UI_KEYS.role, data.user.role);
+    if (data.user?.email) setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
     return data;
   },
 
@@ -346,6 +367,7 @@ export const apiService = {
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.role);
     setUiPref(UI_KEYS.email, data.email);
+    if (data.id) setUiPref(UI_KEYS.userId, String(data.id));
     return data;
   },
 
@@ -407,6 +429,8 @@ export const apiService = {
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
     removeUiPref(UI_KEYS.roleMode);
+    removeUiPref(UI_KEYS.userId);
+    removeUiPref(UI_KEYS.activeAthleteId);
   },
 
   async createCoachCode(): Promise<{ code: string; expires_at?: string }> {

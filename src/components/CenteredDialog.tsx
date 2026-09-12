@@ -4,6 +4,7 @@ export function CenteredDialog({
   title,
   subtitle,
   onClose,
+  onSubmit,
   children,
   footer,
   testId,
@@ -11,6 +12,7 @@ export function CenteredDialog({
   title: string;
   subtitle?: string;
   onClose: () => void;
+  onSubmit?: () => void;
   children: ReactNode;
   footer: ReactNode;
   testId?: string;
@@ -54,10 +56,26 @@ export function CenteredDialog({
             ×
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex items-center justify-end gap-2">
-          {footer}
-        </div>
+        {onSubmit ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmit();
+            }}
+          >
+            {children}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              {footer}
+            </div>
+          </form>
+        ) : (
+          <>
+            {children}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              {footer}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

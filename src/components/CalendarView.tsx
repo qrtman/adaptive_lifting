@@ -347,7 +347,7 @@ export function CalendarView({
         <>
 
         {workoutList.length === 0 && !copySource && (
-          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day — New session appears.</p>
+          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Click or hover a day — New session.</p>
         )}
 
         {copySource && (
@@ -497,6 +497,10 @@ export function CalendarView({
                                   }
                                   if (dayWorkouts.length === 1) {
                                     onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
+                                    return;
+                                  }
+                                  if (dayWorkouts.length === 0) {
+                                    openNewSession(dateStr);
                                   }
                                 }}
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
@@ -642,7 +646,7 @@ export function CalendarView({
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
           </div>
-          <span className="truncate">{copySource ? 'Click a day to drop the copy' : 'Hover a day · New session'}</span>
+          <span className="truncate">{copySource ? 'Click a day to drop the copy' : 'Click or hover a day · New session'}</span>
         </div>
         </>
         )}
@@ -656,9 +660,7 @@ export function CalendarView({
           onCreated={async (created) => {
             await reloadMicrocycles(activeAthleteId);
             setNewSessionDate(null);
-            const match = workoutList.find((item) => item.workout.id === created.id);
-            const microId = created.microcycleId || match?.microId;
-            if (microId) onViewSession({ id: created.id } as WorkoutData, microId);
+            if (created.microcycleId) onViewSession({ id: created.id } as WorkoutData, created.microcycleId);
           }}
         />
       )}

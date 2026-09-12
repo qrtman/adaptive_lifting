@@ -55,13 +55,9 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const mesocycles: MesocycleData[] = [];
 
   const reloadMicrocycles = useCallback(async (athleteId?: string | null) => {
-    try {
-      const data = await apiService.fetchMicrocycles(athleteId ?? undefined);
-      setMicrocycles(data);
-      await saveSnapshot('microcycles', data);
-    } catch (err) {
-      console.warn('Failed to reload microcycles:', err);
-    }
+    const data = await apiService.fetchMicrocycles(athleteId ?? undefined, { allowOffline: false });
+    setMicrocycles(data);
+    await saveSnapshot('microcycles', data);
   }, []);
 
   const setActiveAthleteId = useCallback((id: string | null) => {
@@ -94,7 +90,9 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    reloadMicrocycles(activeAthleteId);
+    reloadMicrocycles(activeAthleteId).catch((err) => {
+      console.warn('Failed to reload microcycles:', err);
+    });
   }, [activeAthleteId, reloadMicrocycles]);
 
   useEffect(() => {
@@ -191,37 +189,13 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   };
 
   const finishSession = async (status: WorkoutStatus) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+    if (!activeWorkoutId) return;
 
     Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer));
     saveTimers.current = {};
 
-    let updatedWorkoutData: WorkoutData | null = null;
-
-    setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
-      return {
-        ...m,
-        workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
-          const newWorkout = {
-            ...w,
-            status,
-            color: status === 'COMPLETED' ? 'mac-green' as const : 'mac-blue' as const
-          };
-          updatedWorkoutData = newWorkout;
-          return newWorkout;
-        })
-      };
-    }));
-
-    if (updatedWorkoutData) {
-      try {
-        await apiService.saveLog(updatedWorkoutData);
-      } catch (err) {
-        console.error('Failed to save workout log to backend', err);
-      }
-    }
+    await apiService.updateSession(activeWorkoutId, { status });
+    await reloadMicrocycles(activeAthleteId);
   };
 
   const resetPlan = async () => {

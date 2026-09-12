@@ -24,7 +24,9 @@ export function NewSessionDialog({
   const { user } = useAuth();
   const { microcycles } = usePeriodization();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
-  const needsAthlete = isCoach && !athleteId;
+  const coachUserId = user?.id ? String(user.id) : '';
+  const linkedAthleteId = athleteId && athleteId !== coachUserId ? athleteId : null;
+  const needsAthlete = isCoach && !linkedAthleteId;
   const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
   const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
 
@@ -53,7 +55,7 @@ export function NewSessionDialog({
         title: title.trim() || 'Session',
         blockLabel: blockLabel.trim() || null,
         weekLabel: weekLabel.trim() || null,
-        athleteId: athleteId || undefined,
+        athleteId: isCoach ? linkedAthleteId || undefined : undefined,
       });
       await onCreated(created);
     } catch (err: unknown) {
@@ -66,6 +68,7 @@ export function NewSessionDialog({
     <CenteredDialog
       title={`New session${allowDateEdit ? '' : ` · ${targetDate}`}`}
       onClose={onClose}
+      onSubmit={() => void create()}
       testId="new-session-dialog"
       footer={(
         <>
@@ -78,10 +81,9 @@ export function NewSessionDialog({
             Cancel
           </button>
           <button
-            type="button"
+            type="submit"
             data-testid="new-session-create"
             disabled={busy || needsAthlete || !ISO_DATE.test(targetDate)}
-            onClick={() => void create()}
             className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
           >
             {busy ? 'Creating…' : 'Create'}

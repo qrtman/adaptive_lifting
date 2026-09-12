@@ -233,8 +233,12 @@ export default function App() {
                           type="button"
                           data-testid="session-complete"
                           onClick={async () => {
-                            await finishSession('COMPLETED');
-                            setCurrentView('dashboard');
+                            try {
+                              await finishSession('COMPLETED');
+                              setCurrentView('dashboard');
+                            } catch (err) {
+                              alert(err instanceof Error ? err.message : 'Failed to complete session');
+                            }
                           }}
                           className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
                         >

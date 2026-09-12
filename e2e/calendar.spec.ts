@@ -16,6 +16,17 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Calendar' }).click();
+  const unlabeledDay = page.getByTestId('calendar-day-2026-09-03');
+  await unlabeledDay.click();
+  await expect(page.getByTestId('new-session-dialog')).toBeVisible();
+  await expect(page.getByTestId('new-session-block')).toHaveValue('');
+  await expect(page.getByTestId('new-session-week')).toHaveValue('');
+  await page.getByTestId('new-session-title').fill('Unlabeled');
+  await page.getByTestId('new-session-create').click();
+  await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  await expect(page.getByTestId('session-labels')).toHaveText('No block/week');
+  await page.getByRole('button', { name: 'Back' }).click();
+
   const day = page.getByTestId('calendar-day-2026-09-04');
   await day.hover();
   const newSession = page.getByTestId('calendar-new-session-2026-09-04');
