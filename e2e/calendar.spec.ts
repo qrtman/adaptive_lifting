@@ -72,3 +72,50 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(copiedCard).toContainText('Meet · Week2');
 });
+
+test('coach without an athlete cannot create; linked coach can', async ({ page, playwright }) => {
+  const suffix = Date.now();
+  const coachEmail = `coach-${suffix}@example.com`;
+  const athleteEmail = `ath-${suffix}@example.com`;
+  const coachApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
+  const athleteApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
+  try {
+    const coachReg = await coachApi.post('/api/auth/register', {
+      data: { email: coachEmail, password: 'password123', role: 'COACH' },
+    });
+    const athleteReg = await athleteApi.post('/api/auth/register', {
+      data: { email: athleteEmail, password: 'password123', role: 'ATHLETE' },
+    });
+    expect(coachReg.ok()).toBeTruthy();
+    expect(athleteReg.ok()).toBeTruthy();
+
+    await page.goto('/');
+    await page.getByPlaceholder('coach@example.com').fill(coachEmail);
+    await page.getByPlaceholder('Password').fill('password123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
+    await page.getByRole('button', { name: 'Calendar' }).click();
+    await expect(page.getByTestId('calendar-empty')).toBeVisible();
+    await expect(page.getByText('Select an athlete')).toBeVisible();
+
+    const codeResp = await coachApi.post('/api/auth/coach-code');
+    expect(codeResp.ok()).toBeTruthy();
+    const code = (await codeResp.json()).code as string;
+    const link = await athleteApi.post('/api/auth/link-athlete', { data: { code } });
+    expect(link.ok()).toBeTruthy();
+
+    await page.reload();
+    await expect(page.getByTestId('coach-athlete-switcher')).toHaveValue(/.+/);
+    await page.getByRole('button', { name: 'Calendar' }).click();
+    const day = page.getByTestId('calendar-day-2026-09-04');
+    await day.hover();
+    await page.getByTestId('calendar-new-session-2026-09-04').click();
+    await expect(page.getByTestId('new-session-need-athlete')).toHaveCount(0);
+    await page.getByTestId('new-session-title').fill('Coach day');
+    await page.getByTestId('new-session-create').click();
+    await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  } finally {
+    await coachApi.dispose();
+    await athleteApi.dispose();
+  }
+});
