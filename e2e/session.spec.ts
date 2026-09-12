@@ -3,10 +3,11 @@ import { expect, test, type Locator } from '@playwright/test';
 test.use({ baseURL: 'http://localhost:3000' });
 
 async function typeCell(cell: Locator, value: string) {
+  await cell.page().keyboard.press('Escape');
   await cell.click();
   await expect(cell).toBeEditable();
   await cell.fill(value);
-  await cell.press('Enter');
+  await cell.blur();
 }
 
 test('plans typed kg, suggests later kg after a log, then stays editable after Complete', async ({ page, request }) => {

@@ -84,6 +84,6 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await squatPlan.click();
   await expect(squatPlan).toBeEditable();
   await squatPlan.fill('182.5');
-  await squatPlan.press('Enter');
+  await squatPlan.blur();
   await expect(squatPlan).toHaveText('182.5');
 });
