@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react';
-import { 
-  Activity, 
-} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
@@ -248,7 +245,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    {activeWorkout.exercises.length === 0 && (
+                    {activeWorkout.exercises.length === 0 && !isWorkoutLocked(activeWorkout.status) && (
                       <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
@@ -296,17 +293,14 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <div className="h-full flex flex-col justify-center items-center text-center py-20">
-                  <div className="p-4 bg-red-500/10 rounded-2xl border border-red-500/20 text-red-500 mb-4">
-                    <Activity size={24} />
-                  </div>
-                  <h3 className="text-xl font-bold text-white">No active logging session</h3>
-                    <p className="text-xs text-gray-500 mt-2">Select a session from the calendar or sessions list.</p>
+                <div className="h-full flex flex-col justify-center items-center text-center py-20 px-4">
+                    <p className="text-sm text-white">No session open</p>
+                    <p className="text-xs text-[#AEAEB2] mt-2">Pick a day on the calendar or a session in the list.</p>
                     <button 
                       onClick={() => setCurrentView('dashboard')}
-                      className="mt-6 px-4 min-h-12 bg-[#007AFF] text-white rounded-[8px] text-sm"
+                      className="mt-6 h-8 px-3 bg-[#007AFF] text-white rounded text-sm"
                     >
-                      Back to calendar
+                      Back
                     </button>
                 </div>
               )}

@@ -441,10 +441,10 @@ export function CalendarView({
               return (
                 <div 
                   key={meso ? meso.id : `ungrouped-meso-${groupIdx}`}
-                  className="border border-white/10 rounded overflow-hidden bg-[#131313]"
+                  className="space-y-2"
                 >
                   {meso ? (
-                    <div className="h-8 px-2 border-b border-white/10 flex items-center justify-between gap-2">
+                    <div className="h-8 px-1 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="w-1 h-4 rounded bg-[#54e083] shrink-0" />
                         <h4 className="text-xs text-white truncate">{meso.name}</h4>
@@ -456,7 +456,7 @@ export function CalendarView({
                     </div>
                   ) : null}
 
-                  <div className="p-2 space-y-2">
+                  <div className="space-y-2">
                     <div className="grid grid-cols-7 gap-0">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
                         <div key={day} className="pb-1 pl-1.5">
@@ -539,7 +539,7 @@ export function CalendarView({
                                           }
                                           onViewSession(workout, microId);
                                         }}
-                                        className="mt-1 border rounded flex flex-col overflow-hidden relative z-10 p-1.5 gap-0.5 cursor-pointer bg-[#161616] border-white/10 hover:border-white/20"
+                                        className="mt-1 flex flex-col gap-0.5 cursor-pointer relative z-10"
                                       >
                                         {(workout.blockLabel || workout.weekLabel) ? (
                                           <span className="font-mono text-[9px] text-[#AEAEB2] truncate">

@@ -6,7 +6,6 @@ interface PrescriptionEditorProps {
   intensityType: string;
   targetValue: number | null;
   weight: number | null;
-  suggestedWeight?: number | null;
   onChange: (updates: { reps?: number | null; intensityType?: string; targetValue?: number; weight?: number | null }) => void;
 }
 
@@ -17,9 +16,8 @@ const Sep = ({ children }: { children: string }) => (
 );
 
 export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
-  reps, intensityType, targetValue, weight, suggestedWeight, onChange
+  reps, intensityType, targetValue, weight, onChange
 }) => {
-  const suggested = suggestedWeight && suggestedWeight > 0 ? String(suggestedWeight) : null;
   return (
     <div className="flex items-center gap-0.5">
       <EditablePerformanceCell
@@ -30,8 +28,6 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
         label="Plan weight"
         widthClass="w-12"
         step={2.5}
-        isAuto={!weight && !!suggested}
-        suggestedValue={suggested}
       />
       <Sep>×</Sep>
       <EditablePerformanceCell

@@ -36,6 +36,8 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
     lock = db.query(WorkoutLock).filter(WorkoutLock.workout_id == workout.id).first()
     if lock and lock.holder_user_id != current_user_id and lock.expires_at > datetime.utcnow():
         raise HTTPException(status_code=409, detail={"error": {"code": "WORKOUT_LOCKED", "message": "This workout is locked right now."}})
+    if workout.status in ("COMPLETED", "MISSED"):
+        raise HTTPException(status_code=409, detail={"error": {"code": "WORKOUT_LOCKED", "message": "Session is locked"}})
 
     # Process mutations
     accepted_ids = []
@@ -84,6 +86,18 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
         entity = db.query(model_class).filter(model_class.id == change.id).first()
         if not entity:
             rejected.append(change.mutation_id)
+            continue
+
+        parent_workout_id = None
+        if change.entity == "Workout":
+            parent_workout_id = entity.id
+        elif change.entity == "Exercise":
+            parent_workout_id = entity.workout_id
+        elif change.entity == "ExerciseSet":
+            parent_workout_id = entity.exercise.workout_id if entity.exercise else None
+        if parent_workout_id != payload.workout_id:
+            rejected.append(change.mutation_id)
+            conflicts.append({"mutation_id": change.mutation_id, "reason": "WORKOUT_MISMATCH"})
             continue
             
         if entity.deleted_at is not None:

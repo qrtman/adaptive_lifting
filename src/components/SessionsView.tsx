@@ -181,10 +181,10 @@ export function SessionsView({
               <p className="text-xs text-[#AEAEB2]">Add session. Block/Week can wait.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
               {groupedSessions.map(({ key, label, entries }) => (
-                <section key={key} className="border border-white/10 rounded overflow-hidden">
-                  <div className="min-h-8 px-3 py-1 border-b border-white/10 flex items-center justify-between gap-2 bg-[#131313]">
+                <section key={key}>
+                  <div className="min-h-8 px-1 flex items-center justify-between gap-2">
                     <h4 className="text-xs text-white">{label}</h4>
                     <div className="flex items-center gap-2">
                       <label className="flex items-center gap-1">
@@ -224,7 +224,7 @@ export function SessionsView({
                       <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
-                  <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  <div className="divide-y divide-white/10 border-t border-white/10">
                     {entries.map(({ workout, microId }) => {
                       const isWorkoutActive = activeWorkoutId === workout.id;
                       const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
@@ -232,10 +232,8 @@ export function SessionsView({
                         <div
                           key={workout.id}
                           data-testid={`sessions-card-${workout.id}`}
-                          className={`border rounded p-2 flex flex-col gap-2 ${
-                            isWorkoutActive
-                              ? 'bg-[#161616] border-[#007AFF]/50'
-                              : 'bg-[#161616] border-white/10'
+                          className={`py-2 px-1 flex flex-col gap-2 ${
+                            isWorkoutActive ? 'bg-[#161616]' : ''
                           }`}
                         >
                           <button

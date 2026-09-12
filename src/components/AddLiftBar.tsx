@@ -79,12 +79,11 @@ export function AddLiftBar({
     }
   };
 
+  if (locked) return null;
+
   return (
     <div className="px-2 py-3 border-t border-white/10">
-      {locked ? (
-        <p className="text-xs text-[#AEAEB2]">Finished. Tap Open to edit.</p>
-      ) : (
-        <button
+      <button
           type="button"
           data-testid="add-lift"
           onClick={() => {
@@ -95,7 +94,6 @@ export function AddLiftBar({
         >
           Add lift
         </button>
-      )}
       {open && (
         <CenteredDialog
           title="Select Exercise & Modifiers"

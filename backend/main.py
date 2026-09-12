@@ -776,8 +776,14 @@ def get_microcycles(
 
 @app.post("/api/sets/log")
 def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_session_for_write(db, current_user, req.workoutId)
     s = db.query(ExerciseSet).filter(ExerciseSet.id == req.setId).first()
-    if not s:
+    if not s or not is_live(s):
+        raise HTTPException(status_code=404, detail="Target set not found")
+    exercise = db.query(Exercise).filter(Exercise.id == s.exercise_id).first()
+    if not exercise or not is_live(exercise) or exercise.workout_id != req.workoutId:
+        raise HTTPException(status_code=404, detail="Target set not found")
+    if req.exerciseId and exercise.id != req.exerciseId:
         raise HTTPException(status_code=404, detail="Target set not found")
 
     s.actual = req.weight
@@ -1663,6 +1669,7 @@ def replace_session_exercise_sets(
     replace_exercise_sets(exercise, rows)
     db.commit()
     db.refresh(exercise)
+    recalculate_metrics(db, workout.id, workout.dayLabel)
     return format_exercise(exercise)
 
 

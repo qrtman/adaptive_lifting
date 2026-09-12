@@ -46,12 +46,9 @@ export const ExerciseCard = ({
 
   const mapInitialSets = (setsList: any[]) => {
     const mapped = setsList.map((s) => {
-      const plannedWeightMatch = s.planned?.match(/(\d+(?:\.\d+)?)/);
-      const plannedRepsMatch = s.planned?.match(/x\s*(\d+)/);
-      
-      const plannedReps = trainingInt(s.plannedReps) ?? (plannedRepsMatch ? trainingInt(plannedRepsMatch[1]) : null);
+      const plannedReps = trainingInt(s.plannedReps);
       const plannedRpe = trainingNumber(s.plannedRpe ?? s.rpe);
-      const plannedWeight = trainingNumber(s.plannedWeight) ?? (plannedWeightMatch ? trainingNumber(plannedWeightMatch[1]) : null);
+      const plannedWeight = trainingNumber(s.plannedWeight);
 
       const intensity_type = s.intensity_type || s.intensityType || "RPE";
       const target_value = s.target_value !== undefined 
@@ -100,7 +97,17 @@ export const ExerciseCard = ({
   const duplicateSet = (index: number) => {
     const set = sets[index];
     const newSets = [...sets];
-    newSets.splice(index + 1, 0, { ...set, isTop: false, actual: null, isAuto: true });
+    newSets.splice(index + 1, 0, {
+      ...set,
+      id: `s-${Math.random().toString(36).slice(2, 12)}`,
+      isTop: false,
+      plannedWeight: null,
+      suggestedWeight: null,
+      actual: null,
+      reps: null,
+      executedRpe: null,
+      isAuto: false,
+    });
     updateAndPropagate(newSets);
   };
 
@@ -177,9 +184,11 @@ export const ExerciseCard = ({
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
             <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
           </div>
-          <button type="button" onClick={addSet} disabled={locked} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40">
+          {!locked ? (
+          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
             + Set
           </button>
+          ) : null}
           {onMoveUp && (
             <button
               type="button"
@@ -220,9 +229,6 @@ export const ExerciseCard = ({
           )}
         </div>
       </div>
-      {locked ? (
-        <p className="px-2 pb-1 text-[10px] text-[#AEAEB2]">Finished. Open to edit.</p>
-      ) : null}
       <div className="overflow-x-auto">
       <table className="text-left border-collapse w-max max-w-full">
         <thead>
@@ -232,7 +238,7 @@ export const ExerciseCard = ({
               <span className="text-[#AEAEB2]">Plan</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
             </th>
-            <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
+            <th className={`${th} w-6 px-1`} aria-label="Copy plan to log" />
             <th className={`${th} pl-3 border-l border-white/5`}>
               <span className="text-[#AEAEB2]">Log</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
@@ -287,7 +293,6 @@ export const ExerciseCard = ({
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
                             weight={set.plannedWeight}
-                            suggestedWeight={set.suggestedWeight}
                             onChange={(updates) => updateSet(i, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
@@ -296,7 +301,7 @@ export const ExerciseCard = ({
                               plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
                             })}
                           />
-                          {set.plannedWeight != null && set.suggestedWeight && set.suggestedWeight !== set.plannedWeight ? (
+                          {set.suggestedWeight && set.plannedWeight == null ? (
                             <button
                               type="button"
                               data-testid="plan-suggest"
@@ -310,7 +315,7 @@ export const ExerciseCard = ({
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
-                          <span className="text-white">{set.plannedWeight} kg</span>
+                          <span className="text-white">{set.plannedWeight != null ? `${set.plannedWeight} kg` : '—'}</span>
                           {sep('×')}
                           <span>{set.plannedReps}</span>
                           {sep('@')}

@@ -468,6 +468,58 @@ def test_open_finished_session():
     assert [e["title"] for e in match["exercises"]] == ["Squat", "Bench"]
 
 
+def test_locked_session_rejects_set_writes():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-12", "title": "Session"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    )
+    eid = squat.json()["id"]
+    set_id = squat.json()["sets"][0]["id"]
+    done = client.patch(f"/api/sessions/{sid}", json={"status": "COMPLETED"}, cookies=cookies)
+    assert done.status_code == 200
+
+    logged = client.post(
+        "/api/sets/log",
+        json={"workoutId": sid, "exerciseId": eid, "setId": set_id, "weight": 180, "reps": 5, "rpe": 8},
+        cookies=cookies,
+    )
+    assert logged.status_code == 409
+
+    replaced = client.put(
+        f"/api/sessions/{sid}/exercises/{eid}/sets",
+        json={"sets": [{"id": set_id, "label": "Set 1", "plannedWeight": 180, "plannedReps": 5, "plannedRpe": 8}]},
+        cookies=cookies,
+    )
+    assert replaced.status_code == 409
+
+    other = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-13", "title": "Open day"},
+        cookies=cookies,
+    )
+    other_id = other.json()["id"]
+    hijack = client.post(
+        "/api/sets/log",
+        json={"workoutId": other_id, "exerciseId": eid, "setId": set_id, "weight": 180, "reps": 5, "rpe": 8},
+        cookies=cookies,
+    )
+    assert hijack.status_code == 404
+
+
 def test_reorder_lifts_in_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
