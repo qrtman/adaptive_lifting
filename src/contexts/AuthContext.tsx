@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { UI_KEYS, getUiPref, removeUiPref, setUiPref } from '../storage/uiPrefs';
+import { apiService } from '../services/api';
 
 export type RoleMode = 'coach' | 'athlete';
 
@@ -28,6 +29,14 @@ function roleFromPref(): RoleMode {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any | null>(() => {
+    const storedRole = getUiPref(UI_KEYS.role)?.toUpperCase();
+    if (storedRole === 'ATHLETE' || storedRole === 'COACH') {
+      return {
+        id: getUiPref(UI_KEYS.userId),
+        role: storedRole,
+        email: getUiPref(UI_KEYS.email),
+      };
+    }
     const stored = getUiPref(UI_KEYS.roleMode);
     return stored === 'athlete' || stored === 'coach' ? { role: stored.toUpperCase() } : null;
   });
@@ -44,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       removeUiPref(UI_KEYS.roleMode);
       removeUiPref(UI_KEYS.role);
       removeUiPref(UI_KEYS.email);
+      removeUiPref(UI_KEYS.userId);
+      removeUiPref(UI_KEYS.activeAthleteId);
       setUser(null);
       window.location.reload();
     };
@@ -56,18 +67,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const role = String(nextUser.role).toLowerCase();
       if (role === 'athlete' || role === 'coach') {
         setRoleMode(role);
+        setUiPref(UI_KEYS.role, String(nextUser.role).toUpperCase());
       }
     }
     if (nextUser?.email) {
       setUiPref(UI_KEYS.email, nextUser.email);
     }
+    if (nextUser?.id) {
+      setUiPref(UI_KEYS.userId, String(nextUser.id));
+    }
     setUser(nextUser);
   };
 
   const signOut = () => {
+    void apiService.logout();
     removeUiPref(UI_KEYS.roleMode);
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
+    removeUiPref(UI_KEYS.userId);
+    removeUiPref(UI_KEYS.activeAthleteId);
     setUser(null);
   };
 

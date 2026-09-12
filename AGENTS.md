@@ -35,6 +35,7 @@ These rules are always active:
 - Sessions (dated workouts) are first-class. Block/Week are optional grouping labels (block is a prefix of week). Labels may be set at create or anytime later; unlabeled sessions are allowed.
 - Do not invent fixed Mon–Sun week containers or require creating a week before the first session.
 - Calendar is date-first. Sessions view groups by Block/Week labels when present. Coach Calendar/Sessions must follow the active athlete switcher.
+- **Web first:** Build Calendar, Sessions, and the web session screen (add lifts, prescribe, log) before Telegram Mini App / phone logging. Do not swap the web session into a phone mock. Do not block web logging on mobile work.
 
 ### Layer 2: Task Brief
 
@@ -251,3 +252,16 @@ Verified:
 Notes:
 - [known limitation or none]
 ```
+
+---
+
+## 5. Design & logic review cycle
+
+When asked to review, approve, or run a check cycle on the session constructor:
+
+1. **Design judge** — `design.md` + `knowledge.md` vs the touched UI. Fail nested cards, always-open editors that should be dialogs, missing lock copy, Plan vs Log confusion.
+2. **Logic judge** — set math and persistence. Typed plan kg is never invented from a fake e1RM. After a **log**, later empty plan kg may **suggest** kg from executed e1RM; never overwrite typed kg. Finished sessions cannot mutate. Numbers stay numeric.
+3. **Approve only blockers/majors** from this cycle. Implement that batch. Re-run the smallest tests. Do **not** loop forever in one turn; stop after one fix batch unless the user says run another cycle.
+4. **Speak coach language** in the user reply (Plan / Log, not API jargon).
+
+Next-cycle backlog (do not expand unless asked): per-set saved/syncing/failed on Log cells; `%` stored separately from RPE for Δ.

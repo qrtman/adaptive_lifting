@@ -3,7 +3,7 @@ import { EditablePerformanceCell } from './EditablePerformanceCell';
 
 interface PrescriptionEditorProps {
   reps: number | null;
-  intensityType: string; // 'RPE' | 'PERCENT' | 'AMRAP'
+  intensityType: string;
   targetValue: number | null;
   weight: number | null;
   onChange: (updates: { reps?: number | null; intensityType?: string; targetValue?: number; weight?: number | null }) => void;
@@ -24,8 +24,8 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
         value={weight !== null && weight !== undefined ? weight.toString() : ""}
         onChange={(val) => onChange({ weight: val ? parseFloat(val) : null })}
         placeholder="—"
-        fieldKey="weight"
-        label="Weight"
+        fieldKey="rx-weight"
+        label="Plan weight"
         widthClass="w-12"
         step={2.5}
       />
@@ -53,7 +53,8 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
         type="button"
         onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
         className="h-6 px-0.5 text-[10px] text-[#AEAEB2] hover:text-white"
-        title="Toggle RPE / %"
+        data-testid="rx-intensity"
+        title="Switch between RPE and %"
       >
         {intensityType === "PERCENT" ? "%" : "RPE"}
       </button>

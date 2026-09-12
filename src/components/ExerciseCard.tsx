@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, Trash2, Copy } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
+import { LiftVariationPicker } from './LiftVariationPicker';
+import { CenteredDialog } from './CenteredDialog';
 import { 
-  calculateCapacityScaledWeight, 
   calculateE1RM, 
   calculateINOL,
-  calculateWeightFromE1RM 
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
+import { refreshSetAnchors } from '../services/setPrescription';
 
 export const ExerciseCard = ({ 
   id,
@@ -16,108 +17,53 @@ export const ExerciseCard = ({
   variation, 
   tags: _tags, 
   tier,
+  liftCategory = 'Other',
   initialSets,
   onUpdateSets,
-  roleMode = 'coach'
+  onUpdateMeta,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  locked = false,
+  roleMode: _roleMode = 'coach'
 }: { 
   id: string,
   title: string, 
   variation: string, 
   tags: string[], 
   tier?: 'Comp' | 'Variation' | 'Accessory',
+  liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other',
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
+  onUpdateMeta?: (patch: { variation: string; tier: 'Comp' | 'Variation' }) => void,
+  onRemove?: () => void | Promise<void>,
+  onMoveUp?: () => void | Promise<void>,
+  onMoveDown?: () => void | Promise<void>,
+  locked?: boolean,
   roleMode?: 'coach' | 'athlete',
 }) => {
-  const recalculatePresetsAndSugs = (setArray: any[]) => {
-    if (setArray.length === 0) return setArray;
-
-    // Use Set 0 baseline_e1rm as the primary anchor
-    const primaryAnchor = setArray[0].baseline_e1rm !== undefined ? trainingOrZero(setArray[0].baseline_e1rm) : 150;
-
-    return setArray.map((s, index) => {
-      // Find the most recent E1RM from logged preceding sets
-      let prevLogE1RM = 0;
-      for (let j = index - 1; j >= 0; j--) {
-        const prevSet = setArray[j];
-        const prevW = trainingOrZero(prevSet.actual);
-        const prevR = trainingIntOrZero(prevSet.reps);
-        const prevRp = trainingOrZero(prevSet.executedRpe);
-        const calcPrev = calculateE1RM(prevW, prevR, prevRp);
-        if (calcPrev > 0) {
-          prevLogE1RM = calcPrev;
-          break;
-        }
-      }
-
-      // Determine the active baseline E1RM for this set's prescription calculations:
-      const activeE1RM = index === 0
-        ? primaryAnchor
-        : (prevLogE1RM > 0 ? prevLogE1RM : primaryAnchor);
-
-      // Recalculate planned weight (prescribed weight) using the active E1RM
-      const repsVal = trainingInt(s.plannedReps) || 4;
-      const computedWeight = calculateCapacityScaledWeight(
-        activeE1RM,
-        s.intensity_type || "RPE",
-        s.target_value !== undefined ? s.target_value : 8,
-        repsVal,
-        s.adjustment_pct !== undefined ? s.adjustment_pct : 0
-      );
-
-      // Log suggested weight (if auto-scale applies for log side)
-      let suggestedWeight = s.suggestedWeight;
-      const anchorWeight = trainingOrZero(setArray[0].actual ?? setArray[0].plannedWeight);
-      if (anchorWeight > 0 && index > 0 && s.isAuto) {
-        const drop = s.dropPercent !== undefined ? s.dropPercent : -5;
-        suggestedWeight = anchorWeight * (1 + drop / 100);
-      }
-
-      return {
-        ...s,
-        baseline_e1rm: activeE1RM,
-        suggestedWeight,
-        plannedWeight: computedWeight > 0 ? computedWeight : trainingNumber(s.plannedWeight)
-      };
-    });
-  };
+  const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
 
   const mapInitialSets = (setsList: any[]) => {
-    const mapped = setsList.map((s, i) => {
-      const plannedWeightMatch = s.planned?.match(/(\d+(?:\.\d+)?)/);
-      const plannedRepsMatch = s.planned?.match(/x\s*(\d+)/);
-      
-      const plannedReps = trainingInt(s.plannedReps) ?? (plannedRepsMatch ? trainingInt(plannedRepsMatch[1]) : null);
+    const mapped = setsList.map((s) => {
+      const plannedReps = trainingInt(s.plannedReps);
       const plannedRpe = trainingNumber(s.plannedRpe ?? s.rpe);
-      const plannedWeight = trainingNumber(s.plannedWeight) ?? (plannedWeightMatch ? trainingNumber(plannedWeightMatch[1]) : null);
+      const plannedWeight = trainingNumber(s.plannedWeight);
 
-      const repsVal = plannedReps || 4;
-      const rpeVal = plannedRpe || 8;
-      const weightVal = plannedWeight || 100;
-
-      const calculatedBase = calculateE1RM(weightVal, repsVal, rpeVal);
-      const baseline_e1rm = s.baseline_e1rm !== undefined ? s.baseline_e1rm : (calculatedBase > 0 ? calculatedBase : 150);
-
-      const intensity_type = s.intensity_type || "RPE";
+      const intensity_type = s.intensity_type || s.intensityType || "RPE";
       const target_value = s.target_value !== undefined 
         ? s.target_value 
-        : (intensity_type === "PERCENT" ? 80 : rpeVal);
-
-      const adjustment_pct = s.adjustment_pct !== undefined 
-        ? s.adjustment_pct 
-        : (s.dropPercent !== undefined ? s.dropPercent / 100 : 0);
+        : plannedRpe;
 
       return {
         ...s,
-        plannedWeight: plannedWeight ?? (weightVal > 0 ? weightVal : 137.5),
-        plannedReps: plannedReps ?? 4,
-        plannedRpe: intensity_type === "RPE" ? target_value : (plannedRpe ?? 8),
-        baseline_e1rm,
+        id: s.id,
+        plannedWeight,
+        plannedReps,
+        plannedRpe: intensity_type === "RPE" ? (target_value ?? plannedRpe) : plannedRpe,
         intensity_type,
         target_value,
-        adjustment_pct,
-        dropPercent: s.dropPercent !== undefined ? s.dropPercent : (i > 0 ? -5 : 0),
-        isAuto: s.isAuto !== undefined ? s.isAuto : (i > 0 && !s.actual),
+        isAuto: false,
         actual: trainingNumber(s.actual),
         reps: trainingInt(s.reps),
         executedRpe: trainingNumber(s.executedRpe)
@@ -128,6 +74,8 @@ export const ExerciseCard = ({
   };
 
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
+  const [removing, setRemoving] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   // Keep state in sync when workout changes
   useEffect(() => {
@@ -149,7 +97,17 @@ export const ExerciseCard = ({
   const duplicateSet = (index: number) => {
     const set = sets[index];
     const newSets = [...sets];
-    newSets.splice(index + 1, 0, { ...set, isTop: false, actual: null, isAuto: true });
+    newSets.splice(index + 1, 0, {
+      ...set,
+      id: `s-${Math.random().toString(36).slice(2, 12)}`,
+      isTop: false,
+      plannedWeight: null,
+      suggestedWeight: null,
+      actual: null,
+      reps: null,
+      executedRpe: null,
+      isAuto: false,
+    });
     updateAndPropagate(newSets);
   };
 
@@ -159,24 +117,31 @@ export const ExerciseCard = ({
   };
 
   const syncTarget = (index: number) => {
+    if (locked) return;
     const set = sets[index];
+    const kg = trainingNumber(set.plannedWeight);
     updateSet(index, { 
-      actual: trainingNumber(set.plannedWeight),
+      actual: kg,
       reps: trainingInt(set.plannedReps),
-      executedRpe: trainingNumber(set.plannedRpe),
+      executedRpe: set.intensity_type === 'PERCENT' ? null : trainingNumber(set.plannedRpe),
       isAuto: false
     });
   };
 
-  const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual ?? s.suggestedWeight) * trainingIntOrZero(s.reps)), 0);
+  const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
 
   const addSet = () => {
+    const previous = sets[sets.length - 1];
     updateAndPropagate([...sets, {
-      label: "Additional Set",
+      id: `s-${Math.random().toString(36).slice(2, 12)}`,
+      label: `Set ${sets.length + 1}`,
       plannedWeight: null,
-      plannedReps: null,
-      plannedRpe: null,
+      plannedReps: previous?.plannedReps ?? null,
+      plannedRpe: previous?.plannedRpe ?? previous?.target_value ?? null,
+      intensity_type: previous?.intensity_type || 'RPE',
+      target_value: previous?.target_value ?? previous?.plannedRpe ?? null,
       isTop: false,
+      isAuto: false,
       actual: null,
       reps: null,
       executedRpe: null
@@ -192,40 +157,76 @@ export const ExerciseCard = ({
   return (
     <div className="border-b border-white/10">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-baseline gap-2 min-w-0">
+        <div className="flex items-start gap-2 min-w-0">
           <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
           <span className="text-xs text-[#AEAEB2] truncate">
             {tier ? `${tier} · ${variation}` : variation}
           </span>
+          {onUpdateMeta ? (
+            <button
+              type="button"
+              data-testid={`edit-lift-${id}`}
+              onClick={() => setEditOpen(true)}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white shrink-0"
+            >
+              Edit
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
-            {roleMode === 'coach' && sets[0] ? (
-              <EditablePerformanceCell
-                value={displayTrainingValue(sets[0].baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : 150)}
-                onChange={(val) => updateSet(0, { baseline_e1rm: trainingNumber(val) || 150 })}
-                placeholder="150"
-                fieldKey={`${id}-baseline_e1rm`}
-                label="Baseline e1RM"
-                step={5}
-                variant="transparent"
-                widthClass="w-10"
-                rowIndex={0}
-              />
-            ) : (
-              <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
-                {sets[0]?.baseline_e1rm !== undefined ? Math.round(sets[0].baseline_e1rm) : '150'}
-              </span>
-            )}
+            <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+              {sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—'}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
             <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
           </div>
+          {!locked ? (
           <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
             + Set
           </button>
+          ) : null}
+          {onMoveUp && (
+            <button
+              type="button"
+              data-testid={`move-lift-up-${id}`}
+              disabled={locked}
+              onClick={() => void onMoveUp()}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            >
+              Up
+            </button>
+          )}
+          {onMoveDown && (
+            <button
+              type="button"
+              data-testid={`move-lift-down-${id}`}
+              disabled={locked}
+              onClick={() => void onMoveDown()}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            >
+              Down
+            </button>
+          )}
+          {onRemove && (
+            <button
+              type="button"
+              data-testid={`remove-lift-${id}`}
+              disabled={locked || removing}
+              onClick={() => {
+                if (locked || removing) return;
+                if (!window.confirm(`Remove ${title} from this session?`)) return;
+                setRemoving(true);
+                void Promise.resolve(onRemove()).finally(() => setRemoving(false));
+              }}
+              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            >
+              {removing ? 'Removing…' : 'Remove'}
+            </button>
+          )}
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -234,10 +235,10 @@ export const ExerciseCard = ({
           <tr className="border-b border-white/5">
             <th className={`${th} w-6`}>#</th>
             <th className={`${th} pr-3`}>
-              <span className="text-[#AEAEB2]">Rx</span>
+              <span className="text-[#AEAEB2]">Plan</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
             </th>
-            <th className={`${th} w-6 px-1`} aria-label="Copy prescription to log" />
+            <th className={`${th} w-6 px-1`} aria-label="Copy plan to log" />
             <th className={`${th} pl-3 border-l border-white/5`}>
               <span className="text-[#AEAEB2]">Log</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
@@ -257,7 +258,7 @@ export const ExerciseCard = ({
               </tr>
             )}
             {sets.map((set, i) => {
-              const weight = trainingOrZero(set.actual ?? set.suggestedWeight);
+              const weight = trainingOrZero(set.actual);
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
               const e1RM = calculateE1RM(weight, reps, rpe);
@@ -273,30 +274,6 @@ export const ExerciseCard = ({
                   ? 'bg-mac-green/10' 
                   : set.isTop ? 'bg-mac-blue/5' : 'hover:bg-white/[0.01]';
 
-              // e1rm from log performance of previous sets
-              let prevLogE1RM = 0;
-              for (let j = i - 1; j >= 0; j--) {
-                const prevSet = sets[j];
-                const prevW = trainingOrZero(prevSet.actual);
-                const prevR = trainingIntOrZero(prevSet.reps);
-                const prevRp = trainingOrZero(prevSet.executedRpe);
-                const calcPrev = calculateE1RM(prevW, prevR, prevRp);
-                if (calcPrev > 0) {
-                  prevLogE1RM = calcPrev;
-                  break;
-                }
-              }
-
-              const targetReps = trainingIntOrZero(set.plannedReps);
-              const targetRpe = trainingOrZero(set.plannedRpe);
-              let suggestedPrescribedWeight = null;
-              if (targetReps > 0 && targetRpe > 0 && prevLogE1RM > 0) {
-                const calcW = calculateWeightFromE1RM(prevLogE1RM, targetReps, targetRpe);
-                if (calcW > 0) {
-                  suggestedPrescribedWeight = Math.round(calcW * 4) / 4;
-                }
-              }
-
               const actualWt = trainingOrZero(set.actual);
               const plannedWt = trainingOrZero(set.plannedWeight);
               const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
@@ -309,7 +286,7 @@ export const ExerciseCard = ({
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
                   <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
                   <td className={`${td} pr-3`}>
-                    {roleMode === 'coach' ? (
+                    {!locked ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
                           <PrescriptionEditor
                             reps={set.plannedReps}
@@ -320,37 +297,25 @@ export const ExerciseCard = ({
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
                               target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
+                              plannedRpe: updates.targetValue !== undefined ? updates.targetValue : set.plannedRpe,
                               plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
                             })}
                           />
-                          {suggestedPrescribedWeight && suggestedPrescribedWeight !== trainingOrZero(set.plannedWeight) && (
+                          {set.suggestedWeight && set.plannedWeight == null ? (
                             <button
                               type="button"
-                              onClick={() => updateSet(i, { plannedWeight: suggestedPrescribedWeight })}
-                              className="h-6 px-0.5 text-[10px] text-amber-400"
-                              title="Update prescription from logged e1RM"
+                              data-testid="plan-suggest"
+                              onClick={() => updateSet(i, { plannedWeight: set.suggestedWeight })}
+                              className="h-6 px-1 text-[10px] text-[#AEAEB2] hover:text-white"
+                              title="Use kg from the set you just logged"
                             >
-                              {suggestedPrescribedWeight}
+                              use {set.suggestedWeight}
                             </button>
-                          )}
-                          <EditablePerformanceCell
-                            value={displayTrainingValue(set.adjustment_pct !== undefined ? Math.round(set.adjustment_pct * 100) : 0)}
-                            onChange={(val) => {
-                              const rawPct = trainingOrZero(val);
-                              updateSet(i, { adjustment_pct: rawPct / 100, dropPercent: rawPct });
-                            }}
-                            placeholder="0"
-                            fieldKey={`${id}-adjustment_pct`}
-                            label="Fatigue / Modifier"
-                            widthClass="w-8"
-                            step={1}
-                            rowIndex={i}
-                          />
-                          <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
+                          ) : null}
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
-                          <span className="text-white">{set.plannedWeight} kg</span>
+                          <span className="text-white">{set.plannedWeight != null ? `${set.plannedWeight} kg` : '—'}</span>
                           {sep('×')}
                           <span>{set.plannedReps}</span>
                           {sep('@')}
@@ -361,14 +326,24 @@ export const ExerciseCard = ({
                   <td className={`${td} px-1`}>
                     <button
                       type="button"
+                      disabled={locked}
                       onClick={() => syncTarget(i)}
-                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
-                      title="Copy prescription to log"
+                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white disabled:opacity-40"
+                      title="Copy plan to log"
                     >
                       <ArrowRight size={12} />
                     </button>
                   </td>
                   <td className={`${td} pl-3 border-l border-white/5`}>
+                    {locked ? (
+                      <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
+                        <span className="text-white">{set.actual ?? '—'}</span>
+                        {sep('×')}
+                        <span>{set.reps ?? '—'}</span>
+                        {sep('@')}
+                        <span>{set.executedRpe ?? '—'}</span>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-0.5 whitespace-nowrap">
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.actual)}
@@ -378,8 +353,8 @@ export const ExerciseCard = ({
                         label="Log Weight"
                         widthClass="w-12"
                         isLogged={true}
-                        isAuto={set.isAuto}
-                        suggestedValue={set.suggestedWeight ? displayTrainingValue(Math.round(set.suggestedWeight * 4) / 4) : "0"}
+                        isAuto={false}
+                        suggestedValue={null}
                         step={2.5}
                         rowIndex={i}
                       />
@@ -408,6 +383,7 @@ export const ExerciseCard = ({
                         rowIndex={i}
                       />
                     </div>
+                    )}
                   </td>
                   <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
                     {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
@@ -429,15 +405,19 @@ export const ExerciseCard = ({
                   <td className={td}>
                     <div className="flex items-center justify-end">
                       <button 
+                        type="button"
+                        disabled={locked}
                         onClick={() => duplicateSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white disabled:opacity-40"
                         title="Duplicate set"
                       >
                         <Copy size={11} />
                       </button>
                       <button 
+                        type="button"
+                        disabled={locked}
                         onClick={() => deleteSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-red-400"
+                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-red-400 disabled:opacity-40"
                         title="Delete set"
                       >
                         <Trash2 size={11} />
@@ -450,6 +430,32 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      {editOpen && onUpdateMeta && (
+        <CenteredDialog
+          title={`Edit lift · ${title}`}
+          subtitle="Bar, tempo, ROM, and gear. The compiled name stays readonly."
+          onClose={() => setEditOpen(false)}
+          testId="edit-lift-dialog"
+          footer={(
+            <button
+              type="button"
+              data-testid="edit-lift-done"
+              onClick={() => setEditOpen(false)}
+              className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded"
+            >
+              Done
+            </button>
+          )}
+        >
+          <LiftVariationPicker
+            title={title}
+            variation={variation}
+            liftCategory={liftCategory}
+            locked={locked}
+            onChange={onUpdateMeta}
+          />
+        </CenteredDialog>
+      )}
     </div>
   );
 };

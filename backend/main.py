@@ -37,11 +37,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import re
 import uuid
 import hashlib
 import secrets
 
+from .set_writes import replace_exercise_sets
 from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
 from .accessory_migration import coerce_float, coerce_int
 
@@ -99,6 +101,11 @@ def migrate_db():
         db.rollback()
     try:
         db.execute(text("ALTER TABLE workouts ADD COLUMN owner_id VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN intensity_type VARCHAR"))
         db.commit()
     except Exception:
         db.rollback()
@@ -425,48 +432,61 @@ def recalculate_metrics(db: Session, workout_id: str, day_label: str):
 
 # --- Response Formatting Helpers ---
 
+def is_live(entity) -> bool:
+    return getattr(entity, "deleted_at", None) is None
+
+
+def format_exercise(e: Exercise) -> dict:
+    sets_list = []
+    for s in sorted(e.sets, key=lambda x: (x.lexo_rank or "", x.id)):
+        if not is_live(s):
+            continue
+        set_dict = {
+            "id": s.id,
+            "label": s.label,
+            "plannedWeight": coerce_float(s.plannedWeight),
+            "plannedReps": coerce_int(s.plannedReps),
+            "plannedRpe": coerce_float(s.plannedRpe),
+            "actual": coerce_float(s.actual),
+            "reps": coerce_int(s.reps),
+            "executedRpe": coerce_float(s.executedRpe),
+            "velocity": coerce_float(s.velocity),
+            "readiness": coerce_int(s.readiness),
+            "hrv": coerce_float(s.hrv),
+            "isAuto": s.isAuto,
+            "isTop": s.isTop,
+            "intensityType": getattr(s, "intensity_type", None) or "RPE",
+        }
+        planned_preview = getattr(s, "planned", None)
+        if planned_preview is not None:
+            set_dict["planned"] = planned_preview
+        if s.dropPercent is not None:
+            set_dict["dropPercent"] = s.dropPercent
+        if s.note is not None:
+            set_dict["note"] = s.note
+        sets_list.append(set_dict)
+
+    return {
+        "id": e.id,
+        "title": e.title,
+        "variation": e.variation,
+        "tier": e.tier or "Comp",
+        "liftCategory": e.lift_category or "Other",
+        "tags": e.tags,
+        "top": e.top,
+        "vol": e.vol,
+        "sets": sets_list,
+    }
+
+
 def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
-        exercises_list = []
-        for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id)):
-            sets_list = []
-            for s in sorted(e.sets, key=lambda x: (x.lexo_rank or "", x.id)):
-                set_dict = {
-                    "id": s.id,
-                    "label": s.label,
-                    "plannedWeight": coerce_float(s.plannedWeight),
-                    "plannedReps": coerce_int(s.plannedReps),
-                    "plannedRpe": coerce_float(s.plannedRpe),
-                    "actual": coerce_float(s.actual),
-                    "reps": coerce_int(s.reps),
-                    "executedRpe": coerce_float(s.executedRpe),
-                    "velocity": coerce_float(s.velocity),
-                    "readiness": coerce_int(s.readiness),
-                    "hrv": coerce_float(s.hrv),
-                    "isAuto": s.isAuto,
-                    "isTop": s.isTop,
-                }
-                planned_preview = getattr(s, "planned", None)
-                if planned_preview is not None:
-                    set_dict["planned"] = planned_preview
-                if s.dropPercent is not None:
-                    set_dict["dropPercent"] = s.dropPercent
-                if s.note is not None:
-                    set_dict["note"] = s.note
-                sets_list.append(set_dict)
-
-            exercises_list.append({
-                "id": e.id,
-                "title": e.title,
-                "variation": e.variation,
-                "tier": e.tier or "Comp",
-                "liftCategory": e.lift_category or "Other",
-                "tags": e.tags,
-                "top": e.top,
-                "vol": e.vol,
-                "sets": sets_list
-            })
+        exercises_list = [
+            format_exercise(e)
+            for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
+            if is_live(e)
+        ]
 
         workouts_list.append({
             "id": w.id,
@@ -490,232 +510,6 @@ def format_microcycle(mc: Microcycle) -> dict:
         "active": mc.active,
         "workouts": workouts_list
     }
-
-# --- Database Seeder ---
-
-INITIAL_SEEDS = [
-    {
-        "id": "micro-1",
-        "weekName": "Microcycle 01",
-        "focus": "Technical Proficiency / Baseline",
-        "status": "COMPLETED",
-        "active": False,
-        "workouts": [
-            {
-                "id": "w-1-1", "date": "2026-09-02", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 12400.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-1-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus",
-                        "top": "150kg x 1", "vol": "8,600kg",
-                        "sets": [
-                            {"id": "s-1-1-1a", "label": "Top Single", "planned": "150kg x 1", "plannedWeight": 150.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 150.0, "reps": 1, "executedRpe": 5.0},
-                            {"id": "s-1-1-1b", "label": "Main Set", "planned": "137.5kg x 4", "plannedWeight": 137.5, "plannedReps": 4, "plannedRpe": 6.0, "actual": 137.5, "reps": 4, "executedRpe": 6.0},
-                            {"id": "s-1-1-1c", "label": "Backdown", "planned": "127.5kg x 4", "plannedWeight": 127.5, "plannedReps": 4, "plannedRpe": 5.0, "note": "-5% Drop", "actual": 127.5, "reps": 4, "executedRpe": 5.0, "dropPercent": -5.0}
-                        ]
-                    },
-                    {
-                        "id": "e-1-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause",
-                        "top": "90kg x 3", "vol": "3,800kg",
-                        "sets": [
-                            {"id": "s-1-1-2a", "label": "Top Single", "plannedWeight": 90.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 90.0, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    },
-                    {
-                        "id": "a-1-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "120kg x 12", "vol": "4,320kg",
-                        "sets": [
-                            {"id": "a-1-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-1-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-1-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
-                        ]
-                    }
-                ],
-            },
-            {
-                "id": "w-1-2", "date": "2026-09-04", "dayLabel": "D2", "title": "Secondary Deadlift, Secondary Bench",
-                "tonnage": 8900.0, "delta": 0.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-1-2-1", "title": "Secondary Deadlift", "variation": "Deficit Deadlift", "tags": "Patience off Floor",
-                        "top": "180kg x 3", "vol": "4,700kg",
-                        "sets": [
-                            {"id": "s-1-2-1a", "label": "Top Set", "planned": "180kg x 3", "plannedWeight": 180.0, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 180.0, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    },
-                    {
-                        "id": "e-1-2-2", "title": "Secondary Bench", "variation": "Spoto Press", "tags": "Hover Focus, Chest Activation",
-                        "top": "85kg x 5", "vol": "4,200kg",
-                        "sets": [
-                            {"id": "s-1-2-2a", "label": "Top Set", "planned": "85kg x 5", "plannedWeight": 85.0, "plannedReps": 5, "plannedRpe": 7.0, "isTop": True, "actual": 85.0, "reps": 5, "executedRpe": 7.0}
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "id": "micro-2",
-        "weekName": "Microcycle 02",
-        "focus": "Accumulation / Volume Expansion",
-        "status": "COMPLETED",
-        "active": False,
-        "workouts": [
-            {
-                "id": "w-2-1", "date": "2026-09-09", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 13200.0, "delta": 800.0, "color": "mac-green", "status": "COMPLETED",
-                "exercises": [
-                    {
-                        "id": "e-2-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Quads Drive",
-                        "top": "155kg x 1", "vol": "9,200kg",
-                        "sets": [
-                            {"id": "s-2-1-1a", "label": "Top Single", "planned": "155kg x 1", "plannedWeight": 155.0, "plannedReps": 1, "plannedRpe": 5.5, "isTop": True, "actual": 155.0, "reps": 1, "executedRpe": 5.5}
-                        ]
-                    },
-                    {
-                        "id": "e-2-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive",
-                        "top": "92.5kg x 3", "vol": "4,000kg",
-                        "sets": [
-                            {"id": "s-2-1-2a", "label": "Top Set", "planned": "92.5kg x 3", "plannedWeight": 92.5, "plannedReps": 3, "plannedRpe": 6.0, "isTop": True, "actual": 92.5, "reps": 3, "executedRpe": 6.0}
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "id": "micro-3",
-        "weekName": "Microcycle 03",
-        "focus": "Threshold / Intensity Peak",
-        "status": "ACTIVE",
-        "active": True,
-        "workouts": [
-            {
-                "id": "w-3-1", "date": "2026-09-16", "dayLabel": "D1", "title": "Primary Squat, Primary Bench",
-                "tonnage": 14100.0, "delta": 900.0, "color": "mac-blue", "status": "IN_PROGRESS",
-                "exercises": [
-                    {
-                        "id": "e-3-1-1", "title": "Primary Squat", "variation": "Low Bar Competition", "tags": "Comp Spec, Brace Focus, Heel Drive",
-                        "top": "160kg x 1", "vol": "9,800kg",
-                        "sets": [
-                            {"id": "s-3-1-1a", "label": "Top Single", "planned": "160kg x 1", "plannedWeight": 160.0, "plannedReps": 1, "plannedRpe": 5.0, "isTop": True, "actual": 160.0, "reps": 1, "executedRpe": 8.5},
-                            {"id": "s-3-1-1b", "label": "Main Set", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 6.5, "actual": 152.5, "reps": 3, "executedRpe": 7.5},
-                            {"id": "s-3-1-1c", "label": "Backdown", "planned": "152.5kg x 3", "plannedWeight": 152.5, "plannedReps": 3, "plannedRpe": 5.5, "note": "-5% Drop", "actual": 152.5, "reps": 3, "executedRpe": 8.0, "dropPercent": -5.0}
-                        ]
-                    },
-                    {
-                        "id": "e-3-1-2", "title": "Primary Bench", "variation": "Competition Paused", "tags": "Static Leg Drive, 1-sec Pause, Shoulder Pin",
-                        "top": "95kg x 3", "vol": "4,300kg",
-                        "sets": [
-                            {"id": "s-3-1-2a", "label": "Top Single", "planned": "95kg x 3", "plannedWeight": 95.0, "plannedReps": 3, "plannedRpe": 5.0, "isTop": True, "actual": 95.0, "reps": 3, "executedRpe": 8.0},
-                            {"id": "s-3-1-2b", "label": "Main Set", "plannedWeight": 90.0, "plannedReps": 5, "plannedRpe": 6.0, "actual": 90.0, "reps": 5, "executedRpe": 7.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-1", "title": "Leg Press", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "120kg x 12", "vol": "4,320kg",
-                        "sets": [
-                            {"id": "a-3-1-1-s1", "label": "Set 1", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-3-1-1-s2", "label": "Set 2", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0},
-                            {"id": "a-3-1-1-s3", "label": "Set 3", "plannedWeight": 120.0, "plannedReps": 10, "plannedRpe": 7.0, "actual": 120.0, "reps": 12, "executedRpe": 7.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-2", "title": "Triceps Extension", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "—", "vol": "—",
-                        "sets": [
-                            {"id": "a-3-1-2-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
-                            {"id": "a-3-1-2-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0},
-                            {"id": "a-3-1-2-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 12, "plannedRpe": 9.0}
-                        ]
-                    },
-                    {
-                        "id": "a-3-1-3", "title": "Lateral Raises", "variation": "Accessory", "tier": "Accessory", "lift_category": "Other", "tags": "Accessory",
-                        "top": "—", "vol": "—",
-                        "sets": [
-                            {"id": "a-3-1-3-s1", "label": "Set 1", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
-                            {"id": "a-3-1-3-s2", "label": "Set 2", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0},
-                            {"id": "a-3-1-3-s3", "label": "Set 3", "plannedWeight": None, "plannedReps": 15, "plannedRpe": 10.0}
-                        ]
-                    }
-                ],
-            }
-        ]
-    }
-]
-
-def seed_db(db: Session, owner_id: str, clear_existing: bool = True):
-    if clear_existing:
-        # Delete existing data for this user to avoid duplication if called again
-        old_mcs = db.query(Microcycle).filter(Microcycle.owner_id == owner_id).all()
-        for mc in old_mcs:
-            db.delete(mc)
-        db.commit()
-
-    for mc_data in INITIAL_SEEDS:
-        mc = Microcycle(
-            id=mc_data["id"] + "-" + str(uuid.uuid4())[:8],
-            weekName=mc_data["weekName"],
-            focus=mc_data["focus"],
-            status=mc_data["status"],
-            active=mc_data["active"],
-            owner_id=owner_id
-        )
-        db.add(mc)
-        db.commit()
-
-        for w_data in mc_data.get("workouts", []):
-            w = Workout(
-                id=w_data["id"] + "-" + str(uuid.uuid4())[:8],
-                date=w_data["date"],
-                dayLabel=w_data["dayLabel"],
-                title=w_data["title"],
-                tonnage=w_data["tonnage"],
-                delta=w_data["delta"],
-                color=w_data["color"],
-                status=w_data["status"],
-                microcycle_id=mc.id
-            )
-            db.add(w)
-            db.commit()
-
-            for e_data in w_data.get("exercises", []):
-                e = Exercise(
-                    id=e_data["id"] + "-" + str(uuid.uuid4())[:8],
-                    title=e_data["title"],
-                    variation=e_data["variation"],
-                    tier=e_data.get("tier", "Comp"),
-                    lift_category=e_data.get("lift_category", "Other"),
-                    tags_raw=e_data["tags"],
-                    top=e_data["top"],
-                    vol=e_data["vol"],
-                    workout_id=w.id
-                )
-                db.add(e)
-                db.commit()
-
-                for s_data in e_data.get("sets", []):
-                    s = ExerciseSet(
-                        id=s_data["id"] + "-" + str(uuid.uuid4())[:8],
-                        label=s_data["label"],
-                        plannedWeight=coerce_float(s_data.get("plannedWeight")),
-                        plannedReps=coerce_int(s_data.get("plannedReps")),
-                        plannedRpe=coerce_float(s_data.get("plannedRpe")),
-                        dropPercent=coerce_float(s_data.get("dropPercent")),
-                        isAuto=s_data.get("isAuto", False),
-                        actual=coerce_float(s_data.get("actual")),
-                        reps=coerce_int(s_data.get("reps")),
-                        executedRpe=coerce_float(s_data.get("executedRpe")),
-                        isTop=s_data.get("isTop", False),
-                        note=s_data.get("note"),
-                        velocity=coerce_float(s_data.get("velocity")),
-                        readiness=coerce_int(s_data.get("readiness")),
-                        hrv=coerce_float(s_data.get("hrv")),
-                        exercise_id=e.id
-                    )
-                    db.add(s)
-                db.commit()
-
 
 
 def hash_coach_code(code: str) -> str:
@@ -749,6 +543,22 @@ def resolve_athlete_id(current_user: User, athlete_id: Optional[str]) -> str:
     if not athlete_id:
         raise HTTPException(status_code=400, detail="athlete_id is required for coaches")
     return athlete_id
+
+
+def require_iso_date(value: str) -> str:
+    raw = (value or "").strip()
+    try:
+        datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+    return raw
+
+
+def optional_label(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def get_or_create_ungrouped_microcycle(db: Session, owner_id: str) -> Microcycle:
@@ -813,7 +623,14 @@ def register_user(req: RegisterRequest, response: Response, db: Session = Depend
         secure=COOKIE_SECURE
     )
     
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role, "email": user.email}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "email": user.email,
+        "id": user.id,
+        "user": {"id": user.id, "email": user.email, "role": user.role},
+    }
 
 @app.post("/api/auth/coach-code")
 def create_coach_code(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -849,6 +666,7 @@ def get_coach_code_status(db: Session = Depends(get_db), current_user: User = De
     return {"active": True, "expires_at": active.expires_at.isoformat(), "hint": "Rotate to reveal a new code"}
 
 
+@app.post("/api/auth/link")
 @app.post("/api/auth/link-athlete")
 def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "ATHLETE":
@@ -871,12 +689,12 @@ def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_us
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")
 
-    # Reactivate previous ended link to same coach if present
+    # One row per athlete (unique athlete_id): reactivate or retarget after unlink.
     prior = db.query(CoachingRelationship).filter(
         CoachingRelationship.athlete_id == current_user.id,
-        CoachingRelationship.coach_id == coach.id,
     ).first()
     if prior:
+        prior.coach_id = coach.id
         prior.ended_at = None
         link = prior
     else:
@@ -967,8 +785,9 @@ def get_visible_microcycles(db: Session, current_user: User, athlete_id: Optiona
         if not athlete_ids:
             return []
         return db.query(Microcycle).filter(Microcycle.owner_id.in_(athlete_ids)).all()
-    else:
-        return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
+    target = athlete_id or current_user.id
+    assert_plan_access(db, current_user, target)
+    return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
 
 @app.get("/api/microcycles")
 def get_microcycles(
@@ -982,8 +801,14 @@ def get_microcycles(
 
 @app.post("/api/sets/log")
 def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_session_for_write(db, current_user, req.workoutId)
     s = db.query(ExerciseSet).filter(ExerciseSet.id == req.setId).first()
-    if not s:
+    if not s or not is_live(s):
+        raise HTTPException(status_code=404, detail="Target set not found")
+    exercise = db.query(Exercise).filter(Exercise.id == s.exercise_id).first()
+    if not exercise or not is_live(exercise) or exercise.workout_id != req.workoutId:
+        raise HTTPException(status_code=404, detail="Target set not found")
+    if req.exerciseId and exercise.id != req.exerciseId:
         raise HTTPException(status_code=404, detail="Target set not found")
 
     s.actual = req.weight
@@ -1534,10 +1359,222 @@ class BulkLabelsRequest(BaseModel):
     athleteId: Optional[str] = None
 
 
+class CopyWeekRequest(BaseModel):
+    sessionIds: List[str]
+    athleteId: Optional[str] = None
+    dateOffsetDays: int = 7
+    targetBlockLabel: Optional[str] = None
+    targetWeekLabel: Optional[str] = None
+    includeLogs: bool = False
+
+
+ALLOWED_LIFT_CATEGORIES = {"Squat", "Bench", "Deadlift", "Other"}
+ALLOWED_TIERS = {"Comp", "Variation", "Accessory"}
+
+
+class AddExerciseRequest(BaseModel):
+    title: str
+    variation: Optional[str] = None
+    tier: Optional[str] = "Comp"
+    liftCategory: Optional[str] = "Other"
+    plannedWeight: Optional[float] = None
+    plannedReps: Optional[int] = 5
+    plannedRpe: Optional[float] = 8.0
+
+
+class UpdateExerciseRequest(BaseModel):
+    variation: Optional[str] = None
+    title: Optional[str] = None
+    tier: Optional[str] = None
+    move: Optional[str] = None
+
+
+class PlannedSetWrite(BaseModel):
+    id: Optional[str] = None
+    label: Optional[str] = None
+    plannedWeight: Optional[float] = None
+    plannedReps: Optional[int] = None
+    plannedRpe: Optional[float] = None
+    intensityType: Optional[str] = None
+    isAuto: bool = False
+    isTop: Optional[bool] = None
+    actual: Optional[float] = None
+    reps: Optional[int] = None
+    executedRpe: Optional[float] = None
+
+
+class ReplaceExerciseSetsRequest(BaseModel):
+    sets: List[PlannedSetWrite]
+
+
+def live_exercises(workout: Workout):
+    return sorted(
+        [e for e in (workout.exercises or []) if is_live(e)],
+        key=lambda item: (item.lexo_rank or "", item.id),
+    )
+
+
+def reindex_exercises(ordered) -> None:
+    for index, exercise in enumerate(ordered):
+        exercise.lexo_rank = f"a{index}"
+
+
+def require_session_for_write(db: Session, current_user: User, session_id: str) -> Workout:
+    workout = db.query(Workout).filter(Workout.id == session_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Session not found")
+    owner_id = session_owner_id(db, workout)
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Session has no owner")
+    assert_plan_access(db, current_user, owner_id)
+    return workout
+
+
+def session_owner_id(db: Session, workout: Workout) -> Optional[str]:
+    if workout.owner_id:
+        return workout.owner_id
+    if workout.microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+        return mc.owner_id if mc else None
+    return None
+
+
+def shift_iso_date(iso: str, days: int) -> str:
+    return (date.fromisoformat(iso) + timedelta(days=days)).isoformat()
+
+
+def next_week_label(week: Optional[str]) -> Optional[str]:
+    if not week or not week.strip():
+        return None
+    match = re.match(r"^(.*?)(\d+)$", week.strip())
+    if not match:
+        return f"{week.strip()}-next"
+    prefix, digits = match.group(1), match.group(2)
+    return f"{prefix}{int(digits) + 1}"
+
+
+def clone_session_prescription(
+    db: Session,
+    source: Workout,
+    new_date: str,
+    block_label: Optional[str],
+    week_label: Optional[str],
+    include_logs: bool = False,
+) -> Workout:
+    clone = Workout(
+        id=f"w-{uuid.uuid4().hex[:10]}",
+        date=new_date,
+        dayLabel=new_date,
+        title=source.title,
+        tonnage=source.tonnage if include_logs else 0.0,
+        delta=0.0,
+        color="mac-blue",
+        status="PLANNED",
+        athlete_bw=None,
+        block_label=block_label,
+        week_label=week_label,
+        owner_id=source.owner_id,
+        microcycle_id=source.microcycle_id,
+    )
+    db.add(clone)
+    db.flush()
+    for exercise in sorted(source.exercises, key=lambda item: (item.lexo_rank or "", item.id)):
+        if not is_live(exercise):
+            continue
+        cloned_exercise = Exercise(
+            id=f"e-{uuid.uuid4().hex[:10]}",
+            lexo_rank=exercise.lexo_rank or "a0",
+            title=exercise.title,
+            variation=exercise.variation,
+            tier=exercise.tier or "Comp",
+            lift_category=exercise.lift_category or "Other",
+            tags_raw=exercise.tags_raw or "",
+            top=exercise.top if include_logs else "—",
+            vol=exercise.vol if include_logs else "—",
+            workout_id=clone.id,
+        )
+        db.add(cloned_exercise)
+        db.flush()
+        for exercise_set in sorted(exercise.sets, key=lambda item: (item.lexo_rank or "", item.id)):
+            if not is_live(exercise_set):
+                continue
+            db.add(ExerciseSet(
+                id=f"s-{uuid.uuid4().hex[:10]}",
+                lexo_rank=exercise_set.lexo_rank or "a0",
+                label=exercise_set.label,
+                plannedWeight=exercise_set.plannedWeight,
+                plannedReps=exercise_set.plannedReps,
+                plannedRpe=exercise_set.plannedRpe,
+                intensity_type=getattr(exercise_set, "intensity_type", None) or "RPE",
+                dropPercent=exercise_set.dropPercent,
+                isAuto=exercise_set.isAuto,
+                actual=exercise_set.actual if include_logs else None,
+                reps=exercise_set.reps if include_logs else None,
+                executedRpe=exercise_set.executedRpe if include_logs else None,
+                isTop=exercise_set.isTop,
+                note=exercise_set.note,
+                velocity=exercise_set.velocity if include_logs else None,
+                readiness=exercise_set.readiness if include_logs else None,
+                hrv=exercise_set.hrv if include_logs else None,
+                exercise_id=cloned_exercise.id,
+            ))
+    return clone
+
+
+@app.post("/api/sessions/copy-week")
+def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not req.sessionIds:
+        raise HTTPException(status_code=400, detail="sessionIds required")
+    # Offset may be negative or zero so a copy can land on a chosen calendar date.
+
+    sources = []
+    owner_id = None
+    for session_id in req.sessionIds:
+        workout = db.query(Workout).filter(Workout.id == session_id).first()
+        if not workout:
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        found_owner = session_owner_id(db, workout)
+        if not found_owner:
+            raise HTTPException(status_code=400, detail="Session has no owner")
+        if owner_id is None:
+            owner_id = found_owner
+        elif found_owner != owner_id:
+            raise HTTPException(status_code=400, detail="All sessions must belong to one athlete plan")
+        sources.append(workout)
+
+    assert_plan_access(db, current_user, owner_id)
+
+    created = []
+    for source in sources:
+        target_block = req.targetBlockLabel if req.targetBlockLabel is not None else source.block_label
+        target_week = req.targetWeekLabel if req.targetWeekLabel is not None else next_week_label(source.week_label)
+        clone = clone_session_prescription(
+            db,
+            source,
+            shift_iso_date(source.date, req.dateOffsetDays),
+            target_block,
+            target_week,
+            include_logs=req.includeLogs,
+        )
+        created.append({
+            "id": clone.id,
+            "date": clone.date,
+            "title": clone.title,
+            "blockLabel": clone.block_label,
+            "weekLabel": clone.week_label,
+            "sourceId": source.id,
+        })
+    db.commit()
+    return {"status": "success", "copied": created}
+
+
 @app.post("/api/sessions")
 def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     athlete_id = resolve_athlete_id(current_user, req.athleteId)
     assert_plan_access(db, current_user, athlete_id)
+    session_date = require_iso_date(req.date)
+    block_label = optional_label(req.blockLabel)
+    week_label = optional_label(req.weekLabel)
 
     microcycle_id = req.microcycleId
     if microcycle_id:
@@ -1548,18 +1585,18 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
         mc = get_or_create_ungrouped_microcycle(db, athlete_id)
         microcycle_id = mc.id
 
-    day_label = req.dayLabel or req.date
+    day_label = req.dayLabel or session_date
     workout = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
-        date=req.date,
+        date=session_date,
         dayLabel=day_label,
-        title=req.title or "Session",
+        title=(req.title or "").strip() or "Session",
         tonnage=0.0,
         delta=0.0,
         color="mac-blue",
         status="PLANNED",
-        block_label=req.blockLabel,
-        week_label=req.weekLabel,
+        block_label=block_label,
+        week_label=week_label,
         owner_id=athlete_id,
         microcycle_id=microcycle_id,
     )
@@ -1578,6 +1615,152 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
         "ownerId": workout.owner_id,
         "exercises": [],
     }
+
+
+@app.post("/api/sessions/{session_id}/exercises")
+def add_session_exercise(
+    session_id: str,
+    req: AddExerciseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+
+    title = (req.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+
+    tier = req.tier or "Comp"
+    lift_category = req.liftCategory or "Other"
+    if tier not in ALLOWED_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid tier")
+    if lift_category not in ALLOWED_LIFT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid liftCategory")
+
+    variation = (req.variation or "").strip() or (
+        "Accessory" if tier == "Accessory" else "Competition"
+    )
+    tags = [lift_category] if lift_category != "Other" else ([tier] if tier == "Accessory" else [])
+
+    existing_count = len([e for e in (workout.exercises or []) if is_live(e)])
+    exercise = Exercise(
+        id=f"e-{uuid.uuid4().hex[:10]}",
+        lexo_rank=f"a{existing_count}",
+        title=title,
+        variation=variation,
+        tier=tier,
+        lift_category=lift_category,
+        tags_raw=",".join(tags),
+        top="—",
+        vol="—",
+        workout_id=workout.id,
+    )
+    db.add(exercise)
+    db.flush()
+
+    planned_reps = req.plannedReps if req.plannedReps is not None else 5
+    planned_rpe = req.plannedRpe if req.plannedRpe is not None else 8.0
+    db.add(ExerciseSet(
+        id=f"s-{uuid.uuid4().hex[:10]}",
+        lexo_rank="a0",
+        label="Set 1",
+        plannedWeight=req.plannedWeight,
+        plannedReps=planned_reps,
+        plannedRpe=planned_rpe,
+        isAuto=False,
+        isTop=True,
+        actual=None,
+        reps=None,
+        executedRpe=None,
+        exercise_id=exercise.id,
+    ))
+    db.commit()
+    persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
+    return format_exercise(persisted)
+
+
+@app.put("/api/sessions/{session_id}/exercises/{exercise_id}/sets")
+def replace_session_exercise_sets(
+    session_id: str,
+    exercise_id: str,
+    req: ReplaceExerciseSetsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+    exercise = next((e for e in (workout.exercises or []) if e.id == exercise_id and is_live(e)), None)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Lift not found")
+    rows = [row.model_dump() if hasattr(row, "model_dump") else row.dict() for row in req.sets]
+    replace_exercise_sets(exercise, rows)
+    db.commit()
+    db.refresh(exercise)
+    recalculate_metrics(db, workout.id, workout.dayLabel)
+    return format_exercise(exercise)
+
+
+@app.delete("/api/sessions/{session_id}/exercises/{exercise_id}")
+def remove_session_exercise(
+    session_id: str,
+    exercise_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+    exercise = next((e for e in (workout.exercises or []) if e.id == exercise_id and is_live(e)), None)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Lift not found")
+    now = datetime.utcnow()
+    exercise.deleted_at = now
+    for exercise_set in exercise.sets or []:
+        if is_live(exercise_set):
+            exercise_set.deleted_at = now
+    reindex_exercises(live_exercises(workout))
+    db.commit()
+    return {"status": "success", "id": exercise_id}
+
+
+@app.patch("/api/sessions/{session_id}/exercises/{exercise_id}")
+def update_session_exercise(
+    session_id: str,
+    exercise_id: str,
+    req: UpdateExerciseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workout = require_session_for_write(db, current_user, session_id)
+    exercise = next((e for e in (workout.exercises or []) if e.id == exercise_id and is_live(e)), None)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Lift not found")
+    if req.title is not None:
+        title = req.title.strip()
+        if not title:
+            raise HTTPException(status_code=400, detail="title required")
+        exercise.title = title
+    if req.variation is not None:
+        variation = req.variation.strip()
+        if not variation:
+            raise HTTPException(status_code=400, detail="variation required")
+        exercise.variation = variation
+    if req.tier is not None:
+        if req.tier not in ALLOWED_TIERS:
+            raise HTTPException(status_code=400, detail="Invalid tier")
+        exercise.tier = req.tier
+    if req.move is not None:
+        direction = req.move.strip().lower()
+        if direction not in ("up", "down"):
+            raise HTTPException(status_code=400, detail="move must be up or down")
+        ordered = live_exercises(workout)
+        index = next((i for i, item in enumerate(ordered) if item.id == exercise.id), None)
+        if index is None:
+            raise HTTPException(status_code=404, detail="Lift not found")
+        swap_with = index - 1 if direction == "up" else index + 1
+        if 0 <= swap_with < len(ordered):
+            ordered[index], ordered[swap_with] = ordered[swap_with], ordered[index]
+            reindex_exercises(ordered)
+    db.commit()
+    persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
+    return format_exercise(persisted)
 
 
 @app.patch("/api/sessions/{session_id}")
@@ -1600,11 +1783,19 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if req.dayLabel is not None:
         workout.dayLabel = req.dayLabel
     if req.blockLabel is not None:
-        workout.block_label = req.blockLabel
+        workout.block_label = req.blockLabel.strip() or None
     if req.weekLabel is not None:
-        workout.week_label = req.weekLabel
+        workout.week_label = req.weekLabel.strip() or None
     if req.status is not None:
+        if req.status not in ("PLANNED", "IN_PROGRESS", "COMPLETED", "MISSED"):
+            raise HTTPException(status_code=400, detail="Invalid status")
         workout.status = req.status
+        if req.status == "COMPLETED":
+            workout.color = "mac-green"
+        elif req.status == "MISSED":
+            workout.color = "gray"
+        else:
+            workout.color = "mac-blue"
     db.commit()
     db.refresh(workout)
     return {

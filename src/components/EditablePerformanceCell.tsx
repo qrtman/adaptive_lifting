@@ -82,7 +82,8 @@ export const EditablePerformanceCell = ({
         <input
           autoFocus
           type="text"
-          defaultValue={value}
+          data-testid={fieldKey}
+          defaultValue={value || suggestedValue || ''}
           onBlur={(e) => {
             onChange(e.target.value);
             setIsEditing(false);
@@ -125,6 +126,7 @@ export const EditablePerformanceCell = ({
         />
       ) : variant === "transparent" ? (
         <div 
+          data-testid={fieldKey}
           onClick={handleCellClick}
           id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
           className={`${widthClass} h-6 flex items-center justify-center cursor-pointer select-none`}
@@ -135,6 +137,7 @@ export const EditablePerformanceCell = ({
         </div>
       ) : (
         <div 
+          data-testid={fieldKey}
           onClick={handleCellClick}
           id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
           className={`${widthClass} h-6 rounded-sm text-center text-xs font-mono tabular-nums cursor-pointer border flex items-center justify-center ${

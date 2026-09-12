@@ -114,6 +114,7 @@ class ExerciseSet(Base, TimestampMixin):
     reps = Column(Integer, nullable=True)
     executedRpe = Column(Float, nullable=True)
     isTop = Column(Boolean, default=False)
+    intensity_type = Column(String, nullable=True, default="RPE")
     note = Column(String, nullable=True)
     velocity = Column(Float, nullable=True)
     readiness = Column(Integer, nullable=True)

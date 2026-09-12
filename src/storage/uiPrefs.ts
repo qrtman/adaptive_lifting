@@ -3,6 +3,7 @@ export const UI_KEYS = {
   roleMode: 'al_role_mode',
   role: 'al_role',
   email: 'al_email',
+  userId: 'al_user_id',
   appView: 'al_app_view',
   dashboardMode: 'al_dashboard_mode',
   sessionsScrollY: 'al_sessions_scroll_y',
