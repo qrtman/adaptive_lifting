@@ -24,10 +24,15 @@ def test_register_and_login_set_session_cookie():
     assert login_response.cookies.get("session_id")
 
 
+def _workout_ids(tree):
+    return [w["id"] for mc in tree for w in mc.get("workouts", [])]
+
+
 def test_coach_code_link_unlink_keeps_empty_plan():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     coach_email = f"coach-{suffix}@example.com"
+    outsider_email = f"outsider-{suffix}@example.com"
     athlete1_email = f"athlete1-{suffix}@example.com"
     athlete2_email = f"athlete2-{suffix}@example.com"
 
@@ -37,6 +42,13 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     )
     assert coach.status_code == 200
     coach_cookies = dict(coach.cookies)
+
+    outsider = client.post(
+        "/api/auth/register",
+        json={"email": outsider_email, "password": "password123", "role": "COACH"},
+    )
+    assert outsider.status_code == 200
+    outsider_cookies = dict(outsider.cookies)
 
     athlete1 = client.post(
         "/api/auth/register",
@@ -50,6 +62,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
         json={"email": athlete2_email, "password": "password123", "role": "ATHLETE"},
     )
     assert athlete2.status_code == 200
+    athlete2_cookies = dict(athlete2.cookies)
 
     code_resp = client.post("/api/auth/coach-code", cookies=coach_cookies)
     assert code_resp.status_code == 200
@@ -58,14 +71,14 @@ def test_coach_code_link_unlink_keeps_empty_plan():
 
     # Email is no longer a valid link code
     bad = client.post(
-        "/api/auth/link-athlete",
+        "/api/auth/link",
         json={"code": coach_email},
         cookies=athlete1_cookies,
     )
     assert bad.status_code == 404
 
     link = client.post(
-        "/api/auth/link-athlete",
+        "/api/auth/link",
         json={"code": coach_code},
         cookies=athlete1_cookies,
     )
@@ -75,7 +88,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     assert athlete1_mcs.status_code == 200
     assert athlete1_mcs.json() == []
 
-    athlete2_mcs = client.get("/api/microcycles", cookies=athlete2.cookies)
+    athlete2_mcs = client.get("/api/microcycles", cookies=athlete2_cookies)
     assert athlete2_mcs.status_code == 200
     assert athlete2_mcs.json() == []
 
@@ -88,6 +101,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     session = created.json()
     assert session["blockLabel"] == "Block2"
     assert session["weekLabel"] == "Week3"
+    session_id = session["id"]
 
     roster = client.get("/api/coach/roster", cookies=coach_cookies)
     assert roster.status_code == 200
@@ -99,7 +113,22 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     athlete_id = next(row["id"] for row in roster_data if row["email"] == athlete1_email)
     coach_mcs = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies)
     assert coach_mcs.status_code == 200
-    assert len(coach_mcs.json()) >= 1
+    assert session_id in _workout_ids(coach_mcs.json())
+
+    outsider_mcs = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=outsider_cookies)
+    assert outsider_mcs.status_code == 403
+    outsider_write = client.patch(
+        f"/api/sessions/{session_id}",
+        json={"title": "Hijack"},
+        cookies=outsider_cookies,
+    )
+    assert outsider_write.status_code == 403
+
+    stranger_mcs = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=athlete2_cookies)
+    assert stranger_mcs.status_code == 403
+    stranger_own = client.get("/api/microcycles", cookies=athlete2_cookies)
+    assert stranger_own.status_code == 200
+    assert session_id not in _workout_ids(stranger_own.json())
 
     unlink = client.delete("/api/auth/link", cookies=athlete1_cookies)
     assert unlink.status_code == 200
@@ -107,10 +136,19 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     roster_after = client.get("/api/coach/roster", cookies=coach_cookies)
     assert athlete1_email not in [row["email"] for row in roster_after.json()]
 
+    lost = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies)
+    assert lost.status_code == 403
+    lost_write = client.patch(
+        f"/api/sessions/{session_id}",
+        json={"title": "After unlink"},
+        cookies=coach_cookies,
+    )
+    assert lost_write.status_code == 403
+
     # Plan stays in athlete space after unlink
     athlete1_after = client.get("/api/microcycles", cookies=athlete1_cookies)
     assert athlete1_after.status_code == 200
-    assert len(athlete1_after.json()) >= 1
+    assert session_id in _workout_ids(athlete1_after.json())
 
 
 def test_coach_create_session_requires_linked_athlete():

@@ -659,6 +659,7 @@ def get_coach_code_status(db: Session = Depends(get_db), current_user: User = De
     return {"active": True, "expires_at": active.expires_at.isoformat(), "hint": "Rotate to reveal a new code"}
 
 
+@app.post("/api/auth/link")
 @app.post("/api/auth/link-athlete")
 def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "ATHLETE":
@@ -681,12 +682,12 @@ def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_us
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")
 
-    # Reactivate previous ended link to same coach if present
+    # One row per athlete (unique athlete_id): reactivate or retarget after unlink.
     prior = db.query(CoachingRelationship).filter(
         CoachingRelationship.athlete_id == current_user.id,
-        CoachingRelationship.coach_id == coach.id,
     ).first()
     if prior:
+        prior.coach_id = coach.id
         prior.ended_at = None
         link = prior
     else:
@@ -777,8 +778,9 @@ def get_visible_microcycles(db: Session, current_user: User, athlete_id: Optiona
         if not athlete_ids:
             return []
         return db.query(Microcycle).filter(Microcycle.owner_id.in_(athlete_ids)).all()
-    else:
-        return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
+    target = athlete_id or current_user.id
+    assert_plan_access(db, current_user, target)
+    return db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
 
 @app.get("/api/microcycles")
 def get_microcycles(
