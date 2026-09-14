@@ -46,15 +46,15 @@ export function CardBuilder({
   const scope = config.scopes[0] || { kind: 'all' as ScopeKind, ids: [] };
 
   return (
-    <aside className="w-[320px] shrink-0 border-l border-white/10 bg-[#131313] h-full overflow-y-auto p-3" data-testid="card-builder">
-      <h3 className="text-sm text-white mb-2">Card</h3>
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Name</label>
+    <aside className="w-[320px] shrink-0 border-l border-border bg-sidebar h-full overflow-y-auto p-3" data-testid="card-builder">
+      <h3 className="text-sm text-fg-strong mb-2">Card</h3>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Name</label>
       <input
         value={name}
         onChange={(e) => onName(e.target.value)}
-        className="w-full h-8 px-2 mb-3 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+        className="w-full h-8 px-2 mb-3 text-xs bg-inspector border border-border rounded text-fg-strong"
       />
-      <p className="text-[10px] text-[#636366] uppercase mb-1">Metrics</p>
+      <p className="text-micro text-fg-subtle uppercase mb-1">Metrics</p>
       <div className="flex flex-wrap gap-1 mb-3">
         {METRIC_NAMES.map((metric) => {
           const reason = disableReason(metric, config.visualization, config.time_grain);
@@ -66,18 +66,18 @@ export function CardBuilder({
               disabled={Boolean(reason) && !selected}
               title={reason || metric}
               onClick={() => toggleMetric(metric)}
-              className={`h-7 px-2 text-[11px] rounded ${selected ? 'bg-white/10 text-white' : 'text-[#AEAEB2]'} disabled:opacity-40`}
+              className={`h-7 px-2 text-mini rounded ${selected ? 'bg-white/10 text-fg-strong' : 'text-fg-muted'} disabled:opacity-40`}
             >
               {metric}
             </button>
           );
         })}
       </div>
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Scope</label>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Scope</label>
       <select
         value={scope.kind}
         onChange={(e) => onChange({ ...config, scopes: [{ kind: e.target.value as ScopeKind, ids: [] }] })}
-        className="w-full h-8 mb-2 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+        className="w-full h-8 mb-2 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
       >
         <option value="all">All</option>
         <option value="movement">Movement</option>
@@ -91,7 +91,7 @@ export function CardBuilder({
               <button
                 key={id}
                 type="button"
-                className={`h-7 px-2 text-[11px] rounded ${on ? 'bg-white/10 text-white' : 'text-[#AEAEB2]'}`}
+                className={`h-7 px-2 text-mini rounded ${on ? 'bg-white/10 text-fg-strong' : 'text-fg-muted'}`}
                 onClick={() => {
                   const ids = on ? scope.ids.filter((x) => x !== id) : [...scope.ids, id];
                   onChange({ ...config, scopes: [{ kind: 'movement', ids }] });
@@ -107,7 +107,7 @@ export function CardBuilder({
         <select
           value={scope.ids[0] || ''}
           onChange={(e) => onChange({ ...config, scopes: [{ kind: 'pattern', ids: e.target.value ? [e.target.value] : [] }] })}
-          className="w-full h-8 mb-3 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+          className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
         >
           <option value="">Choose pattern</option>
           {EXERCISE_CATEGORIES.filter((c) => c !== 'User Defined').map((pattern) => (
@@ -115,15 +115,15 @@ export function CardBuilder({
           ))}
         </select>
       )}
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Grain</label>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Grain</label>
       <select
         value={config.time_grain}
         onChange={(e) => onChange({ ...config, time_grain: e.target.value as TimeGrain })}
-        className="w-full h-8 mb-3 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
       >
         {TIME_GRAINS.map((g) => <option key={g} value={g}>{g}</option>)}
       </select>
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Rolling window</label>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Rolling window</label>
       <div className="flex gap-2 mb-3">
         <input
           type="number"
@@ -134,7 +134,7 @@ export function CardBuilder({
             ...config,
             range: { n: Number(e.target.value) || 1, grain: 'grain' in config.range ? config.range.grain : config.time_grain },
           })}
-          className="w-20 h-8 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+          className="w-20 h-8 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
         />
         <select
           value={'grain' in config.range ? config.range.grain : config.time_grain}
@@ -142,23 +142,23 @@ export function CardBuilder({
             ...config,
             range: { n: 'n' in config.range ? config.range.n : 12, grain: e.target.value as TimeGrain },
           })}
-          className="flex-1 h-8 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+          className="flex-1 h-8 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
         >
           {TIME_GRAINS.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
       </div>
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Visualization</label>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Visualization</label>
       <select
         value={config.visualization}
         onChange={(e) => onChange({ ...config, visualization: e.target.value as Visualization })}
-        className="w-full h-8 mb-3 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
       >
         {VISUALIZATIONS.map((v) => {
           const blocked = config.metrics.map((m) => disableReason(m, v, config.time_grain)).find(Boolean);
           return <option key={v} value={v} disabled={Boolean(blocked)} title={blocked || v}>{v}</option>;
         })}
       </select>
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Comparison</label>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Comparison</label>
       <select
         value={config.comparison?.kind || ''}
         onChange={(e) => {
@@ -174,24 +174,24 @@ export function CardBuilder({
               : { kind },
           });
         }}
-        className="w-full h-8 mb-3 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
       >
         <option value="">None</option>
         <option value="prescribed_vs_actual">Prescribed vs actual</option>
         <option value="period_vs_period">Period vs previous equal</option>
       </select>
-      <label className="block text-[10px] text-[#636366] uppercase mb-1">Aggregation</label>
+      <label className="block text-micro text-fg-subtle uppercase mb-1">Aggregation</label>
       <select
         value={config.aggregation || ''}
         onChange={(e) => onChange({ ...config, aggregation: (e.target.value || null) as Aggregation | null })}
-        className="w-full h-8 mb-3 px-2 text-xs bg-[#1a1a1a] border border-white/10 rounded text-white"
+        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
       >
         <option value="">Default</option>
         {AGGREGATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
       </select>
       <div className="flex gap-2">
-        <button type="button" data-testid="card-builder-save" onClick={onSave} className="h-8 px-3 text-xs bg-[#007AFF] text-white rounded">Save</button>
-        <button type="button" onClick={onCancel} className="h-8 px-3 text-xs text-[#AEAEB2]">Cancel</button>
+        <button type="button" data-testid="card-builder-save" onClick={onSave} className="h-8 px-3 text-xs bg-accent text-fg-strong rounded">Save</button>
+        <button type="button" onClick={onCancel} className="h-8 px-3 text-xs text-fg-muted">Cancel</button>
       </div>
     </aside>
   );

@@ -12,7 +12,7 @@ export function LineChart({ result }: { result: QueryResult }) {
           <g key={series.id}>
             <path d={d} fill="none" stroke={seriesColor(index)} strokeWidth="2" />
             {dots.map((dot, i) => (
-              <circle key={i} cx={dot.x} cy={dot.y} r="2.5" fill="#0A0A0A" stroke={seriesColor(index)} />
+              <circle key={i} cx={dot.x} cy={dot.y} r="2.5" className="fill-canvas" stroke={seriesColor(index)} />
             ))}
           </g>
         );
@@ -20,7 +20,7 @@ export function LineChart({ result }: { result: QueryResult }) {
       {result.labels.map((label, i) => {
         const x = 36 + (i / Math.max(result.labels.length - 1, 1)) * (width - 44);
         return (
-          <text key={label} x={x} y={height - 6} fill="#8E8E93" fontSize="9" textAnchor="middle">
+          <text key={label} x={x} y={height - 6} className="fill-fg-muted" fontSize="9" textAnchor="middle">
             {label}
           </text>
         );

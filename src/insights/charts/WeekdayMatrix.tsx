@@ -10,27 +10,27 @@ function fillFor(value: number, max: number): string {
 
 export function WeekdayMatrix({ result }: { result: QueryResult }) {
   const matrix = result.matrix;
-  if (!matrix) return <p className="text-[11px] text-[#AEAEB2]">No matrix</p>;
+  if (!matrix) return <p className="text-mini text-fg-muted">No matrix</p>;
   const max = Math.max(1, ...matrix.rows.flatMap((row) => matrix.cols.map((col) => matrix.cells[row]?.[col] || 0)));
   return (
     <div className="overflow-x-auto" role="img" aria-label="Weekday matrix">
-      <table className="w-full text-[10px] font-mono">
+      <table className="w-full text-micro font-mono">
         <thead>
           <tr>
-            <th className="text-left text-[#AEAEB2] font-normal pr-2">Pattern</th>
+            <th className="text-left text-fg-muted font-normal pr-2">Pattern</th>
             {matrix.cols.map((col) => (
-              <th key={col} className="text-[#AEAEB2] font-normal px-1">{col}</th>
+              <th key={col} className="text-fg-muted font-normal px-1">{col}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {matrix.rows.map((row) => (
             <tr key={row}>
-              <td className="text-[#AEAEB2] pr-2 whitespace-nowrap">{row}</td>
+              <td className="text-fg-muted pr-2 whitespace-nowrap">{row}</td>
               {matrix.cols.map((col) => {
                 const value = matrix.cells[row]?.[col] || 0;
                 return (
-                  <td key={col} className={`px-1 py-1 text-center text-white ${fillFor(value, max)}`}>
+                  <td key={col} className={`px-1 py-1 text-center text-fg-strong ${fillFor(value, max)}`}>
                     {value ? Math.round(value) : ''}
                   </td>
                 );

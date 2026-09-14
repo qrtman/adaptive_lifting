@@ -28,7 +28,7 @@ export const AppShell = ({
   const { isOnline, pendingCount } = useSync();
 
   return (
-    <div className="flex min-h-screen overflow-hidden bg-[#0A0A0A] font-sans text-gray-200">
+    <div className="flex min-h-screen overflow-hidden bg-canvas font-sans text-fg">
       <Sidebar
         dashboardMode={dashboardMode}
         onNavigate={onNavigate}
@@ -39,7 +39,7 @@ export const AppShell = ({
         onAthleteScopeFocused={onAthleteScopeFocused}
       />
       <main
-        className={`flex-1 flex flex-col h-screen overflow-hidden ${sidebarCollapsed ? 'ml-[60px]' : 'ml-[240px]'}`}
+        className={`flex-1 flex flex-col h-screen overflow-hidden ${sidebarCollapsed ? 'ml-[var(--sidebar-collapsed)]' : 'ml-[var(--sidebar-expanded)]'}`}
         data-testid="app-main"
         data-sidebar={sidebarCollapsed ? 'collapsed' : 'expanded'}
       >
@@ -47,10 +47,10 @@ export const AppShell = ({
           <div
             data-testid="sync-status"
             data-state={!isOnline ? 'offline' : 'syncing'}
-            className={`h-7 flex items-center px-4 text-[11px] font-mono shrink-0 ${
+            className={`h-7 flex items-center px-4 text-mini font-mono shrink-0 ${
               !isOnline
-                ? 'bg-red-500/20 text-red-500 border-b border-red-500/30'
-                : 'bg-[#007AFF]/20 text-[#007AFF] border-b border-[#007AFF]/30'
+                ? 'bg-error/20 text-error border-b border-error/30'
+                : 'bg-syncing/20 text-syncing border-b border-syncing/30'
             }`}
           >
             {!isOnline ? (

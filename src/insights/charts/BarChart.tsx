@@ -4,7 +4,7 @@ import type { QueryResult } from '../types';
 export function BarChart({ result }: { result: QueryResult }) {
   const width = 640;
   const height = 220;
-  if (result.series.length === 0) return <p className="text-[11px] text-[#AEAEB2]">No series</p>;
+  if (result.series.length === 0) return <p className="text-mini text-fg-muted">No series</p>;
   const nums = result.series.flatMap((s) => s.points.filter((p): p is number => p != null));
   const max = Math.max(...nums, 1);
   const n = Math.max(result.labels.length, result.series[0].points.length, 1);

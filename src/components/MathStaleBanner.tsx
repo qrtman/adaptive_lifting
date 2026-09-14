@@ -11,15 +11,15 @@ export function MathStaleBanner({
     <div
       role="status"
       data-testid="math-stale-banner"
-      className="border border-white/10 bg-[#161616] px-3 py-2 text-xs text-[#E0E0E0]"
+      className="border border-border bg-card px-3 py-2 text-caption text-fg"
     >
-      <p className="text-white">Stale math</p>
-      <p className="text-[#AEAEB2]">
+      <p className="text-fg-strong">Stale math</p>
+      <p className="text-fg-muted">
         Server {server} does not match this app ({client}). Preview numbers may be wrong until you update.
       </p>
       <button
         type="button"
-        className="mt-1 text-[11px] text-[#007AFF]"
+        className="mt-1 text-mini text-accent"
         onClick={onDismiss}
       >
         Dismiss
