@@ -112,8 +112,8 @@ export function DayCell({
             className={`flex items-center gap-0.5 ${
               weekStrip
                 ? ''
-                : `opacity-0 pointer-events-none group-hover/day:opacity-100 group-hover/day:pointer-events-auto group-focus-within/day:opacity-100 group-focus-within/day:pointer-events-auto ${
-                    focused ? 'opacity-100 pointer-events-auto' : ''
+                : `invisible pointer-events-none group-hover/day:visible group-hover/day:pointer-events-auto group-focus-within/day:visible group-focus-within/day:pointer-events-auto ${
+                    focused ? 'visible pointer-events-auto' : ''
                   }`
             }`}
           >

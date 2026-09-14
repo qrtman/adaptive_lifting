@@ -19,7 +19,7 @@ export function matchComboOptions(query: string, options: string[], flags: Combo
   const emptyLabel = flags.emptyLabel || 'None';
   const q = query.trim().toLowerCase();
   const rows: ComboRow[] = [];
-  if (allowEmpty) rows.push({ value: '', label: emptyLabel });
+  if (allowEmpty && !q) rows.push({ value: '', label: emptyLabel });
   const filtered = q ? options.filter((item) => item.toLowerCase().includes(q)) : options.slice();
   for (const item of filtered) rows.push({ value: item, label: item });
   const exact = options.some((item) => item.toLowerCase() === q);

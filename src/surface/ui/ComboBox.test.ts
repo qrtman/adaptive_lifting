@@ -15,8 +15,13 @@ describe('matchComboOptions', () => {
     expect(rows[1]?.create).toBe(true);
   });
 
-  it('includes an empty None row for optional labels', () => {
-    const rows = matchComboOptions('', ['Hypertrophy'], { allowEmpty: true, emptyLabel: 'None' });
-    expect(rows[0]).toEqual({ value: '', label: 'None' });
+  it('lists None only when the query is empty', () => {
+    expect(matchComboOptions('', ['Hypertrophy'], { allowEmpty: true, emptyLabel: 'None' })[0]).toEqual({
+      value: '',
+      label: 'None',
+    });
+  });
+    const rows = matchComboOptions('Hyp', ['Hypertrophy'], { allowEmpty: true, allowCreate: true, emptyLabel: 'None' });
+    expect(rows.map((row) => row.value)).toEqual(['Hypertrophy', 'Hyp']);
   });
 });
