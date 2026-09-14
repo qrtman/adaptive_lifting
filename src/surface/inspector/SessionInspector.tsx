@@ -127,8 +127,9 @@ export function SessionInspector({
         <div><span className="block text-micro text-fg-subtle uppercase">Avg int</span>{summary?.avgIntensity ?? '—'}</div>
       </div>
       <div className="flex-1 overflow-auto flex flex-col min-h-0">
-        <SetGrid
-          workout={workout}
+          <SetGrid
+            key={workout.id}
+            workout={workout}
           role={role}
           locked={locked}
           onCommit={onCommit}

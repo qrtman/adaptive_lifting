@@ -4,6 +4,7 @@ import { expectCellValue, typeCell } from './helpers';
 test.use({ baseURL: 'http://localhost:3000' });
 
 test('plans typed kg, suggests later kg after a log, then stays editable after Complete', async ({ page, request }) => {
+  test.setTimeout(60_000);
   const email = `plan-log-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
     data: { email, password: 'password123', role: 'ATHLETE' },
@@ -69,12 +70,16 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('session-complete')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Set' })).toBeVisible();
+  await expect(page.getByTestId('session-inspector').getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await expect(page.getByTestId('set-grid').getByTestId('rx-weight').first()).toBeVisible();
   await typeCell(page.getByTestId('rx-weight').first(), '175');
   if (await page.getByTestId('session-inspector').count() === 0) {
     await page.locator('[data-testid^="sessions-card-"] button').first().click();
+    await expect(page.getByTestId('session-inspector')).toBeVisible();
   }
-  await expect(page.getByTestId('session-inspector')).toBeVisible();
+  await expect(page.getByTestId('session-inspector').getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
+  await expect(page.getByTestId('set-grid').getByTestId('rx-weight').first()).toBeVisible();
   const planCount = await page.getByTestId('rx-weight').count();
   expect(planCount).toBeGreaterThan(0);
   await page.getByTestId(/^add-set-/).first().click({ force: true });

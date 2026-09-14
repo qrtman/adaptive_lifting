@@ -1631,7 +1631,7 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
     db.add(workout)
     db.commit()
     db.refresh(workout)
-    emit_workout_synced(db, workout.id, {"reason": "created"})
+    emit_workout_synced(db, workout.id, {"reason": "created"}, actor_user_id=current_user.id)
     db.commit()
     return {
         "id": workout.id,
@@ -1706,7 +1706,7 @@ def add_session_exercise(
         executedRpe=None,
         exercise_id=exercise.id,
     ))
-    emit_workout_synced(db, workout.id, {"reason": "exercise_added"})
+    emit_workout_synced(db, workout.id, {"reason": "exercise_added"}, actor_user_id=current_user.id)
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
@@ -1729,7 +1729,7 @@ def replace_session_exercise_sets(
     db.commit()
     db.refresh(exercise)
     recalculate_metrics(db, workout.id, workout.dayLabel)
-    emit_workout_synced(db, workout.id, {"reason": "sets_replaced"})
+    emit_workout_synced(db, workout.id, {"reason": "sets_replaced"}, actor_user_id=current_user.id)
     db.commit()
     return format_exercise(exercise)
 
@@ -1751,7 +1751,7 @@ def remove_session_exercise(
         if is_live(exercise_set):
             exercise_set.deleted_at = now
     reindex_exercises(live_exercises(workout))
-    emit_workout_synced(db, workout.id, {"reason": "exercise_removed"})
+    emit_workout_synced(db, workout.id, {"reason": "exercise_removed"}, actor_user_id=current_user.id)
     db.commit()
     return {"status": "success", "id": exercise_id}
 
@@ -1798,7 +1798,7 @@ def update_session_exercise(
         if 0 <= swap_with < len(ordered):
             ordered[index], ordered[swap_with] = ordered[swap_with], ordered[index]
             reindex_exercises(ordered)
-    emit_workout_synced(db, workout.id, {"reason": "exercise_updated"})
+    emit_workout_synced(db, workout.id, {"reason": "exercise_updated"}, actor_user_id=current_user.id)
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
@@ -1841,7 +1841,7 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
         workout.notes = req.notes
     db.commit()
     db.refresh(workout)
-    emit_workout_synced(db, workout.id, {"reason": "session_patched"})
+    emit_workout_synced(db, workout.id, {"reason": "session_patched"}, actor_user_id=current_user.id)
     db.commit()
     return {
         "id": workout.id,

@@ -56,6 +56,10 @@ function rawValue(values: SetValues, col: GridColKey): string {
   return n == null ? '' : String(n);
 }
 
+function createGridState(input: { rows: ReturnType<typeof rowsFromWorkout>; role: GridRole; locked: boolean }) {
+  return gridReducer(initialGridState(), { type: 'hydrate', rows: input.rows, role: input.role, locked: input.locked });
+}
+
 export function SetGrid({
   workout,
   role,
@@ -81,9 +85,9 @@ export function SetGrid({
   onRemoveExercise: (exerciseId: string) => void;
   onAnnounce?: (message: string) => void;
 }) {
-  const [state, dispatch] = useReducer(gridReducer, initialGridState());
   const liveRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => rowsFromWorkout(workout), [workout]);
+  const [state, dispatch] = useReducer(gridReducer, { rows, role, locked }, createGridState);
   const cols = visibleCols(state.hiddenCols);
   const exerciseIds = workout.exercises.map((ex) => ex.id);
 

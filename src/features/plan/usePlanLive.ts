@@ -1,16 +1,16 @@
 import { useEffect, useRef } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { getUiPref, UI_KEYS } from '../../storage/uiPrefs';
 
 const BACKEND_URL = (import.meta as ImportMeta & { env: { VITE_BACKEND_URL?: string } }).env.VITE_BACKEND_URL
   || 'http://localhost:8000';
 
-function workoutIdFromEvent(event: MessageEvent, fallback: string): string {
+function parsePayload(event: MessageEvent): { workout_id?: string; actor_user_id?: string } {
   try {
-    const payload = JSON.parse(String(event.data || '{}')) as { workout_id?: string };
-    if (payload.workout_id) return payload.workout_id;
+    return JSON.parse(String(event.data || '{}')) as { workout_id?: string; actor_user_id?: string };
   } catch {
-    /* heartbeat / empty */
+    return {};
   }
-  return fallback;
 }
 
 export function usePlanLive(
@@ -18,17 +18,28 @@ export function usePlanLive(
   sessionId: string | null | undefined,
   onSynced: (workoutId: string) => void,
 ) {
+  const { user } = useAuth();
+  const selfId = String(user?.id || getUiPref(UI_KEYS.userId) || '');
   const onSyncedRef = useRef(onSynced);
   onSyncedRef.current = onSynced;
+  const selfIdRef = useRef(selfId);
+  selfIdRef.current = selfId;
 
   useEffect(() => {
     const sources: EventSource[] = [];
+    let debounce: number | null = null;
     const listen = (url: string, fallbackId: string) => {
       const source = new EventSource(url, { withCredentials: true });
       const onEvt = (event: MessageEvent) => {
         if (!event.data) return;
-        const workoutId = workoutIdFromEvent(event, fallbackId);
-        if (workoutId) onSyncedRef.current(workoutId);
+        const payload = parsePayload(event);
+        if (selfIdRef.current && payload.actor_user_id && payload.actor_user_id === selfIdRef.current) {
+          return;
+        }
+        const workoutId = payload.workout_id || fallbackId;
+        if (!workoutId) return;
+        if (debounce) window.clearTimeout(debounce);
+        debounce = window.setTimeout(() => onSyncedRef.current(workoutId), 200);
       };
       source.addEventListener('WORKOUT_SYNCED', onEvt as EventListener);
       source.onmessage = onEvt;
@@ -48,6 +59,7 @@ export function usePlanLive(
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
+      if (debounce) window.clearTimeout(debounce);
       sources.forEach((source) => source.close());
       document.removeEventListener('visibilitychange', onVis);
     };

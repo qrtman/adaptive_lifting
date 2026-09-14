@@ -118,9 +118,9 @@ export function MonthCalendar({
     <div className="flex-1 flex flex-col overflow-hidden bg-canvas" data-testid="month-calendar" data-layout={layout} tabIndex={0}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
         <div className="flex items-center gap-2">
-          <h3 data-testid="calendar-month-label" className="text-ui text-fg-strong">
+          <h2 data-testid="calendar-month-label" className="text-ui text-fg-strong">
             {MONTHS[month]} {year}
-          </h3>
+          </h2>
           <button type="button" data-testid="calendar-prev-month" aria-label="Previous month" onClick={() => onYearMonth(shiftMonth(year, month, -1))} className="h-7 w-7 flex items-center justify-center text-fg-muted hover:text-fg-strong">
             <ChevronLeft size={16} />
           </button>

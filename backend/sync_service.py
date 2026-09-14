@@ -167,7 +167,12 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
     # Refresh to get canonical state
     db.refresh(workout)
     
-    emit_workout_synced(db, workout.id, {"accepted": len(accepted_ids), "tonnage": workout.tonnage})
+    emit_workout_synced(
+        db,
+        workout.id,
+        {"accepted": len(accepted_ids), "tonnage": workout.tonnage},
+        actor_user_id=current_user_id,
+    )
     db.commit()
 
     return {

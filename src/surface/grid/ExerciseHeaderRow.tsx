@@ -37,7 +37,7 @@ export function ExerciseHeaderRow({
     <tr className="border-b border-border bg-card" data-testid={`exercise-header-${exerciseId}`}>
       <td colSpan={colSpan} className="px-2 py-1">
         <div className="flex flex-wrap items-center gap-2 min-h-[var(--header-height)]">
-          <h4 className="text-title text-fg-strong truncate">{title}</h4>
+          <h3 className="text-title text-fg-strong truncate">{title}</h3>
           <span className="text-caption text-fg-muted truncate">{variation}</span>
           <MovementPatternSelect
             id={exerciseId}

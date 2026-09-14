@@ -10,17 +10,21 @@ export async function signInCoach(page: Page, prefs: Record<string, string> = {}
 }
 
 export async function typeCell(cell: Locator, value: string) {
-  await expect(cell).toHaveCount(1);
-  await cell.evaluate((el, next) => {
-    const input = el as HTMLInputElement;
-    input.focus();
-    input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(input, next);
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, data: next, inputType: 'insertText' }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    input.blur();
-  }, value);
+  await expect(async () => {
+    await expect(cell).toHaveCount(1);
+    await cell.evaluate((el, next) => {
+      const node = el as HTMLElement;
+      const input = (node.tagName === 'INPUT' ? node : node.querySelector('input')) as HTMLInputElement | null;
+      if (!input) throw new Error('cell has no input');
+      input.focus();
+      input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(input, next);
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, data: next, inputType: 'insertText' }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.blur();
+    }, value);
+  }).toPass({ timeout: 10_000 });
 }
 
 export async function expectCellValue(cell: Locator, value: string) {

@@ -123,7 +123,7 @@ def test_replace_sets_emits_workout_synced_event():
     try:
         events = db.query(DomainEvent).filter(DomainEvent.workout_id == wid).all()
         assert any(item.event_type == "WORKOUT_SYNCED" for item in events)
-        assert any("workout_id" in (item.payload_json or "") for item in events)
+        assert any("actor_user_id" in (item.payload_json or "") for item in events)
     finally:
         db.close()
 

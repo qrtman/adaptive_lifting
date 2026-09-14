@@ -12,8 +12,18 @@ from sqlalchemy.orm import Session
 from .database import DomainEvent
 
 
-def emit_workout_synced(db: Session, workout_id: str, extra: Optional[Dict[str, Any]] = None) -> DomainEvent:
-    payload = {"workout_id": workout_id, **(extra or {})}
+def emit_workout_synced(
+    db: Session,
+    workout_id: str,
+    extra: Optional[Dict[str, Any]] = None,
+    *,
+    actor_user_id: Optional[str] = None,
+) -> DomainEvent:
+    payload: Dict[str, Any] = {"workout_id": workout_id}
+    if actor_user_id:
+        payload["actor_user_id"] = actor_user_id
+    if extra:
+        payload.update(extra)
     event = DomainEvent(
         id=f"evt-{datetime.utcnow().timestamp():.6f}-{uuid.uuid4().hex[:8]}",
         workout_id=workout_id,
