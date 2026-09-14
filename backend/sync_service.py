@@ -6,9 +6,10 @@ from pydantic import BaseModel, model_validator
 from typing import List, Dict, Any, Literal, Optional
 
 from .database import (
-    Workout, ExerciseSet, Exercise, SyncMutation, 
-    WorkoutLock, DomainEvent, AuditEvent
+    Workout, ExerciseSet, Exercise, SyncMutation,
+    WorkoutLock, AuditEvent
 )
+from .domain_events import emit_workout_synced
 from .math_utils import MATH_VERSION
 
 class SyncFieldMutation(BaseModel):
@@ -166,14 +167,12 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
     # Refresh to get canonical state
     db.refresh(workout)
     
-    # Emit DomainEvent for SSE
-    import json
-    db.add(DomainEvent(
-        id=f"evt-{datetime.utcnow().timestamp()}",
-        workout_id=workout.id,
-        event_type="WORKOUT_SYNCED",
-        payload_json=json.dumps({"accepted": len(accepted_ids), "tonnage": workout.tonnage})
-    ))
+    emit_workout_synced(
+        db,
+        workout.id,
+        {"accepted": len(accepted_ids), "tonnage": workout.tonnage},
+        actor_user_id=current_user_id,
+    )
     db.commit()
 
     return {

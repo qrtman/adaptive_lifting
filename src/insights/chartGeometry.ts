@@ -1,6 +1,13 @@
 import type { QueryResult, QuerySeries } from './types';
 
-const SERIES_COLORS = ['#007AFF', '#34C759', '#F5A623', '#FF453A', '#AF52DE', '#64D2FF'];
+const SERIES_COLORS = [
+  'var(--color-accent)',
+  'var(--color-ok)',
+  'var(--color-warn)',
+  'var(--color-error)',
+  'var(--color-series-4)',
+  'var(--color-series-5)',
+];
 
 export function seriesColor(index: number): string {
   return SERIES_COLORS[index % SERIES_COLORS.length];

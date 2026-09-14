@@ -13,6 +13,7 @@ import {
 describe('shared math vectors', () => {
   it('pins MATH_VERSION to the shared fixture', () => {
     expect(MATH_VERSION).toBe(vectors.math_version);
+    expect(vectors.metrics).toEqual(expect.arrayContaining(['e1rm', 'inol', 'intensity_pct', 'dots']));
   });
 
   it('matches backend e1RM cases', () => {

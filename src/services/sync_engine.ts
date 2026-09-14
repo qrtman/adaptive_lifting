@@ -1,6 +1,7 @@
 import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
+import { warnIfMathVersionMismatch } from './mathVersion';
 
 let syncTimeout: number | null = null;
 let insightSyncTimeout: number | null = null;
@@ -156,7 +157,7 @@ async function postSync(
 
     if (response.ok) {
       const result = await response.json();
-      if (result.math_version && result.math_version !== MATH_VERSION) {
+      if (warnIfMathVersionMismatch(result.math_version, url)) {
         for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
         return [{
           reason: 'MATH_VERSION_MISMATCH',
@@ -179,11 +180,16 @@ async function postSync(
       const message = parseSyncErrorMessage(err, 'This workout is locked right now.');
       for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
       if (code === 'MATH_VERSION_MISMATCH') {
+        warnIfMathVersionMismatch(
+          (err as { detail?: { error?: { details?: { server?: string } } } })?.detail?.error?.details?.server
+            || 'unknown',
+          url,
+        );
         return [{ reason: code, workout_id: lockWorkoutId, message }];
       }
-      if (isLockSyncCode(code) || code === '409_CONFLICT') {
+      if (isLockSyncCode(code)) {
         window.dispatchEvent(new CustomEvent('sync-lock', {
-          detail: { workout_id: lockWorkoutId, code: code === '409_CONFLICT' ? 'WORKOUT_LOCKED' : code, message },
+          detail: { workout_id: lockWorkoutId, code, message },
         }));
         return [];
       }

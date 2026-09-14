@@ -157,12 +157,12 @@ export function AthleteScopeSelector({
           aria-haspopup="listbox"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="w-full h-8 flex items-center justify-center rounded text-[#AEAEB2] hover:text-white hover:bg-white/5"
+          className="w-full h-8 flex items-center justify-center rounded text-fg-muted hover:text-fg-strong hover:bg-white/5"
         >
           {(selected?.label || 'A').slice(0, 1).toUpperCase()}
         </button>
         {open && (
-          <div className="absolute left-full top-0 ml-1 z-50 w-56 border border-white/10 rounded bg-[#161616]">
+          <div className="absolute left-full top-0 ml-1 z-50 w-56 border border-border rounded bg-card">
             <div
               ref={listRef}
               id="athlete-scope-list"
@@ -181,8 +181,8 @@ export function AthleteScopeSelector({
                   aria-selected={item.id === (activeAthleteId || selfId)}
                   data-testid={`athlete-option-${item.id}`}
                   onClick={() => selectItem(item.id)}
-                  className={`w-full px-2 py-1.5 text-left text-[12px] ${
-                    index === highlight ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                  className={`w-full px-2 py-1.5 text-left text-caption ${
+                    index === highlight ? 'bg-white/10 text-fg-strong' : 'text-fg-muted hover:text-fg-strong'
                   }`}
                 >
                   {item.label}
@@ -196,8 +196,8 @@ export function AthleteScopeSelector({
   }
 
   return (
-    <div ref={rootRef} className="px-2 pb-3 border-b border-white/10 mb-3">
-      <label htmlFor="athlete-scope-input" className="text-[10px] text-[#636366] uppercase tracking-wider block mb-1">
+    <div ref={rootRef} className="px-2 pb-3 border-b border-border mb-3">
+      <label htmlFor="athlete-scope-input" className="text-micro text-fg-subtle uppercase tracking-wider block mb-1">
         Athlete plan
       </label>
       <button
@@ -208,16 +208,16 @@ export function AthleteScopeSelector({
         aria-expanded={open}
         aria-controls="athlete-scope-list"
         onClick={() => setOpen((v) => !v)}
-        className="w-full h-8 px-2 rounded bg-[#1a1a1a] border border-white/10 text-[12px] text-white text-left truncate"
+        className="w-full h-8 px-2 rounded bg-inspector border border-border text-caption text-fg-strong text-left truncate"
       >
         {selected?.label || (isCoach ? 'Select athlete…' : selfEmail)}
       </button>
-      <p className="mt-1 text-[10px] text-[#636366] font-mono">
+      <p className="mt-1 text-micro text-fg-subtle font-mono">
         {isOnline ? (pendingCount > 0 ? `Queue ${pendingCount}` : 'Live') : 'Offline'}
         {selected?.hint ? ` · ${selected.hint}` : ''}
       </p>
       {open && (
-        <div className="mt-1 border border-white/10 rounded bg-[#161616]">
+        <div className="mt-1 border border-border rounded bg-card">
           {searchable && (
             <input
               id="athlete-scope-input"
@@ -228,7 +228,7 @@ export function AthleteScopeSelector({
                 setHighlight(0);
               }}
               placeholder="Search athletes"
-              className="w-full h-8 px-2 text-[12px] bg-transparent text-white border-b border-white/10"
+              className="w-full h-8 px-2 text-caption bg-transparent text-fg-strong border-b border-border"
             />
           )}
           <div
@@ -242,7 +242,7 @@ export function AthleteScopeSelector({
             className="max-h-48 overflow-y-auto outline-none"
           >
             {filtered.length === 0 ? (
-              <p className="px-2 py-2 text-[11px] text-[#AEAEB2]">
+              <p className="px-2 py-2 text-mini text-fg-muted">
                 {isCoach ? 'No linked athletes.' : 'No plan.'}
               </p>
             ) : (
@@ -254,12 +254,12 @@ export function AthleteScopeSelector({
                   aria-selected={item.id === (activeAthleteId || selfId)}
                   data-testid={`athlete-option-${item.id}`}
                   onClick={() => selectItem(item.id)}
-                  className={`w-full px-2 py-1.5 text-left text-[12px] ${
-                    index === highlight ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                  className={`w-full px-2 py-1.5 text-left text-caption ${
+                    index === highlight ? 'bg-white/10 text-fg-strong' : 'text-fg-muted hover:text-fg-strong'
                   }`}
                 >
                   <span className="block truncate">{item.label}</span>
-                  <span className="block text-[10px] text-[#636366]">{item.hint}</span>
+                  <span className="block text-micro text-fg-subtle">{item.hint}</span>
                 </button>
               ))
             )}
@@ -272,7 +272,7 @@ export function AthleteScopeSelector({
             type="button"
             data-testid="athlete-scope-menu"
             onClick={() => setMenuOpen((v) => !v)}
-            className="text-[11px] text-[#AEAEB2] hover:text-white h-7"
+            className="text-mini text-fg-muted hover:text-fg-strong h-7"
           >
             Plan actions
           </button>
@@ -280,14 +280,14 @@ export function AthleteScopeSelector({
             <div className="flex flex-col gap-0.5">
               <button
                 type="button"
-                className="h-7 text-left text-[12px] text-[#AEAEB2] hover:text-white"
+                className="h-7 text-left text-caption text-fg-muted hover:text-fg-strong"
                 onClick={() => onNavigate?.('calendar')}
               >
                 Open calendar
               </button>
               <button
                 type="button"
-                className="h-7 text-left text-[12px] text-[#AEAEB2] hover:text-white"
+                className="h-7 text-left text-caption text-fg-muted hover:text-fg-strong"
                 onClick={() => onNavigate?.('sessions')}
               >
                 Open sessions
@@ -296,12 +296,12 @@ export function AthleteScopeSelector({
                 type="button"
                 data-testid="athlete-push-program"
                 disabled={pushBusy}
-                className="h-7 text-left text-[12px] text-[#AEAEB2] hover:text-white disabled:opacity-50"
+                className="h-7 text-left text-caption text-fg-muted hover:text-fg-strong disabled:opacity-50"
                 onClick={() => void pushProgram()}
               >
                 {pushBusy ? 'Pushing…' : 'Acknowledge push'}
               </button>
-              {pushNote && <p className="text-[10px] text-[#AEAEB2]">{pushNote}</p>}
+              {pushNote && <p className="text-micro text-fg-muted">{pushNote}</p>}
             </div>
           )}
         </div>

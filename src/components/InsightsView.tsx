@@ -144,18 +144,18 @@ export function InsightsView() {
   };
 
   return (
-    <div className="flex-1 overflow-hidden bg-[#0A0A0A] flex">
+    <div className="flex-1 overflow-hidden bg-canvas flex">
       <div className="flex-1 overflow-y-auto p-3">
         <div className="h-7 flex items-center justify-between mb-2">
-          <h2 className="text-sm text-white">Insights</h2>
-          <button type="button" data-testid="insights-add-card" onClick={openNew} className="h-7 px-2 text-[11px] text-white bg-white/10 rounded">
+          <h2 className="text-ui text-fg-strong">Insights</h2>
+          <button type="button" data-testid="insights-add-card" onClick={openNew} className="h-7 px-2 text-mini text-fg-strong bg-accent/20 rounded">
             Add card
           </button>
         </div>
-        {loading && <p className="text-xs text-[#AEAEB2]">Loading…</p>}
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {loading && <p className="text-caption text-fg-muted">Loading…</p>}
+        {error && <p className="text-caption text-error">{error}</p>}
         {!loading && cards.length === 0 && (
-          <p className="text-xs text-[#AEAEB2]">No cards yet. Add one or wait for presets to sync.</p>
+          <p className="text-caption text-fg-muted">No cards yet. Add one or wait for presets to sync.</p>
         )}
         <div className="grid grid-cols-2 gap-2">
           {cards.map((card) => {
@@ -165,34 +165,34 @@ export function InsightsView() {
               <article
                 key={card.id}
                 data-testid={`insight-card-${card.id}`}
-                className={`border border-white/10 rounded p-2 ${card.layout.col_span === 2 ? 'col-span-2' : 'col-span-1'}`}
+                className={`border border-border rounded p-2 ${card.layout.col_span === 2 ? 'col-span-2' : 'col-span-1'}`}
               >
                 <div className="h-7 flex items-center justify-between gap-2">
-                  <h3 className="text-xs text-white truncate">{card.name}</h3>
+                  <h3 className="text-caption text-fg-strong truncate">{card.name}</h3>
                   <div className="flex items-center gap-1">
-                    {stale && cached && <span data-testid={`insight-stale-${card.id}`} className="text-[10px] text-amber-400">Stale</span>}
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => moveCard(card.id, -1)}>Up</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => moveCard(card.id, 1)}>Down</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => {
+                    {stale && cached && <span data-testid={`insight-stale-${card.id}`} className="text-micro text-stale">Stale</span>}
+                    <button type="button" className="text-micro text-fg-muted" onClick={() => moveCard(card.id, -1)}>Up</button>
+                    <button type="button" className="text-micro text-fg-muted" onClick={() => moveCard(card.id, 1)}>Down</button>
+                    <button type="button" className="text-micro text-fg-muted" onClick={() => {
                       const next = { ...card, layout: { ...card.layout, col_span: card.layout.col_span === 2 ? 1 : 2 as 1 | 2 } };
                       void persistCard(next);
                     }}>{card.layout.col_span === 2 ? 'Narrow' : 'Wide'}</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => {
+                    <button type="button" className="text-micro text-fg-muted" onClick={() => {
                       const copy = { ...card, id: `card-${Date.now()}`, name: `${card.name} copy`, layout: { ...card.layout, order: cards.length } };
                       void persistCard(copy);
                     }}>Dup</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => {
+                    <button type="button" className="text-micro text-fg-muted" onClick={() => {
                       setEditing(card);
                       setDraftName(card.name);
                       setDraftConfig(card.config);
                     }}>Edit</button>
-                    <button type="button" className="text-[10px] text-red-400" onClick={() => void persistCard(card, true)}>Del</button>
+                    <button type="button" className="text-micro text-error" onClick={() => void persistCard(card, true)}>Del</button>
                   </div>
                 </div>
                 {cached?.result ? (
                   <ChartFor visualization={card.config.visualization} result={cached.result} />
                 ) : (
-                  <p className="text-[11px] text-[#AEAEB2] py-6">No points in range</p>
+                  <p className="text-mini text-fg-muted py-6">No points in range</p>
                 )}
               </article>
             );

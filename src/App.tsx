@@ -1,58 +1,38 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { CalendarView } from './components/CalendarView';
-import { SessionsView } from './components/SessionsView';
 import { AppShell } from './components/AppShell';
-import { ExerciseCard } from './components/ExerciseCard';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
-import { AddLiftBar } from './components/AddLiftBar';
-import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
-import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
+import { CalendarWorkspace } from './features/calendar/CalendarWorkspace';
+import { SessionsListMode } from './features/sessions/SessionsListMode';
+import { BP_WEEK_STRIP } from './surface/breakpoints';
+import type { WorkoutData } from './types';
 
 export default function App() {
-  const { user, roleMode, setRoleMode } = useAuth();
-  const {
-    activeWorkoutId,
-    setActiveWorkoutId,
-    setActiveMicrocycleId,
-    activeWorkout,
-    updateExerciseSets,
-    finishSession,
-    resetPlan,
-    reloadMicrocycles,
-    planAthleteId,
-    setActiveAthleteId,
-  } = usePeriodization();
+  const { user } = useAuth();
+  const { planAthleteId, setActiveAthleteId, setActiveWorkoutId, setActiveMicrocycleId, resetPlan } = usePeriodization();
 
   const [initialLocation] = useState(() => parseAppLocation());
-
-  const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
-    const saved = getUiPref(UI_KEYS.appView);
-    return saved === 'session' ? 'session' : 'dashboard';
-  });
-
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => initialLocation.mode);
+  const [sessionId, setSessionId] = useState<string | null>(() => initialLocation.sessionId);
+  const [gridFocus, setGridFocus] = useState(() => initialLocation.grid);
   const [focusAthleteScope, setFocusAthleteScope] = useState(() => initialLocation.panel === 'athlete-scope');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
-
-  const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
-  const [editSessionOpen, setEditSessionOpen] = useState(false);
+  const [narrowViewport, setNarrowViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < BP_WEEK_STRIP : false
+  );
+  const [mobileSidebarExpanded, setMobileSidebarExpanded] = useState(false);
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
-  }, [initialLocation.athleteId, setActiveAthleteId]);
-
-  useEffect(() => {
-    setUiPref(UI_KEYS.appView, currentView);
-  }, [currentView]);
+    if (initialLocation.sessionId) setActiveWorkoutId(initialLocation.sessionId);
+  }, [initialLocation.athleteId, initialLocation.sessionId, setActiveAthleteId, setActiveWorkoutId]);
 
   useEffect(() => {
     setUiPref(UI_KEYS.dashboardMode, dashboardMode);
@@ -60,12 +40,20 @@ export default function App() {
       mode: dashboardMode,
       athleteId: planAthleteId,
       panel: focusAthleteScope ? 'athlete-scope' : null,
+      sessionId,
+      grid: gridFocus,
     });
-  }, [dashboardMode, planAthleteId, focusAthleteScope]);
+  }, [dashboardMode, planAthleteId, focusAthleteScope, sessionId, gridFocus]);
 
   useEffect(() => {
     setUiPref(UI_KEYS.sidebarCollapsed, sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const onResize = () => setNarrowViewport(window.innerWidth < BP_WEEK_STRIP);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (focusAthleteScope && sidebarCollapsed) setSidebarCollapsed(false);
@@ -75,60 +63,35 @@ export default function App() {
     const onHashChange = () => {
       const next = parseAppLocation();
       setDashboardMode(next.mode);
-      setCurrentView('dashboard');
+      setSessionId(next.sessionId);
+      setGridFocus(next.grid);
       if (next.athleteId) setActiveAthleteId(next.athleteId);
+      if (next.sessionId) setActiveWorkoutId(next.sessionId);
       if (next.panel === 'athlete-scope') setFocusAthleteScope(true);
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, [setActiveAthleteId]);
+  }, [setActiveAthleteId, setActiveWorkoutId]);
 
   const handleNavigate = (mode: DashboardMode) => {
     setDashboardMode(mode);
-    setCurrentView('dashboard');
+    if (mode !== 'calendar' && mode !== 'sessions') {
+      setSessionId(null);
+      setGridFocus(false);
+    }
     if (mode !== 'calendar') setFocusAthleteScope(false);
   };
 
-  const handleViewSession = (workout: { id: string }, microId: string) => {
+  const openSession = (workout: WorkoutData, microId: string, grid?: boolean) => {
     setActiveWorkoutId(workout.id);
     setActiveMicrocycleId(microId);
-    setCurrentView('session');
-    
-    setTimeout(() => {
-      const el = document.getElementById('training-focus');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+    setSessionId(workout.id);
+    setGridFocus(Boolean(grid));
   };
 
-  const handleRemoveLift = async (exerciseId: string) => {
-    if (!activeWorkout) return;
-    try {
-      await apiService.removeSessionExercise(activeWorkout.id, exerciseId);
-      await reloadMicrocycles(planAthleteId);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to remove lift');
-      throw err;
-    }
-  };
-
-  const handleUpdateLift = async (exerciseId: string, patch: { variation?: string; tier?: 'Comp' | 'Variation' | 'Accessory'; movementPattern?: string }) => {
-    if (!activeWorkout) return;
-    try {
-      await apiService.updateSessionExercise(activeWorkout.id, exerciseId, patch);
-      await reloadMicrocycles(planAthleteId);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update lift');
-    }
-  };
-
-  const handleMoveLift = async (exerciseId: string, move: 'up' | 'down') => {
-    if (!activeWorkout) return;
-    try {
-      await apiService.updateSessionExercise(activeWorkout.id, exerciseId, { move });
-      await reloadMicrocycles(planAthleteId);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to move lift');
-    }
+  const closeSession = () => {
+    setSessionId(null);
+    setGridFocus(false);
   };
 
   if (!user) {
@@ -139,8 +102,11 @@ export default function App() {
     <AppShell
       dashboardMode={dashboardMode}
       onNavigate={handleNavigate}
-      sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+      sidebarCollapsed={narrowViewport ? !mobileSidebarExpanded : sidebarCollapsed}
+      onToggleSidebar={() => {
+        if (narrowViewport) setMobileSidebarExpanded((value) => !value);
+        else setSidebarCollapsed((value) => !value);
+      }}
       focusAthleteScope={focusAthleteScope}
       onAthleteScopeFocused={() => setFocusAthleteScope(false)}
       onResetPlan={async () => {
@@ -150,178 +116,34 @@ export default function App() {
         }
       }}
     >
-        <AnimatePresence mode="wait">
-          {currentView === 'dashboard' ? (
-            <motion.div
-              key="dashboard"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              <div className="flex-1 flex overflow-hidden relative">
-                {dashboardMode === 'calendar' ? (
-                  <CalendarView 
-                    onViewSession={handleViewSession}
-                    filter={filter}
-                    onFilterChange={setFilter}
-                  />
-                ) : dashboardMode === 'sessions' ? (
-                  <SessionsView 
-                    onViewSession={handleViewSession}
-                    filter={filter}
-                    onFilterChange={setFilter}
-                  />
-                ) : dashboardMode === 'insights' ? (
-                  <InsightsView />
-                ) : dashboardMode === 'security' ? (
-                  <SecurityView />
-                ) : (
-                  <div className="flex flex-col gap-4 p-4 w-full overflow-y-auto">
-                    <TelegramLinkPanel />
-                    <SheetsPublishPanel />
-                  </div>
-                )}
-              </div>
-            </motion.div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
+          {dashboardMode === 'calendar' ? (
+            <CalendarWorkspace
+              sessionId={sessionId}
+              gridFocus={gridFocus}
+              onOpenSession={openSession}
+              onCloseSession={closeSession}
+            />
+          ) : dashboardMode === 'sessions' ? (
+            <SessionsListMode
+              sessionId={sessionId}
+              gridFocus={gridFocus}
+              onOpenSession={openSession}
+              onCloseSession={closeSession}
+            />
+          ) : dashboardMode === 'insights' ? (
+            <InsightsView />
+          ) : dashboardMode === 'security' ? (
+            <SecurityView />
           ) : (
-            <motion.div
-              key="session"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-              className="flex-1 overflow-y-auto p-1 bg-[#0A0A0A]"
-            >
-              {activeWorkout ? (
-                <>
-                  <div id="training-focus" className="min-h-7 flex flex-wrap items-center justify-between gap-2 px-1">
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
-                        <button 
-                          onClick={() => {
-                            setEditSessionOpen(false);
-                            setCurrentView('dashboard');
-                          }}
-                          className="text-xs text-[#AEAEB2] hover:text-white shrink-0"
-                        >
-                          Back
-                        </button>
-                        <p data-testid="session-name" className="text-sm text-white truncate max-w-[220px]">
-                          {activeWorkout.title}
-                        </p>
-                        <p data-testid="workout-tonnage" className="text-[11px] text-[#AEAEB2] font-mono shrink-0">
-                          {activeWorkout.tonnage}kg
-                        </p>
-                        <p data-testid="session-labels" className="text-[11px] text-[#AEAEB2] truncate">
-                          {[activeWorkout.blockLabel, activeWorkout.weekLabel].filter(Boolean).join(' · ') || 'No block/week'}
-                        </p>
-                        <button
-                          type="button"
-                          data-testid="session-edit"
-                          onClick={() => setEditSessionOpen(true)}
-                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
-                        >
-                          Edit
-                        </button>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => setRoleMode('coach')}
-                        className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'coach' ? 'text-white' : 'text-[#AEAEB2]'
-                        }`}
-                      >
-                        Coach
-                      </button>
-                      <button
-                        onClick={() => setRoleMode('athlete')}
-                        className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'athlete' ? 'text-white' : 'text-[#AEAEB2]'
-                        }`}
-                      >
-                        Athlete
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="session-complete"
-                        onClick={async () => {
-                          try {
-                            await finishSession('COMPLETED');
-                            setCurrentView('dashboard');
-                          } catch (err) {
-                            alert(err instanceof Error ? err.message : 'Failed to complete session');
-                          }
-                        }}
-                        className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
-                      >
-                        Complete
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    {activeWorkout.exercises.length === 0 && (
-                      <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
-                        No lifts yet. Add squat, bench, or deadlift.
-                      </p>
-                    )}
-                    {activeWorkout.exercises.map((ex, index) => (
-                      <ExerciseCard 
-                        key={ex.id}
-                        id={ex.id}
-                        title={ex.title}
-                        variation={ex.variation}
-                        tags={ex.tags}
-                        tier={ex.tier}
-                        liftCategory={ex.liftCategory}
-                        movementPattern={ex.movementPattern}
-                        initialSets={ex.sets}
-                        onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
-                        onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
-                        onRemove={() => handleRemoveLift(ex.id)}
-                        onMoveUp={index > 0 ? () => handleMoveLift(ex.id, 'up') : undefined}
-                        onMoveDown={index < activeWorkout.exercises.length - 1 ? () => handleMoveLift(ex.id, 'down') : undefined}
-                        roleMode={roleMode}
-                      />
-                    ))}
-
-                    <AddLiftBar
-                      sessionId={activeWorkout.id}
-                      onAdded={() => reloadMicrocycles(planAthleteId)}
-                    />
-                  </div>
-                  {editSessionOpen && (
-                    <EditSessionDialog
-                      session={activeWorkout}
-                      onClose={() => setEditSessionOpen(false)}
-                      onSaved={async () => {
-                        await reloadMicrocycles(planAthleteId);
-                        setEditSessionOpen(false);
-                      }}
-                      onDeleted={async () => {
-                        await reloadMicrocycles(planAthleteId);
-                        setEditSessionOpen(false);
-                        setCurrentView('dashboard');
-                      }}
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="h-full flex flex-col justify-center items-center text-center py-20 px-4">
-                    <p className="text-sm text-white">No session open</p>
-                    <p className="text-xs text-[#AEAEB2] mt-2">Pick a day on the calendar or a session in the list.</p>
-                    <button 
-                      onClick={() => setCurrentView('dashboard')}
-                      className="mt-6 h-8 px-3 bg-[#007AFF] text-white rounded text-sm"
-                    >
-                      Back
-                    </button>
-                </div>
-              )}
-            </motion.div>
+            <div className="flex flex-col gap-4 p-4 w-full overflow-y-auto">
+              <TelegramLinkPanel />
+              <SheetsPublishPanel />
+            </div>
           )}
-        </AnimatePresence>
+        </div>
+      </div>
     </AppShell>
   );
 }
