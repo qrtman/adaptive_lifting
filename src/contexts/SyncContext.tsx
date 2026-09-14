@@ -3,6 +3,8 @@ import { getPendingMutations } from '../services/db';
 import { isInsightCardMutation, isLockSyncCode, processInsightCardSync, processSyncQueue } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
 import { WorkoutLockBanner } from '../components/WorkoutLockBanner';
+import { MathStaleBanner } from '../components/MathStaleBanner';
+import { MATH_VERSION } from '../services/mathEngine';
 
 interface SyncLockNotice {
   workout_id: string;
@@ -38,6 +40,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [pendingCount, setPendingCount] = useState(0);
   const [conflicts, setConflicts] = useState<any[]>([]);
   const [locks, setLocks] = useState<SyncLockNotice[]>([]);
+  const [mathStale, setMathStale] = useState<{ server: string; client: string } | null>(null);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -91,10 +94,17 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       });
     };
 
+    const handleMathStale = (e: Event) => {
+      const detail = (e as CustomEvent<{ server?: string; client?: string }>).detail;
+      if (!detail?.server) return;
+      setMathStale({ server: detail.server, client: detail.client || MATH_VERSION });
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('sync-conflicts', handleConflicts);
     window.addEventListener('sync-lock', handleLock);
+    window.addEventListener('math-version-stale', handleMathStale);
 
     // Poll for pending count
     const interval = window.setInterval(async () => {
@@ -111,6 +121,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('sync-conflicts', handleConflicts);
       window.removeEventListener('sync-lock', handleLock);
+      window.removeEventListener('math-version-stale', handleMathStale);
       clearInterval(interval);
     };
   }, []);
@@ -131,8 +142,17 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   return (
     <SyncContext.Provider value={{ isOnline, pendingCount, triggerSync, conflicts }}>
       {children}
-      {(locks.length > 0 || conflicts.length > 0) && (
+      {(mathStale || locks.length > 0 || conflicts.length > 0) && (
         <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm mx-auto">
+          {mathStale ? (
+            <div className="pointer-events-auto">
+              <MathStaleBanner
+                server={mathStale.server}
+                client={mathStale.client}
+                onDismiss={() => setMathStale(null)}
+              />
+            </div>
+          ) : null}
           {locks.map((lock) => (
             <div key={lock.workout_id} className="pointer-events-auto">
               <WorkoutLockBanner

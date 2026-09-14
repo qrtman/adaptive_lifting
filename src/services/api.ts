@@ -2,6 +2,7 @@ import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgres
 import { getSnapshot, saveSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
+import { warnIfMathVersionMismatch } from './mathVersion';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 import type { AnalyticsCatalog, CardConfig, QueryResult, SavedCard } from '../insights/types';
 
@@ -707,7 +708,9 @@ export const apiService = {
   async fetchAnalyticsCatalog(): Promise<AnalyticsCatalog> {
     const response = await fetch(`${BACKEND_URL}/api/analytics/catalog`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('Failed to load analytics catalog');
-    return await response.json() as AnalyticsCatalog;
+    const catalog = await response.json() as AnalyticsCatalog;
+    warnIfMathVersionMismatch(catalog.math_version, '/api/analytics/catalog');
+    return catalog;
   },
 
   async queryInsightCard(config: CardConfig, athleteId?: string | null): Promise<QueryResult> {
@@ -721,7 +724,9 @@ export const apiService = {
       const errData = await response.json().catch(() => ({}));
       throw new Error(apiErrorMessage(errData, 'Analytics query failed'));
     }
-    return await response.json() as QueryResult;
+    const result = await response.json() as QueryResult;
+    warnIfMathVersionMismatch(result.math_version, '/api/analytics/query');
+    return result;
   },
 
   async fetchInsightCards(): Promise<SavedCard[]> {

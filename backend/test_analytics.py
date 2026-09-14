@@ -326,6 +326,7 @@ def test_insight_card_sync_uses_mutation_type_without_workout_id():
     listed = client.get("/api/insight-cards", cookies=coach_cookies)
     assert listed.status_code == 200
     card = listed.json()[0]
+    mut_id = f"mut-card-{uuid.uuid4().hex[:8]}"
     res = client.post("/api/insight-cards/sync", json={
         "schema_version": 1,
         "mutation_type": "insight_card",
@@ -335,14 +336,14 @@ def test_insight_card_sync_uses_mutation_type_without_workout_id():
         "changes": [{
             "entity": "InsightCard",
             "id": card["id"],
-            "mutation_id": "mut-card-1",
+            "mutation_id": mut_id,
             "updated_at": "2026-09-14T00:00:00Z",
             "fields": {"name": "Renamed card", "config": card["config"], "layout": card["layout"]},
         }],
     }, cookies=coach_cookies)
     assert res.status_code == 200, res.text
     body = res.json()
-    assert "mut-card-1" in body["accepted_mutation_ids"]
+    assert mut_id in body["accepted_mutation_ids"]
     assert body["math_version"] == "linear-decay-v1"
     names = {c["name"] for c in body["canonical"]}
     assert "Renamed card" in names
@@ -352,6 +353,7 @@ def test_insight_card_sync_accepts_legacy_sentinel():
     client, coach_cookies, _athlete_cookies, _athlete_id = _auth_pair()
     listed = client.get("/api/insight-cards", cookies=coach_cookies)
     card = listed.json()[0]
+    mut_id = f"mut-card-legacy-{uuid.uuid4().hex[:8]}"
     res = client.post("/api/insight-cards/sync", json={
         "schema_version": 1,
         "client_device_id": "dev-cards-legacy",
@@ -360,13 +362,13 @@ def test_insight_card_sync_accepts_legacy_sentinel():
         "changes": [{
             "entity": "InsightCard",
             "id": card["id"],
-            "mutation_id": "mut-card-legacy",
+            "mutation_id": mut_id,
             "updated_at": "2026-09-14T00:00:00Z",
             "fields": {"name": card["name"], "config": card["config"], "layout": card["layout"]},
         }],
     }, cookies=coach_cookies)
     assert res.status_code == 200, res.text
-    assert "mut-card-legacy" in res.json()["accepted_mutation_ids"]
+    assert mut_id in res.json()["accepted_mutation_ids"]
 
 
 def test_sync_rejects_math_version_mismatch():
@@ -391,3 +393,43 @@ def test_legacy_trends_route_removed():
     client, coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
     gone = client.get(f"/api/analytics/trends?athlete_id={athlete_id}", cookies=coach_cookies)
     assert gone.status_code == 404
+
+
+def test_pattern_scope_falls_back_to_lift_category_when_column_empty():
+    client, coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
+    _seed_sets(athlete_id)
+    db = SessionLocal()
+    try:
+        db.add(Workout(
+            id=f"w-{athlete_id}-unmapped", date="2026-09-09", dayLabel="D6", title="Open",
+            tonnage=0, delta=0, color="gray", status="COMPLETED",
+            microcycle_id=f"mc-{athlete_id}",
+        ))
+        db.add(Exercise(
+            id=f"e-{athlete_id}-unmapped", title="ZZ Custom", variation="Custom", tier="Comp",
+            lift_category="Squat", movement_pattern=None,
+            workout_id=f"w-{athlete_id}-unmapped", lexo_rank="a0",
+        ))
+        db.add(ExerciseSet(
+            id=f"s-{athlete_id}-unmapped", label="Top",
+            actual=90, reps=5, executedRpe=8,
+            plannedWeight=90, plannedReps=5, plannedRpe=8,
+            exercise_id=f"e-{athlete_id}-unmapped", lexo_rank="a0",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    res = client.post("/api/analytics/query", json={
+        "athlete_id": athlete_id,
+        "config": {
+            "metrics": ["set_count"],
+            "scopes": [{"kind": "pattern", "ids": ["Knee Dominant"]}],
+            "time_grain": "day",
+            "range": {"start": "2026-09-09", "end": "2026-09-09"},
+            "visualization": "bar",
+        },
+    }, cookies=coach_cookies)
+    assert res.status_code == 200, res.text
+    points = res.json()["series"][0]["points"]
+    assert any(p and p >= 1 for p in points)

@@ -91,21 +91,8 @@ def migrate_db():
     except Exception:
         db.rollback()
     try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN movement_pattern VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        from .exercise_patterns import pattern_for
-        rows = db.execute(text("SELECT id, title, lift_category, movement_pattern FROM exercises")).fetchall()
-        for row in rows:
-            if row[3]:
-                continue
-            db.execute(
-                text("UPDATE exercises SET movement_pattern = :pattern WHERE id = :id"),
-                {"pattern": pattern_for(row[1], row[2]), "id": row[0]},
-            )
-        db.commit()
+        from .schema_migrations import apply_schema_migrations
+        apply_schema_migrations(db)
     except Exception:
         db.rollback()
     try:
