@@ -37,6 +37,10 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await page.getByTestId('add-lift-exercise').selectOption('Squat');
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  const pattern = page.locator('[data-testid^="movement-pattern-e-"]');
+  await expect(pattern).toHaveValue('Knee Dominant');
+  await pattern.selectOption('Hip Dominant');
+  await expect(pattern).toHaveValue('Hip Dominant');
 
   await expect(page.getByRole('columnheader', { name: /Plan/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
