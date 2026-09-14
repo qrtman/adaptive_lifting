@@ -12,6 +12,10 @@ test.describe('navigation consolidation', () => {
     await expect(page.getByTestId('athlete-scope-selector')).toBeVisible();
     await expect(page).toHaveURL(/#\/calendar/);
     await expect(page.getByTestId('nav-roster')).toHaveCount(0);
+    await expect(page.getByTestId('nav-insights')).toBeVisible();
+    await page.getByTestId('nav-insights').click();
+    await expect(page).toHaveURL(/#\/insights/);
+    await expect(page.getByRole('heading', { name: 'Insights' })).toBeVisible();
   });
 
   test('persists sidebar collapse', async ({ page }) => {
