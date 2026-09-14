@@ -21,6 +21,8 @@ describe('matchComboOptions', () => {
       label: 'None',
     });
   });
+
+  it('hides None while typeaheading', () => {
     const rows = matchComboOptions('Hyp', ['Hypertrophy'], { allowEmpty: true, allowCreate: true, emptyLabel: 'None' });
     expect(rows.map((row) => row.value)).toEqual(['Hypertrophy', 'Hyp']);
   });

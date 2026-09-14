@@ -163,8 +163,12 @@ export function ComboBox({
             setOpen(true);
             setActive(0);
           }}
-          onFocus={() => setOpen(true)}
-          onClick={() => setOpen(true)}
+          onFocus={() => {
+            if (matchComboOptions(draft, options, { allowEmpty, allowCreate, emptyLabel }).length) setOpen(true);
+          }}
+          onClick={() => {
+            if (matchComboOptions(draft, options, { allowEmpty, allowCreate, emptyLabel }).length) setOpen(true);
+          }}
           onBlur={(event) => {
             if (rootRef.current?.contains(event.relatedTarget as Node)) return;
             finish();
@@ -172,36 +176,32 @@ export function ComboBox({
           onKeyDown={onKey}
           className="h-8 w-full px-2 rounded bg-canvas border border-border text-caption text-fg-strong disabled:opacity-40"
         />
-        {open ? (
+        {open && rows.length > 0 ? (
           <ul
             id={listId}
             role="listbox"
             data-testid={`${testId}-listbox`}
             className="absolute z-20 mt-0.5 max-h-48 w-full overflow-auto bg-card border border-border rounded shadow-[var(--sticky-shadow)]"
           >
-            {rows.length === 0 ? (
-              <li className="px-2 py-1.5 text-caption text-fg-muted">No matches</li>
-            ) : (
-              rows.map((row, index) => (
-                <li
-                  key={`${row.value}-${row.create ? 'new' : 'opt'}-${index}`}
-                  id={`${testId}-opt-${index}`}
-                  role="option"
-                  aria-selected={index === active}
-                  data-testid={row.create ? `${testId}-option-create` : `${testId}-option-${row.value || 'none'}`}
-                  className={`px-2 py-1.5 text-caption cursor-pointer ${
-                    index === active ? 'bg-cell-selected text-fg-strong' : 'text-fg hover:bg-cell-hover'
-                  }`}
-                  onMouseEnter={() => setActive(index)}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    commit(row.value);
-                  }}
-                >
-                  {row.label}
-                </li>
-              ))
-            )}
+            {rows.map((row, index) => (
+              <li
+                key={`${row.value}-${row.create ? 'new' : 'opt'}-${index}`}
+                id={`${testId}-opt-${index}`}
+                role="option"
+                aria-selected={index === active}
+                data-testid={row.create ? `${testId}-option-create` : `${testId}-option-${row.value || 'none'}`}
+                className={`px-2 py-1.5 text-caption cursor-pointer ${
+                  index === active ? 'bg-cell-selected text-fg-strong' : 'text-fg hover:bg-cell-hover'
+                }`}
+                onMouseEnter={() => setActive(index)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  commit(row.value);
+                }}
+              >
+                {row.label}
+              </li>
+            ))}
           </ul>
         ) : null}
       </div>
