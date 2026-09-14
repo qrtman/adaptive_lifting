@@ -116,7 +116,7 @@ test('coach without an athlete cannot create; linked coach can', async ({ page, 
     expect(link.ok()).toBeTruthy();
 
     await page.reload();
-    await expect(page.getByTestId('coach-athlete-switcher')).toHaveValue(/.+/);
+    await expect(page.getByTestId('athlete-scope-selector')).toContainText(athleteEmail);
     await page.getByRole('button', { name: 'Calendar' }).click();
     const day = page.getByTestId('calendar-day-2026-09-04');
     await day.hover();

@@ -271,7 +271,7 @@ def test_security_and_data_isolation():
         requests.post = lambda *args, **kwargs: MockResponse()
         
         try:
-            # Let's seed at least one microcycle & workout for athlete so get_trends doesn't crash on empty
+            # Let's seed at least one microcycle & workout for athlete so the AI advisor summary doesn't crash on empty
             from backend.database import Microcycle, Workout, Exercise, ExerciseSet
             mc = Microcycle(
                 id="mc-test-1",

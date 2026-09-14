@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import vectors from '../../tests/math_vectors.json';
 import {
+  MATH_VERSION,
   calculateAttemptJumps,
   calculateDOTS,
   calculateE1RM,
   calculateINOL,
   roundToCompetitionPlates,
+  setPreviewMetrics,
 } from './mathEngine';
 
 describe('shared math vectors', () => {
+  it('pins MATH_VERSION to the shared fixture', () => {
+    expect(MATH_VERSION).toBe(vectors.math_version);
+  });
+
   it('matches backend e1RM cases', () => {
     for (const row of vectors.e1rm) {
       expect(calculateE1RM(row.weight, row.reps, row.rpe)).toBe(row.expected);
@@ -18,6 +24,16 @@ describe('shared math vectors', () => {
   it('matches backend INOL cases', () => {
     for (const row of vectors.inol) {
       expect(calculateINOL(row.reps, row.intensity_pct)).toBe(row.expected);
+    }
+  });
+
+  it('matches backend set preview (e1RM, intensity, INOL)', () => {
+    for (const row of vectors.sets) {
+      expect(setPreviewMetrics(row.weight, row.reps, row.rpe)).toEqual({
+        e1rm: row.e1rm,
+        intensity_pct: row.intensity_pct,
+        inol: row.inol,
+      });
     }
   });
 

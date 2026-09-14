@@ -45,6 +45,7 @@ import secrets
 
 from .set_writes import replace_exercise_sets
 from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
+from .exercise_patterns import PATTERNS, pattern_for
 from .accessory_migration import coerce_float, coerce_int
 
 from sqlalchemy import text
@@ -86,6 +87,24 @@ def migrate_db():
         db.rollback()
     try:
         db.execute(text("ALTER TABLE exercises ADD COLUMN lift_category VARCHAR DEFAULT 'Squat'"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE exercises ADD COLUMN movement_pattern VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        from .exercise_patterns import pattern_for
+        rows = db.execute(text("SELECT id, title, lift_category, movement_pattern FROM exercises")).fetchall()
+        for row in rows:
+            if row[3]:
+                continue
+            db.execute(
+                text("UPDATE exercises SET movement_pattern = :pattern WHERE id = :id"),
+                {"pattern": pattern_for(row[1], row[2]), "id": row[0]},
+            )
         db.commit()
     except Exception:
         db.rollback()
@@ -143,8 +162,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-analytics_cache = {}
 
 # --- Security Setup ---
 import bcrypt
@@ -229,8 +246,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
 from .sse_broadcaster import router as sse_router
 from .integrations import router as integrations_router
+from .analytics_router import create_analytics_router
 app.include_router(sse_router)
 app.include_router(integrations_router)
+app.include_router(create_analytics_router(get_current_user))
 
 # --- Pydantic Schemas for Requests ---
 
@@ -472,6 +491,7 @@ def format_exercise(e: Exercise) -> dict:
         "variation": e.variation,
         "tier": e.tier or "Comp",
         "liftCategory": e.lift_category or "Other",
+        "movementPattern": e.movement_pattern or pattern_for(e.title, e.lift_category),
         "tags": e.tags,
         "top": e.top,
         "vol": e.vol,
@@ -826,12 +846,10 @@ def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: Use
     db.commit()
     recalculate_metrics(db, req.workoutId, db.query(Workout).filter(Workout.id == req.workoutId).first().dayLabel)
     
-    analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
 
-@app.get("/api/analytics/trends")
-def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def athlete_fatigue_summary(db: Session, current_user: User, athlete_id: Optional[str] = None) -> dict:
     target_id = athlete_id if athlete_id else current_user.id
     
     if current_user.role == "COACH":
@@ -840,9 +858,6 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
             raise HTTPException(status_code=403, detail="Not authorized to view this athlete")
     elif current_user.role == "ATHLETE" and target_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to view other athletes")
-        
-    if target_id in analytics_cache:
-        return analytics_cache[target_id]
         
     mcs = db.query(Microcycle).filter(Microcycle.owner_id == target_id).all()
     mc_ids = [mc.id for mc in mcs]
@@ -938,8 +953,6 @@ def get_trends(athlete_id: Optional[str] = None, db: Session = Depends(get_db), 
         },
         "attempt_planner_defaults": calculate_attempt_jumps(squat_max, "squat_dl", "MALE")
     }
-    
-    analytics_cache[target_id] = payload
     return payload
 
 @app.get("/api/export/csv")
@@ -1127,7 +1140,7 @@ def get_ai_advisor(
         scraped_trends.append({"date": w.date, "tonnage": w.tonnage, "logged": workout_sets})
 
     # Pull precalculated ACWR & INOL splits from standard trends endpoint logic
-    trends_payload = get_trends(athlete_id=target_id, db=db, current_user=current_user)
+    trends_payload = athlete_fatigue_summary(db, current_user, target_id)
     fatigue = trends_payload["fatigue_metrics"]
     
     scraped_payload = {
@@ -1326,7 +1339,6 @@ def reset_database(db: Session = Depends(get_db), current_user: User = Depends(g
             db.delete(w)
         db.commit()
 
-    analytics_cache.pop(current_user.id, None)
     mcs = get_visible_microcycles(db, current_user)
     return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
 
@@ -1370,6 +1382,15 @@ class CopyWeekRequest(BaseModel):
 
 ALLOWED_LIFT_CATEGORIES = {"Squat", "Bench", "Deadlift", "Other"}
 ALLOWED_TIERS = {"Comp", "Variation", "Accessory"}
+ALLOWED_MOVEMENT_PATTERNS = set(PATTERNS)
+
+
+def resolve_movement_pattern(title: str, lift_category: Optional[str], requested: Optional[str]) -> str:
+    if requested:
+        if requested not in ALLOWED_MOVEMENT_PATTERNS:
+            raise HTTPException(status_code=400, detail="Invalid movementPattern")
+        return requested
+    return pattern_for(title, lift_category)
 
 
 class AddExerciseRequest(BaseModel):
@@ -1377,6 +1398,7 @@ class AddExerciseRequest(BaseModel):
     variation: Optional[str] = None
     tier: Optional[str] = "Comp"
     liftCategory: Optional[str] = "Other"
+    movementPattern: Optional[str] = None
     plannedWeight: Optional[float] = None
     plannedReps: Optional[int] = 5
     plannedRpe: Optional[float] = 8.0
@@ -1386,6 +1408,7 @@ class UpdateExerciseRequest(BaseModel):
     variation: Optional[str] = None
     title: Optional[str] = None
     tier: Optional[str] = None
+    movementPattern: Optional[str] = None
     move: Optional[str] = None
 
 
@@ -1488,6 +1511,7 @@ def clone_session_prescription(
             variation=exercise.variation,
             tier=exercise.tier or "Comp",
             lift_category=exercise.lift_category or "Other",
+            movement_pattern=exercise.movement_pattern or pattern_for(exercise.title, exercise.lift_category),
             tags_raw=exercise.tags_raw or "",
             top=exercise.top if include_logs else "—",
             vol=exercise.vol if include_logs else "—",
@@ -1636,6 +1660,7 @@ def add_session_exercise(
         raise HTTPException(status_code=400, detail="Invalid tier")
     if lift_category not in ALLOWED_LIFT_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid liftCategory")
+    movement_pattern = resolve_movement_pattern(title, lift_category, req.movementPattern)
 
     variation = (req.variation or "").strip() or (
         "Accessory" if tier == "Accessory" else "Competition"
@@ -1650,6 +1675,7 @@ def add_session_exercise(
         variation=variation,
         tier=tier,
         lift_category=lift_category,
+        movement_pattern=movement_pattern,
         tags_raw=",".join(tags),
         top="—",
         vol="—",
@@ -1746,6 +1772,10 @@ def update_session_exercise(
         if req.tier not in ALLOWED_TIERS:
             raise HTTPException(status_code=400, detail="Invalid tier")
         exercise.tier = req.tier
+    if req.movementPattern is not None:
+        exercise.movement_pattern = resolve_movement_pattern(
+            exercise.title, exercise.lift_category, req.movementPattern
+        )
     if req.move is not None:
         direction = req.move.strip().lower()
         if direction not in ("up", "down"):

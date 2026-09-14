@@ -25,6 +25,7 @@ function Chip({
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
+  key?: string;
 }) {
   return (
     <button

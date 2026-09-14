@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, Trash2, Copy } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
-import { PrescriptionEditor } from './PrescriptionEditor';
+import { PrescriptionEditor, MovementPatternSelect } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
 import { CenteredDialog } from './CenteredDialog';
 import { 
@@ -10,6 +10,8 @@ import {
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 import { refreshSetAnchors } from '../services/setPrescription';
+import type { LiftMetaPatch } from '../types';
+import type { MovementPattern } from '../services/exerciseCatalog';
 
 export const ExerciseCard = ({ 
   id,
@@ -18,6 +20,7 @@ export const ExerciseCard = ({
   tags: _tags, 
   tier,
   liftCategory = 'Other',
+  movementPattern,
   initialSets,
   onUpdateSets,
   onUpdateMeta,
@@ -33,14 +36,16 @@ export const ExerciseCard = ({
   tags: string[], 
   tier?: 'Comp' | 'Variation' | 'Accessory',
   liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other',
+  movementPattern?: MovementPattern,
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
-  onUpdateMeta?: (patch: { variation: string; tier: 'Comp' | 'Variation' }) => void,
+  onUpdateMeta?: (patch: LiftMetaPatch) => void,
   onRemove?: () => void | Promise<void>,
   onMoveUp?: () => void | Promise<void>,
   onMoveDown?: () => void | Promise<void>,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
+  key?: string,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
 
@@ -162,6 +167,14 @@ export const ExerciseCard = ({
           <span className="text-xs text-[#AEAEB2] truncate">
             {tier ? `${tier} · ${variation}` : variation}
           </span>
+          {onUpdateMeta ? (
+            <MovementPatternSelect
+              id={id}
+              value={movementPattern}
+              locked={locked}
+              onChange={(next) => onUpdateMeta({ movementPattern: next })}
+            />
+          ) : null}
           {onUpdateMeta ? (
             <button
               type="button"
@@ -452,8 +465,16 @@ export const ExerciseCard = ({
             variation={variation}
             liftCategory={liftCategory}
             locked={locked}
-            onChange={onUpdateMeta}
+            onChange={(next) => onUpdateMeta(next)}
           />
+          <div className="pt-2">
+            <MovementPatternSelect
+              id={`edit-${id}`}
+              value={movementPattern}
+              locked={locked}
+              onChange={(next) => onUpdateMeta({ movementPattern: next })}
+            />
+          </div>
         </CenteredDialog>
       )}
     </div>

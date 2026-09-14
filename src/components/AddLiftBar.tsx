@@ -32,7 +32,7 @@ export function AddLiftBar({
   const selected: CatalogExercise | null = useMemo(() => {
     if (category === 'User Defined') {
       const name = customName.trim() || 'Accessory';
-      return { name, category: 'User Defined', liftCategory: 'Other', tier: 'Accessory' };
+      return { name, category: 'User Defined', movementPattern: 'Misc', liftCategory: 'Other', tier: 'Accessory' };
     }
     return CATALOG_EXERCISES.find((item) => item.name === exerciseName) ?? null;
   }, [category, customName, exerciseName]);
@@ -66,6 +66,7 @@ export function AddLiftBar({
         variation: variation || selected.name,
         tier: selected.tier === 'Accessory' ? 'Accessory' : tier,
         liftCategory: selected.liftCategory,
+        movementPattern: selected.category === 'User Defined' ? 'Misc' : selected.movementPattern,
       });
       await onAdded();
       setOpen(false);

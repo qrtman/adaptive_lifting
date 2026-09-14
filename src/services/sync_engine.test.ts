@@ -1,11 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SyncMutation } from './db';
 import {
+  isInsightCardMutation,
   isLockSyncCode,
+  mutationsForInsightCards,
   mutationsForWorkout,
   parseSyncErrorCode,
   parseSyncErrorMessage,
 } from './sync_engine';
+
+function insightMut(entity_id: string, workout_id?: string): SyncMutation {
+  return {
+    mutation_id: `mut-${entity_id}`,
+    client_device_id: 'dev-1',
+    workout_id,
+    entity_type: 'InsightCard',
+    entity_id,
+    field_path: 'ALL',
+    fields: { name: 'Card' },
+    updated_at: '2026-09-12T00:00:00Z',
+    status: 'PENDING',
+    retry_count: 0,
+  };
+}
 
 function mut(workout_id: string, entity_id: string): SyncMutation {
   return {
@@ -30,6 +47,13 @@ describe('sync queue workout scoping', () => {
     expect(scoped.every((m) => m.workout_id === 'w-a')).toBe(true);
   });
 
+  it('keeps InsightCard rows out of workout flush and off the sentinel', () => {
+    const mixed = [mut('w-a', 'ex-1'), insightMut('card-1'), insightMut('card-2', 'insight-cards')];
+    expect(mutationsForWorkout(mixed, 'w-a').map((m) => m.entity_id)).toEqual(['ex-1']);
+    expect(mutationsForInsightCards(mixed).map((m) => m.entity_id)).toEqual(['card-1', 'card-2']);
+    expect(mixed.filter(isInsightCardMutation).every((m) => m.entity_type === 'InsightCard')).toBe(true);
+  });
+
   it('parses FastAPI WORKOUT_LOCKED envelopes', () => {
     const body = { detail: { error: { code: 'WORKOUT_LOCKED', message: 'This workout is locked right now.' } } };
     expect(parseSyncErrorCode(body)).toBe('WORKOUT_LOCKED');
@@ -52,7 +76,7 @@ describe('processSyncQueue mixed payload', () => {
   it('never posts entities from other workouts', async () => {
     const updateMutationStatus = vi.fn(async () => {});
     vi.doMock('./db', () => ({
-      getPendingMutations: async () => [mut('w-a', 'ex-1'), mut('w-b', 'ex-2')],
+      getPendingMutations: async () => [mut('w-a', 'ex-1'), mut('w-b', 'ex-2'), insightMut('card-1')],
       updateMutationStatus,
       saveMutation: vi.fn(),
     }));
@@ -77,8 +101,44 @@ describe('processSyncQueue mixed payload', () => {
     const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
     const posted = JSON.parse(requestInit.body);
     expect(posted.workout_id).toBe('w-a');
+    expect(posted.mutation_type).toBe('workout');
+    expect(posted.math_version).toBe('linear-decay-v1');
     expect(posted.changes).toHaveLength(1);
     expect(posted.changes[0].id).toBe('ex-1');
+  });
+
+  it('posts insight_card mutations without a workout_id', async () => {
+    const updateMutationStatus = vi.fn(async () => {});
+    vi.doMock('./db', () => ({
+      getPendingMutations: async () => [insightMut('card-1'), mut('w-a', 'ex-1'), insightMut('card-2', 'insight-cards')],
+      updateMutationStatus,
+      saveMutation: vi.fn(),
+    }));
+    vi.doMock('../storage/uiPrefs', () => ({
+      UI_KEYS: { deviceId: 'al_client_device_id' },
+      getUiPref: () => 'dev-test',
+      setUiPref: () => {},
+    }));
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ accepted_mutation_ids: ['mut-card-1', 'mut-card-2'], rejected_mutation_ids: [], conflicts: [] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('navigator', { onLine: true });
+
+    const { processInsightCardSync } = await import('./sync_engine');
+    const conflicts = await processInsightCardSync();
+    expect(conflicts).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, requestInit] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    expect(url).toContain('/api/insight-cards/sync');
+    const posted = JSON.parse(requestInit.body);
+    expect(posted.mutation_type).toBe('insight_card');
+    expect(posted.workout_id).toBeUndefined();
+    expect(posted.math_version).toBe('linear-decay-v1');
+    expect(posted.changes.map((c: { id: string }) => c.id)).toEqual(['card-1', 'card-2']);
   });
 
   it('surfaces WORKOUT_LOCKED without a false conflict card payload', async () => {

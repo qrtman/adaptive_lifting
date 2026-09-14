@@ -21,8 +21,10 @@ function suggestKg(row: Record<string, unknown>, e1rm: number): number | null {
 }
 
 /** Typed plan kg stays. After a log, later empty rows get a suggested kg from executed e1RM. */
-export function refreshSetAnchors<T extends Record<string, unknown>>(setArray: T[]): T[] {
-  if (setArray.length === 0) return setArray;
+export function refreshSetAnchors<T extends Record<string, unknown>>(
+  setArray: T[],
+): Array<T & { suggestedWeight: number | null }> {
+  if (setArray.length === 0) return [];
 
   let lastLoggedIndex = -1;
   let lastLoggedE1RM = 0;

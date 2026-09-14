@@ -2,13 +2,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 import dateutil.parser
 from fastapi import HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from pydantic import BaseModel, model_validator
+from typing import List, Dict, Any, Literal, Optional
 
 from .database import (
     Workout, ExerciseSet, Exercise, SyncMutation, 
     WorkoutLock, DomainEvent, AuditEvent
 )
+from .math_utils import MATH_VERSION
 
 class SyncFieldMutation(BaseModel):
     entity: str
@@ -20,13 +21,44 @@ class SyncFieldMutation(BaseModel):
 class SyncPayload(BaseModel):
     schema_version: int
     client_device_id: str
-    workout_id: str
+    workout_id: Optional[str] = None
+    mutation_type: Literal["workout", "insight_card"] = "workout"
     last_updated_at: str
+    math_version: Optional[str] = None
     changes: List[SyncFieldMutation]
 
+    @model_validator(mode="after")
+    def workout_id_required_for_workout(self):
+        if self.mutation_type == "workout" and not self.workout_id:
+            raise ValueError("workout_id is required for workout mutations")
+        return self
+
+
+def assert_math_version(payload: SyncPayload) -> None:
+    if payload.math_version and payload.math_version != MATH_VERSION:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": {
+                    "code": "MATH_VERSION_MISMATCH",
+                    "message": "Client math version does not match the server. App update required.",
+                    "details": {"server": MATH_VERSION, "client": payload.math_version},
+                }
+            },
+        )
+
+
 def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str) -> dict:
+    if payload.mutation_type == "insight_card":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "INVALID_MUTATION_TYPE", "message": "Use /api/insight-cards/sync for insight_card mutations."}},
+        )
     if payload.schema_version != 1:
         raise HTTPException(status_code=409, detail={"error": {"code": "CLIENT_SCHEMA_UNSUPPORTED", "message": "App update required."}})
+    assert_math_version(payload)
+    if not payload.workout_id:
+        raise HTTPException(status_code=400, detail="workout_id required")
     
     workout = db.query(Workout).filter(Workout.id == payload.workout_id).first()
     if not workout:
@@ -149,5 +181,6 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
         "canonical_last_updated_at": workout.updated_at.isoformat() + "Z",
         "accepted_mutation_ids": accepted_ids,
         "rejected_mutations": rejected,
-        "conflicts": conflicts
+        "conflicts": conflicts,
+        "math_version": MATH_VERSION,
     }

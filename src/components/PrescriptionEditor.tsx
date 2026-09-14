@@ -1,5 +1,6 @@
 import React from 'react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
+import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
 
 interface PrescriptionEditorProps {
   reps: number | null;
@@ -61,3 +62,35 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
     </div>
   );
 };
+
+export function MovementPatternSelect({
+  value,
+  onChange,
+  locked = false,
+  id,
+}: {
+  value?: MovementPattern | string | null;
+  onChange: (value: MovementPattern) => void;
+  locked?: boolean;
+  id?: string;
+}) {
+  const selected = (MOVEMENT_PATTERNS as readonly string[]).includes(value || '')
+    ? (value as MovementPattern)
+    : 'Misc';
+  return (
+    <label className="flex items-center gap-1 min-w-0">
+      <span className="text-[10px] uppercase tracking-wider text-[#636366]">Pattern</span>
+      <select
+        data-testid={id ? `movement-pattern-${id}` : 'movement-pattern'}
+        disabled={locked}
+        value={selected}
+        onChange={(event) => onChange(event.target.value as MovementPattern)}
+        className="h-6 max-w-[11rem] px-1 text-[11px] bg-black border border-white/10 rounded text-[#AEAEB2] disabled:opacity-40"
+      >
+        {MOVEMENT_PATTERNS.map((pattern) => (
+          <option key={pattern} value={pattern}>{pattern}</option>
+        ))}
+      </select>
+    </label>
+  );
+}

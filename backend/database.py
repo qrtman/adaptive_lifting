@@ -84,6 +84,7 @@ class Exercise(Base, TimestampMixin):
     variation = Column(String, nullable=False)
     tier = Column(String, default="Comp") # "Comp", "Variation", "Accessory"
     lift_category = Column(String, default="Squat") # "Squat", "Bench", "Deadlift", "Other"
+    movement_pattern = Column(String, nullable=True)  # catalog pattern; see exercise_patterns.PATTERNS
     tags_raw = Column(String, default="")  # Comma-separated list of tags
     top = Column(String, default="—")
     vol = Column(String, default="—")
@@ -242,6 +243,15 @@ class IntegrationOutbox(Base):
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
 
+class InsightCard(Base, TimestampMixin):
+    __tablename__ = "insight_cards"
+    id = Column(String, primary_key=True, index=True)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    config_json = Column(String, nullable=False)
+    layout_json = Column(String, nullable=False, default='{"order":0,"col_span":1}')
+
+
 class SheetPublication(Base, TimestampMixin):
     __tablename__ = "sheet_publications"
     id = Column(String, primary_key=True, index=True)
@@ -265,6 +275,7 @@ def migrate_accessories_to_exercises(db):
                 variation="Accessory",
                 tier="Accessory",
                 lift_category="Other",
+                movement_pattern="Misc",
                 tags_raw="Accessory",
                 top="—",
                 vol="—",

@@ -1,4 +1,5 @@
 {
+  "math_version": "linear-decay-v1",
   "e1rm": [
     { "weight": 0, "reps": 5, "rpe": 8, "expected": 0 },
     { "weight": 100, "reps": 0, "rpe": 8, "expected": 0 },
@@ -14,6 +15,16 @@
     { "reps": 5, "intensity_pct": 105, "expected": 5 },
     { "reps": 5, "intensity_pct": 0, "expected": 0 },
     { "reps": 5, "intensity_pct": -10, "expected": 0 }
+  ],
+  "sets": [
+    { "weight": 0, "reps": 5, "rpe": 8, "e1rm": 0, "intensity_pct": 0, "inol": 0 },
+    { "weight": 100, "reps": 0, "rpe": 8, "e1rm": 0, "intensity_pct": 0, "inol": 0 },
+    { "weight": 100, "reps": 5, "rpe": 5.5, "e1rm": 100, "intensity_pct": 100, "inol": 5 },
+    { "weight": 100, "reps": 13, "rpe": 8, "e1rm": 100, "intensity_pct": 100, "inol": 13 },
+    { "weight": 100, "reps": 1, "rpe": 10, "e1rm": 100, "intensity_pct": 100, "inol": 1 },
+    { "weight": 100, "reps": 5, "rpe": 9, "e1rm": 117.65, "intensity_pct": 85, "inol": 0.33 },
+    { "weight": 100, "reps": 10, "rpe": 8, "e1rm": 133.33, "intensity_pct": 75, "inol": 0.4 },
+    { "weight": 140, "reps": 3, "rpe": 8, "e1rm": 159.09, "intensity_pct": 88, "inol": 0.25 }
   ],
   "plates": [
     { "weight": 101.2, "expected": 100 },

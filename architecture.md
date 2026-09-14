@@ -217,7 +217,7 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
 | **Microcycle** | `id` (String) | `weekName`, `focus`, `status`, `owner_id`, optional `mesocycle_id` | Soft week aggregation for labeled sessions; owned by athlete; not required before first session |
 | **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
-| **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
+| **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `movement_pattern`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
 | **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `deleted_at` | Belongs to Exercise |
 
 Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `tier = Accessory`. Comp lifts, variations, and accessories all own individual `ExerciseSet` rows. The legacy `accessories` table is tombstoned after one-time migration and is not part of the canonical API.
@@ -959,7 +959,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
-| `POST` | `/api/workouts/{id}/sync` | Push workout delta (with tombstones/LexoRank) | Coach / Athlete |
+| `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
 | `POST` | `/api/integrations/telegram/link-token` | Generate short-lived Telegram Mini App deep-link token | Coach / Athlete |
@@ -971,7 +971,13 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/integrations/google-sheets/publish` | Publish selected training data to a configured spreadsheet | Coach |
 | `DELETE` | `/api/integrations/google-sheets` | Revoke Google Sheets connection | Coach |
 | `POST` | `/api/sets/{id}/log` | Log actual execution data for a set (including accessory-tier exercises) | Athlete |
-| `GET` | `/api/analytics/inol` | INOL time-series by lift category | Coach / Athlete |
+| `GET` | `/api/analytics/catalog` | Metric/visualization registry, patterns, preset card configs | Coach / Athlete |
+| `POST` | `/api/analytics/query` | Run one insight-card config against a single athlete plan space; returns series, matrix/table, `math_version` | Coach / Athlete |
+| `GET` | `/api/insight-cards` | List saved insight cards for the current user (seeds six presets if empty) | Coach / Athlete |
+| `POST` | `/api/insight-cards` | Create a saved insight-card configuration (layout + query config) | Coach / Athlete |
+| `PUT` | `/api/insight-cards/{id}` | Update a saved insight-card configuration | Coach / Athlete |
+| `DELETE` | `/api/insight-cards/{id}` | Tombstone a saved insight card | Coach / Athlete |
+| `POST` | `/api/insight-cards/sync` | Apply queued InsightCard mutations (`mutation_type: insight_card`; no `workout_id`) | Coach / Athlete |
 | `GET` | `/api/export/csv` | Flat CSV export of set data | Coach |
 | `GET` | `/api/export/json` | Hierarchical JSON export | Coach |
 | `GET` | `/api/health` | Liveness and dependency health check | Public |
@@ -983,9 +989,11 @@ The frontend sends delta payloads - only changed fields, not full entities, mini
 ```json
 {
   "schema_version": 1,
+  "mutation_type": "workout",
   "client_device_id": "dev-456",
   "workout_id": "w-abc-123",
   "last_updated_at": "2026-05-29T09:30:00Z",
+  "math_version": "linear-decay-v1",
   "changes": [
     {
       "entity": "ExerciseSet",
@@ -1001,6 +1009,10 @@ The frontend sends delta payloads - only changed fields, not full entities, mini
   ]
 }
 ```
+
+Insight-card flush uses the same envelope with `mutation_type: "insight_card"`, `math_version`, and no `workout_id`. In-flight IndexedDB rows that still carry the legacy `workout_id: "insight-cards"` sentinel are flushed through `/api/insight-cards/sync` without sending that sentinel.
+
+The client always sends `math_version` (`MATH_VERSION` in `backend/math_utils.py` and `src/services/mathEngine.ts`). The server returns 409 `MATH_VERSION_MISMATCH` when the versions differ and includes the server `math_version` on every sync response. The client does not ACK queued mutations on a mismatch. Shared `tests/math_vectors.json` pins e1RM / intensity / INOL set vectors so a formula bump fails both pytest and Vitest.
 
 ### 10.3 Sync Response Structure
 
@@ -1049,7 +1061,7 @@ All non-2xx API responses use one stable envelope so the frontend can render err
 | `422` | Schema-valid JSON that fails domain validation |
 | `429` | Rate limit exceeded |
 
-Common domain error codes include `MICROCYCLE_BOUNDARY_VIOLATION`, `CLIENT_CLOCK_SKEW`, `WORKOUT_LOCKED`, `TOMBSTONE_CONFLICT`, `CLIENT_SCHEMA_UNSUPPORTED`, and `AUTH_SESSION_REVOKED`.
+Common domain error codes include `MICROCYCLE_BOUNDARY_VIOLATION`, `CLIENT_CLOCK_SKEW`, `WORKOUT_LOCKED`, `TOMBSTONE_CONFLICT`, `CLIENT_SCHEMA_UNSUPPORTED`, `MATH_VERSION_MISMATCH`, and `AUTH_SESSION_REVOKED`.
 
 ### 10.5 API Versioning, Pagination, and Request Identity
 
@@ -1173,7 +1185,7 @@ From the repository root:
 | Frontend unit (Vitest) | `npm test` |
 | End-to-end (Playwright) | `npx playwright install chromium` then `npm run test:e2e` |
 
-Shared formula fixtures live in `tests/math_vectors.json` and are consumed by both `pytest` and Vitest.
+Shared formula fixtures live in `tests/math_vectors.json` (`math_version` plus e1RM / intensity / INOL set vectors) and are consumed by both `pytest` and Vitest. A `MATH_VERSION` mismatch fails those tests and 409s sync.
 
 ### 12.1 Unit Tests (Backend - `pytest`)
 
@@ -1217,7 +1229,7 @@ Shared formula fixtures live in `tests/math_vectors.json` and are consumed by bo
 
 | Layer | Technology | Rationale |
 | :--- | :--- | :--- |
-| **Frontend Framework** | React 18 (TypeScript) + Vite | Fast HMR, strong typing, component ecosystem |
+| **Frontend Framework** | React 19 (TypeScript) + Vite 6 | Fast HMR, strong typing; code is React 19 even if older docs said 18 |
 | **Styling** | Tailwind CSS v4 | Utility-first, zero-runtime, matches the dark ink theme system |
 | **State Management** | React Context + Custom Hooks | Lightweight, no external deps, sufficient for single-user session state |
 | **Offline Storage** | IndexedDB | Durable structured storage for mutation queues and cached workout trees |
@@ -1233,35 +1245,60 @@ Shared formula fixtures live in `tests/math_vectors.json` and are consumed by bo
 ```
 adaptive_lifting/
 +-- src/                            # React Frontend
-|   +-- App.tsx                     # Root shell: view routing and chrome
+|   +-- App.tsx                     # Root shell: hash routes + chrome
+|   +-- navigation.ts               # Dashboard modes, legacy redirects, hash parse/write
 |   +-- types.ts                    # TypeScript interfaces (domain shape)
 |   +-- index.css                   # Tailwind config + ink theme tokens
 |   +-- contexts/
 |   |   +-- AuthContext.tsx         # Login status, role, session revocation
 |   |   +-- SyncContext.tsx         # Online/offline, mutation queue, conflicts
 |   |   \-- PeriodizationContext.tsx # Mesocycle/microcycle/workout tree + IndexedDB hydrate
+|   +-- insights/                   # Composable insight cards (types, builder, SVG charts)
 |   +-- services/
 |   |   +-- api.ts                  # HTTP client (fetch wrapper)
-|   |   +-- mathEngine.ts           # Frontend math replication (e1RM, INOL)
-|   |   +-- offlineStore.ts         # IndexedDB mutation queue + snapshots
-|   |   \-- liveTelemetry.ts        # SSE connection and replay handling
+|   |   +-- mathEngine.ts           # Client math for live preview; MATH_VERSION pinned to math_utils.py
+|   |   +-- db.ts                   # IndexedDB mutation queue + snapshots
+|   |   \-- sync_engine.ts          # Workout + insight-card mutation flush
 |   \-- components/
-|       +-- layout/                 # Sidebar, Header, navigation shells
-|       +-- calendar/               # Coach CalendarGrid, drag-drop workouts
-|       \-- sessions/               # ExerciseCard, SetTable, AccessoryLedger
+|       +-- AppShell.tsx / Sidebar.tsx / AthleteScopeSelector.tsx
+|       +-- CalendarView.tsx / SessionsView.tsx / InsightsView.tsx
+|       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
+|       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |
 \-- backend/                        # FastAPI Server
     +-- main.py                     # App entrypoint, routers, middleware
     +-- database.py                 # SQLAlchemy engine, session factory, models
-    +-- schemas.py                  # Pydantic request/response models
-    +-- services/
-    |   +-- sync_service.py          # Mutation validation, idempotency, reconciliation
-    |   +-- lock_service.py          # Workout edit locks
-    |   +-- telemetry_service.py     # DomainEvent publishing and SSE replay
-    |   +-- telegram_service.py      # Mini App auth, bot linking, command parsing, webhook processing
-    |   \-- sheets_service.py        # OAuth, export profiles, Sheets publication jobs
+    +-- analytics_router.py         # Catalog, query, saved insight cards
+    +-- analytics_service.py        # Aggregation against canonical math_utils
+    +-- analytics_registry.py       # Metric/visualization registry (not a router switch)
+    +-- analytics_schemas.py        # Canonical CardConfig Pydantic models
+    +-- exercise_patterns.py        # Pattern catalog + one-time title backfill (not query-time)
+    +-- sync_service.py             # Mutation validation, idempotency, reconciliation
+    +-- integrations.py             # Telegram Mini App + Sheets publish
     \-- math_utils.py               # Canonical math (e1RM, INOL, ACWR, DOTS)
 ```
+
+Code layout is flat `src/components/*` (not `layout/` / `calendar/` / `sessions/` folders). Backend logic lives in `backend/*.py` modules rather than a `services/` package. `backend/schemas.py` does not exist; Pydantic models sit beside routers (`analytics_schemas.py`, inline models in `main.py`).
+
+### 13.3 Navigation model
+
+The PWA has no react-router. Workspaces are hash routes written by `src/navigation.ts`:
+
+- `#/calendar`, `#/sessions`, `#/insights`, `#/integrations`, `#/security`
+- Optional query: `athlete=<id>`, `panel=athlete-scope`
+- Legacy `#/roster`, `#/athletes`, `?view=roster` redirect to calendar and open the sidebar athlete-plan selector
+- Legacy `#/analytics` redirects to Insights
+- Telegram Mini App still enters at `/?tg_auth=true`; if `view=` is present it is resolved through the same redirect table
+
+Left sidebar is the single home for navigation and athlete plan scope. Athlete Roster is not a top-level tab. Coach code generate/link stays on Security. Sidebar collapsed state is `al_sidebar_collapsed` (UI pref only).
+
+Insights cards are saved per user (`InsightCard`) and executed against the currently scoped athlete plan space. Card *results* are not persisted; the client caches the last query payload in IndexedDB (`insight_result:{id}`) and marks it stale when served from cache or while offline.
+
+**Query plan (weekday_matrix / heatmap over a block):** one SQL join of `workouts × exercises × sets × microcycles` filtered by owner and date window, then in-memory group-by. Avoids N+1. If a window regularly exceeds ~50,000 set rows, add a materialized `daily_set_facts` table keyed by `(owner_id, date, pattern)` — extension point documented on `fetch_set_rows`. ISO week is an analytics grain only, not a Mon–Sun scheduling container.
+
+Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview. `MATH_VERSION` (`linear-decay-v1`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build.
+
+Pattern-scoped cards (`weekday_matrix`, spacing vs e1RM) read `exercises.movement_pattern`. New lifts store the catalog field; existing rows are backfilled once via `pattern_for(title, lift_category)`. Query time does not re-run the title heuristic.
 
 ---
 

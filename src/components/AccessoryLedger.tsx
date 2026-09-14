@@ -1,5 +1,5 @@
 import { ExerciseCard } from './ExerciseCard';
-import { ExerciseData } from '../types';
+import { ExerciseData, LiftMetaPatch } from '../types';
 
 export const AccessoryLedger = ({
   exercises,
@@ -11,7 +11,7 @@ export const AccessoryLedger = ({
 }: {
   exercises: ExerciseData[],
   onUpdateSets: (exerciseId: string, sets: ExerciseData['sets']) => void,
-  onUpdateMeta?: (exerciseId: string, patch: { variation: string; tier: 'Comp' | 'Variation' }) => void | Promise<void>,
+  onUpdateMeta?: (exerciseId: string, patch: LiftMetaPatch) => void | Promise<void>,
   onRemove?: (exerciseId: string) => void | Promise<void>,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete'
@@ -36,6 +36,7 @@ export const AccessoryLedger = ({
           tags={exercise.tags}
           tier={exercise.tier}
           liftCategory={exercise.liftCategory}
+          movementPattern={exercise.movementPattern}
           initialSets={exercise.sets}
           onUpdateSets={(updatedSets) => onUpdateSets(exercise.id, updatedSets)}
           onUpdateMeta={onUpdateMeta ? (patch) => onUpdateMeta(exercise.id, patch) : undefined}

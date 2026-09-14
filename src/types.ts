@@ -1,3 +1,5 @@
+import type { MovementPattern } from './services/exerciseCatalog';
+
 export interface SetData {
   id: string;
   label: string;
@@ -21,12 +23,19 @@ export interface SetData {
   baseline_e1rm?: number;
 }
 
+export type LiftMetaPatch = {
+  variation?: string;
+  tier?: 'Comp' | 'Variation' | 'Accessory';
+  movementPattern?: MovementPattern;
+};
+
 export interface ExerciseData {
   id: string;
   title: string;
   variation: string;
   tier?: 'Comp' | 'Variation' | 'Accessory';
   liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
+  movementPattern?: MovementPattern;
   tags: string[];
   top: string;
   vol: string;
@@ -75,6 +84,7 @@ function accessoryExercise(
     variation: 'Accessory',
     tier: 'Accessory',
     liftCategory: 'Other',
+    movementPattern: 'Misc',
     tags: ['Accessory'],
     top: logged ? `${logged.actual}kg x ${logged.reps}` : '—',
     vol: logged && plannedWeight ? `${(logged.actual * logged.reps * setCount).toLocaleString()}kg` : '—',

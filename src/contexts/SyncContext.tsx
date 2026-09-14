@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getPendingMutations } from '../services/db';
-import { isLockSyncCode, processSyncQueue } from '../services/sync_engine';
+import { isInsightCardMutation, isLockSyncCode, processInsightCardSync, processSyncQueue } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
 import { WorkoutLockBanner } from '../components/WorkoutLockBanner';
 
@@ -45,7 +45,18 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       void (async () => {
         try {
           const pending = await getPendingMutations();
-          const workoutIds = [...new Set(pending.map((m) => m.workout_id).filter(Boolean))] as string[];
+          if (pending.some(isInsightCardMutation)) {
+            const cardConflicts = await processInsightCardSync();
+            if (cardConflicts && cardConflicts.length > 0) {
+              setConflicts((prev) => [...prev, ...cardConflicts.filter(isTrueConflict)]);
+            }
+          }
+          const workoutIds = [...new Set(
+            pending
+              .filter((m) => !isInsightCardMutation(m))
+              .map((m) => m.workout_id)
+              .filter(Boolean),
+          )] as string[];
           for (const id of workoutIds) {
             const nextConflicts = await processSyncQueue(id);
             if (nextConflicts && nextConflicts.length > 0) {

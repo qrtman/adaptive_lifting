@@ -52,7 +52,7 @@ test('athlete enters coach code in Security to link', async ({ browser, playwrig
     await expect(athletePage.getByTestId('athlete-link-success')).toBeVisible();
 
     await coachPage.reload();
-    await expect(coachPage.getByTestId('coach-athlete-switcher')).toContainText(athleteEmail);
+    await expect(coachPage.getByTestId('athlete-scope-selector')).toContainText(athleteEmail);
   } finally {
     await coachPage.close();
     await athletePage.close();
