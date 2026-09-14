@@ -21,6 +21,12 @@ export interface SetData {
   target_value?: number;
   adjustment_pct?: number;
   baseline_e1rm?: number;
+  suggestedWeight?: number | null;
+  e1rm?: number | null;
+  intensityPct?: number | null;
+  inol?: number | null;
+  plannedPct?: number | null;
+  e1rmSource?: 'server' | 'preview';
 }
 
 export type LiftMetaPatch = {
@@ -125,6 +131,14 @@ export interface WorkoutData {
   color: 'mac-green' | 'mac-blue' | 'orange' | 'gray';
   exercises: ExerciseData[];
   status: WorkoutStatus;
+  notes?: string | null;
+  summary?: {
+    tonnage: number;
+    setCount: number;
+    inol: number;
+    avgIntensity: number | null;
+  };
+  mathVersion?: string;
 }
 
 export interface MicrocycleData {

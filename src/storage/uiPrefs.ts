@@ -13,6 +13,9 @@ export const UI_KEYS = {
   activeAthleteId: 'al_active_athlete_id',
   deviceId: 'al_client_device_id',
   sidebarCollapsed: 'al_sidebar_collapsed',
+  weekStartsOn: 'al_week_starts_on',
+  inspectorWidth: 'al_inspector_width',
+  gridHiddenCols: 'al_grid_hidden_cols',
 } as const;
 
 const LEGACY_UI_MAP: Array<[string, string]> = [

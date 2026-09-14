@@ -164,8 +164,10 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (activeMicrocycleId) setUiPref(UI_KEYS.activeMicrocycleId, activeMicrocycleId);
   }, [activeMicrocycleId]);
 
-  const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
-  const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
+  const activeMicro = microcycles.find(m => m.id === activeMicrocycleId)
+    || microcycles.find(m => m.workouts.some(w => w.id === activeWorkoutId));
+  const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId)
+    || microcycles.flatMap(m => m.workouts).find(w => w.id === activeWorkoutId);
 
   const saveTimers = useRef<Record<string, number>>({});
   const pendingSetWrites = useRef<Record<string, Parameters<typeof apiService.replaceExerciseSets>[2]>>({});
@@ -184,6 +186,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       actual: row.actual ?? null,
       reps: row.reps ?? null,
       executedRpe: row.executedRpe ?? null,
+      note: row.note ?? null,
     }));
     pendingSetWrites.current[exerciseId] = payload;
     void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload });

@@ -44,9 +44,10 @@ import hashlib
 import secrets
 
 from .set_writes import replace_exercise_sets
-from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
+from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series, MATH_VERSION
 from .exercise_patterns import PATTERNS, pattern_for
 from .accessory_migration import coerce_float, coerce_int
+from .session_metrics import format_set_metrics, summary_for_workout
 
 from sqlalchemy import text
 # Make sure SQLite tables exist on launch
@@ -470,6 +471,7 @@ def format_exercise(e: Exercise) -> dict:
             set_dict["dropPercent"] = s.dropPercent
         if s.note is not None:
             set_dict["note"] = s.note
+        set_dict.update(format_set_metrics(s))
         sets_list.append(set_dict)
 
     return {
@@ -486,6 +488,31 @@ def format_exercise(e: Exercise) -> dict:
     }
 
 
+def format_workout(w: Workout, exercises_list: Optional[List[dict]] = None) -> dict:
+    if exercises_list is None:
+        exercises_list = [
+            format_exercise(e)
+            for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
+            if is_live(e)
+        ]
+    return {
+        "id": w.id,
+        "date": w.date,
+        "dayLabel": w.dayLabel,
+        "title": w.title,
+        "tonnage": w.tonnage,
+        "delta": w.delta,
+        "color": w.color,
+        "status": w.status,
+        "blockLabel": getattr(w, "block_label", None),
+        "weekLabel": getattr(w, "week_label", None),
+        "notes": getattr(w, "notes", None),
+        "summary": summary_for_workout(w),
+        "mathVersion": MATH_VERSION,
+        "exercises": exercises_list,
+    }
+
+
 def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
@@ -495,19 +522,7 @@ def format_microcycle(mc: Microcycle) -> dict:
             if is_live(e)
         ]
 
-        workouts_list.append({
-            "id": w.id,
-            "date": w.date,
-            "dayLabel": w.dayLabel,
-            "title": w.title,
-            "tonnage": w.tonnage,
-            "delta": w.delta,
-            "color": w.color,
-            "status": w.status,
-            "blockLabel": getattr(w, "block_label", None),
-            "weekLabel": getattr(w, "week_label", None),
-            "exercises": exercises_list,
-        })
+        workouts_list.append(format_workout(w, exercises_list))
 
     return {
         "id": mc.id,
@@ -1347,6 +1362,7 @@ class UpdateSessionRequest(BaseModel):
     blockLabel: Optional[str] = None
     weekLabel: Optional[str] = None
     status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class BulkLabelsRequest(BaseModel):
@@ -1813,6 +1829,8 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
             workout.color = "gray"
         else:
             workout.color = "mac-blue"
+    if req.notes is not None:
+        workout.notes = req.notes
     db.commit()
     db.refresh(workout)
     return {
@@ -1823,9 +1841,29 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
         "status": workout.status,
         "blockLabel": workout.block_label,
         "weekLabel": workout.week_label,
+        "notes": workout.notes,
+        "summary": summary_for_workout(workout),
         "microcycleId": workout.microcycle_id,
         "ownerId": workout.owner_id,
+        "mathVersion": MATH_VERSION,
     }
+
+
+@app.get("/api/sessions/{session_id}/summary")
+def get_session_summary(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    workout = db.query(Workout).filter(Workout.id == session_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Session not found")
+    owner_id = workout.owner_id
+    if not owner_id and workout.microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+        owner_id = mc.owner_id if mc else None
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Session has no owner")
+    assert_plan_access(db, current_user, owner_id)
+    body = format_workout(workout)
+    body["mathVersion"] = MATH_VERSION
+    return body
 
 
 @app.delete("/api/sessions/{session_id}")

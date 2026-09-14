@@ -46,7 +46,7 @@ function NavButton({
       data-testid={testId}
       title={label}
       onClick={() => onNavigate(mode)}
-      className={`w-full px-2 h-8 rounded flex items-center gap-2 text-left text-body ${`}
+      className={`w-full px-2 h-8 rounded flex items-center gap-2 text-left text-body ${
         collapsed ? 'justify-center' : ''
       } ${
         active ? 'bg-white/10 text-fg-strong' : 'text-fg-muted hover:text-fg-strong hover:bg-white/5'

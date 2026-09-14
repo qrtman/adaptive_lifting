@@ -42,9 +42,9 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await pattern.selectOption('Hip Dominant');
   await expect(pattern).toHaveValue('Hip Dominant');
 
-  await expect(page.getByRole('columnheader', { name: /Plan/ }).first()).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Rx/ })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: /Planned load/ }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Actual load/ }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^Rx$/ })).toHaveCount(0);
 
   await typeCell(page.getByTestId('rx-weight').first(), '180');
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');

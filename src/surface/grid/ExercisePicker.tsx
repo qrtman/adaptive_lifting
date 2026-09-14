@@ -1,17 +1,17 @@
 import { useMemo, useState } from 'react';
-import { apiService } from '../services/api';
+import { apiService } from '../../services/api';
 import {
   CATALOG_EXERCISES,
   EXERCISE_CATEGORIES,
   filterCatalog,
   type CatalogExercise,
   type ExerciseCategory,
-} from '../services/exerciseCatalog';
-import { compileVariation, defaultModifiers } from '../services/liftVariation';
-import { CenteredDialog } from './CenteredDialog';
-import { LiftVariationPicker } from './LiftVariationPicker';
+} from '../../services/exerciseCatalog';
+import { compileVariation, defaultModifiers } from '../../services/liftVariation';
+import { CenteredDialog } from '../../components/CenteredDialog';
+import { LiftVariationPicker } from '../../components/LiftVariationPicker';
 
-export function AddLiftBar({
+export function ExercisePicker({
   sessionId,
   onAdded,
 }: {
@@ -79,18 +79,18 @@ export function AddLiftBar({
   };
 
   return (
-    <div className="px-2 py-3 border-t border-white/10">
+    <div className="px-2 py-3 border-t border-border">
       <button
-          type="button"
-          data-testid="add-lift"
-          onClick={() => {
-            reset();
-            setOpen(true);
-          }}
-          className="h-8 px-3 text-xs text-white bg-white/10 rounded"
-        >
-          Add lift
-        </button>
+        type="button"
+        data-testid="add-lift"
+        onClick={() => {
+          reset();
+          setOpen(true);
+        }}
+        className="h-8 px-3 text-caption text-fg-strong bg-white/10 rounded"
+      >
+        Add lift
+      </button>
       {open && (
         <CenteredDialog
           title="Select Exercise & Modifiers"
@@ -99,21 +99,10 @@ export function AddLiftBar({
           testId="add-lift-dialog"
           footer={(
             <>
-              <button
-                type="button"
-                data-testid="add-lift-cancel"
-                onClick={() => setOpen(false)}
-                className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
-              >
+              <button type="button" data-testid="add-lift-cancel" onClick={() => setOpen(false)} className="h-8 px-3 text-caption text-fg-muted hover:text-fg-strong">
                 Cancel
               </button>
-              <button
-                type="button"
-                data-testid="add-lift-confirm"
-                disabled={busy || !selected}
-                onClick={() => void addLift()}
-                className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
-              >
+              <button type="button" data-testid="add-lift-confirm" disabled={busy || !selected} onClick={() => void addLift()} className="h-8 px-3 text-caption text-fg-strong bg-accent rounded disabled:opacity-40">
                 {busy ? 'Adding…' : 'Confirm'}
               </button>
             </>
@@ -122,7 +111,7 @@ export function AddLiftBar({
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Category</span>
+                <span className="text-micro uppercase tracking-wider text-fg-subtle">Category</span>
                 <select
                   data-testid="add-lift-category"
                   value={category}
@@ -132,7 +121,7 @@ export function AddLiftBar({
                     setExerciseName('');
                     setVariation('');
                   }}
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
                 >
                   <option value="">—</option>
                   {EXERCISE_CATEGORIES.map((item) => (
@@ -141,19 +130,19 @@ export function AddLiftBar({
                 </select>
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Search Exercises</span>
+                <span className="text-micro uppercase tracking-wider text-fg-subtle">Search Exercises</span>
                 <input
                   data-testid="add-lift-search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search"
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
                 />
               </label>
             </div>
             {category === 'User Defined' ? (
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <span className="text-micro uppercase tracking-wider text-fg-subtle">Exercise</span>
                 <input
                   data-testid="add-lift-custom-name"
                   value={customName}
@@ -163,17 +152,17 @@ export function AddLiftBar({
                     setTier('Accessory');
                   }}
                   placeholder="Name this lift"
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
                 />
               </label>
             ) : (
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <span className="text-micro uppercase tracking-wider text-fg-subtle">Exercise</span>
                 <select
                   data-testid="add-lift-exercise"
                   value={exerciseName}
                   onChange={(event) => pickExercise(event.target.value)}
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
                 >
                   <option value="">Select exercise</option>
                   {options.map((item) => (
@@ -195,11 +184,9 @@ export function AddLiftBar({
                 }}
               />
             ) : (
-              <p className="text-xs text-[#AEAEB2]">Select an exercise to configure modifiers.</p>
+              <p className="text-caption text-fg-muted">Select an exercise to configure modifiers.</p>
             )}
-            {error && (
-              <p className="text-xs text-[#FF453A]" data-testid="add-lift-error">{error}</p>
-            )}
+            {error && <p className="text-caption text-error" data-testid="add-lift-error">{error}</p>}
           </div>
         </CenteredDialog>
       )}

@@ -512,6 +512,7 @@ export const apiService = {
       dayLabel?: string;
       blockLabel?: string | null;
       weekLabel?: string | null;
+      notes?: string | null;
       status?: string;
     }
   ): Promise<Partial<WorkoutData>> {
@@ -632,6 +633,7 @@ export const apiService = {
       actual?: number | null;
       reps?: number | null;
       executedRpe?: number | null;
+      note?: string | null;
     }>
   ): Promise<import('../types').ExerciseData> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}/sets`, {
@@ -651,6 +653,7 @@ export const apiService = {
           actual: row.actual,
           reps: row.reps,
           executedRpe: row.executedRpe,
+          note: row.note,
         })),
       }),
     });

@@ -69,6 +69,7 @@ class Workout(Base, TimestampMixin):
     athlete_bw = Column(Float, nullable=True)
     block_label = Column(String, nullable=True)
     week_label = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
     owner_id = Column(String, ForeignKey("users.id"), nullable=True)
     microcycle_id = Column(String, ForeignKey("microcycles.id"), nullable=True)
 

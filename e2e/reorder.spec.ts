@@ -53,34 +53,27 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await addNamedLift('Horizontal Push', 'Bench');
   await addNamedLift('Hip Dominant', 'Deadlift');
 
-  const liftHeadings = page.locator('.border-b.border-white\\/10 h4');
+  const liftHeadings = page.getByRole('heading', { level: 4 });
   await expect(liftHeadings).toHaveText(['Squat', 'Bench', 'Deadlift']);
 
   const moved = page.waitForResponse((res) =>
     res.url().includes('/exercises/') && res.request().method() === 'PATCH'
   );
-  await page.getByRole('heading', { name: 'Bench', exact: true })
-    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]')
-    .getByRole('button', { name: 'Up', exact: true })
-    .click();
+  await page.getByTestId(/^exercise-header-/).filter({ hasText: 'Bench' }).getByRole('button', { name: 'Up', exact: true }).click();
   expect((await moved).ok()).toBeTruthy();
   await expect(liftHeadings).toHaveText(['Bench', 'Squat', 'Deadlift']);
 
   await page.reload();
-  await expect(page.locator('.border-b.border-white\\/10 h4')).toHaveText(['Bench', 'Squat', 'Deadlift']);
-  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
-    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]');
-  await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('180');
-  await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expect(page.getByRole('heading', { level: 4 })).toHaveText(['Bench', 'Squat', 'Deadlift']);
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
+  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('—');
 
   await page.getByTestId('session-complete').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
   await expect(page.getByTestId('session-open')).toHaveCount(0);
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Up', exact: true }).first()).toBeEnabled();
-  const squatPlan = page.getByRole('heading', { name: 'Squat', exact: true })
-    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]')
-    .getByTestId('rx-weight').first();
+  const squatPlan = page.getByTestId('rx-weight').nth(1);
   await squatPlan.click();
   await expect(squatPlan).toBeEditable();
   await squatPlan.fill('182.5');

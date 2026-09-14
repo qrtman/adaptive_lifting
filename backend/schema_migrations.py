@@ -44,8 +44,17 @@ def apply_001_movement_pattern(db: Session) -> None:
     db.commit()
 
 
+def apply_002_session_notes(db: Session) -> None:
+    try:
+        db.execute(text("ALTER TABLE workouts ADD COLUMN notes TEXT"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 MIGRATIONS = (
     ("001_movement_pattern", apply_001_movement_pattern),
+    ("002_session_notes", apply_002_session_notes),
 )
 
 

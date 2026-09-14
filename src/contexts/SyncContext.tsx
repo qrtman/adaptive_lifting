@@ -17,13 +17,15 @@ interface SyncState {
   pendingCount: number;
   triggerSync: (workout_id: string) => void;
   conflicts: any[];
+  locks: SyncLockNotice[];
 }
 
 const SyncContext = createContext<SyncState>({
   isOnline: true,
   pendingCount: 0,
   triggerSync: () => {},
-  conflicts: []
+  conflicts: [],
+  locks: [],
 });
 
 export const useSync = () => useContext(SyncContext);
@@ -140,7 +142,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   };
 
   return (
-    <SyncContext.Provider value={{ isOnline, pendingCount, triggerSync, conflicts }}>
+    <SyncContext.Provider value={{ isOnline, pendingCount, triggerSync, conflicts, locks }}>
       {children}
       {(mathStale || locks.length > 0 || conflicts.length > 0) && (
         <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm mx-auto">
