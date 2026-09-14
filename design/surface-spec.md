@@ -28,18 +28,33 @@ Interaction spec for the month calendar, set grid, and right inspector. Tokens l
 
 ### Day cell
 
-- Date number (`--text-mini`, mono).
-- Session chips: height `--chip-height`, pad `--chip-pad-x`, truncate.
-  - Label: session `title` if set and not the default "Session"; else primary `movement_pattern` of first live exercise (Knee Dominant → SQ-style abbrev from pattern, not title heuristic).
-  - Status color: planned `--color-prescribed`, in-progress `--color-syncing`, completed `--color-ok`, missed `--color-missed`.
-  - Optional meta: set count if > 0, else omit; tonnage if > 0 as `12.4t` compact.
-- Overflow: show N chips that fit (`--day-cell-min-h`); then `+N more` opens the **day popover**.
+- Default: date number (`--text-mini`, mono) and **real session chips only**. Empty in-month days have no “New session” text or fake chip.
+- Hover, `:focus-within`, or calendar day focus reveals two **ghost** actions (20–24px, ink ghost buttons): `+` (New session) and a note icon. They are not chips and must not cover chips.
+- Hit testing:
+  - `+` → day-anchored quick-create
+  - note → notes flow (below)
+  - chip → inspector; double-click / Enter on chip → grid-focused inspector
+  - remaining padding → **select the day** (does not create)
+  - `+N more` → day popover
+- Week-strip / touch: no permanent “New session”. A `⋯` control or long-press exposes the two actions. Tap chip still opens the inspector.
 
-### Empty day click / `n`
+### Empty day `n` / hover `+`
 
-- Quick-create popover (not a full-screen dialog on desktop). Date prefilled, title, Block, Week.
-- Confirm: `POST /api/sessions`, enqueue nothing extra if the POST succeeds; if offline, queue is not yet a session-create mutation — **decision:** keep online POST for create (existing API); if offline, disable confirm and show the sync bar. Do not invent a new create-mutation type in this slice unless POST is wrapped later.
-- Success opens the inspector on that session (`#/calendar?session=<id>`).
+- Quick-create is a **day-anchored popover**, min width `--inspector-snap-a` (360). Not a centered mini-modal. Below `--bp-inspector-overlay`, use the existing inspector overlay.
+- Fields: **Name combobox** (existing plan titles, most recent first, creatable; empty disables Create), Block, Week (same combobox primitive), optional Notes.
+- Confirm: `POST /api/sessions`. If notes were entered, `PATCH` notes after create. Offline: disable confirm (no new create-mutation type).
+- Success closes the popover and opens the inspector at snap B (560) (`#/calendar?session=<id>`).
+- Esc / Cancel / backdrop: no create.
+
+### Name / Block / Week
+
+- APG combobox (`role="combobox"` + listbox): typeahead, Arrow/Enter/Esc. Enter uses an existing name or creates a new one. Not a free-text field defaulting to “Session”.
+
+### Notes from the day (no day-notes entity)
+
+- 0 sessions: create popover with Notes focused.
+- 1 session: open inspector and focus session Notes.
+- N sessions: day popover with a Note action per row, then inspector Notes.
 
 ### Chip click
 
@@ -56,7 +71,7 @@ Interaction spec for the month calendar, set grid, and right inspector. Tokens l
 | Key | Action |
 | :--- | :--- |
 | Arrows | Move day focus |
-| Enter | Day popover if chips exist; else quick-create |
+| Enter | Day popover (even if empty). `n` / ghost `+` creates |
 | `n` | Quick-create on focused day |
 | `[` / `]` | Previous / next month |
 | `t` | Today (focus + scroll) |
@@ -76,7 +91,8 @@ Inside the inspector always. Full route `#/sessions/:id/grid` for viewports ≥ 
 
 ### Structure
 
-- Rows: one per set, grouped by exercise. Exercise header row: title, `movement_pattern` select, variation Edit, reorder handles.
+- Rows: one per set, grouped by exercise. Exercise header row: title, compact **pattern badge** (click → listbox; closes on select, Esc, focus leave, or when a set cell is editing), variation Edit, icon toolbar (`+` set, reorder, remove). One header row so Actual load / Actual reps stay visible at inspector snap A.
+- Pattern is never an open `<select>` while sets are being edited.
 - Columns, fixed order, hideable via column menu (pref `al_grid_hidden_cols` JSON array):
 
 | Col | Key | Editable | Notes |

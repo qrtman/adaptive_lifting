@@ -84,6 +84,7 @@ export function SetGrid({
   onMoveExercise: (exerciseId: string, move: 'up' | 'down') => void;
   onRemoveExercise: (exerciseId: string) => void;
   onAnnounce?: (message: string) => void;
+  key?: string;
 }) {
   const liveRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => rowsFromWorkout(workout), [workout]);
@@ -195,6 +196,7 @@ export function SetGrid({
                     locked={locked}
                     canMoveUp={idx > 0}
                     canMoveDown={idx >= 0 && idx < exerciseIds.length - 1}
+                    collapsed={Boolean(state.editing)}
                     onPattern={(value) => onPattern(row.exerciseId, value)}
                     onEdit={() => onEditExercise(row.exerciseId)}
                     onAddSet={() => onAddSet(row.exerciseId)}

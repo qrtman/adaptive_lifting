@@ -20,6 +20,8 @@ test('calendar deep link opens inspector; keyboard create stays on calendar', as
 
   const day = page.getByTestId('calendar-day-2026-09-14');
   await day.click();
+  await expect(page.getByTestId('new-session-dialog')).toHaveCount(0);
+  await page.keyboard.press('n');
   await expect(page.getByTestId('new-session-dialog')).toBeVisible();
   await page.getByTestId('new-session-title').fill('Surface day');
   await page.getByTestId('new-session-create').click();

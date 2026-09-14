@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LiftFilter, type LiftFilterValue } from '../../components/LiftFilter';
-import { NewSessionDialog } from '../../components/NewSessionDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePeriodization } from '../../contexts/PeriodizationContext';
 import { useSync } from '../../contexts/SyncContext';
@@ -8,6 +7,7 @@ import { apiService } from '../../services/api';
 import { queueMutation } from '../../services/sync_engine';
 import { getUiPref, setUiPref, UI_KEYS } from '../../storage/uiPrefs';
 import { MonthCalendar } from '../../surface/calendar/MonthCalendar';
+import { QuickCreatePopover } from '../../surface/calendar/QuickCreatePopover';
 import { rescheduleFields } from '../../surface/calendar/chipLabel';
 import { todayIso } from '../../surface/calendar/monthModel';
 import { BP_WEEK_STRIP, calendarLayout, inspectorOverlays, INSPECTOR_SNAP_B } from '../../surface/breakpoints';
@@ -61,6 +61,8 @@ export function CalendarWorkspace({
   const [focusedIso, setFocusedIso] = useState(todayIso(now));
   const [filter, setFilter] = useState<LiftFilterValue>('All');
   const [createIso, setCreateIso] = useState<string | null>(null);
+  const [createFocusNotes, setCreateFocusNotes] = useState(false);
+  const [focusInspectorNotes, setFocusInspectorNotes] = useState(false);
   const [popoverIso, setPopoverIso] = useState<string | null>(null);
   const [copySource, setCopySource] = useState<WorkoutData | null>(null);
   const [copyWithLogs, setCopyWithLogs] = useState(false);
@@ -119,11 +121,33 @@ export function CalendarWorkspace({
     void reloadMicrocycles(planAthleteId);
   });
 
-  const open = (workout: WorkoutData, grid?: boolean) => {
+  const open = (workout: WorkoutData, grid?: boolean, notes?: boolean) => {
     const microId = entries.find((item) => item.workout.id === workout.id)?.microId || '';
     setActiveWorkoutId(workout.id);
     setActiveMicrocycleId(microId);
+    setFocusInspectorNotes(Boolean(notes));
     onOpenSession(workout, microId, grid);
+  };
+
+  const startCreate = (iso: string, notes = false) => {
+    if (copySource || showCoachSelectAthlete) return;
+    setPopoverIso(null);
+    setCreateFocusNotes(notes);
+    setCreateIso(iso);
+  };
+
+  const handleNote = (iso: string) => {
+    const list = sessionsByDate.get(iso) || [];
+    if (!list.length) {
+      startCreate(iso, true);
+      return;
+    }
+    if (list.length === 1) {
+      setPopoverIso(null);
+      open(list[0], false, true);
+      return;
+    }
+    setPopoverIso(iso);
   };
 
   const reschedule = async (workout: WorkoutData, date: string) => {
@@ -171,13 +195,7 @@ export function CalendarWorkspace({
   };
 
   const handleOpenDay = (iso: string) => {
-    if (copySource) {
-      void copyToDate(iso);
-      return;
-    }
-    const list = sessionsByDate.get(iso) || [];
-    if (list.length) setPopoverIso(iso);
-    else setCreateIso(iso);
+    if (copySource) void copyToDate(iso);
   };
 
   const onCommit = useCallback((commits: GridCommit[]) => {
@@ -224,9 +242,14 @@ export function CalendarWorkspace({
           onYearMonth={({ year: y, month: m }) => { setYear(y); setMonth(m); }}
           onFocus={setFocusedIso}
           onOpenDay={handleOpenDay}
-          onCreate={(iso) => { if (!copySource && !showCoachSelectAthlete) setCreateIso(iso); }}
+          onCreate={(iso) => startCreate(iso)}
+          onNote={handleNote}
           onOpenSession={(workout) => open(workout, false)}
           onOpenGrid={(workout) => open(workout, true)}
+          onOpenNotes={(workout) => {
+            setPopoverIso(null);
+            open(workout, false, true);
+          }}
           onReschedule={reschedule}
           onCopy={setCopySource}
           onPopoverIso={setPopoverIso}
@@ -241,13 +264,17 @@ export function CalendarWorkspace({
           overlay={overlay}
           width={inspectorWidth}
           gridFocus={gridFocus}
+          focusNotes={focusInspectorNotes}
           conflicts={conflicts.filter((c) => c.workout_id === sessionId).map((c) => ({
             field: c.field_path || 'State',
             server: c.reason || 'server',
             client: 'local edit',
           }))}
           onWidth={setInspectorWidth}
-          onClose={onCloseSession}
+          onClose={() => {
+            setFocusInspectorNotes(false);
+            onCloseSession();
+          }}
           onNotes={(notes) => {
             void queueMutation(openWorkout.id, 'Workout', openWorkout.id, { notes });
             if (isOnline) void apiService.updateSession(openWorkout.id, { notes });
@@ -279,14 +306,23 @@ export function CalendarWorkspace({
         />
       ) : null}
       {createIso ? (
-        <NewSessionDialog
+        <QuickCreatePopover
           date={createIso}
           athleteId={planAthleteId}
-          onClose={() => setCreateIso(null)}
+          overlay={overlay}
+          focusNotes={createFocusNotes}
+          online={isOnline}
+          onClose={() => {
+            setCreateIso(null);
+            setCreateFocusNotes(false);
+          }}
           onCreated={async (created) => {
             setCreateIso(null);
+            setCreateFocusNotes(false);
+            setInspectorWidth(INSPECTOR_SNAP_B);
             setActiveWorkoutId(created.id);
             if (created.microcycleId) setActiveMicrocycleId(created.microcycleId);
+            if (createFocusNotes || created.notes) setFocusInspectorNotes(true);
             await reloadMicrocycles(planAthleteId);
             onOpenSession(created, created.microcycleId || '', false);
           }}

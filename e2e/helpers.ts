@@ -41,6 +41,13 @@ export async function fillLogCell(page: Page, cellId: string, value: string | nu
   await typeCell(cell, String(value));
 }
 
+export async function fillCombo(page: Page, testId: string, value: string) {
+  const input = page.getByTestId(testId);
+  await input.click();
+  await input.fill(value);
+  await input.press('Enter');
+}
+
 export async function html5Drag(page: Page, sourceTestId: string, targetTestId: string) {
   const source = page.getByTestId(sourceTestId);
   const target = page.getByTestId(targetTestId);

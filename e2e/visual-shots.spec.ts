@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { fillCombo } from './helpers';
 
 const ARTIFACTS = fs.existsSync('/opt/cursor/artifacts')
   ? '/opt/cursor/artifacts'
@@ -26,12 +27,11 @@ test('desktop and narrow calendar/grid/inspector screenshots', async ({ page, re
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByTestId('calendar-day-2026-09-14').click();
+  await page.keyboard.press('n');
   await expect(page.getByTestId('new-session-dialog')).toBeVisible();
   await page.getByTestId('new-session-title').fill('Meet prep');
-  await page.getByTestId('new-session-block').selectOption('__new__');
-  await page.getByTestId('new-session-block-custom').fill('Hypertrophy');
-  await page.getByTestId('new-session-week').selectOption('__new__');
-  await page.getByTestId('new-session-week-custom').fill('Week1');
+  await fillCombo(page, 'new-session-block', 'Hypertrophy');
+  await fillCombo(page, 'new-session-week', 'Week1');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-inspector')).toBeVisible();
   await page.getByTestId('add-lift').click();

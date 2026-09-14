@@ -1,7 +1,5 @@
-import { useMemo, useState } from 'react';
+import { ComboBox } from '../surface/ui/ComboBox';
 import type { MicrocycleData } from '../types';
-
-const NEW_VALUE = '__new__';
 
 export function uniquePlanLabels(
   microcycles: MicrocycleData[],
@@ -17,6 +15,20 @@ export function uniquePlanLabels(
   return Array.from(seen).sort((a, b) => a.localeCompare(b));
 }
 
+export function uniquePlanTitles(microcycles: MicrocycleData[]): string[] {
+  const workouts = microcycles.flatMap((micro) => micro.workouts);
+  workouts.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const workout of workouts) {
+    const title = workout.title?.trim();
+    if (!title || seen.has(title)) continue;
+    seen.add(title);
+    out.push(title);
+  }
+  return out;
+}
+
 export function LabelCombo({
   label,
   value,
@@ -30,54 +42,16 @@ export function LabelCombo({
   options: string[];
   testId: string;
 }) {
-  const known = useMemo(() => {
-    const seen = new Set<string>();
-    const list: string[] = [];
-    for (const raw of options) {
-      const item = raw.trim();
-      if (!item || seen.has(item)) continue;
-      seen.add(item);
-      list.push(item);
-    }
-    return list;
-  }, [options]);
-
-  const [adding, setAdding] = useState(() => Boolean(value.trim()) && !known.includes(value.trim()));
-  const custom = adding || (value.trim() !== '' && !known.includes(value.trim()));
-  const selectValue = custom ? NEW_VALUE : value;
-
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-micro uppercase tracking-wider text-fg-subtle">{label}</span>
-      <select
-        data-testid={testId}
-        value={selectValue}
-        onChange={(event) => {
-          const next = event.target.value;
-          if (next === NEW_VALUE) {
-            setAdding(true);
-            if (known.includes(value)) onChange('');
-            return;
-          }
-          setAdding(false);
-          onChange(next);
-        }}
-        className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
-      >
-        <option value="">None</option>
-        {known.map((item) => (
-          <option key={item} value={item}>{item}</option>
-        ))}
-        <option value={NEW_VALUE}>Add new…</option>
-      </select>
-      {custom ? (
-        <input
-          data-testid={`${testId}-custom`}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
-        />
-      ) : null}
-    </label>
+    <ComboBox
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={options}
+      testId={testId}
+      allowEmpty
+      allowCreate
+      emptyLabel="None"
+    />
   );
 }

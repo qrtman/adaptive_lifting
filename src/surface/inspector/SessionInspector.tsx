@@ -19,6 +19,7 @@ export function SessionInspector({
   overlay,
   width,
   gridFocus,
+  focusNotes,
   conflicts,
   onWidth,
   onClose,
@@ -41,6 +42,7 @@ export function SessionInspector({
   overlay: boolean;
   width: number;
   gridFocus?: boolean;
+  focusNotes?: boolean;
   conflicts?: Array<{ field: string; server: string; client: string }>;
   onWidth: (width: number) => void;
   onClose: () => void;
@@ -67,9 +69,13 @@ export function SessionInspector({
   }, [workout.notes, workout.id]);
 
   useEffect(() => {
+    if (focusNotes) {
+      document.querySelector<HTMLTextAreaElement>('[data-testid="session-notes"]')?.focus();
+      return;
+    }
     if (!gridFocus) return;
     document.querySelector<HTMLElement>('[data-testid="set-grid"]')?.focus();
-  }, [gridFocus, workout.id]);
+  }, [gridFocus, focusNotes, workout.id]);
 
   return (
     <aside
@@ -149,7 +155,7 @@ export function SessionInspector({
           disabled={locked}
           onChange={(event) => setNotes(event.target.value)}
           onBlur={() => onNotes(notes)}
-          className="h-16 bg-canvas border border-border rounded p-1 text-caption text-fg"
+          className="min-h-24 bg-canvas border border-border rounded p-1 text-caption text-fg resize-y"
         />
       </label>
       {editOpen ? (

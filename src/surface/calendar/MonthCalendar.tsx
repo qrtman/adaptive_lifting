@@ -39,8 +39,10 @@ export function MonthCalendar({
   onFocus,
   onOpenDay,
   onCreate,
+  onNote,
   onOpenSession,
   onOpenGrid,
+  onOpenNotes,
   onReschedule,
   onCopy,
   onPopoverIso,
@@ -61,8 +63,10 @@ export function MonthCalendar({
   onFocus: (iso: string) => void;
   onOpenDay: (iso: string) => void;
   onCreate: (iso: string) => void;
+  onNote: (iso: string) => void;
   onOpenSession: (workout: WorkoutData) => void;
   onOpenGrid: (workout: WorkoutData) => void;
+  onOpenNotes: (workout: WorkoutData) => void;
   onReschedule: (workout: WorkoutData, date: string) => void;
   onCopy?: (workout: WorkoutData) => void;
   onPopoverIso: (iso: string | null) => void;
@@ -78,7 +82,8 @@ export function MonthCalendar({
       const mapped = calendarShortcut(event);
       if (!mapped) return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest('[data-testid="set-grid"]') || target?.closest('input, textarea, select')) return;
+      if (target?.closest('[data-testid="set-grid"]') || target?.closest('input, textarea, select, [role="combobox"], [role="listbox"], [data-testid="new-session-dialog"]')) return;
+      if (mapped.type === 'open' && target?.closest('button')) return;
       event.preventDefault();
       if (mapped.type === 'move') onFocus(moveFocus(focusedIso, mapped.key, days));
       else if (mapped.type === 'prevMonth') onYearMonth(shiftMonth(year, month, -1));
@@ -88,12 +93,12 @@ export function MonthCalendar({
         onYearMonth({ year: now.getFullYear(), month: now.getMonth() });
         onFocus(todayIso(now));
       } else if (mapped.type === 'create') onCreate(focusedIso);
-      else if (mapped.type === 'open') onOpenDay(focusedIso);
+      else if (mapped.type === 'open') onPopoverIso(focusedIso);
       else if (mapped.type === 'escape') onPopoverIso(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [days, focusedIso, month, onCreate, onFocus, onOpenDay, onPopoverIso, onYearMonth, year]);
+  }, [days, focusedIso, month, onCreate, onFocus, onPopoverIso, onYearMonth, year]);
 
   const dragStart = (event: DragEvent, workout: WorkoutData) => {
     event.dataTransfer.effectAllowed = 'move';
@@ -115,7 +120,7 @@ export function MonthCalendar({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-canvas" data-testid="month-calendar" data-layout={layout} tabIndex={0}>
+    <div className="relative flex-1 flex flex-col overflow-hidden bg-canvas" data-testid="month-calendar" data-layout={layout} tabIndex={0}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
         <div className="flex items-center gap-2">
           <h2 data-testid="calendar-month-label" className="text-ui text-fg-strong">
@@ -160,12 +165,17 @@ export function MonthCalendar({
                     day={day}
                     today={day.iso === today}
                     focused={day.iso === focusedIso}
+                    layout={layout}
                     sessions={sessionsByDate.get(day.iso) || []}
                     highlightedIds={highlightedIds}
                     copyMode={copyMode}
                     onFocus={() => onFocus(day.iso)}
-                    onActivate={() => onOpenDay(day.iso)}
+                    onActivate={() => {
+                      onFocus(day.iso);
+                      onOpenDay(day.iso);
+                    }}
                     onCreate={() => onCreate(day.iso)}
+                    onNote={() => onNote(day.iso)}
                     onOpenSession={onOpenSession}
                     onOpenGrid={onOpenGrid}
                     onMore={() => onPopoverIso(day.iso)}
@@ -210,6 +220,7 @@ export function MonthCalendar({
             onOpenSession={onOpenSession}
             onOpenGrid={onOpenGrid}
             onCreate={() => onCreate(popoverIso)}
+            onNote={(workout) => onOpenNotes(workout)}
           />
         </div>
       ) : null}

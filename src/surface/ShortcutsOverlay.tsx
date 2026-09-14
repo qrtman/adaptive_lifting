@@ -1,7 +1,7 @@
 export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
   const rows: Array<[string, string]> = [
     ['Arrows', 'Move day or grid selection'],
-    ['Enter', 'Open day / start cell edit'],
+    ['Enter', 'Open day popover / start cell edit'],
     ['n', 'New session on focused day'],
     ['[ ]', 'Previous / next month'],
     ['t', 'Today'],

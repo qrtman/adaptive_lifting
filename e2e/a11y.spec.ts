@@ -25,6 +25,8 @@ test('axe pass on calendar, grid, and inspector', async ({ page, request }) => {
   expect(calendarScan.violations, JSON.stringify(calendarScan.violations, null, 2)).toEqual([]);
 
   await page.getByTestId('calendar-day-2026-09-14').click();
+  await expect(page.getByTestId('new-session-dialog')).toHaveCount(0);
+  await page.keyboard.press('n');
   await expect(page.getByTestId('new-session-dialog')).toBeVisible();
   await page.getByTestId('new-session-title').fill('Axe session');
   await page.getByTestId('new-session-create').click();
