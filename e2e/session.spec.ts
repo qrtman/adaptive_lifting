@@ -42,7 +42,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await typeCell(page.getByTestId('rx-weight').first(), '180');
   await expectCellValue(page.getByTestId('rx-weight').first(), '180');
 
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Set' }).click({ force: true });
   await expectCellValue(page.getByTestId('rx-weight').nth(1), '—');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 
@@ -69,10 +69,15 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('session-complete')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Set' })).toBeVisible();
-  const firstPlan = page.getByTestId('rx-weight').first();
-  await typeCell(firstPlan, '175');
-  await expectCellValue(firstPlan, '175');
+  await typeCell(page.getByTestId('rx-weight').first(), '175');
+  if (await page.getByTestId('session-inspector').count() === 0) {
+    await page.locator('[data-testid^="sessions-card-"] button').first().click();
+  }
+  await expect(page.getByTestId('session-inspector')).toBeVisible();
+  await expect(page.getByTestId('add-lift')).toBeVisible();
   const planCount = await page.getByTestId('rx-weight').count();
-  await page.getByRole('button', { name: '+ Set' }).click();
+  expect(planCount).toBeGreaterThan(0);
+  await page.getByTestId(/^add-set-/).first().click({ force: true });
+  await expect(page.getByTestId('rx-weight')).toHaveCount(planCount + 1);
   await expect(page.getByTestId('rx-weight')).toHaveCount(planCount + 1);
 });

@@ -3,6 +3,7 @@ import { trainingIntOrZero, trainingOrZero } from '../../services/numericTrainin
 import { validateCell } from './gridValidation';
 import {
   ACTUAL_COLS,
+  EDITABLE_COLS,
   PLANNED_COLS,
   cellKey,
   defaultFocusCol,
@@ -168,20 +169,32 @@ export function gridReducer(state: GridState, action: GridAction): GridState {
     }
     case 'syncRows': {
       const pending = { ...state.pending };
-      for (const key of Object.keys(pending)) {
-        const parsed = parseCellKey(key);
-        if (!parsed) continue;
-        const incoming = action.rows.find((row) => row.kind === 'set' && row.setId === parsed.setId);
-        const local = state.rows.find((row) => row.kind === 'set' && row.setId === parsed.setId);
-        if (
-          incoming && incoming.kind === 'set'
-          && local && local.kind === 'set'
-          && valueFor(incoming.values, parsed.col) === valueFor(local.values, parsed.col)
-        ) {
-          delete pending[key];
+      const rows = action.rows.map((row) => {
+        if (row.kind !== 'set') return row;
+        const local = state.rows.find((item) => item.kind === 'set' && item.setId === row.setId);
+        if (!local || local.kind !== 'set') return row;
+        let values = row.values;
+        for (const col of EDITABLE_COLS) {
+          const key = cellKey(row.setId, col);
+          if (!pending[key]) continue;
+          if (valueFor(row.values, col) === valueFor(local.values, col)) {
+            delete pending[key];
+          } else {
+            const kept = col === 'note'
+              ? local.values.note
+              : col === 'plannedWeight' ? local.values.plannedWeight
+                : col === 'plannedReps' ? local.values.plannedReps
+                  : col === 'plannedRpe' ? local.values.plannedRpe
+                    : col === 'actual' ? local.values.actual
+                      : col === 'reps' ? local.values.reps
+                        : col === 'executedRpe' ? local.values.executedRpe
+                          : null;
+            values = applyField(values, col, kept);
+          }
         }
-      }
-      return { ...state, rows: action.rows, pending };
+        return values === row.values ? row : { ...row, values };
+      });
+      return { ...state, rows, pending };
     }
     case 'setLocked':
       return { ...state, locked: action.locked, editing: action.locked ? null : state.editing };

@@ -140,6 +140,19 @@ describe('grid state machine', () => {
     expect(cellKind(state, { row: 0, col: 2 }, 's1', 'plannedWeight')).toBe('locked');
   });
 
+  it('keeps optimistic pending values when syncRows is stale', () => {
+    let state = ready();
+    state = gridReducer(state, { type: 'startEdit' });
+    state = gridReducer(state, { type: 'editBuffer', buffer: '180' });
+    state = gridReducer(state, { type: 'commit' });
+    const stale = ready().rows;
+    state = gridReducer(state, { type: 'syncRows', rows: stale });
+    const row = state.rows[0];
+    if (row.kind !== 'set') throw new Error('expected set');
+    expect(row.values.plannedWeight).toBe(180);
+    expect(state.pending['s1:plannedWeight']).toBe(true);
+  });
+
   it('clears pending when syncRows matches the optimistic value', () => {
     let state = ready();
     state = gridReducer(state, { type: 'startEdit' });

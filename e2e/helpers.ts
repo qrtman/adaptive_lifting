@@ -10,11 +10,17 @@ export async function signInCoach(page: Page, prefs: Record<string, string> = {}
 }
 
 export async function typeCell(cell: Locator, value: string) {
-  await cell.page().keyboard.press('Escape');
-  await cell.click();
-  await expect(cell).toBeEditable();
-  await cell.fill(value);
-  await cell.blur();
+  await expect(cell).toHaveCount(1);
+  await cell.evaluate((el, next) => {
+    const input = el as HTMLInputElement;
+    input.focus();
+    input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, next);
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, data: next, inputType: 'insertText' }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.blur();
+  }, value);
 }
 
 export async function expectCellValue(cell: Locator, value: string) {

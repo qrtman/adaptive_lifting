@@ -53,7 +53,7 @@ export function DayCell({
         if (day.inMonth) event.preventDefault();
       }}
       onDrop={day.inMonth ? onDrop : undefined}
-      className={`min-h-[var(--day-cell-min-h)] p-1 border border-border flex flex-col gap-0.5 ${
+      className={`group/day min-h-[var(--day-cell-min-h)] p-1 border border-border flex flex-col gap-0.5 ${
         day.inMonth ? 'bg-cell hover:bg-cell-hover' : 'bg-canvas text-fg-subtle'
       } ${today ? 'ring-1 ring-accent' : ''} ${focused ? 'bg-cell-selected' : ''}`}
     >

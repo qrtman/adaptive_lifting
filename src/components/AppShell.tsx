@@ -39,7 +39,7 @@ export const AppShell = ({
         onAthleteScopeFocused={onAthleteScopeFocused}
       />
       <main
-        className={`flex-1 flex flex-col h-screen overflow-hidden ${sidebarCollapsed ? 'ml-[var(--sidebar-collapsed)]' : 'ml-[var(--sidebar-expanded)]'}`}
+        className={`relative flex-1 flex flex-col h-screen overflow-hidden ${sidebarCollapsed ? 'ml-[var(--sidebar-collapsed)]' : 'ml-[var(--sidebar-expanded)]'}`}
         data-testid="app-main"
         data-sidebar={sidebarCollapsed ? 'collapsed' : 'expanded'}
       >
@@ -47,7 +47,7 @@ export const AppShell = ({
           <div
             data-testid="sync-status"
             data-state={!isOnline ? 'offline' : 'syncing'}
-            className={`h-7 flex items-center px-4 text-mini font-mono shrink-0 ${
+            className={`absolute top-0 left-0 right-0 z-20 h-7 flex items-center px-4 text-mini font-mono ${
               !isOnline
                 ? 'bg-error/20 text-error border-b border-error/30'
                 : 'bg-syncing/20 text-syncing border-b border-syncing/30'

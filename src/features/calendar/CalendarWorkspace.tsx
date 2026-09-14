@@ -10,7 +10,7 @@ import { getUiPref, setUiPref, UI_KEYS } from '../../storage/uiPrefs';
 import { MonthCalendar } from '../../surface/calendar/MonthCalendar';
 import { rescheduleFields } from '../../surface/calendar/chipLabel';
 import { todayIso } from '../../surface/calendar/monthModel';
-import { BP_WEEK_STRIP, calendarLayout, inspectorOverlays, INSPECTOR_SNAP_A } from '../../surface/breakpoints';
+import { BP_WEEK_STRIP, calendarLayout, inspectorOverlays, INSPECTOR_SNAP_B } from '../../surface/breakpoints';
 import { SessionInspector } from '../../surface/inspector/SessionInspector';
 import { ShortcutsOverlay } from '../../surface/ShortcutsOverlay';
 import type { WorkoutData } from '../../types';
@@ -67,7 +67,7 @@ export function CalendarWorkspace({
   const [copyError, setCopyError] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   const [highlight, setHighlight] = useState<Set<string>>(new Set());
-  const [inspectorWidth, setInspectorWidth] = useState(() => Number(getUiPref(UI_KEYS.inspectorWidth)) || INSPECTOR_SNAP_A);
+  const [inspectorWidth, setInspectorWidth] = useState(() => Number(getUiPref(UI_KEYS.inspectorWidth)) || INSPECTOR_SNAP_B);
   const weekStartsOn = (Number(getUiPref(UI_KEYS.weekStartsOn) || '1') === 0 ? 0 : 1) as 0 | 1;
 
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';

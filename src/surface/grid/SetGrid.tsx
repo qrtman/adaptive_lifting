@@ -87,6 +87,11 @@ export function SetGrid({
   const cols = visibleCols(state.hiddenCols);
   const exerciseIds = workout.exercises.map((ex) => ex.id);
 
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+  const onAnnounceRef = useRef(onAnnounce);
+  onAnnounceRef.current = onAnnounce;
+
   useEffect(() => {
     dispatch({ type: 'hydrate', rows, role, locked });
   }, [workout.id, role, locked]);
@@ -96,12 +101,12 @@ export function SetGrid({
   }, [rows]);
 
   useEffect(() => {
-    if (state.committed && state.committed.length) {
-      onCommit(state.committed);
-      onAnnounce?.(state.committed.length === 1 ? 'Cell saved' : `${state.committed.length} cells saved`);
-      dispatch({ type: 'clearCommitted' });
-    }
-  }, [onAnnounce, onCommit, state.committed]);
+    if (!state.committed?.length) return;
+    const commits = state.committed;
+    dispatch({ type: 'clearCommitted' });
+    onCommitRef.current(commits);
+    onAnnounceRef.current?.(commits.length === 1 ? 'Cell saved' : `${commits.length} cells saved`);
+  }, [state.committed]);
 
   const onGridKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (state.editing) return;

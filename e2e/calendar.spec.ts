@@ -60,8 +60,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('session-labels')).toHaveText('Hypertrophy · Week1');
   await page.getByRole('button', { name: 'Back' }).click();
   await day.hover();
-  await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
-  await page.getByRole('button', { name: 'Copy to' }).click();
+  await expect(day.getByRole('button', { name: 'Copy to' })).toBeVisible();
+  await day.getByRole('button', { name: 'Copy to' }).click();
   await expect(page.getByTestId('copy-to-banner')).toBeVisible();
   await page.getByTestId('calendar-day-2026-09-11').click();
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);

@@ -112,7 +112,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     const interval = window.setInterval(async () => {
       try {
         const pending = await getPendingMutations();
-        setPendingCount(pending.length);
+        setPendingCount((current) => (current === pending.length ? current : pending.length));
       } catch (e) {
         // Ignore DB not ready yet
       }

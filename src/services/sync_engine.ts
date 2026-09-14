@@ -187,9 +187,9 @@ async function postSync(
         );
         return [{ reason: code, workout_id: lockWorkoutId, message }];
       }
-      if (isLockSyncCode(code) || code === '409_CONFLICT') {
+      if (isLockSyncCode(code)) {
         window.dispatchEvent(new CustomEvent('sync-lock', {
-          detail: { workout_id: lockWorkoutId, code: code === '409_CONFLICT' ? 'WORKOUT_LOCKED' : code, message },
+          detail: { workout_id: lockWorkoutId, code, message },
         }));
         return [];
       }

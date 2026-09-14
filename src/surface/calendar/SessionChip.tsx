@@ -25,7 +25,7 @@ export function SessionChip({
       data-testid={`workout-card-${workout.id}`}
       draggable={Boolean(onDragStart)}
       onDragStart={onDragStart}
-      className={`h-[var(--chip-height)] px-[var(--chip-pad-x)] max-w-[var(--chip-max-w)] rounded-[var(--chip-radius)] border flex items-center gap-1 ${chipStatusClass(workout.status)} ${highlighted ? 'ring-1 ring-accent' : 'bg-cell'}`}
+      className={`group/chip h-[var(--chip-height)] px-[var(--chip-pad-x)] max-w-[var(--chip-max-w)] rounded-[var(--chip-radius)] border flex items-center gap-1 ${chipStatusClass(workout.status)} ${highlighted ? 'ring-1 ring-accent' : 'bg-cell'}`}
     >
       <button
         type="button"
@@ -51,7 +51,7 @@ export function SessionChip({
             event.stopPropagation();
             onCopy();
           }}
-          className="text-micro text-fg-muted hover:text-fg-strong shrink-0"
+          className="text-micro text-fg-muted hover:text-fg-strong shrink-0 opacity-0 group-hover/chip:opacity-100 group-hover/day:opacity-100 focus:opacity-100"
         >
           Copy to
         </button>

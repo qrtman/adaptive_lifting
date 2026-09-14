@@ -6,7 +6,7 @@ import { EditSessionDialog } from '../../components/EditSessionDialog';
 import { CenteredDialog } from '../../components/CenteredDialog';
 import { LiftVariationPicker } from '../../components/LiftVariationPicker';
 import { compileVariation, defaultModifiers } from '../../services/liftVariation';
-import { INSPECTOR_SNAP_A } from '../breakpoints';
+import { INSPECTOR_SNAP_A, INSPECTOR_SNAP_B } from '../breakpoints';
 import { ExercisePicker } from '../grid/ExercisePicker';
 import { SetGrid } from '../grid/SetGrid';
 import type { GridCommit, GridRole } from '../grid/gridTypes';
@@ -95,7 +95,10 @@ export function SessionInspector({
         <button
           type="button"
           data-testid="session-complete"
-          onClick={() => onStatus('COMPLETED')}
+          onClick={(event) => {
+            event.preventDefault();
+            onStatus('COMPLETED');
+          }}
           className="h-7 px-2 text-mini bg-ok text-canvas rounded ml-auto"
         >
           Complete
@@ -104,7 +107,7 @@ export function SessionInspector({
           <button
             type="button"
             className="h-7 px-2 text-micro text-fg-muted"
-            onClick={() => onWidth(width === INSPECTOR_SNAP_A ? 560 : INSPECTOR_SNAP_A)}
+            onClick={() => onWidth(width === INSPECTOR_SNAP_A ? INSPECTOR_SNAP_B : INSPECTOR_SNAP_A)}
           >
             Width
           </button>
@@ -122,7 +125,7 @@ export function SessionInspector({
         <div><span className="block text-micro text-fg-subtle uppercase">INOL</span>{summary?.inol ?? '—'}</div>
         <div><span className="block text-micro text-fg-subtle uppercase">Avg int</span>{summary?.avgIntensity ?? '—'}</div>
       </div>
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-auto flex flex-col min-h-0">
         <SetGrid
           workout={workout}
           role={role}

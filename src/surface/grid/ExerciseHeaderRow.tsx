@@ -49,7 +49,7 @@ export function ExerciseHeaderRow({
             Edit
           </button>
           {!locked ? (
-            <button type="button" onClick={onAddSet} className="h-6 px-1.5 text-caption text-fg-muted hover:text-fg-strong">
+            <button type="button" data-testid={`add-set-${exerciseId}`} onClick={onAddSet} className="h-6 px-1.5 text-caption text-fg-muted hover:text-fg-strong">
               + Set
             </button>
           ) : null}

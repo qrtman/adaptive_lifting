@@ -9,7 +9,7 @@ import { LiftFilter, type LiftFilterValue } from '../../components/LiftFilter';
 import { NewSessionDialog } from '../../components/NewSessionDialog';
 import { EditSessionDialog } from '../../components/EditSessionDialog';
 import { PATTERN_ABBREV } from '../../surface/calendar/chipLabel';
-import { inspectorOverlays, INSPECTOR_SNAP_A } from '../../surface/breakpoints';
+import { inspectorOverlays, INSPECTOR_SNAP_B } from '../../surface/breakpoints';
 import { SessionInspector } from '../../surface/inspector/SessionInspector';
 import { addSetBelow, applyCommits } from '../plan/sessionActions';
 import { queueMutation } from '../../services/sync_engine';
@@ -74,7 +74,7 @@ export function SessionsListMode({
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [copyOffsetDays, setCopyOffsetDays] = useState<Record<string, number>>({});
-  const [inspectorWidth, setInspectorWidth] = useState(() => Number(getUiPref(UI_KEYS.inspectorWidth)) || INSPECTOR_SNAP_A);
+  const [inspectorWidth, setInspectorWidth] = useState(() => Number(getUiPref(UI_KEYS.inspectorWidth)) || INSPECTOR_SNAP_B);
   const overlay = typeof window !== 'undefined' ? inspectorOverlays(window.innerWidth) : false;
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const showCoachSelectAthlete = isCoach && !activeAthleteId;

@@ -52,7 +52,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await addNamedLift('Horizontal Push', 'Bench');
   await addNamedLift('Hip Dominant', 'Deadlift');
 
-  const liftHeadings = page.getByRole('heading', { level: 4 });
+  const liftHeadings = page.getByTestId('set-grid').getByRole('heading', { level: 4 });
   await expect(liftHeadings).toHaveText(['Squat', 'Bench', 'Deadlift']);
 
   const moved = page.waitForResponse((res) =>
@@ -63,7 +63,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(liftHeadings).toHaveText(['Bench', 'Squat', 'Deadlift']);
 
   await page.reload();
-  await expect(page.getByRole('heading', { level: 4 })).toHaveText(['Bench', 'Squat', 'Deadlift']);
+  await expect(page.getByTestId('set-grid').getByRole('heading', { level: 4 })).toHaveText(['Bench', 'Squat', 'Deadlift']);
   await expectCellValue(page.getByTestId('rx-weight').nth(1), '180');
   await expectCellValue(page.getByTestId('rx-weight').nth(2), '—');
 

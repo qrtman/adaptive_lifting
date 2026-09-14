@@ -11,6 +11,7 @@ import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { CalendarWorkspace } from './features/calendar/CalendarWorkspace';
 import { SessionsListMode } from './features/sessions/SessionsListMode';
+import { BP_WEEK_STRIP } from './surface/breakpoints';
 import type { WorkoutData } from './types';
 
 export default function App() {
@@ -23,6 +24,10 @@ export default function App() {
   const [gridFocus, setGridFocus] = useState(() => initialLocation.grid);
   const [focusAthleteScope, setFocusAthleteScope] = useState(() => initialLocation.panel === 'athlete-scope');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
+  const [narrowViewport, setNarrowViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < BP_WEEK_STRIP : false
+  );
+  const [mobileSidebarExpanded, setMobileSidebarExpanded] = useState(false);
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -43,6 +48,12 @@ export default function App() {
   useEffect(() => {
     setUiPref(UI_KEYS.sidebarCollapsed, sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const onResize = () => setNarrowViewport(window.innerWidth < BP_WEEK_STRIP);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (focusAthleteScope && sidebarCollapsed) setSidebarCollapsed(false);
@@ -91,8 +102,11 @@ export default function App() {
     <AppShell
       dashboardMode={dashboardMode}
       onNavigate={handleNavigate}
-      sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+      sidebarCollapsed={narrowViewport ? !mobileSidebarExpanded : sidebarCollapsed}
+      onToggleSidebar={() => {
+        if (narrowViewport) setMobileSidebarExpanded((value) => !value);
+        else setSidebarCollapsed((value) => !value);
+      }}
       focusAthleteScope={focusAthleteScope}
       onAthleteScopeFocused={() => setFocusAthleteScope(false)}
       onResetPlan={async () => {
