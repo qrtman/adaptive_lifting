@@ -1,3 +1,5 @@
+import { Tab, TabList, Tabs } from './ui/Tabs';
+
 export type LiftFilterValue = 'All' | 'Squat' | 'Bench' | 'Deadlift';
 
 export function LiftFilter({
@@ -8,19 +10,18 @@ export function LiftFilter({
   onChange: (value: LiftFilterValue) => void;
 }) {
   return (
-    <div className="flex items-center gap-0.5">
-      {(['All', 'Squat', 'Bench', 'Deadlift'] as const).map((lift) => (
-        <button
-          key={lift}
-          type="button"
-          onClick={() => onChange(lift)}
-          className={`px-2 h-7 text-xs rounded ${
-            value === lift ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
-          }`}
-        >
-          {lift}
-        </button>
-      ))}
-    </div>
+    <Tabs value={value} onChange={(next) => onChange(next as LiftFilterValue)}>
+      <TabList label="Lift filter" className="flex items-center gap-0.5">
+        {(['All', 'Squat', 'Bench', 'Deadlift'] as const).map((lift) => (
+          <Tab
+            key={lift}
+            id={lift}
+            className="px-2 h-7 text-xs rounded"
+          >
+            {lift}
+          </Tab>
+        ))}
+      </TabList>
+    </Tabs>
   );
 }

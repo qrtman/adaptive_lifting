@@ -278,12 +278,12 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 +-------------------+------------------------------------------------------------------------------+
 | Persistent Sidebar| Top KPI Strip: Squat Max (kg) | Bench Max (kg) | Deadlift Max (kg) | ACWR    |
 | [240px width]     |------------------------------------------------------------------------------|
-| - Calendar Grid   | Primary Work Area:                                                           |
-| - Athletes Roster |                                                                              |
-| - Analytics Engine|   [Structured Builder Card | Meet Day Planner Table | Telemetry Streams]     |
-| - Exports/Outbox  |                                                                              |
-| - Integrations    |                                                                              |
-| - Security Center | Right Drawer Rail: Writer Locks status | Tombstone Conflict Review Panel     |
+| - Athlete plan    | Primary Work Area:                                                           |
+| - Calendar        |                                                                              |
+| - Sessions        |   [Structured Builder Card | Meet Day Planner Table | Telemetry Streams]     |
+| - Insights        |                                                                              |
+| - Integrations    | Right Drawer Rail: Writer Locks status | Tombstone Conflict Review Panel     |
+| - Security        |                                                                              |
 +-------------------+------------------------------------------------------------------------------+
 ```
 
@@ -301,14 +301,14 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 +====================================+
 | Primary Workspaces:                |
 |                                    |
-| [ ] Calendar Grid                  |
-|     (Mesocycle planning cards)     |
+| [ ] Calendar                       |
+|     (Date-first month grid)        |
 |                                    |
-| [✓] Athletes Roster  [ 3 Alerts ]  |
-|     *active highlight*             |
+| [ ] Sessions                       |
+|     (Block/Week grouped list)      |
 |                                    |
-| [ ] Analytics Engine               |
-|     (e1RM, INOL, ACWR curves)      |
+| [✓] Insights                       |
+|     (Composable saved cards)       |
 +====================================+
 | Operations & Integrations:         |
 |                                    |
@@ -342,8 +342,8 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 * **Outer Borders**: Vertical structural border: `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`) on the right boundary.
 * **Component Groupings**:
   * **Top**: Brand Header and Monitored Athlete Scope Panel.
-  * **Middle**: Primary Workspaces navigation items (Calendar, Roster, Analytics).
-  * **Bottom**: Operations & Integrations (Sheets, Telegram, Security) and the System Metrics Footer.
+  * **Middle**: Primary Workspaces navigation items (Calendar, Sessions, Insights).
+  * **Bottom**: Operations & Integrations (Integrations, Security) and the System Metrics Footer.
 
 ##### State Transitions (Default vs. Maximized)
 * **Default State (Expanded Layout)**: The left sidebar consumes `240px` of horizontal space. The main content workspace operates in a reduced viewport budget of `calc(100vw - 240px)`.
@@ -354,9 +354,9 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * Athlete's thumbnail circle.
   * Active name and real-time SSE stream status: Mapped in `--ok-green` if connection is streaming, or pulsing `--ok-amber` if syncing offline mutations queue.
 * **Workspace Links Navigation Group:** Navigation items highlighted in `--ok-blue` border tags when active:
-  * **Calendar Grid:** Maps the mesocycle schedules blocks.
-  * **Athletes Roster:** Displays athlete list, incorporating a compact badge showing pending active alerts (e.g. `3 Alerts` in `--ok-amber` under acute workloads spikes).
-  * **Analytics Engine:** Visualizes trending performance diagnostics charts.
+  * **Calendar:** Date-first month grid for the scoped athlete plan.
+  * **Sessions:** List grouped by Block/Week labels when present.
+  * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace; linked athletes are chosen in the Athlete plan selector above this list.
 * **Operations & Integrations Navigation Group:**
   * **Sheets Publisher:** Controls one-way spreadsheet target mappings.
   * **Telegram Mini App:** Links Telegram adapter connections.
@@ -604,7 +604,15 @@ When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to 
     * **Local Muscular Supercompensation Peak (Green Highlight / `[PEAK]*`)**: Movement-specific readiness rises above baseline. Characterized by high local motor unit recruitment thresholds and minimal local muscle soreness. Ideal timing to schedule heavy singles or e1RM peak tests for that specific movement category.
     * **Local Nervous System Fatigue Valley (`fatigued`)**: Movement-specific readiness deeply depressed below baseline due to recent heavy spinal or upper-body loading cycles. Cap top sets at RPE 8.0, reduce backdown sets by -10% for that exercise to allow targeted localized recovery.
 
-#### 6.1.3 Coach Athletes Roster Workspace Layout Spec
+#### 6.1.3 Coach athlete plan selector (relocated roster)
+
+The former Athletes Roster workspace is **not** a top-level tab. Its scope-selection job lives in the left sidebar **Athlete plan** control (`AthleteScopeSelector`). Coach code generate/link remains on Security. Push-program acknowledgement is a Plan actions item on the selector. Deep links `#/roster`, `#/athletes`, and `?view=roster` redirect to `#/calendar?panel=athlete-scope`.
+
+Insights (formerly a hardcoded three-lift tonnage/e1RM strip) is a dedicated workspace of user-composed cards. Card configuration is a structured inspector form. Results come from `POST /api/analytics/query`; the client does not compute RTS metrics for cards.
+
+The historical dual-pane roster console below is retained only as a record of the old layout; do not restore it as a tab.
+
+##### 6.1.3.1 Active Roster & Onboarding View (historical)
 
 ##### Dimensional Constraints
 * **Minimum Workspace Width**: `1200px` for side-by-side pane rendering.

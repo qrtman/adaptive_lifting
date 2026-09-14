@@ -12,6 +12,7 @@ export const UI_KEYS = {
   activeMicrocycleId: 'al_active_microcycle_id',
   activeAthleteId: 'al_active_athlete_id',
   deviceId: 'al_client_device_id',
+  sidebarCollapsed: 'al_sidebar_collapsed',
 } as const;
 
 const LEGACY_UI_MAP: Array<[string, string]> = [

@@ -3,6 +3,7 @@ import { getSnapshot, saveSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
+import type { AnalyticsCatalog, CardConfig, QueryResult, SavedCard } from '../insights/types';
 
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
 
@@ -716,5 +717,63 @@ export const apiService = {
       throw new Error(errData.detail || 'Failed to delete session');
     }
     return await response.json();
+  },
+
+  async fetchAnalyticsCatalog(): Promise<AnalyticsCatalog> {
+    const response = await fetch(`${BACKEND_URL}/api/analytics/catalog`, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to load analytics catalog');
+    return await response.json() as AnalyticsCatalog;
+  },
+
+  async queryInsightCard(config: CardConfig, athleteId?: string | null): Promise<QueryResult> {
+    const response = await fetch(`${BACKEND_URL}/api/analytics/query`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ config, athlete_id: athleteId || undefined }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(apiErrorMessage(errData, 'Analytics query failed'));
+    }
+    return await response.json() as QueryResult;
+  },
+
+  async fetchInsightCards(): Promise<SavedCard[]> {
+    const response = await fetch(`${BACKEND_URL}/api/insight-cards`, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to load insight cards');
+    return await response.json() as SavedCard[];
+  },
+
+  async saveInsightCard(card: SavedCard): Promise<SavedCard> {
+    const putUrl = `${BACKEND_URL}/api/insight-cards/${card.id}`;
+    const postUrl = `${BACKEND_URL}/api/insight-cards`;
+    let response = await fetch(putUrl, {
+      method: 'PUT',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(card),
+    });
+    if (response.status === 404) {
+      response = await fetch(postUrl, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(card),
+      });
+    }
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(apiErrorMessage(errData, 'Failed to save card'));
+    }
+    return await response.json() as SavedCard;
+  },
+
+  async deleteInsightCard(cardId: string): Promise<void> {
+    const response = await fetch(`${BACKEND_URL}/api/insight-cards/${cardId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete card');
   },
 };

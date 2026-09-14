@@ -168,7 +168,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
   const saveTimers = useRef<Record<string, number>>({});
-  const pendingSetWrites = useRef<Record<string, any[]>>({});
+  const pendingSetWrites = useRef<Record<string, Parameters<typeof apiService.replaceExerciseSets>[2]>>({});
 
   const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
     if (!activeWorkoutId) return;
@@ -257,8 +257,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     const pending = pendingSetWrites.current;
     pendingSetWrites.current = {};
     await Promise.all(
-      Object.entries(pending).map(([exerciseId, payload]) =>
-        apiService.replaceExerciseSets(workoutId, exerciseId, payload).catch((err) => {
+      Object.keys(pending).map((exerciseId) =>
+        apiService.replaceExerciseSets(workoutId, exerciseId, pending[exerciseId]).catch((err) => {
           console.error('Failed to save sets', err);
         })
       )

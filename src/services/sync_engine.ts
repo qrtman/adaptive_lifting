@@ -8,6 +8,8 @@ const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localh
 
 export const LOCK_SYNC_CODES = new Set(['WORKOUT_LOCKED']);
 
+export const INSIGHT_CARD_SYNC_SCOPE = 'insight-cards';
+
 function generateMutationId() {
   return 'mut-' + Math.random().toString(36).substr(2, 9);
 }
@@ -116,7 +118,11 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
   try {
     for (const m of pending) await updateMutationStatus(m.mutation_id, 'IN_FLIGHT');
     
-    const response = await fetch(`${BACKEND_URL}/api/workouts/${workout_id}/sync`, {
+    const url = workout_id === INSIGHT_CARD_SYNC_SCOPE
+      ? `${BACKEND_URL}/api/insight-cards/sync`
+      : `${BACKEND_URL}/api/workouts/${workout_id}/sync`;
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -129,7 +135,7 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
       for (const id of result.accepted_mutation_ids || []) {
         await updateMutationStatus(id, 'ACKED');
       }
-      for (const id of result.rejected_mutations || []) {
+      for (const id of result.rejected_mutations || result.rejected_mutation_ids || []) {
         await updateMutationStatus(id, 'REJECTED');
       }
       

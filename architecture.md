@@ -971,7 +971,14 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/integrations/google-sheets/publish` | Publish selected training data to a configured spreadsheet | Coach |
 | `DELETE` | `/api/integrations/google-sheets` | Revoke Google Sheets connection | Coach |
 | `POST` | `/api/sets/{id}/log` | Log actual execution data for a set (including accessory-tier exercises) | Athlete |
-| `GET` | `/api/analytics/inol` | INOL time-series by lift category | Coach / Athlete |
+| `GET` | `/api/analytics/catalog` | Metric/visualization registry, patterns, preset card configs | Coach / Athlete |
+| `POST` | `/api/analytics/query` | Run one insight-card config against a single athlete plan space; returns series, matrix/table, `math_version` | Coach / Athlete |
+| `GET` | `/api/insight-cards` | List saved insight cards for the current user (seeds six presets if empty) | Coach / Athlete |
+| `POST` | `/api/insight-cards` | Create a saved insight-card configuration (layout + query config) | Coach / Athlete |
+| `PUT` | `/api/insight-cards/{id}` | Update a saved insight-card configuration | Coach / Athlete |
+| `DELETE` | `/api/insight-cards/{id}` | Tombstone a saved insight card | Coach / Athlete |
+| `POST` | `/api/insight-cards/sync` | Apply queued InsightCard mutations (same sync payload shape; `workout_id` is the `insight-cards` sentinel) | Coach / Athlete |
+| `GET` | `/api/analytics/trends` | Legacy weekly INOL/e1RM summary (not used by Insights cards) | Coach / Athlete |
 | `GET` | `/api/export/csv` | Flat CSV export of set data | Coach |
 | `GET` | `/api/export/json` | Hierarchical JSON export | Coach |
 | `GET` | `/api/health` | Liveness and dependency health check | Public |
@@ -1217,7 +1224,7 @@ Shared formula fixtures live in `tests/math_vectors.json` and are consumed by bo
 
 | Layer | Technology | Rationale |
 | :--- | :--- | :--- |
-| **Frontend Framework** | React 18 (TypeScript) + Vite | Fast HMR, strong typing, component ecosystem |
+| **Frontend Framework** | React 19 (TypeScript) + Vite 6 | Fast HMR, strong typing; code is React 19 even if older docs said 18 |
 | **Styling** | Tailwind CSS v4 | Utility-first, zero-runtime, matches the dark ink theme system |
 | **State Management** | React Context + Custom Hooks | Lightweight, no external deps, sufficient for single-user session state |
 | **Offline Storage** | IndexedDB | Durable structured storage for mutation queues and cached workout trees |
@@ -1233,35 +1240,58 @@ Shared formula fixtures live in `tests/math_vectors.json` and are consumed by bo
 ```
 adaptive_lifting/
 +-- src/                            # React Frontend
-|   +-- App.tsx                     # Root shell: view routing and chrome
+|   +-- App.tsx                     # Root shell: hash routes + chrome
+|   +-- navigation.ts               # Dashboard modes, legacy redirects, hash parse/write
 |   +-- types.ts                    # TypeScript interfaces (domain shape)
 |   +-- index.css                   # Tailwind config + ink theme tokens
 |   +-- contexts/
 |   |   +-- AuthContext.tsx         # Login status, role, session revocation
 |   |   +-- SyncContext.tsx         # Online/offline, mutation queue, conflicts
 |   |   \-- PeriodizationContext.tsx # Mesocycle/microcycle/workout tree + IndexedDB hydrate
+|   +-- insights/                   # Composable insight cards (types, builder, SVG charts)
 |   +-- services/
 |   |   +-- api.ts                  # HTTP client (fetch wrapper)
-|   |   +-- mathEngine.ts           # Frontend math replication (e1RM, INOL)
-|   |   +-- offlineStore.ts         # IndexedDB mutation queue + snapshots
-|   |   \-- liveTelemetry.ts        # SSE connection and replay handling
+|   |   +-- mathEngine.ts           # Provisional client math for live set-log preview only
+|   |   +-- db.ts                   # IndexedDB mutation queue + snapshots
+|   |   \-- sync_engine.ts          # Workout + insight-card mutation flush
 |   \-- components/
-|       +-- layout/                 # Sidebar, Header, navigation shells
-|       +-- calendar/               # Coach CalendarGrid, drag-drop workouts
-|       \-- sessions/               # ExerciseCard, SetTable, AccessoryLedger
+|       +-- AppShell.tsx / Sidebar.tsx / AthleteScopeSelector.tsx
+|       +-- CalendarView.tsx / SessionsView.tsx / InsightsView.tsx
+|       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
+|       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |
 \-- backend/                        # FastAPI Server
     +-- main.py                     # App entrypoint, routers, middleware
     +-- database.py                 # SQLAlchemy engine, session factory, models
-    +-- schemas.py                  # Pydantic request/response models
-    +-- services/
-    |   +-- sync_service.py          # Mutation validation, idempotency, reconciliation
-    |   +-- lock_service.py          # Workout edit locks
-    |   +-- telemetry_service.py     # DomainEvent publishing and SSE replay
-    |   +-- telegram_service.py      # Mini App auth, bot linking, command parsing, webhook processing
-    |   \-- sheets_service.py        # OAuth, export profiles, Sheets publication jobs
+    +-- analytics_router.py         # Catalog, query, saved insight cards
+    +-- analytics_service.py        # Aggregation against canonical math_utils
+    +-- analytics_registry.py       # Metric/visualization registry (not a router switch)
+    +-- analytics_schemas.py        # Canonical CardConfig Pydantic models
+    +-- exercise_patterns.py        # Title/lift_category -> catalog movement pattern
+    +-- sync_service.py             # Mutation validation, idempotency, reconciliation
+    +-- integrations.py             # Telegram Mini App + Sheets publish
     \-- math_utils.py               # Canonical math (e1RM, INOL, ACWR, DOTS)
 ```
+
+Code layout is flat `src/components/*` (not `layout/` / `calendar/` / `sessions/` folders). Backend logic lives in `backend/*.py` modules rather than a `services/` package. `backend/schemas.py` does not exist; Pydantic models sit beside routers (`analytics_schemas.py`, inline models in `main.py`).
+
+### 13.3 Navigation model
+
+The PWA has no react-router. Workspaces are hash routes written by `src/navigation.ts`:
+
+- `#/calendar`, `#/sessions`, `#/insights`, `#/integrations`, `#/security`
+- Optional query: `athlete=<id>`, `panel=athlete-scope`
+- Legacy `#/roster`, `#/athletes`, `?view=roster` redirect to calendar and open the sidebar athlete-plan selector
+- Legacy `#/analytics` redirects to Insights
+- Telegram Mini App still enters at `/?tg_auth=true`; if `view=` is present it is resolved through the same redirect table
+
+Left sidebar is the single home for navigation and athlete plan scope. Athlete Roster is not a top-level tab. Coach code generate/link stays on Security. Sidebar collapsed state is `al_sidebar_collapsed` (UI pref only).
+
+Insights cards are saved per user (`InsightCard`) and executed against the currently scoped athlete plan space. Card *results* are not persisted; the client caches the last query payload in IndexedDB (`insight_result:{id}`) and marks it stale when served from cache or while offline.
+
+**Query plan (weekday_matrix / heatmap over a block):** one SQL join of `workouts × exercises × sets × microcycles` filtered by owner and date window, then in-memory group-by. Avoids N+1. If a window regularly exceeds ~50,000 set rows, add a materialized `daily_set_facts` table keyed by `(owner_id, date, pattern)` — extension point documented on `fetch_set_rows`. ISO week is an analytics grain only, not a Mon–Sun scheduling container.
+
+Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview (provisional; server remains canonical on sync).
 
 ---
 

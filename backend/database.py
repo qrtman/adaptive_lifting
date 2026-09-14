@@ -242,6 +242,15 @@ class IntegrationOutbox(Base):
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
 
+class InsightCard(Base, TimestampMixin):
+    __tablename__ = "insight_cards"
+    id = Column(String, primary_key=True, index=True)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    config_json = Column(String, nullable=False)
+    layout_json = Column(String, nullable=False, default='{"order":0,"col_span":1}')
+
+
 class SheetPublication(Base, TimestampMixin):
     __tablename__ = "sheet_publications"
     id = Column(String, primary_key=True, index=True)

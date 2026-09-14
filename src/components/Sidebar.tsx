@@ -1,27 +1,23 @@
-import { Calendar, BarChart3, Dumbbell, Link2, Settings, List } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Calendar, BarChart3, Link2, Settings, List, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { usePeriodization } from '../contexts/PeriodizationContext';
-import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
-import type { DashboardMode } from './AppShell';
+import type { DashboardMode } from '../navigation';
+import { AthleteScopeSelector } from './AthleteScopeSelector';
 
 const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
   { mode: 'calendar', label: 'Calendar', testId: 'nav-calendar' },
-  { mode: 'sessions', label: 'Sessions' },
-  { mode: 'roster', label: 'Roster', testId: 'nav-roster' },
-  { mode: 'insights', label: 'Insights' },
+  { mode: 'sessions', label: 'Sessions', testId: 'nav-sessions' },
+  { mode: 'insights', label: 'Insights', testId: 'nav-insights' },
 ];
 
 const OPS: { mode: DashboardMode; label: string; testId?: string }[] = [
-  { mode: 'integrations', label: 'Integrations' },
+  { mode: 'integrations', label: 'Integrations', testId: 'nav-integrations' },
   { mode: 'security', label: 'Security', testId: 'nav-security' },
 ];
 
 const ICONS: Record<DashboardMode, typeof Calendar> = {
   calendar: Calendar,
   sessions: List,
-  roster: Dumbbell,
   insights: BarChart3,
   integrations: Link2,
   security: Settings,
@@ -32,26 +28,32 @@ function NavButton({
   label,
   testId,
   active,
+  collapsed,
   onNavigate,
 }: {
   mode: DashboardMode;
   label: string;
   testId?: string;
   active: boolean;
+  collapsed: boolean;
   onNavigate: (mode: DashboardMode) => void;
+  key?: string;
 }) {
   const Icon = ICONS[mode];
   return (
     <button
       type="button"
       data-testid={testId}
+      title={label}
       onClick={() => onNavigate(mode)}
       className={`w-full px-2 h-8 rounded flex items-center gap-2 text-left text-[13px] ${
+        collapsed ? 'justify-center' : ''
+      } ${
         active ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white hover:bg-white/5'
       }`}
     >
       <Icon size={14} className={active ? 'text-[#007AFF]' : ''} />
-      {label}
+      {!collapsed && label}
     </button>
   );
 }
@@ -60,49 +62,51 @@ export const Sidebar = ({
   dashboardMode,
   onNavigate,
   onResetPlan,
+  collapsed,
+  onToggleCollapse,
+  focusAthleteScope = false,
+  onAthleteScopeFocused,
 }: {
   dashboardMode: DashboardMode;
   onNavigate: (mode: DashboardMode) => void;
   onResetPlan?: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  focusAthleteScope?: boolean;
+  onAthleteScopeFocused?: () => void;
 }) => {
   const { user, roleMode, signOut } = useAuth();
-  const { activeAthleteId, setActiveAthleteId } = usePeriodization();
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
-  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
-  const [roster, setRoster] = useState<{ id: string; email: string }[]>([]);
-
-  useEffect(() => {
-    if (!isCoach) return;
-    let cancelled = false;
-    apiService.fetchRoster()
-      .then((data) => {
-        if (cancelled) return;
-        const linked = Array.isArray(data) ? data : [];
-        setRoster(linked);
-        const ids = new Set(linked.map((athlete) => athlete.id));
-        if (linked.length === 0) {
-          setActiveAthleteId(null);
-          return;
-        }
-        if (!activeAthleteId || !ids.has(activeAthleteId)) {
-          setActiveAthleteId(linked[0].id);
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setRoster([]);
-        setActiveAthleteId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isCoach, setActiveAthleteId]);
+  const widthClass = collapsed ? 'w-[60px] min-w-[60px] max-w-[60px] px-1' : 'w-[240px] min-w-[240px] max-w-[240px] px-3';
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] min-w-[240px] max-w-[240px] bg-[#131313] border-r border-white/10 flex flex-col px-3 py-4 z-50">
-      <div className="px-2 mb-4">
-        <h1 className="text-xs font-semibold text-white tracking-wide uppercase">Adaptive Lifting</h1>
+    <aside
+      data-testid="app-sidebar"
+      data-collapsed={collapsed ? 'true' : 'false'}
+      className={`fixed left-0 top-0 h-screen ${widthClass} bg-[#131313] border-r border-white/10 flex flex-col py-4 z-50`}
+    >
+      <div className={`mb-4 flex items-center ${collapsed ? 'justify-center' : 'px-2 justify-between gap-2'}`}>
+        {!collapsed && (
+          <h1 className="text-xs font-semibold text-white tracking-wide uppercase truncate">Adaptive Lifting</h1>
+        )}
+        <button
+          type="button"
+          data-testid="sidebar-toggle"
+          aria-pressed={collapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={onToggleCollapse}
+          className="h-8 w-8 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+        >
+          {collapsed ? <PanelLeft size={14} /> : <PanelLeftClose size={14} />}
+        </button>
       </div>
+
+      <AthleteScopeSelector
+        collapsed={collapsed}
+        forceOpen={focusAthleteScope}
+        onOpened={onAthleteScopeFocused}
+        onNavigate={onNavigate}
+      />
 
       <nav className="flex-1 flex flex-col gap-4">
         <div className="flex flex-col gap-0.5">
@@ -110,17 +114,21 @@ export const Sidebar = ({
             <NavButton
               key={item.mode}
               {...item}
+              collapsed={collapsed}
               active={dashboardMode === item.mode}
               onNavigate={onNavigate}
             />
           ))}
         </div>
         <div className="flex flex-col gap-0.5">
-          <p className="px-2 pb-1 text-[10px] text-[#636366] uppercase tracking-wider">Ops</p>
+          {!collapsed && (
+            <p className="px-2 pb-1 text-[10px] text-[#636366] uppercase tracking-wider">Ops</p>
+          )}
           {OPS.map((item) => (
             <NavButton
               key={item.mode}
               {...item}
+              collapsed={collapsed}
               active={dashboardMode === item.mode}
               onNavigate={onNavigate}
             />
@@ -128,37 +136,19 @@ export const Sidebar = ({
         </div>
       </nav>
 
-      {isCoach && (
-        <div className="px-2 pb-3 border-b border-white/10 mb-3">
-          <label htmlFor="athlete-switcher" className="text-[10px] text-[#636366] uppercase tracking-wider block mb-1">
-            Athlete plan
-          </label>
-          <select
-            id="athlete-switcher"
-            data-testid="coach-athlete-switcher"
-            value={activeAthleteId || ''}
-            onChange={(e) => setActiveAthleteId(e.target.value || null)}
-            className="w-full h-8 px-2 rounded bg-[#1a1a1a] border border-white/10 text-[12px] text-white"
-          >
-            <option value="">Select athlete…</option>
-            {roster.map((athlete) => (
-              <option key={athlete.id} value={athlete.id}>
-                {athlete.email}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="pt-3 border-t border-white/10 px-2 flex flex-col gap-1">
-        <p className="text-xs text-white truncate">{email}</p>
-        <p className="text-[11px] text-[#AEAEB2] capitalize">{roleMode}</p>
+      <div className={`pt-3 border-t border-white/10 flex flex-col gap-1 ${collapsed ? 'items-center px-1' : 'px-2'}`}>
+        {!collapsed && (
+          <>
+            <p className="text-xs text-white truncate">{email}</p>
+            <p className="text-[11px] text-[#AEAEB2] capitalize">{roleMode}</p>
+          </>
+        )}
         <button type="button" onClick={signOut} className="text-left text-[12px] text-[#AEAEB2] hover:text-white h-7">
-          Sign out
+          {collapsed ? 'Out' : 'Sign out'}
         </button>
         {onResetPlan && (
           <button type="button" onClick={onResetPlan} className="text-left text-[12px] text-[#AEAEB2] hover:text-red-400 h-7">
-            Reset plan
+            {collapsed ? 'Rst' : 'Reset plan'}
           </button>
         )}
       </div>

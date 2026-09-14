@@ -2,20 +2,20 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
-import { AppShell, type DashboardMode } from './components/AppShell';
+import { AppShell } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
-import { CoachDashboardView } from './components/CoachDashboardView';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
+import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 
 export default function App() {
   const { user, roleMode, setRoleMode } = useAuth();
@@ -29,19 +29,26 @@ export default function App() {
     resetPlan,
     reloadMicrocycles,
     planAthleteId,
+    setActiveAthleteId,
   } = usePeriodization();
+
+  const [initialLocation] = useState(() => parseAppLocation());
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
     const saved = getUiPref(UI_KEYS.appView);
     return saved === 'session' ? 'session' : 'dashboard';
   });
 
-  const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => {
-    return (getUiPref(UI_KEYS.dashboardMode) as DashboardMode) || 'sessions';
-  });
+  const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => initialLocation.mode);
+  const [focusAthleteScope, setFocusAthleteScope] = useState(() => initialLocation.panel === 'athlete-scope');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
 
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [editSessionOpen, setEditSessionOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
+  }, [initialLocation.athleteId, setActiveAthleteId]);
 
   useEffect(() => {
     setUiPref(UI_KEYS.appView, currentView);
@@ -49,7 +56,38 @@ export default function App() {
 
   useEffect(() => {
     setUiPref(UI_KEYS.dashboardMode, dashboardMode);
-  }, [dashboardMode]);
+    writeAppLocation({
+      mode: dashboardMode,
+      athleteId: planAthleteId,
+      panel: focusAthleteScope ? 'athlete-scope' : null,
+    });
+  }, [dashboardMode, planAthleteId, focusAthleteScope]);
+
+  useEffect(() => {
+    setUiPref(UI_KEYS.sidebarCollapsed, sidebarCollapsed ? '1' : '0');
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (focusAthleteScope && sidebarCollapsed) setSidebarCollapsed(false);
+  }, [focusAthleteScope, sidebarCollapsed]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = parseAppLocation();
+      setDashboardMode(next.mode);
+      setCurrentView('dashboard');
+      if (next.athleteId) setActiveAthleteId(next.athleteId);
+      if (next.panel === 'athlete-scope') setFocusAthleteScope(true);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [setActiveAthleteId]);
+
+  const handleNavigate = (mode: DashboardMode) => {
+    setDashboardMode(mode);
+    setCurrentView('dashboard');
+    if (mode !== 'calendar') setFocusAthleteScope(false);
+  };
 
   const handleViewSession = (workout: { id: string }, microId: string) => {
     setActiveWorkoutId(workout.id);
@@ -100,10 +138,11 @@ export default function App() {
   return (
     <AppShell
       dashboardMode={dashboardMode}
-      onNavigate={(mode) => {
-        setDashboardMode(mode);
-        setCurrentView('dashboard');
-      }}
+      onNavigate={handleNavigate}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+      focusAthleteScope={focusAthleteScope}
+      onAthleteScopeFocused={() => setFocusAthleteScope(false)}
       onResetPlan={async () => {
         if (window.confirm('Reset plan? This clears all sessions and logged sets.')) {
           await resetPlan();
@@ -138,11 +177,6 @@ export default function App() {
                   <InsightsView />
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
-                ) : dashboardMode === 'roster' ? (
-                  <CoachDashboardView onNavigate={(mode) => {
-                    setDashboardMode(mode);
-                    setCurrentView('dashboard');
-                  }} />
                 ) : (
                   <div className="flex flex-col gap-4 p-4 w-full overflow-y-auto">
                     <TelegramLinkPanel />

@@ -41,6 +41,7 @@ export const ExerciseCard = ({
   onMoveDown?: () => void | Promise<void>,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
+  key?: string,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
 

@@ -4,6 +4,7 @@ import { apiService } from '../../services/api';
 import { calculateE1RM } from '../../services/mathEngine';
 import { usePeriodization } from '../../contexts/PeriodizationContext';
 import { displayTrainingValue, trainingInt, trainingNumber, trainingOrZero } from '../../services/numericTraining';
+import { Tab, TabList, Tabs } from '../ui/Tabs';
 
 interface SetBuffer {
   reps: number;
@@ -414,22 +415,27 @@ export default function TelegramSessionTerminal() {
           <p className="text-xs text-zinc-400">Tonnage Logged: <strong className="text-white">{(todayWorkout.tonnage || 0).toLocaleString()}kg</strong></p>
         </div>
 
-        {/* Swipable Jade Navigation Tabs */}
-        <div className="flex gap-2 overflow-x-auto tab-bar-hide-scrollbar mt-2 pt-1">
-          {exercises.map((ex, idx) => (
-            <button
-              key={ex.id}
-              onClick={() => { triggerHaptic('medium'); setActiveTabIdx(idx); }}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border transition-all duration-200 ${
-                activeTabIdx === idx
-                  ? 'bg-[#75ff9e] text-black border-[#75ff9e] font-extrabold shadow-[0_0_12px_rgba(117,255,158,0.3)]'
-                  : 'bg-[#121414] text-zinc-400 border-zinc-800 hover:text-white'
-              }`}
-            >
-              {ex.tier === 'Accessory' ? `Acc · ${ex.title}` : ex.title}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={String(activeTabIdx)}
+          onChange={(next) => {
+            triggerHaptic('medium');
+            setActiveTabIdx(Number(next));
+          }}
+        >
+          <TabList label="Session lifts" className="flex gap-2 overflow-x-auto tab-bar-hide-scrollbar mt-2 pt-1">
+            {exercises.map((ex, idx) => (
+              <Tab
+                key={ex.id}
+                id={String(idx)}
+                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border"
+                activeClassName="bg-[#75ff9e] text-black border-[#75ff9e] font-extrabold"
+                inactiveClassName="bg-[#121414] text-zinc-400 border-zinc-800 hover:text-white"
+              >
+                {ex.tier === 'Accessory' ? `Acc · ${ex.title}` : ex.title}
+              </Tab>
+            ))}
+          </TabList>
+        </Tabs>
       </div>
 
       {/* --- Scrolling Workout Arena --- */}

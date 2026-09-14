@@ -229,8 +229,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
 from .sse_broadcaster import router as sse_router
 from .integrations import router as integrations_router
+from .analytics_router import create_analytics_router
 app.include_router(sse_router)
 app.include_router(integrations_router)
+app.include_router(create_analytics_router(get_current_user))
 
 # --- Pydantic Schemas for Requests ---
 

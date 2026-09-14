@@ -1,20 +1,29 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { useSync } from '../contexts/SyncContext';
 import { CloudOff, RefreshCw } from 'lucide-react';
+import type { DashboardMode } from '../navigation';
 
-export type DashboardMode = 'calendar' | 'sessions' | 'integrations' | 'insights' | 'security' | 'roster';
+export type { DashboardMode };
 
 export const AppShell = ({
   children,
   dashboardMode,
   onNavigate,
   onResetPlan,
+  sidebarCollapsed,
+  onToggleSidebar,
+  focusAthleteScope = false,
+  onAthleteScopeFocused,
 }: {
   children: ReactNode;
   dashboardMode: DashboardMode;
   onNavigate: (mode: DashboardMode) => void;
   onResetPlan?: () => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+  focusAthleteScope?: boolean;
+  onAthleteScopeFocused?: () => void;
 }) => {
   const { isOnline, pendingCount } = useSync();
 
@@ -24,8 +33,16 @@ export const AppShell = ({
         dashboardMode={dashboardMode}
         onNavigate={onNavigate}
         onResetPlan={onResetPlan}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={onToggleSidebar}
+        focusAthleteScope={focusAthleteScope}
+        onAthleteScopeFocused={onAthleteScopeFocused}
       />
-      <main className="ml-[240px] flex-1 flex flex-col h-screen overflow-hidden">
+      <main
+        className={`flex-1 flex flex-col h-screen overflow-hidden ${sidebarCollapsed ? 'ml-[60px]' : 'ml-[240px]'}`}
+        data-testid="app-main"
+        data-sidebar={sidebarCollapsed ? 'collapsed' : 'expanded'}
+      >
         {(!isOnline || pendingCount > 0) && (
           <div
             data-testid="sync-status"
