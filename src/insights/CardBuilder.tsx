@@ -52,7 +52,7 @@ export function CardBuilder({
       <input
         value={name}
         onChange={(e) => onName(e.target.value)}
-        className="w-full h-8 px-2 mb-3 text-xs bg-inspector border border-border rounded text-fg-strong"
+        className="w-full h-8 px-2 mb-3 text-caption bg-inspector border border-border rounded text-fg-strong"
       />
       <p className="text-micro text-fg-subtle uppercase mb-1">Metrics</p>
       <div className="flex flex-wrap gap-1 mb-3">
@@ -77,7 +77,7 @@ export function CardBuilder({
       <select
         value={scope.kind}
         onChange={(e) => onChange({ ...config, scopes: [{ kind: e.target.value as ScopeKind, ids: [] }] })}
-        className="w-full h-8 mb-2 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+        className="w-full h-8 mb-2 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
       >
         <option value="all">All</option>
         <option value="movement">Movement</option>
@@ -107,7 +107,7 @@ export function CardBuilder({
         <select
           value={scope.ids[0] || ''}
           onChange={(e) => onChange({ ...config, scopes: [{ kind: 'pattern', ids: e.target.value ? [e.target.value] : [] }] })}
-          className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+          className="w-full h-8 mb-3 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
         >
           <option value="">Choose pattern</option>
           {EXERCISE_CATEGORIES.filter((c) => c !== 'User Defined').map((pattern) => (
@@ -119,7 +119,7 @@ export function CardBuilder({
       <select
         value={config.time_grain}
         onChange={(e) => onChange({ ...config, time_grain: e.target.value as TimeGrain })}
-        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+        className="w-full h-8 mb-3 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
       >
         {TIME_GRAINS.map((g) => <option key={g} value={g}>{g}</option>)}
       </select>
@@ -134,7 +134,7 @@ export function CardBuilder({
             ...config,
             range: { n: Number(e.target.value) || 1, grain: 'grain' in config.range ? config.range.grain : config.time_grain },
           })}
-          className="w-20 h-8 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+          className="w-20 h-8 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
         />
         <select
           value={'grain' in config.range ? config.range.grain : config.time_grain}
@@ -142,7 +142,7 @@ export function CardBuilder({
             ...config,
             range: { n: 'n' in config.range ? config.range.n : 12, grain: e.target.value as TimeGrain },
           })}
-          className="flex-1 h-8 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+          className="flex-1 h-8 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
         >
           {TIME_GRAINS.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
@@ -151,7 +151,7 @@ export function CardBuilder({
       <select
         value={config.visualization}
         onChange={(e) => onChange({ ...config, visualization: e.target.value as Visualization })}
-        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+        className="w-full h-8 mb-3 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
       >
         {VISUALIZATIONS.map((v) => {
           const blocked = config.metrics.map((m) => disableReason(m, v, config.time_grain)).find(Boolean);
@@ -174,7 +174,7 @@ export function CardBuilder({
               : { kind },
           });
         }}
-        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+        className="w-full h-8 mb-3 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
       >
         <option value="">None</option>
         <option value="prescribed_vs_actual">Prescribed vs actual</option>
@@ -184,14 +184,14 @@ export function CardBuilder({
       <select
         value={config.aggregation || ''}
         onChange={(e) => onChange({ ...config, aggregation: (e.target.value || null) as Aggregation | null })}
-        className="w-full h-8 mb-3 px-2 text-xs bg-inspector border border-border rounded text-fg-strong"
+        className="w-full h-8 mb-3 px-2 text-caption bg-inspector border border-border rounded text-fg-strong"
       >
         <option value="">Default</option>
         {AGGREGATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
       </select>
       <div className="flex gap-2">
-        <button type="button" data-testid="card-builder-save" onClick={onSave} className="h-8 px-3 text-xs bg-accent text-fg-strong rounded">Save</button>
-        <button type="button" onClick={onCancel} className="h-8 px-3 text-xs text-fg-muted">Cancel</button>
+        <button type="button" data-testid="card-builder-save" onClick={onSave} className="h-8 px-3 text-caption bg-accent text-fg-strong rounded">Save</button>
+        <button type="button" onClick={onCancel} className="h-8 px-3 text-caption text-fg-muted">Cancel</button>
       </div>
     </aside>
   );

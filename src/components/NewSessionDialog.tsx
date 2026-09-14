@@ -5,6 +5,7 @@ import { usePeriodization } from '../contexts/PeriodizationContext';
 import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
 import { CenteredDialog } from './CenteredDialog';
 import { LabelCombo, uniquePlanLabels } from './LabelCombo';
+import type { WorkoutData } from '../types';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -19,7 +20,7 @@ export function NewSessionDialog({
   athleteId?: string | null;
   allowDateEdit?: boolean;
   onClose: () => void;
-  onCreated: (workout: { id: string; microcycleId?: string }) => void | Promise<void>;
+  onCreated: (workout: WorkoutData & { microcycleId?: string }) => void | Promise<void>;
 }) {
   const { user } = useAuth();
   const { microcycles } = usePeriodization();
@@ -76,7 +77,7 @@ export function NewSessionDialog({
             type="button"
             data-testid="new-session-cancel"
             onClick={onClose}
-            className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+            className="h-8 px-3 text-caption text-fg-muted hover:text-fg-strong"
           >
             Cancel
           </button>
@@ -84,7 +85,7 @@ export function NewSessionDialog({
             type="submit"
             data-testid="new-session-create"
             disabled={busy || needsAthlete || !ISO_DATE.test(targetDate)}
-            className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+            className="h-8 px-3 text-caption text-fg-strong bg-accent rounded disabled:opacity-40"
           >
             {busy ? 'Creating…' : 'Create'}
           </button>
@@ -93,29 +94,29 @@ export function NewSessionDialog({
     >
       <div className="flex flex-col gap-3">
         {needsAthlete && (
-          <p data-testid="new-session-need-athlete" className="text-xs text-[#AEAEB2]">
+            <p data-testid="new-session-need-athlete" className="text-caption text-fg-muted">
             Select an athlete in the sidebar, then create a session on that plan.
           </p>
         )}
         {allowDateEdit && (
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Date</span>
+            <span className="text-micro uppercase tracking-wider text-fg-subtle">Date</span>
             <input
               type="date"
               data-testid="new-session-date"
               value={targetDate}
               onChange={(event) => setTargetDate(event.target.value)}
-              className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+              className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
             />
           </label>
         )}
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-[#636366]">Name</span>
+          <span className="text-micro uppercase tracking-wider text-fg-subtle">Name</span>
           <input
             data-testid="new-session-title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+            className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
           />
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -134,7 +135,7 @@ export function NewSessionDialog({
             testId="new-session-week"
           />
         </div>
-        {error && <p className="text-xs text-[#FF453A]">{error}</p>}
+        {error && <p className="text-caption text-error">{error}</p>}
       </div>
     </CenteredDialog>
   );

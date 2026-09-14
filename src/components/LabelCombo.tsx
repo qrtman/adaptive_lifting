@@ -48,7 +48,7 @@ export function LabelCombo({
 
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366]">{label}</span>
+      <span className="text-micro uppercase tracking-wider text-fg-subtle">{label}</span>
       <select
         data-testid={testId}
         value={selectValue}
@@ -62,7 +62,7 @@ export function LabelCombo({
           setAdding(false);
           onChange(next);
         }}
-        className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+        className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
       >
         <option value="">None</option>
         {known.map((item) => (
@@ -75,7 +75,7 @@ export function LabelCombo({
           data-testid={`${testId}-custom`}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+          className="h-8 px-2 rounded bg-canvas border border-border text-caption text-fg-strong"
         />
       ) : null}
     </label>

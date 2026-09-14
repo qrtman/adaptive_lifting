@@ -203,14 +203,18 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   }, [activeWorkoutId]);
 
   const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+    const workoutId = activeWorkoutId;
+    if (!workoutId) return;
+    const microId = activeMicrocycleId
+      || microcycles.find((m) => m.workouts.some((w) => w.id === workoutId))?.id;
+    if (!microId) return;
 
     setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
+      if (m.id !== microId) return m;
       return {
         ...m,
         workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
+          if (w.id !== workoutId) return w;
 
           const updatedExercises = w.exercises.map(ex => {
             if (ex.id !== exerciseId) return ex;

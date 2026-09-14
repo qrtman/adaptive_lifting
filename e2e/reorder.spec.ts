@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectCellValue, typeCell } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
@@ -33,17 +34,15 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
     await expect(page.getByRole('heading', { name: exercise, exact: true })).toBeVisible();
   };
   await addNamedLift('Knee Dominant', 'Squat');
-  await expect(page.getByTestId('rx-weight').first()).toHaveText('—');
+  await expectCellValue(page.getByTestId('rx-weight').first(), '—');
   const savedSets = page.waitForResponse((res) =>
     res.url().includes('/sets') && res.request().method() === 'PUT'
   );
-  await page.getByTestId('rx-weight').first().click();
-  await page.getByTestId('rx-weight').first().fill('180');
-  await page.getByTestId('rx-weight').first().press('Enter');
+  await typeCell(page.getByTestId('rx-weight').first(), '180');
   expect((await savedSets).ok()).toBeTruthy();
-  await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
+  await expectCellValue(page.getByTestId('rx-weight').first(), '180');
   await page.getByRole('button', { name: '+ Set' }).click();
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expectCellValue(page.getByTestId('rx-weight').nth(1), '—');
   await expect(page.getByTestId('lift-constructor')).toHaveCount(0);
   await page.getByTestId(/^edit-lift-/).first().click();
   await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
@@ -65,8 +64,8 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
 
   await page.reload();
   await expect(page.getByRole('heading', { level: 4 })).toHaveText(['Bench', 'Squat', 'Deadlift']);
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
-  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('—');
+  await expectCellValue(page.getByTestId('rx-weight').nth(1), '180');
+  await expectCellValue(page.getByTestId('rx-weight').nth(2), '—');
 
   await page.getByTestId('session-complete').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
@@ -74,9 +73,6 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Up', exact: true }).first()).toBeEnabled();
   const squatPlan = page.getByTestId('rx-weight').nth(1);
-  await squatPlan.click();
-  await expect(squatPlan).toBeEditable();
-  await squatPlan.fill('182.5');
-  await squatPlan.blur();
-  await expect(squatPlan).toHaveText('182.5');
+  await typeCell(squatPlan, '182.5');
+  await expectCellValue(squatPlan, '182.5');
 });

@@ -7,6 +7,7 @@ function setRow(id: string, extras: Partial<Extract<GridRow, { kind: 'set' }>['v
   return {
     kind: 'set',
     exerciseId: 'e1',
+    exerciseTitle: 'Squat',
     setId: id,
     setIndex: 0,
     values: {
@@ -74,6 +75,14 @@ describe('grid state machine', () => {
     expect(row.values.plannedWeight).toBeNull();
   });
 
+  it('editBuffer starts an edit when idle', () => {
+    let state = ready();
+    state = gridReducer(state, { type: 'editBuffer', buffer: '175' });
+    expect(state.editing?.buffer).toBe('175');
+    state = gridReducer(state, { type: 'commit' });
+    expect(state.committed?.[0]).toMatchObject({ value: 175 });
+  });
+
   it('keeps invalid edit open', () => {
     let state = ready();
     state = gridReducer(state, { type: 'startEdit' });
@@ -129,6 +138,16 @@ describe('grid state machine', () => {
     state = gridReducer(state, { type: 'startEdit' });
     expect(state.editing).toBeNull();
     expect(cellKind(state, { row: 0, col: 2 }, 's1', 'plannedWeight')).toBe('locked');
+  });
+
+  it('clears pending when syncRows matches the optimistic value', () => {
+    let state = ready();
+    state = gridReducer(state, { type: 'startEdit' });
+    state = gridReducer(state, { type: 'editBuffer', buffer: '180' });
+    state = gridReducer(state, { type: 'commit' });
+    expect(state.pending['s1:plannedWeight']).toBe(true);
+    state = gridReducer(state, { type: 'syncRows', rows: state.rows });
+    expect(state.pending['s1:plannedWeight']).toBeUndefined();
   });
 
   it('marks preview vs server e1RM on the row', () => {

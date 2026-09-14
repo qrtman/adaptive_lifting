@@ -166,8 +166,23 @@ export function gridReducer(state: GridState, action: GridAction): GridState {
         committed: null,
       };
     }
-    case 'syncRows':
-      return { ...state, rows: action.rows };
+    case 'syncRows': {
+      const pending = { ...state.pending };
+      for (const key of Object.keys(pending)) {
+        const parsed = parseCellKey(key);
+        if (!parsed) continue;
+        const incoming = action.rows.find((row) => row.kind === 'set' && row.setId === parsed.setId);
+        const local = state.rows.find((row) => row.kind === 'set' && row.setId === parsed.setId);
+        if (
+          incoming && incoming.kind === 'set'
+          && local && local.kind === 'set'
+          && valueFor(incoming.values, parsed.col) === valueFor(local.values, parsed.col)
+        ) {
+          delete pending[key];
+        }
+      }
+      return { ...state, rows: action.rows, pending };
+    }
     case 'setLocked':
       return { ...state, locked: action.locked, editing: action.locked ? null : state.editing };
     case 'setHiddenCols':
@@ -213,9 +228,21 @@ export function gridReducer(state: GridState, action: GridAction): GridState {
         committed: null,
       };
     }
-    case 'editBuffer':
-      if (!state.editing) return state;
-      return { ...state, editing: { ...state.editing, buffer: action.buffer }, invalid: null };
+    case 'editBuffer': {
+      if (state.locked) return state;
+      if (state.editing) {
+        return { ...state, editing: { ...state.editing, buffer: action.buffer }, invalid: null };
+      }
+      const col = colAt(state, state.selection.focus.col);
+      const row = setRowAt(state.rows, state.selection.focus.row);
+      if (!row || !isEditableCol(col)) return state;
+      return {
+        ...state,
+        editing: { pos: state.selection.focus, buffer: action.buffer },
+        invalid: null,
+        committed: null,
+      };
+    }
     case 'cancel':
       return { ...state, editing: null, invalid: null, committed: null };
     case 'commit': {
@@ -342,6 +369,12 @@ export function gridReducer(state: GridState, action: GridAction): GridState {
     default:
       return state;
   }
+}
+
+function parseCellKey(key: string): { setId: string; col: GridColKey } | null {
+  const idx = key.lastIndexOf(':');
+  if (idx < 0) return null;
+  return { setId: key.slice(0, idx), col: key.slice(idx + 1) as GridColKey };
 }
 
 export function cellKind(state: GridState, pos: GridPos, setId: string, col: GridColKey): import('./gridTypes').CellKind {

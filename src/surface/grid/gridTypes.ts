@@ -69,6 +69,7 @@ export type GridRow =
   | {
       kind: 'set';
       exerciseId: string;
+      exerciseTitle: string;
       setId: string;
       setIndex: number;
       values: SetValues;

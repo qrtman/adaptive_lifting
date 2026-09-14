@@ -32,8 +32,8 @@ function Chip({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`h-6 px-1.5 text-[11px] rounded disabled:opacity-40 ${
-        active ? 'text-white bg-white/15' : 'text-[#AEAEB2] hover:text-white'
+      className={`h-6 px-1.5 text-mini rounded disabled:opacity-40 ${
+        active ? 'text-fg-strong bg-fg-strong/15' : 'text-fg-muted hover:text-fg-strong'
       }`}
     >
       {label}
@@ -50,7 +50,7 @@ function Row({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366] w-10 shrink-0">{label}</span>
+      <span className="text-micro uppercase tracking-wider text-fg-subtle w-10 shrink-0">{label}</span>
       {children}
     </div>
   );
@@ -78,7 +78,7 @@ function TempoPart({
       disabled={disabled}
       value={value}
       onChange={(event) => onChange(Number(event.target.value))}
-      className="h-6 w-8 px-1 text-center text-xs font-mono bg-black border border-white/10 rounded text-white disabled:opacity-40"
+      className="h-6 w-8 px-1 text-center text-caption font-mono bg-canvas border border-border rounded text-fg-strong disabled:opacity-40"
     />
   );
 }
@@ -116,7 +116,7 @@ export function LiftVariationPicker({
 
   return (
     <div className="flex flex-col gap-1 min-w-0" data-testid="lift-constructor">
-      <p className="text-xs text-[#AEAEB2] truncate" data-testid={`lift-name-${title}`}>
+      <p className="text-caption text-fg-muted truncate" data-testid={`lift-name-${title}`}>
         {compileVariation(title, mods)}
       </p>
       <Row label="Bar">
@@ -132,9 +132,9 @@ export function LiftVariationPicker({
       </Row>
       <Row label="Tempo">
         <TempoPart label="Eccentric" value={eccentric} disabled={locked} onChange={(value) => setTempoPart(0, value)} />
-        <span className="text-[10px] text-[#636366]">-</span>
+        <span className="text-micro text-fg-subtle">-</span>
         <TempoPart label="Pause" value={pause} disabled={locked} onChange={(value) => setTempoPart(1, value)} />
-        <span className="text-[10px] text-[#636366]">-</span>
+        <span className="text-micro text-fg-subtle">-</span>
         <TempoPart label="Concentric" value={concentric} disabled={locked} onChange={(value) => setTempoPart(2, value)} />
       </Row>
       <Row label="ROM">

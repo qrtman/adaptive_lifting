@@ -106,6 +106,13 @@ export function SetGrid({
   const onGridKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (state.editing) return;
     const key = event.key;
+    if (event.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
+      event.preventDefault();
+      const row = state.rows[state.selection.focus.row];
+      const exerciseId = row ? row.exerciseId : null;
+      if (exerciseId) onMoveExercise(exerciseId, key === 'ArrowUp' ? 'up' : 'down');
+      return;
+    }
     if (key === 'ArrowUp') { event.preventDefault(); dispatch({ type: 'move', dir: 'up', extend: event.shiftKey }); }
     else if (key === 'ArrowDown') { event.preventDefault(); dispatch({ type: 'move', dir: 'down', extend: event.shiftKey }); }
     else if (key === 'ArrowLeft') { event.preventDefault(); dispatch({ type: 'move', dir: 'left', extend: event.shiftKey }); }
@@ -159,7 +166,7 @@ export function SetGrid({
                   key={col}
                   role="columnheader"
                   aria-colindex={index + 1}
-                  className={`h-[var(--header-height)] px-1 text-left text-micro uppercase tracking-wider text-fg-subtle sticky top-0 bg-card ${col === 'exercise' || col === 'set' ? 'sticky left-0 shadow-[var(--sticky-shadow)]' : ''}`}
+                  className={`h-[var(--header-height)] px-1 text-left text-micro uppercase tracking-wider text-fg-subtle sticky top-0 bg-card ${col === 'exercise' || col === 'set' ? 'shadow-[var(--sticky-shadow)]' : ''}`}
                 >
                   {COL_LABEL[col]}
                 </th>
@@ -197,7 +204,7 @@ export function SetGrid({
                     const kind = cellKind(state, pos, row.setId, col);
                     const isE1rmPreview = col === 'e1rm' && row.values.e1rmServer == null && row.values.e1rmPreview != null;
                     let display = rawValue(row.values, col);
-                    if (col === 'exercise') display = '';
+                    if (col === 'exercise') display = row.exerciseTitle || '';
                     if (col === 'set') display = String(row.setIndex + 1);
                     const editing = state.editing && state.editing.pos.row === rowIndex && state.editing.pos.col === colIndex;
                     return (

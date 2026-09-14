@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export async function signInCoach(page: Page, prefs: Record<string, string> = {}) {
   await page.addInitScript((extra: Record<string, string>) => {
@@ -9,11 +9,26 @@ export async function signInCoach(page: Page, prefs: Record<string, string> = {}
   }, prefs);
 }
 
+export async function typeCell(cell: Locator, value: string) {
+  await cell.page().keyboard.press('Escape');
+  await cell.click();
+  await expect(cell).toBeEditable();
+  await cell.fill(value);
+  await cell.blur();
+}
+
+export async function expectCellValue(cell: Locator, value: string) {
+  if (value === '—') {
+    await expect(cell).toHaveValue('');
+    return;
+  }
+  await expect(cell).toHaveValue(value);
+}
+
 export async function fillLogCell(page: Page, cellId: string, value: string | number) {
-  await page.locator(`#${cellId}`).click();
-  const input = page.locator('input').last();
-  await input.fill(String(value));
-  await input.press('Enter');
+  const byId = page.locator(`#${cellId}`);
+  const cell = (await byId.count()) ? byId : page.getByTestId(cellId).first();
+  await typeCell(cell, String(value));
 }
 
 export async function html5Drag(page: Page, sourceTestId: string, targetTestId: string) {

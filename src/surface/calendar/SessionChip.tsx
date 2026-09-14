@@ -19,6 +19,7 @@ export function SessionChip({
   key?: string;
 }) {
   const meta = chipMeta(workout);
+  const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
   return (
     <div
       data-testid={`workout-card-${workout.id}`}
@@ -39,6 +40,7 @@ export function SessionChip({
         className="min-w-0 flex-1 text-left text-mini truncate"
       >
         {chipLabel(workout)}
+        {labels ? <span className="ml-1 text-micro text-fg-muted">{labels}</span> : null}
         {meta ? <span className="ml-1 text-micro text-fg-subtle">{meta}</span> : null}
       </button>
       {onCopy ? (

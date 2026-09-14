@@ -43,6 +43,7 @@ export function rowsFromWorkout(workout: WorkoutData): GridRow[] {
       rows.push({
         kind: 'set',
         exerciseId: exercise.id,
+        exerciseTitle: exercise.title,
         setId: String(set.id),
         setIndex: index,
         values: valuesFromSet(set as unknown as ExerciseData['sets'][number]),

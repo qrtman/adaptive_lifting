@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { WorkoutData } from '../../types';
 import type { CalendarLayout } from '../breakpoints';
 import { calendarShortcut } from './calendarKeyboard';
+import { chipLabel } from './chipLabel';
 import { DayCell } from './DayCell';
 import { DayPopover } from './DayPopover';
 import {
@@ -114,7 +115,7 @@ export function MonthCalendar({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-canvas" data-testid="month-calendar" data-layout={layout}>
+    <div className="flex-1 flex flex-col overflow-hidden bg-canvas" data-testid="month-calendar" data-layout={layout} tabIndex={0}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
         <div className="flex items-center gap-2">
           <h3 data-testid="calendar-month-label" className="text-ui text-fg-strong">
@@ -176,6 +177,28 @@ export function MonthCalendar({
               </div>
             ))}
           </div>
+          {layout === 'week-strip' ? (
+            <div data-testid="week-agenda" className="mt-2 border-t border-border divide-y divide-border">
+              {visible.flatMap((day) => (sessionsByDate.get(day.iso) || []).map((workout) => (
+                <button
+                  key={workout.id}
+                  type="button"
+                  data-testid={`week-agenda-${workout.id}`}
+                  onClick={() => onOpenSession(workout)}
+                  className="w-full text-left px-2 py-2 flex items-center gap-2 hover:bg-cell-hover"
+                >
+                  <span className="font-mono text-mini text-fg-muted w-24 shrink-0">{day.iso}</span>
+                  <span className="text-caption text-fg-strong truncate">{chipLabel(workout)}</span>
+                  <span className="text-micro text-fg-muted truncate">
+                    {[workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ')}
+                  </span>
+                </button>
+              )))}
+              {visible.every((day) => !(sessionsByDate.get(day.iso) || []).length) ? (
+                <p className="px-2 py-4 text-caption text-fg-muted">No sessions this week.</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
       {popoverIso && !empty ? (

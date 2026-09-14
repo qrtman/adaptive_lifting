@@ -54,12 +54,12 @@ export function ExerciseHeaderRow({
             </button>
           ) : null}
           {canMoveUp ? (
-            <button type="button" data-testid={`move-lift-up-${exerciseId}`} disabled={locked} onClick={onMoveUp} className="h-6 px-1.5 text-caption text-fg-muted hover:text-fg-strong disabled:opacity-40">
+            <button type="button" data-testid={`move-lift-up-${exerciseId}`} aria-label="Up" disabled={locked} onClick={onMoveUp} className="h-6 px-1.5 text-caption text-fg-muted hover:text-fg-strong disabled:opacity-40">
               Up
             </button>
           ) : null}
           {canMoveDown ? (
-            <button type="button" data-testid={`move-lift-down-${exerciseId}`} disabled={locked} onClick={onMoveDown} className="h-6 px-1.5 text-caption text-fg-muted hover:text-fg-strong disabled:opacity-40">
+            <button type="button" data-testid={`move-lift-down-${exerciseId}`} aria-label="Down" disabled={locked} onClick={onMoveDown} className="h-6 px-1.5 text-caption text-fg-muted hover:text-fg-strong disabled:opacity-40">
               Down
             </button>
           ) : null}

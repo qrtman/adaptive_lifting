@@ -294,22 +294,11 @@ export function CalendarWorkspace({
           athleteId={planAthleteId}
           onClose={() => setCreateIso(null)}
           onCreated={async (created) => {
-            const iso = createIso;
             setCreateIso(null);
             setActiveWorkoutId(created.id);
             if (created.microcycleId) setActiveMicrocycleId(created.microcycleId);
             await reloadMicrocycles(planAthleteId);
-            onOpenSession({
-              id: created.id,
-              date: iso,
-              dayLabel: iso,
-              title: 'Session',
-              tonnage: 0,
-              delta: 0,
-              color: 'mac-blue',
-              exercises: [],
-              status: 'PLANNED',
-            }, created.microcycleId || '', false);
+            onOpenSession(created, created.microcycleId || '', false);
           }}
         />
       ) : null}

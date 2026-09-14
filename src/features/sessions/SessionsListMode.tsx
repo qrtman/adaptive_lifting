@@ -294,17 +294,7 @@ export function SessionsListMode({
             setShowNewSession(false);
             setActiveWorkoutId(created.id);
             if (created.microcycleId) setActiveMicrocycleId(created.microcycleId);
-            onOpenSession({
-              id: created.id,
-              date: new Date().toISOString().slice(0, 10),
-              dayLabel: '',
-              title: 'Session',
-              tonnage: 0,
-              delta: 0,
-              color: 'mac-blue',
-              exercises: [],
-              status: 'PLANNED',
-            }, created.microcycleId || '', false);
+            onOpenSession(created, created.microcycleId || '', false);
           }}
         />
       )}

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { html5Drag } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
@@ -33,7 +34,25 @@ test('calendar deep link opens inspector; keyboard create stays on calendar', as
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByTestId('session-inspector')).toHaveCount(0);
 
+  const chip = page.getByTestId(`workout-card-${sessionId}`);
+  await expect(chip).toBeVisible();
+  await html5Drag(page, `workout-card-${sessionId}`, 'calendar-day-2026-09-16');
+  await expect(page.getByTestId('calendar-day-2026-09-16').getByTestId(`workout-card-${sessionId}`)).toBeVisible();
+
   await page.goto(`/#/calendar?session=${sessionId}`);
   await expect(page.getByTestId('session-inspector')).toBeVisible();
   await expect(page.getByTestId('session-name')).toContainText('Surface day');
+  await page.getByRole('button', { name: 'Back' }).click();
+
+  await page.getByTestId('month-calendar').focus();
+  await page.keyboard.press('t');
+  await expect(page.getByTestId('calendar-month-label')).toContainText('September');
+  await page.keyboard.press(']');
+  await expect(page.getByTestId('calendar-month-label')).toContainText('October');
+  await page.keyboard.press('[');
+  await expect(page.getByTestId('calendar-month-label')).toContainText('September');
+
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(page.getByTestId('month-calendar')).toHaveAttribute('data-layout', 'week-strip');
+  await expect(page.getByTestId('week-agenda')).toBeVisible();
 });

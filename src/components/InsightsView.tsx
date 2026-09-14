@@ -147,15 +147,15 @@ export function InsightsView() {
     <div className="flex-1 overflow-hidden bg-canvas flex">
       <div className="flex-1 overflow-y-auto p-3">
         <div className="h-7 flex items-center justify-between mb-2">
-          <h2 className="text-sm text-fg-strong">Insights</h2>
-          <button type="button" data-testid="insights-add-card" onClick={openNew} className="h-7 px-2 text-mini text-fg-strong bg-white/10 rounded">
+          <h2 className="text-ui text-fg-strong">Insights</h2>
+          <button type="button" data-testid="insights-add-card" onClick={openNew} className="h-7 px-2 text-mini text-fg-strong bg-accent/20 rounded">
             Add card
           </button>
         </div>
-        {loading && <p className="text-xs text-fg-muted">Loading…</p>}
-        {error && <p className="text-xs text-error">{error}</p>}
+        {loading && <p className="text-caption text-fg-muted">Loading…</p>}
+        {error && <p className="text-caption text-error">{error}</p>}
         {!loading && cards.length === 0 && (
-          <p className="text-xs text-fg-muted">No cards yet. Add one or wait for presets to sync.</p>
+          <p className="text-caption text-fg-muted">No cards yet. Add one or wait for presets to sync.</p>
         )}
         <div className="grid grid-cols-2 gap-2">
           {cards.map((card) => {
@@ -168,7 +168,7 @@ export function InsightsView() {
                 className={`border border-border rounded p-2 ${card.layout.col_span === 2 ? 'col-span-2' : 'col-span-1'}`}
               >
                 <div className="h-7 flex items-center justify-between gap-2">
-                  <h3 className="text-xs text-fg-strong truncate">{card.name}</h3>
+                  <h3 className="text-caption text-fg-strong truncate">{card.name}</h3>
                   <div className="flex items-center gap-1">
                     {stale && cached && <span data-testid={`insight-stale-${card.id}`} className="text-micro text-stale">Stale</span>}
                     <button type="button" className="text-micro text-fg-muted" onClick={() => moveCard(card.id, -1)}>Up</button>

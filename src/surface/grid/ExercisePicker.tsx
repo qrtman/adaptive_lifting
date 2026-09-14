@@ -87,7 +87,7 @@ export function ExercisePicker({
           reset();
           setOpen(true);
         }}
-        className="h-8 px-3 text-caption text-fg-strong bg-white/10 rounded"
+        className="h-8 px-3 text-caption text-fg-strong bg-accent/20 rounded"
       >
         Add lift
       </button>
