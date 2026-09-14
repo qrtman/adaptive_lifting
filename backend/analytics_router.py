@@ -15,7 +15,8 @@ from .analytics_schemas import (
 from .analytics_service import run_query
 from .database import InsightCard, User, get_db
 from .exercise_patterns import PATTERNS
-from .sync_service import SyncPayload
+from .math_utils import MATH_VERSION
+from .sync_service import SyncPayload, assert_math_version
 
 router = APIRouter(tags=["analytics"])
 
@@ -153,6 +154,7 @@ def create_analytics_router(get_current_user):
         import dateutil.parser
         from .database import SyncMutation
 
+        assert_math_version(payload)
         accepted = []
         rejected = []
         for change in payload.changes:
@@ -225,6 +227,7 @@ def create_analytics_router(get_current_user):
             "accepted_mutation_ids": accepted,
             "rejected_mutation_ids": rejected,
             "canonical": [_card_to_schema(row).model_dump(mode="json") for row in rows],
+            "math_version": MATH_VERSION,
         }
 
     return router

@@ -1,9 +1,12 @@
 /**
  * Frontend replica of backend/math_utils.py.
  * Backend remains canonical after sync; these functions exist for instant UI feedback.
+ * MATH_VERSION must match backend/math_utils.py and tests/math_vectors.json.
  */
 
 import { trainingIntOrZero, trainingOrZero } from './numericTraining';
+
+export const MATH_VERSION = 'linear-decay-v1';
 
 export const RPE_CHART: Record<number, Record<number, number>> = {
   1:  { 10: 1.00, 9.5: 0.978, 9: 0.955, 8.5: 0.932, 8: 0.91, 7.5: 0.892, 7: 0.875, 6.5: 0.858, 6: 0.841 },
@@ -50,6 +53,17 @@ export function calculateINOL(reps: number, intensityPct: number): number {
   if (intensityPct >= 100.0) return reps * 1.0;
   if (intensityPct <= 0) return 0;
   return Math.round((reps / (100.0 - intensityPct)) * 100) / 100;
+}
+
+/** Mirrors set_preview_metrics in backend/math_utils.py */
+export function setPreviewMetrics(weight: number, reps: number, rpe: number): {
+  e1rm: number;
+  intensity_pct: number;
+  inol: number;
+} {
+  const e1rm = calculateE1RM(weight, reps, rpe);
+  const intensity_pct = e1rm > 0 ? Math.round((weight / e1rm) * 100 * 100) / 100 : 0;
+  return { e1rm, intensity_pct, inol: calculateINOL(reps, intensity_pct) };
 }
 
 export function calculateDOTS(gender: string, bodyweight: number, total: number): number {

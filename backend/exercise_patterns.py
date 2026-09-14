@@ -1,8 +1,8 @@
-"""Map exercise titles onto catalog movement patterns.
+"""Movement-pattern catalog and one-time title backfill.
 
-Stored rows only have lift_category (Squat|Bench|Deadlift|Other). Pattern
-scope uses the in-repo exercise catalog names so weekday_matrix can group
-Knee Dominant / Hip Dominant / Horizontal Push / etc.
+`Exercise.movement_pattern` is the stored fact. `pattern_for` is only for
+backfill on existing rows and as a default when a new lift omits the field.
+Analytics queries the column, not this mapping.
 """
 
 from typing import Dict, Optional

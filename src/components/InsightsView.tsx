@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiService } from '../services/api';
 import { getSnapshot, saveSnapshot } from '../services/db';
-import { queueMutation, INSIGHT_CARD_SYNC_SCOPE } from '../services/sync_engine';
+import { queueInsightCardMutation } from '../services/sync_engine';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useSync } from '../contexts/SyncContext';
 import { ChartFor } from '../insights/charts';
@@ -102,7 +102,7 @@ export function InsightsView() {
     setCards(ordered);
     await saveSnapshot('insight_cards', ordered);
     for (const card of changed) {
-      await queueMutation(INSIGHT_CARD_SYNC_SCOPE, 'InsightCard', card.id, {
+      await queueInsightCardMutation(card.id, {
         name: card.name,
         config: card.config,
         layout: card.layout,
@@ -116,7 +116,7 @@ export function InsightsView() {
       }
     }
     if (deleted) {
-      await queueMutation(INSIGHT_CARD_SYNC_SCOPE, 'InsightCard', deleted.id, { deleted: true });
+      await queueInsightCardMutation(deleted.id, { deleted: true });
       if (isOnline) {
         try { await apiService.deleteInsightCard(deleted.id); } catch { /* queued */ }
       }

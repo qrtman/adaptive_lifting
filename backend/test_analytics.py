@@ -38,7 +38,8 @@ def _seed_sets(athlete_id: str):
             eid = f"e-{athlete_id}-{i}"
             db.add(Exercise(
                 id=eid, title="Squat", variation="Competition", tier="Comp",
-                lift_category="Squat", workout_id=wid, lexo_rank="a0",
+                lift_category="Squat", movement_pattern="Knee Dominant",
+                workout_id=wid, lexo_rank="a0",
             ))
             db.add(ExerciseSet(
                 id=f"s-{athlete_id}-{i}", label="Top",
@@ -260,3 +261,133 @@ def test_heatmap_and_empty_and_overlapping_periods():
         },
     }, cookies=coach_cookies)
     assert bad.status_code == 422
+
+
+def test_unlinked_coach_cannot_query_athlete():
+    client, _coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
+    other_coach = client.post("/api/auth/register", json={
+        "email": f"c2-{uuid.uuid4().hex[:6]}@ex.com", "password": "password123", "role": "COACH",
+    })
+    blocked = client.post("/api/analytics/query", json={
+        "athlete_id": athlete_id,
+        "config": {
+            "metrics": ["e1rm"],
+            "scopes": [{"kind": "all", "ids": []}],
+            "time_grain": "week",
+            "range": {"start": "2026-09-01", "end": "2026-09-30"},
+            "visualization": "line",
+        },
+    }, cookies=dict(other_coach.cookies))
+    assert blocked.status_code == 403
+
+
+def test_pattern_scope_uses_stored_column_not_title():
+    client, coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
+    _seed_sets(athlete_id)
+    db = SessionLocal()
+    try:
+        db.add(Workout(
+            id=f"w-{athlete_id}-mystery", date="2026-09-08", dayLabel="D5", title="Mystery",
+            tonnage=0, delta=0, color="gray", status="COMPLETED",
+            microcycle_id=f"mc-{athlete_id}",
+        ))
+        db.add(Exercise(
+            id=f"e-{athlete_id}-mystery", title="Mystery Lift", variation="Custom", tier="Accessory",
+            lift_category="Other", movement_pattern="Knee Dominant",
+            workout_id=f"w-{athlete_id}-mystery", lexo_rank="a0",
+        ))
+        db.add(ExerciseSet(
+            id=f"s-{athlete_id}-mystery", label="Top",
+            actual=80, reps=5, executedRpe=8,
+            plannedWeight=80, plannedReps=5, plannedRpe=8,
+            exercise_id=f"e-{athlete_id}-mystery", lexo_rank="a0",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    pattern = client.post("/api/analytics/query", json={
+        "athlete_id": athlete_id,
+        "config": {
+            "metrics": ["set_count"],
+            "scopes": [{"kind": "pattern", "ids": ["Knee Dominant"]}],
+            "time_grain": "day",
+            "range": {"start": "2026-09-08", "end": "2026-09-08"},
+            "visualization": "bar",
+        },
+    }, cookies=coach_cookies)
+    assert pattern.status_code == 200, pattern.text
+    points = pattern.json()["series"][0]["points"]
+    assert any(p and p >= 1 for p in points)
+
+
+def test_insight_card_sync_uses_mutation_type_without_workout_id():
+    client, coach_cookies, _athlete_cookies, _athlete_id = _auth_pair()
+    listed = client.get("/api/insight-cards", cookies=coach_cookies)
+    assert listed.status_code == 200
+    card = listed.json()[0]
+    res = client.post("/api/insight-cards/sync", json={
+        "schema_version": 1,
+        "mutation_type": "insight_card",
+        "client_device_id": "dev-cards",
+        "last_updated_at": "2026-09-14T00:00:00Z",
+        "math_version": "linear-decay-v1",
+        "changes": [{
+            "entity": "InsightCard",
+            "id": card["id"],
+            "mutation_id": "mut-card-1",
+            "updated_at": "2026-09-14T00:00:00Z",
+            "fields": {"name": "Renamed card", "config": card["config"], "layout": card["layout"]},
+        }],
+    }, cookies=coach_cookies)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert "mut-card-1" in body["accepted_mutation_ids"]
+    assert body["math_version"] == "linear-decay-v1"
+    names = {c["name"] for c in body["canonical"]}
+    assert "Renamed card" in names
+
+
+def test_insight_card_sync_accepts_legacy_sentinel():
+    client, coach_cookies, _athlete_cookies, _athlete_id = _auth_pair()
+    listed = client.get("/api/insight-cards", cookies=coach_cookies)
+    card = listed.json()[0]
+    res = client.post("/api/insight-cards/sync", json={
+        "schema_version": 1,
+        "client_device_id": "dev-cards-legacy",
+        "workout_id": "insight-cards",
+        "last_updated_at": "2026-09-14T00:00:00Z",
+        "changes": [{
+            "entity": "InsightCard",
+            "id": card["id"],
+            "mutation_id": "mut-card-legacy",
+            "updated_at": "2026-09-14T00:00:00Z",
+            "fields": {"name": card["name"], "config": card["config"], "layout": card["layout"]},
+        }],
+    }, cookies=coach_cookies)
+    assert res.status_code == 200, res.text
+    assert "mut-card-legacy" in res.json()["accepted_mutation_ids"]
+
+
+def test_sync_rejects_math_version_mismatch():
+    client, coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
+    _seed_sets(athlete_id)
+    wid = f"w-{athlete_id}-0"
+    mismatch = client.post(f"/api/workouts/{wid}/sync", json={
+        "schema_version": 1,
+        "mutation_type": "workout",
+        "client_device_id": "dev-math",
+        "workout_id": wid,
+        "last_updated_at": "2026-09-14T00:00:00Z",
+        "math_version": "not-the-version",
+        "changes": [],
+    }, cookies=coach_cookies)
+    assert mismatch.status_code == 409
+    detail = mismatch.json()["detail"]
+    assert detail["error"]["code"] == "MATH_VERSION_MISMATCH"
+
+
+def test_legacy_trends_route_removed():
+    client, coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
+    gone = client.get(f"/api/analytics/trends?athlete_id={athlete_id}", cookies=coach_cookies)
+    assert gone.status_code == 404

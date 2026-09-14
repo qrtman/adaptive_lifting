@@ -1,6 +1,10 @@
 import math
 from typing import Dict, List
 
+# Bump this and the mirrored constant in src/services/mathEngine.ts together.
+# Shared tests/math_vectors.json.math_version must match; sync 409s on mismatch.
+MATH_VERSION = "linear-decay-v1"
+
 def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
     """
     e1RM = Weight / (1 - 0.03 * (10 - RPE + Reps - 1))
@@ -38,6 +42,18 @@ def calculate_inol(reps: int, intensity_pct: float) -> float:
         return 0.0
         
     return round(reps / (100.0 - intensity_pct), 2)
+
+
+def set_preview_metrics(weight: float, reps: int, rpe: float) -> Dict[str, float]:
+    """e1RM, intensity %, and INOL for one set. Mirrored in mathEngine.ts."""
+    e1rm = calculate_e1rm_linear_decay(weight, reps, rpe)
+    intensity_pct = round((weight / e1rm) * 100.0, 2) if e1rm > 0 else 0.0
+    return {
+        "e1rm": e1rm,
+        "intensity_pct": intensity_pct,
+        "inol": calculate_inol(reps, intensity_pct),
+    }
+
 
 def calculate_dots(gender: str, bodyweight: float, total: float) -> float:
     """

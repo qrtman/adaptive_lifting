@@ -241,24 +241,6 @@ export const apiService = {
   },
 
   /**
-   * Fetches the advanced powerlifting analytics payload for a specific athlete.
-   */
-  async fetchAnalyticsTrends(athleteId?: string): Promise<any> {
-    if (BACKEND_URL) {
-      try {
-        const url = athleteId ? `${BACKEND_URL}/api/analytics/trends?athlete_id=${athleteId}` : `${BACKEND_URL}/api/analytics/trends`;
-        const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
-        if (!response.ok) throw new Error('API server trends request failed');
-        return await response.json();
-      } catch (err) {
-        console.warn('Backend server trends unavailable.', err);
-        return null;
-      }
-    }
-    return null;
-  },
-
-  /**
    * Fetches the secure AI-driven auto-regulation coaching prescriptions.
    */
   async fetchAICoachPrescription(athleteId?: string): Promise<AICoachResponse> {
@@ -606,6 +588,7 @@ export const apiService = {
     variation?: string;
     tier?: 'Comp' | 'Variation' | 'Accessory';
     liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
+    movementPattern?: string;
     plannedWeight?: number | null;
     plannedReps?: number | null;
     plannedRpe?: number | null;
@@ -615,6 +598,7 @@ export const apiService = {
       variation: payload.variation,
       tier: payload.tier,
       liftCategory: payload.liftCategory,
+      movementPattern: payload.movementPattern,
     };
     if (payload.plannedWeight != null) body.plannedWeight = payload.plannedWeight;
     if (payload.plannedReps != null) body.plannedReps = payload.plannedReps;
@@ -680,6 +664,7 @@ export const apiService = {
     variation?: string;
     title?: string;
     tier?: 'Comp' | 'Variation' | 'Accessory';
+    movementPattern?: string;
     move?: 'up' | 'down';
   }): Promise<import('../types').ExerciseData> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {

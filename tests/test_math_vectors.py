@@ -2,14 +2,20 @@ import json
 from pathlib import Path
 
 from backend.math_utils import (
+    MATH_VERSION,
     calculate_attempt_jumps,
     calculate_dots,
     calculate_e1rm,
     calculate_inol,
     round_to_competition_plates,
+    set_preview_metrics,
 )
 
 VECTORS = json.loads((Path(__file__).parent / "math_vectors.json").read_text(encoding="utf-8"))
+
+
+def test_shared_math_version():
+    assert MATH_VERSION == VECTORS["math_version"]
 
 
 def test_shared_e1rm_vectors():
@@ -20,6 +26,14 @@ def test_shared_e1rm_vectors():
 def test_shared_inol_vectors():
     for case in VECTORS["inol"]:
         assert calculate_inol(case["reps"], case["intensity_pct"]) == case["expected"]
+
+
+def test_shared_set_preview_vectors():
+    for case in VECTORS["sets"]:
+        got = set_preview_metrics(case["weight"], case["reps"], case["rpe"])
+        assert got["e1rm"] == case["e1rm"]
+        assert got["intensity_pct"] == case["intensity_pct"]
+        assert got["inol"] == case["inol"]
 
 
 def test_shared_plate_vectors():

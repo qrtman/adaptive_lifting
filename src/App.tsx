@@ -111,7 +111,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateLift = async (exerciseId: string, patch: { variation: string; tier: 'Comp' | 'Variation' }) => {
+  const handleUpdateLift = async (exerciseId: string, patch: { variation?: string; tier?: 'Comp' | 'Variation' | 'Accessory'; movementPattern?: string }) => {
     if (!activeWorkout) return;
     try {
       await apiService.updateSessionExercise(activeWorkout.id, exerciseId, patch);
@@ -275,6 +275,7 @@ export default function App() {
                         tags={ex.tags}
                         tier={ex.tier}
                         liftCategory={ex.liftCategory}
+                        movementPattern={ex.movementPattern}
                         initialSets={ex.sets}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}

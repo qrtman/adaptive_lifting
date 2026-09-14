@@ -4,8 +4,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-
-MATH_VERSION = "linear-decay-v1"
+from .math_utils import MATH_VERSION
 
 
 class MetricName(str, Enum):

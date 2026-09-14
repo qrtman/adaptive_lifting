@@ -1,14 +1,21 @@
 import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
+import { MATH_VERSION } from './mathEngine';
 
 let syncTimeout: number | null = null;
+let insightSyncTimeout: number | null = null;
 const SYNC_DEBOUNCE_MS = 2000;
 
 const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:8000';
 
 export const LOCK_SYNC_CODES = new Set(['WORKOUT_LOCKED']);
 
-export const INSIGHT_CARD_SYNC_SCOPE = 'insight-cards';
+/** In-flight IndexedDB rows may still use this fake workout_id. Do not send it on new payloads. */
+export const LEGACY_INSIGHT_CARD_WORKOUT_ID = 'insight-cards';
+
+export function isInsightCardMutation(m: Pick<SyncMutation, 'entity_type' | 'workout_id'>): boolean {
+  return m.entity_type === 'InsightCard' || m.workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID;
+}
 
 function generateMutationId() {
   return 'mut-' + Math.random().toString(36).substr(2, 9);
@@ -24,7 +31,11 @@ function getDeviceId() {
 }
 
 export function mutationsForWorkout(pending: SyncMutation[], workout_id: string): SyncMutation[] {
-  return pending.filter((m) => m.workout_id === workout_id);
+  return pending.filter((m) => !isInsightCardMutation(m) && m.workout_id === workout_id);
+}
+
+export function mutationsForInsightCards(pending: SyncMutation[]): SyncMutation[] {
+  return pending.filter(isInsightCardMutation);
 }
 
 export function parseSyncErrorCode(body: unknown): string | null {
@@ -63,6 +74,10 @@ export function isLockSyncCode(code: string | null | undefined): boolean {
 }
 
 export async function queueMutation(workout_id: string, entity_type: string, entity_id: string, fields: Record<string, any>) {
+  if (entity_type === 'InsightCard' || workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
+    await queueInsightCardMutation(entity_id, fields);
+    return;
+  }
   const mut: SyncMutation = {
     mutation_id: generateMutationId(),
     client_device_id: getDeviceId(),
@@ -75,16 +90,32 @@ export async function queueMutation(workout_id: string, entity_type: string, ent
     status: 'PENDING',
     retry_count: 0
   };
-  
+
   await saveMutation(mut);
   scheduleSync(workout_id);
+}
+
+export async function queueInsightCardMutation(entity_id: string, fields: Record<string, any>) {
+  const mut: SyncMutation = {
+    mutation_id: generateMutationId(),
+    client_device_id: getDeviceId(),
+    entity_type: 'InsightCard',
+    entity_id,
+    field_path: 'ALL',
+    fields,
+    updated_at: new Date().toISOString(),
+    status: 'PENDING',
+    retry_count: 0
+  };
+  await saveMutation(mut);
+  scheduleInsightCardSync();
 }
 
 function scheduleSync(workout_id: string) {
   if (syncTimeout) {
     clearTimeout(syncTimeout);
   }
-  
+
   syncTimeout = window.setTimeout(async () => {
     syncTimeout = null;
     const conflicts = await processSyncQueue(workout_id);
@@ -94,18 +125,90 @@ function scheduleSync(workout_id: string) {
   }, SYNC_DEBOUNCE_MS);
 }
 
-export async function processSyncQueue(workout_id: string): Promise<any[]> {
+function scheduleInsightCardSync() {
+  if (insightSyncTimeout) {
+    clearTimeout(insightSyncTimeout);
+  }
+  insightSyncTimeout = window.setTimeout(async () => {
+    insightSyncTimeout = null;
+    const conflicts = await processInsightCardSync();
+    if (conflicts && conflicts.length > 0) {
+      window.dispatchEvent(new CustomEvent('sync-conflicts', { detail: conflicts }));
+    }
+  }, SYNC_DEBOUNCE_MS);
+}
+
+async function postSync(
+  url: string,
+  payload: Record<string, unknown>,
+  pending: SyncMutation[],
+  lockWorkoutId?: string,
+): Promise<any[]> {
+  try {
+    for (const m of pending) await updateMutationStatus(m.mutation_id, 'IN_FLIGHT');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.math_version && result.math_version !== MATH_VERSION) {
+        for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
+        return [{
+          reason: 'MATH_VERSION_MISMATCH',
+          message: 'Client math version does not match the server. App update required.',
+          workout_id: lockWorkoutId,
+        }];
+      }
+
+      for (const id of result.accepted_mutation_ids || []) {
+        await updateMutationStatus(id, 'ACKED');
+      }
+      for (const id of result.rejected_mutations || result.rejected_mutation_ids || []) {
+        await updateMutationStatus(id, 'REJECTED');
+      }
+
+      return result.conflicts || [];
+    } else if (response.status === 409) {
+      const err = await response.json().catch(() => ({}));
+      const code = parseSyncErrorCode(err) || '409_CONFLICT';
+      const message = parseSyncErrorMessage(err, 'This workout is locked right now.');
+      for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
+      if (code === 'MATH_VERSION_MISMATCH') {
+        return [{ reason: code, workout_id: lockWorkoutId, message }];
+      }
+      if (isLockSyncCode(code) || code === '409_CONFLICT') {
+        window.dispatchEvent(new CustomEvent('sync-lock', {
+          detail: { workout_id: lockWorkoutId, code: code === '409_CONFLICT' ? 'WORKOUT_LOCKED' : code, message },
+        }));
+        return [];
+      }
+      return [{ reason: code, workout_id: lockWorkoutId, message }];
+    } else {
+      for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
+    }
+  } catch (err) {
+    for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
+  }
+  return [];
+}
+
+export async function processInsightCardSync(): Promise<any[]> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
-  
-  const pendingAll = await getPendingMutations();
-  const pending = mutationsForWorkout(pendingAll, workout_id);
+
+  const pending = mutationsForInsightCards(await getPendingMutations());
   if (pending.length === 0) return [];
-  
+
   const payload = {
     schema_version: 1,
+    mutation_type: 'insight_card',
     client_device_id: getDeviceId(),
-    workout_id,
     last_updated_at: new Date().toISOString(),
+    math_version: MATH_VERSION,
     changes: pending.map(m => ({
       entity: m.entity_type,
       id: m.entity_id,
@@ -114,50 +217,35 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
       fields: m.fields
     }))
   };
-  
-  try {
-    for (const m of pending) await updateMutationStatus(m.mutation_id, 'IN_FLIGHT');
-    
-    const url = workout_id === INSIGHT_CARD_SYNC_SCOPE
-      ? `${BACKEND_URL}/api/insight-cards/sync`
-      : `${BACKEND_URL}/api/workouts/${workout_id}/sync`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload)
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      
-      for (const id of result.accepted_mutation_ids || []) {
-        await updateMutationStatus(id, 'ACKED');
-      }
-      for (const id of result.rejected_mutations || result.rejected_mutation_ids || []) {
-        await updateMutationStatus(id, 'REJECTED');
-      }
-      
-      return result.conflicts || [];
-    } else if (response.status === 409) {
-      const err = await response.json().catch(() => ({}));
-      const code = parseSyncErrorCode(err) || '409_CONFLICT';
-      const message = parseSyncErrorMessage(err, 'This workout is locked right now.');
-      // Keep the queue visible. A lock is not a discarded conflict.
-      for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
-      if (isLockSyncCode(code) || code === '409_CONFLICT') {
-        window.dispatchEvent(new CustomEvent('sync-lock', {
-          detail: { workout_id, code: code === '409_CONFLICT' ? 'WORKOUT_LOCKED' : code, message },
-        }));
-        return [];
-      }
-      return [{ reason: code, workout_id, message }];
-    } else {
-      for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
-    }
-  } catch (err) {
-    for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
+  return postSync(`${BACKEND_URL}/api/insight-cards/sync`, payload, pending);
+}
+
+export async function processSyncQueue(workout_id: string): Promise<any[]> {
+  if (workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
+    return processInsightCardSync();
   }
-  return [];
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
+
+  const pendingAll = await getPendingMutations();
+  const pending = mutationsForWorkout(pendingAll, workout_id);
+  if (pending.length === 0) return [];
+
+  const payload = {
+    schema_version: 1,
+    mutation_type: 'workout',
+    client_device_id: getDeviceId(),
+    workout_id,
+    last_updated_at: new Date().toISOString(),
+    math_version: MATH_VERSION,
+    changes: pending.map(m => ({
+      entity: m.entity_type,
+      id: m.entity_id,
+      mutation_id: m.mutation_id,
+      updated_at: m.updated_at,
+      fields: m.fields
+    }))
+  };
+
+  return postSync(`${BACKEND_URL}/api/workouts/${workout_id}/sync`, payload, pending, workout_id);
 }
