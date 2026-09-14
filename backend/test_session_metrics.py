@@ -96,3 +96,43 @@ def test_unlinked_coach_cannot_read_summary():
     wid = _seed(athlete_id)
     resp = client.get(f"/api/sessions/{wid}/summary", cookies=dict(coach.cookies))
     assert resp.status_code == 403
+
+
+def test_replace_sets_emits_workout_synced_event():
+    from backend.database import DomainEvent
+
+    client, cookies, athlete_id = _auth_athlete()
+    wid = _seed(athlete_id)
+    eid = f"e-{athlete_id}"
+    res = client.put(
+        f"/api/sessions/{wid}/exercises/{eid}/sets",
+        json={"sets": [{
+            "id": f"s-{athlete_id}",
+            "label": "Top",
+            "plannedWeight": 110,
+            "plannedReps": 5,
+            "plannedRpe": 8.0,
+            "actual": 110,
+            "reps": 5,
+            "executedRpe": 8.5,
+        }]},
+        cookies=cookies,
+    )
+    assert res.status_code == 200, res.text
+    db = SessionLocal()
+    try:
+        events = db.query(DomainEvent).filter(DomainEvent.workout_id == wid).all()
+        assert any(item.event_type == "WORKOUT_SYNCED" for item in events)
+        assert any("workout_id" in (item.payload_json or "") for item in events)
+    finally:
+        db.close()
+
+
+def test_unlinked_coach_cannot_open_athlete_live_stream():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    coach = client.post("/api/auth/register", json={"email": f"c2-{suffix}@ex.com", "password": "password123", "role": "COACH"})
+    athlete = client.post("/api/auth/register", json={"email": f"a2-{suffix}@ex.com", "password": "password123", "role": "ATHLETE"})
+    athlete_id = athlete.json()["id"]
+    blocked = client.get(f"/api/athletes/{athlete_id}/live", cookies=dict(coach.cookies))
+    assert blocked.status_code == 403

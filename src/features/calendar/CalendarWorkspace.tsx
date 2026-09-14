@@ -16,6 +16,7 @@ import { ShortcutsOverlay } from '../../surface/ShortcutsOverlay';
 import type { WorkoutData } from '../../types';
 import type { MovementPattern } from '../../services/exerciseCatalog';
 import { addSetBelow, applyCommits, flattenSessions } from '../plan/sessionActions';
+import { usePlanLive } from '../plan/usePlanLive';
 import type { GridCommit } from '../../surface/grid/gridTypes';
 
 function useWidth() {
@@ -110,24 +111,13 @@ export function CalendarWorkspace({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    const url = `${(import.meta as ImportMeta & { env: { VITE_BACKEND_URL?: string } }).env.VITE_BACKEND_URL || 'http://localhost:8000'}/api/workouts/${sessionId}/live`;
-    const source = new EventSource(url);
-    const onEvt = () => {
-      setHighlight(new Set([sessionId]));
-      void reloadMicrocycles(planAthleteId);
+  usePlanLive(planAthleteId, sessionId, (workoutId) => {
+    if (workoutId) {
+      setHighlight(new Set([workoutId]));
       window.setTimeout(() => setHighlight(new Set()), 200);
-    };
-    source.addEventListener('WORKOUT_SYNCED', onEvt);
-    source.onmessage = onEvt;
-    const onVis = () => { if (document.visibilityState === 'visible') void reloadMicrocycles(planAthleteId); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      source.close();
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [planAthleteId, reloadMicrocycles, sessionId]);
+    }
+    void reloadMicrocycles(planAthleteId);
+  });
 
   const open = (workout: WorkoutData, grid?: boolean) => {
     const microId = entries.find((item) => item.workout.id === workout.id)?.microId || '';
@@ -214,8 +204,8 @@ export function CalendarWorkspace({
           <div data-testid="copy-to-banner" className="min-h-8 px-2 py-1 flex flex-wrap items-center justify-between gap-2 text-mini text-fg-strong bg-accent/15 border border-accent/40 rounded mx-1">
             <span>Copy {copySource.title} — click a day{copyBusy ? ' · Copying…' : ''}{copyError ? ` · ${copyError}` : ''}</span>
             <div className="flex gap-2">
-              <button type="button" data-testid="copy-to-lifts" onClick={() => setCopyWithLogs(false)} className={`h-6 px-2 rounded ${!copyWithLogs ? 'bg-white/20' : 'text-fg-muted'}`}>Lifts only</button>
-              <button type="button" data-testid="copy-to-logs" onClick={() => setCopyWithLogs(true)} className={`h-6 px-2 rounded ${copyWithLogs ? 'bg-white/20' : 'text-fg-muted'}`}>With logs</button>
+              <button type="button" data-testid="copy-to-lifts" onClick={() => setCopyWithLogs(false)} className={`h-6 px-2 rounded ${!copyWithLogs ? 'bg-accent/20 text-fg-strong' : 'text-fg-muted'}`}>Lifts only</button>
+              <button type="button" data-testid="copy-to-logs" onClick={() => setCopyWithLogs(true)} className={`h-6 px-2 rounded ${copyWithLogs ? 'bg-accent/20 text-fg-strong' : 'text-fg-muted'}`}>With logs</button>
               <button type="button" data-testid="copy-to-cancel" onClick={() => setCopySource(null)} className="h-6 px-2 text-fg-muted">Cancel</button>
             </div>
           </div>

@@ -12,6 +12,7 @@ import { PATTERN_ABBREV } from '../../surface/calendar/chipLabel';
 import { inspectorOverlays, INSPECTOR_SNAP_B } from '../../surface/breakpoints';
 import { SessionInspector } from '../../surface/inspector/SessionInspector';
 import { addSetBelow, applyCommits } from '../plan/sessionActions';
+import { usePlanLive } from '../plan/usePlanLive';
 import { queueMutation } from '../../services/sync_engine';
 import type { GridCommit } from '../../surface/grid/gridTypes';
 import type { MovementPattern } from '../../services/exerciseCatalog';
@@ -78,6 +79,9 @@ export function SessionsListMode({
   const overlay = typeof window !== 'undefined' ? inspectorOverlays(window.innerWidth) : false;
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
+  usePlanLive(planAthleteId, sessionId, () => {
+    void reloadMicrocycles(planAthleteId);
+  });
 
   const allSessions = useMemo(() => {
     const entries: SessionEntry[] = [];
@@ -183,7 +187,7 @@ export function SessionsListMode({
                       <button type="button" data-testid={`sessions-copy-lifts-${key}`} onClick={() => handleCopySessions(`${key}::lifts`, entries.map(({ workout }) => workout.id), false, copyOffsetDays[key] ?? 7)} disabled={copyingKey === `${key}::lifts`} className="h-6 px-2 rounded bg-accent/20 text-accent text-micro disabled:opacity-50">
                         {copyingKey === `${key}::lifts` ? 'Copying…' : 'Copy lifts'}
                       </button>
-                      <button type="button" data-testid={`sessions-copy-logs-${key}`} onClick={() => handleCopySessions(`${key}::logs`, entries.map(({ workout }) => workout.id), true, copyOffsetDays[key] ?? 7)} disabled={copyingKey === `${key}::logs`} className="h-6 px-2 rounded bg-white/10 text-fg-strong text-micro disabled:opacity-50">
+                      <button type="button" data-testid={`sessions-copy-logs-${key}`} onClick={() => handleCopySessions(`${key}::logs`, entries.map(({ workout }) => workout.id), true, copyOffsetDays[key] ?? 7)} disabled={copyingKey === `${key}::logs`} className="h-6 px-2 rounded bg-accent/10 text-fg-strong text-micro disabled:opacity-50">
                         {copyingKey === `${key}::logs` ? 'Copying…' : 'Copy with logs'}
                       </button>
                       <span className="text-micro font-mono text-fg-muted">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>

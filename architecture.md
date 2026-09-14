@@ -960,7 +960,8 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
-| `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
+| `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events. Cookie auth is not required today (EventSource cookie gap); treat as a discrepancy vs §9.2. | Coach / athlete |
+| `GET` | `/api/athletes/{id}/live` | Plan-level SSE of `WORKOUT_SYNCED` for an athlete plan space. RBAC via `assert_plan_access`. Calendar chips and the open inspector subscribe here. | Linked coach / owning athlete |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
 | `POST` | `/api/integrations/telegram/link-token` | Generate short-lived Telegram Mini App deep-link token | Coach / Athlete |
 | `POST` | `/api/integrations/telegram/miniapp/session` | Verify Telegram Mini App `initData` and issue app session | Coach / Athlete |

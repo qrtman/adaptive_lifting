@@ -74,6 +74,7 @@ export function SessionInspector({
   return (
     <aside
       data-testid="session-inspector"
+      aria-label="Session inspector"
       className={`${overlay ? 'absolute inset-y-0 right-0 z-30' : 'relative'} flex flex-col bg-inspector border-l border-border h-full`}
       style={{ width: overlay ? '100%' : width }}
     >
@@ -81,7 +82,7 @@ export function SessionInspector({
         <button type="button" onClick={onClose} className="text-caption text-fg-muted hover:text-fg-strong">
           Back
         </button>
-        <p data-testid="session-name" className="text-ui text-fg-strong truncate">{workout.title}</p>
+        <h2 data-testid="session-name" className="text-ui text-fg-strong truncate">{workout.title}</h2>
         <p data-testid="workout-tonnage" className="text-mini font-mono text-fg-muted shrink-0">{workout.tonnage}kg</p>
       </div>
       <div className="px-2 py-2 flex flex-wrap items-center gap-2 border-b border-border">

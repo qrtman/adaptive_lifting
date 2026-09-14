@@ -149,8 +149,6 @@ export function SetGrid({
   return (
     <div
       data-testid="set-grid"
-      role="grid"
-      aria-label="Set grid"
       tabIndex={0}
       onKeyDown={onGridKey}
       className="overflow-auto border border-border rounded bg-cell"
@@ -163,7 +161,7 @@ export function SetGrid({
           No lifts yet. Add squat, bench, or deadlift.
         </p>
       ) : (
-        <table className="min-w-full border-collapse">
+        <table role="grid" aria-label="Set grid" className="min-w-full border-collapse">
           <thead>
             <tr>
               {cols.map((col, index) => (
