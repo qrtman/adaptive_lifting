@@ -86,8 +86,17 @@ export default function TelegramSessionTerminal() {
     return (
       <div className="flex h-screen items-center justify-center bg-black p-6 text-center text-zinc-400">
         <div>
-          <span className="material-symbols-outlined text-4xl text-zinc-600 mb-2">error</span>
-          <p>No active workout found for today.</p>
+          <p>No session for today.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (exercises.length === 0) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-black p-6 text-center text-zinc-400">
+        <div>
+          <p>No lifts on this session yet.</p>
         </div>
       </div>
     );

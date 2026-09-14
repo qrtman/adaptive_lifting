@@ -115,7 +115,7 @@ export async function saveMutation(mutation: SyncMutation): Promise<void> {
   });
 }
 
-export async function getPendingMutations(): Promise<SyncMutation[]> {
+export async function getPendingMutations(workout_id?: string): Promise<SyncMutation[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('mutations', 'readonly');
@@ -123,7 +123,8 @@ export async function getPendingMutations(): Promise<SyncMutation[]> {
     const req = store.getAll();
     req.onsuccess = () => {
       const all = req.result as SyncMutation[];
-      resolve(all.filter(m => m.status === 'PENDING' || m.status === 'IN_FLIGHT'));
+      const pending = all.filter(m => m.status === 'PENDING' || m.status === 'IN_FLIGHT');
+      resolve(workout_id ? pending.filter((m) => m.workout_id === workout_id) : pending);
     };
     req.onerror = () => reject(req.error);
   });
@@ -144,6 +145,10 @@ export async function updateMutationStatus(mutation_id: string, status: string):
     };
     req.onerror = () => reject(req.error);
   });
+}
+
+export function microcycleSnapshotKey(ownerId: string): string {
+  return `microcycles:${ownerId}`;
 }
 
 export async function saveSnapshot(id: string, data: any): Promise<void> {

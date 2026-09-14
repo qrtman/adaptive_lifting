@@ -83,8 +83,19 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
             
         entity = db.query(model_class).filter(model_class.id == change.id).first()
         if not entity:
-            # Upsert logic can be added here if needed, but assuming client only mutates existing for now.
             rejected.append(change.mutation_id)
+            continue
+
+        parent_workout_id = None
+        if change.entity == "Workout":
+            parent_workout_id = entity.id
+        elif change.entity == "Exercise":
+            parent_workout_id = entity.workout_id
+        elif change.entity == "ExerciseSet":
+            parent_workout_id = entity.exercise.workout_id if entity.exercise else None
+        if parent_workout_id != payload.workout_id:
+            rejected.append(change.mutation_id)
+            conflicts.append({"mutation_id": change.mutation_id, "reason": "WORKOUT_MISMATCH"})
             continue
             
         if entity.deleted_at is not None:
@@ -96,11 +107,15 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
                 updated_at=client_updated, result="REJECTED_TOMBSTONE"
             ))
             continue
-            
-        # Last-write-wins by field
-        for field, value in change.fields.items():
+
+        fields = dict(change.fields or {})
+        sets_payload = fields.pop("sets", None) if change.entity == "Exercise" else None
+        for field, value in fields.items():
             if hasattr(entity, field):
                 setattr(entity, field, value)
+        if sets_payload is not None:
+            from .set_writes import replace_exercise_sets
+            replace_exercise_sets(entity, sets_payload)
                 
         entity.updated_at = datetime.utcnow()
         accepted_ids.append(change.mutation_id)

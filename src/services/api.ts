@@ -1,10 +1,10 @@
 import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
-import { getSnapshot, saveSnapshot } from './db';
+import { getSnapshot, saveSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 
-const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || '';
+const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 /**
  * Recalculates metrics for a workout: exercise volumes, top single labels, and day's overall tonnage.
@@ -67,10 +67,17 @@ export function recalculateWorkoutMetrics(
   workout.delta = previousWorkoutTonnage > 0 ? totalTonnage - previousWorkoutTonnage : 0;
 }
 
-async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
+async function getOfflineMicrocycles(ownerId?: string): Promise<MicrocycleData[]> {
   try {
+    if (ownerId) {
+      const cached = await getSnapshot(microcycleSnapshotKey(ownerId));
+      if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
+        return cached;
+      }
+      return [];
+    }
     const cached = await getSnapshot('microcycles');
-    if (cached && Array.isArray(cached) && cached[0]?.workouts) {
+    if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
       return cached;
     }
   } catch (err) {
@@ -79,9 +86,9 @@ async function getOfflineMicrocycles(): Promise<MicrocycleData[]> {
   return [];
 }
 
-async function saveOfflineMicrocycles(data: MicrocycleData[]): Promise<void> {
+async function saveOfflineMicrocycles(data: MicrocycleData[], ownerId?: string): Promise<void> {
   try {
-    await saveSnapshot('microcycles', data);
+    await saveSnapshot(ownerId ? microcycleSnapshotKey(ownerId) : 'microcycles', data);
   } catch (err) {
     console.error('Failed to write IndexedDB microcycles snapshot:', err);
   }
@@ -93,25 +100,47 @@ function getHeaders() {
   };
 }
 
+function apiErrorMessage(errData: unknown, fallback: string): string {
+  const detail = errData && typeof errData === 'object' ? (errData as { detail?: unknown }).detail : undefined;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const first = detail[0];
+    if (typeof first === 'string' && first.trim()) return first;
+    if (first && typeof first === 'object' && 'msg' in first && typeof first.msg === 'string') {
+      return first.msg;
+    }
+  }
+  return fallback;
+}
+
 // --- Dual-Driver Service Layer Exports ---
 
 export const apiService = {
   /**
    * Fetches the complete microcycle training data.
    */
-  async fetchMicrocycles(athleteId?: string): Promise<MicrocycleData[]> {
+  async fetchMicrocycles(athleteId?: string, options?: { allowOffline?: boolean }): Promise<MicrocycleData[]> {
+    const allowOffline = options?.allowOffline !== false;
     if (BACKEND_URL) {
       try {
         const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
         const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
         if (!response.ok) throw new Error('API server returned error status');
-        return await response.json();
+        const data = await response.json();
+        if (athleteId) {
+          await saveOfflineMicrocycles(data, athleteId);
+        }
+        return data;
       } catch (err) {
+        if (!allowOffline) {
+          throw err instanceof Error ? err : new Error('Failed to load plan');
+        }
         console.warn('Backend server unavailable. Falling back to IndexedDB snapshot.', err);
-        return getOfflineMicrocycles();
+        return getOfflineMicrocycles(athleteId);
       }
     }
-    return getOfflineMicrocycles();
+    if (!allowOffline) throw new Error('Failed to load plan');
+    return getOfflineMicrocycles(athleteId);
   },
 
   /**
@@ -200,7 +229,8 @@ export const apiService = {
       try {
         const response = await fetch(`${BACKEND_URL}/api/reset`, { method: 'POST', credentials: 'include' });
         if (!response.ok) throw new Error('API server reset failed');
-        return await response.json();
+        const data = await response.json();
+        return data;
       } catch (err) {
         console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
       }
@@ -305,10 +335,26 @@ export const apiService = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Login failed');
+    if (!response.ok) throw new Error('Invalid credentials');
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.user.role);
     setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
+    return data;
+  },
+
+  async googleLogin(token: string, role = 'COACH') {
+    const response = await fetch(`${BACKEND_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ token, role }),
+    });
+    if (!response.ok) throw new Error('Google authentication failed');
+    const data = await response.json();
+    if (data.user?.role) setUiPref(UI_KEYS.role, data.user.role);
+    if (data.user?.email) setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
     return data;
   },
 
@@ -324,8 +370,10 @@ export const apiService = {
       throw new Error(errData.detail || 'Registration failed');
     }
     const data = await response.json();
-    setUiPref(UI_KEYS.role, data.role);
-    setUiPref(UI_KEYS.email, data.email);
+    setUiPref(UI_KEYS.role, data.role || data.user?.role);
+    setUiPref(UI_KEYS.email, data.email || data.user?.email);
+    const userId = data.id || data.user?.id;
+    if (userId) setUiPref(UI_KEYS.userId, String(userId));
     return data;
   },
 
@@ -387,6 +435,8 @@ export const apiService = {
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
     removeUiPref(UI_KEYS.roleMode);
+    removeUiPref(UI_KEYS.userId);
+    removeUiPref(UI_KEYS.activeAthleteId);
   },
 
   async createCoachCode(): Promise<{ code: string; expires_at?: string }> {
@@ -465,7 +515,7 @@ export const apiService = {
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to create session');
+      throw new Error(apiErrorMessage(errData, 'Failed to create session'));
     }
     return await response.json();
   },
@@ -518,6 +568,140 @@ export const apiService = {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       throw new Error(errData.detail || 'Failed to update session labels');
+    }
+    return await response.json();
+  },
+
+  async copyWeek(payload: {
+    sessionIds: string[];
+    athleteId?: string;
+    dateOffsetDays?: number;
+    targetBlockLabel?: string | null;
+    targetWeekLabel?: string | null;
+    includeLogs?: boolean;
+  }): Promise<{ status: string; copied: Array<{ id: string; date: string; title: string; blockLabel: string | null; weekLabel: string | null; sourceId: string }> }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/copy-week`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        sessionIds: payload.sessionIds,
+        athleteId: payload.athleteId,
+        dateOffsetDays: payload.dateOffsetDays ?? 7,
+        targetBlockLabel: payload.targetBlockLabel,
+        targetWeekLabel: payload.targetWeekLabel,
+        includeLogs: payload.includeLogs === true,
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to copy week');
+    }
+    return await response.json();
+  },
+
+  async addSessionExercise(sessionId: string, payload: {
+    title: string;
+    variation?: string;
+    tier?: 'Comp' | 'Variation' | 'Accessory';
+    liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
+    plannedWeight?: number | null;
+    plannedReps?: number | null;
+    plannedRpe?: number | null;
+  }): Promise<import('../types').ExerciseData> {
+    const body: Record<string, unknown> = {
+      title: payload.title,
+      variation: payload.variation,
+      tier: payload.tier,
+      liftCategory: payload.liftCategory,
+    };
+    if (payload.plannedWeight != null) body.plannedWeight = payload.plannedWeight;
+    if (payload.plannedReps != null) body.plannedReps = payload.plannedReps;
+    if (payload.plannedRpe != null) body.plannedRpe = payload.plannedRpe;
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to add lift');
+    }
+    return await response.json();
+  },
+
+  async replaceExerciseSets(
+    sessionId: string,
+    exerciseId: string,
+    sets: Array<{
+      id?: string;
+      label?: string;
+      plannedWeight?: number | null;
+      plannedReps?: number | null;
+      plannedRpe?: number | null;
+      intensityType?: string | null;
+      isAuto?: boolean;
+      isTop?: boolean;
+      actual?: number | null;
+      reps?: number | null;
+      executedRpe?: number | null;
+    }>
+  ): Promise<import('../types').ExerciseData> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}/sets`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        sets: sets.map((row) => ({
+          id: row.id,
+          label: row.label,
+          plannedWeight: row.plannedWeight,
+          plannedReps: row.plannedReps,
+          plannedRpe: row.plannedRpe,
+          intensityType: row.intensityType,
+          isAuto: row.isAuto,
+          isTop: row.isTop,
+          actual: row.actual,
+          reps: row.reps,
+          executedRpe: row.executedRpe,
+        })),
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to save sets');
+    }
+    return await response.json();
+  },
+
+  async updateSessionExercise(sessionId: string, exerciseId: string, payload: {
+    variation?: string;
+    title?: string;
+    tier?: 'Comp' | 'Variation' | 'Accessory';
+    move?: 'up' | 'down';
+  }): Promise<import('../types').ExerciseData> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to update lift');
+    }
+    return await response.json();
+  },
+
+  async removeSessionExercise(sessionId: string, exerciseId: string): Promise<{ status: string; id: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to remove lift');
     }
     return await response.json();
   },

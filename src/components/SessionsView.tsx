@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ExerciseData, WorkoutData } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { NewSessionDialog } from './NewSessionDialog';
+import { EditSessionDialog } from './EditSessionDialog';
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
@@ -78,11 +81,12 @@ export function SessionsView({
     activeWorkoutId,
     reloadMicrocycles,
     activeAthleteId,
+    planAthleteId,
   } = usePeriodization();
 
-  const [labelDrafts, setLabelDrafts] = useState<Record<string, { block: string; week: string }>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const isCoach = getUiPref(UI_KEYS.role)?.toUpperCase() === 'COACH';
+  const [editingSession, setEditingSession] = useState<WorkoutData | null>(null);
+  const { user } = useAuth();
+  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
 
   const allSessions = useMemo(() => {
     const entries: SessionEntry[] = [];
@@ -112,56 +116,32 @@ export function SessionsView({
     return keys.map((key) => ({ key, label: sessionGroupLabel(key), entries: groups.get(key)! }));
   }, [allSessions]);
 
-  useEffect(() => {
-    const drafts: Record<string, { block: string; week: string }> = {};
-    allSessions.forEach(({ workout }) => {
-      drafts[workout.id] = {
-        block: workout.blockLabel || '',
-        week: workout.weekLabel || '',
-      };
-    });
-    setLabelDrafts(drafts);
-  }, [allSessions]);
-
-  const saveLabels = async (workoutId: string) => {
-    const draft = labelDrafts[workoutId];
-    if (!draft) return;
-    setSavingId(workoutId);
-    try {
-      await apiService.updateSession(workoutId, {
-        blockLabel: draft.block.trim() || null,
-        weekLabel: draft.week.trim() || null,
-      });
-      await reloadMicrocycles(activeAthleteId);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save session labels');
-    } finally {
-      setSavingId(null);
-    }
-  };
-
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
-  const [creating, setCreating] = useState(false);
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [newTitle, setNewTitle] = useState('Session');
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [showNewSession, setShowNewSession] = useState(false);
+  const [copyingKey, setCopyingKey] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [copyOffsetDays, setCopyOffsetDays] = useState<Record<string, number>>({});
 
-  const handleCreateSession = async () => {
-    if (showCoachSelectAthlete) return;
-    setCreating(true);
-    setCreateError(null);
+  const handleCopySessions = async (copyKey: string, sessionIds: string[], includeLogs: boolean, days: number) => {
+    if (showCoachSelectAthlete || sessionIds.length === 0) return;
+    if (!Number.isFinite(days) || days < 1) {
+      setCopyError('Shift days must be at least 1');
+      return;
+    }
+    setCopyingKey(copyKey);
+    setCopyError(null);
     try {
-      await apiService.createSession({
-        date: newDate,
-        title: newTitle.trim() || 'Session',
-        athleteId: activeAthleteId || undefined,
+      await apiService.copyWeek({
+        sessionIds,
+        athleteId: planAthleteId || undefined,
+        dateOffsetDays: days,
+        includeLogs,
       });
-      await reloadMicrocycles(activeAthleteId);
+      await reloadMicrocycles(planAthleteId);
     } catch (err: any) {
-      setCreateError(err?.message || 'Failed to create session');
+      setCopyError(err?.message || 'Failed to copy');
     } finally {
-      setCreating(false);
+      setCopyingKey(null);
     }
   };
 
@@ -174,35 +154,16 @@ export function SessionsView({
           </div>
 
           {!showCoachSelectAthlete && (
-            <div className="border border-white/10 rounded p-2 flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[10px] text-[#636366]">Date</span>
-                <input
-                  type="date"
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
-                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5 flex-1 min-w-[140px]">
-                <span className="text-[10px] text-[#636366]">Title</span>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="h-7 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                />
-              </label>
+            <div className="px-1">
               <button
                 type="button"
                 data-testid="sessions-add"
-                onClick={handleCreateSession}
-                disabled={creating || !newDate}
-                className="h-7 px-3 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                onClick={() => setShowNewSession(true)}
+                className="h-7 px-3 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30"
               >
-                {creating ? 'Adding…' : 'Add session'}
+                Add session
               </button>
-              {createError && <p className="w-full text-[10px] text-red-400">{createError}</p>}
+              {copyError && <p className="w-full text-[10px] text-red-400 mt-1">{copyError}</p>}
             </div>
           )}
 
@@ -220,28 +181,62 @@ export function SessionsView({
               className="border border-white/10 rounded p-6 text-center"
             >
               <p className="text-sm text-white mb-1">No sessions yet</p>
-              <p className="text-xs text-[#AEAEB2]">Add a dated session above. Block/Week labels can be set anytime.</p>
+              <p className="text-xs text-[#AEAEB2]">Add session. Block/Week can wait.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
               {groupedSessions.map(({ key, label, entries }) => (
-                <section key={key} className="border border-white/10 rounded overflow-hidden">
-                  <div className="h-8 px-3 border-b border-white/10 flex items-center justify-between bg-[#131313]">
+                <section key={key}>
+                  <div className="min-h-8 px-1 flex items-center justify-between gap-2">
                     <h4 className="text-xs text-white">{label}</h4>
-                    <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1">
+                        <span className="text-[10px] text-[#636366]">Shift</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          data-testid={`sessions-copy-days-${key}`}
+                          value={copyOffsetDays[key] ?? 7}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setCopyOffsetDays(prev => ({ ...prev, [key]: next }));
+                          }}
+                          className="h-6 w-12 px-1 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white font-mono"
+                        />
+                        <span className="text-[10px] text-[#636366]">days</span>
+                      </label>
+                      <button
+                        type="button"
+                        data-testid={`sessions-copy-lifts-${key}`}
+                        onClick={() => handleCopySessions(`${key}::lifts`, entries.map(({ workout }) => workout.id), false, copyOffsetDays[key] ?? 7)}
+                        disabled={copyingKey === `${key}::lifts`}
+                        className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                      >
+                        {copyingKey === `${key}::lifts` ? 'Copying…' : 'Copy lifts'}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`sessions-copy-logs-${key}`}
+                        onClick={() => handleCopySessions(`${key}::logs`, entries.map(({ workout }) => workout.id), true, copyOffsetDays[key] ?? 7)}
+                        disabled={copyingKey === `${key}::logs`}
+                        className="h-6 px-2 rounded bg-white/10 text-white text-[10px] hover:bg-white/15 disabled:opacity-50"
+                      >
+                        {copyingKey === `${key}::logs` ? 'Copying…' : 'Copy with logs'}
+                      </button>
+                      <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
+                    </div>
                   </div>
-                  <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  <div className="divide-y divide-white/10 border-t border-white/10">
                     {entries.map(({ workout, microId }) => {
-                      const draft = labelDrafts[workout.id] || { block: '', week: '' };
                       const isWorkoutActive = activeWorkoutId === workout.id;
+                      const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
                       return (
                         <div
                           key={workout.id}
                           data-testid={`sessions-card-${workout.id}`}
-                          className={`border rounded p-2 flex flex-col gap-2 ${
-                            isWorkoutActive
-                              ? 'bg-[#161616] border-[#007AFF]/50'
-                              : 'bg-[#161616] border-white/10'
+                          className={`py-2 px-1 flex flex-col gap-2 ${
+                            isWorkoutActive ? 'bg-[#161616]' : ''
                           }`}
                         >
                           <button
@@ -250,13 +245,13 @@ export function SessionsView({
                             className="text-left flex flex-col gap-1 hover:opacity-90"
                           >
                             <div className="flex items-center justify-between gap-2 h-6">
-                              <span className="text-xs text-white truncate">
-                                {workout.date} · {workout.title}
-                              </span>
+                              <span className="text-xs text-white truncate">{workout.date}</span>
                               <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
                                 {workout.status} · {workout.tonnage}kg
                               </span>
                             </div>
+                            <p className="text-xs text-white truncate">{workout.title || 'Session'}</p>
+                            <p className="text-[10px] text-[#AEAEB2] truncate">{labels || 'No block/week'}</p>
                             <div className="flex flex-col gap-0.5">
                               {workout.exercises.map(ex => {
                                 const { planned, logged } = setLine(ex);
@@ -280,40 +275,14 @@ export function SessionsView({
                               })}
                             </div>
                           </button>
-                          <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-white/5">
-                            <label className="flex flex-col gap-0.5">
-                              <span className="text-[10px] text-[#636366]">Block</span>
-                              <input
-                                type="text"
-                                value={draft.block}
-                                onChange={(e) => setLabelDrafts(prev => ({
-                                  ...prev,
-                                  [workout.id]: { ...draft, block: e.target.value },
-                                }))}
-                                className="h-7 w-20 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                              />
-                            </label>
-                            <label className="flex flex-col gap-0.5">
-                              <span className="text-[10px] text-[#636366]">Week</span>
-                              <input
-                                type="text"
-                                value={draft.week}
-                                onChange={(e) => setLabelDrafts(prev => ({
-                                  ...prev,
-                                  [workout.id]: { ...draft, week: e.target.value },
-                                }))}
-                                className="h-7 w-20 px-2 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => saveLabels(workout.id)}
-                              disabled={savingId === workout.id}
-                              className="h-7 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[11px] hover:bg-[#007AFF]/30 disabled:opacity-50"
-                            >
-                              {savingId === workout.id ? 'Saving…' : 'Save labels'}
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            data-testid={`sessions-edit-${workout.id}`}
+                            onClick={() => setEditingSession(workout)}
+                            className="self-start h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
+                          >
+                            Edit
+                          </button>
                         </div>
                       );
                     })}
@@ -324,6 +293,32 @@ export function SessionsView({
           )}
         </div>
       </div>
+      {showNewSession && (
+        <NewSessionDialog
+          date={new Date().toISOString().slice(0, 10)}
+          allowDateEdit
+          athleteId={planAthleteId}
+          onClose={() => setShowNewSession(false)}
+          onCreated={async () => {
+            await reloadMicrocycles(planAthleteId);
+            setShowNewSession(false);
+          }}
+        />
+      )}
+      {editingSession && (
+        <EditSessionDialog
+          session={editingSession}
+          onClose={() => setEditingSession(null)}
+          onSaved={async () => {
+            await reloadMicrocycles(planAthleteId);
+            setEditingSession(null);
+          }}
+          onDeleted={async () => {
+            await reloadMicrocycles(planAthleteId);
+            setEditingSession(null);
+          }}
+        />
+      )}
     </div>
   );
 }
