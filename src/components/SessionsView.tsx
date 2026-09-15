@@ -87,6 +87,7 @@ function SessionCard({
   onToggleSelected: (checked: boolean) => void;
   onCopyTo: () => void;
   onEdit: () => void;
+  key?: string;
 }) {
   const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
   return (
@@ -218,7 +219,7 @@ export function SessionsView({
   }, [microcycles, filter]);
 
   const groupedSessions = useMemo(
-    () => groupLabeledSessions(allSessions, (entry) => entry.workout),
+    () => groupLabeledSessions<SessionEntry>(allSessions, (entry) => entry.workout),
     [allSessions],
   );
 
