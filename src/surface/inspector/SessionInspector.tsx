@@ -6,7 +6,6 @@ import { EditSessionDialog } from '../../components/EditSessionDialog';
 import { CenteredDialog } from '../../components/CenteredDialog';
 import { LiftVariationPicker } from '../../components/LiftVariationPicker';
 import { compileVariation, defaultModifiers } from '../../services/liftVariation';
-import { INSPECTOR_SNAP_A, INSPECTOR_SNAP_B } from '../breakpoints';
 import { ExercisePicker } from '../grid/ExercisePicker';
 import { SetGrid } from '../grid/SetGrid';
 import type { GridCommit, GridRole } from '../grid/gridTypes';
@@ -16,12 +15,8 @@ export function SessionInspector({
   role,
   locked,
   lockMessage,
-  overlay,
-  width,
   gridFocus,
-  focusNotes,
   conflicts,
-  onWidth,
   onClose,
   onNotes,
   onStatus,
@@ -39,12 +34,12 @@ export function SessionInspector({
   role: GridRole;
   locked: boolean;
   lockMessage?: string;
-  overlay: boolean;
-  width: number;
+  overlay?: boolean;
+  width?: number;
   gridFocus?: boolean;
   focusNotes?: boolean;
   conflicts?: Array<{ field: string; server: string; client: string }>;
-  onWidth: (width: number) => void;
+  onWidth?: (width: number) => void;
   onClose: () => void;
   onNotes: (notes: string) => void;
   onStatus: (status: WorkoutStatus) => void;
@@ -69,20 +64,15 @@ export function SessionInspector({
   }, [workout.notes, workout.id]);
 
   useEffect(() => {
-    if (focusNotes) {
-      document.querySelector<HTMLTextAreaElement>('[data-testid="session-notes"]')?.focus();
-      return;
-    }
     if (!gridFocus) return;
     document.querySelector<HTMLElement>('[data-testid="set-grid"]')?.focus();
-  }, [gridFocus, focusNotes, workout.id]);
+  }, [gridFocus, workout.id]);
 
   return (
-    <aside
+    <section
       data-testid="session-inspector"
-      aria-label="Session inspector"
-      className={`${overlay ? 'absolute inset-y-0 right-0 z-30' : 'relative'} flex flex-col bg-inspector border-l border-border h-full`}
-      style={{ width: overlay ? '100%' : width }}
+      aria-label="Session editor"
+      className="flex-1 flex flex-col bg-canvas h-full w-full min-w-0"
     >
       <div className="flex items-center justify-between gap-2 px-2 h-8 border-b border-border shrink-0">
         <button type="button" onClick={onClose} className="text-caption text-fg-muted hover:text-fg-strong">
@@ -110,15 +100,6 @@ export function SessionInspector({
         >
           Complete
         </button>
-        {!overlay ? (
-          <button
-            type="button"
-            className="h-7 px-2 text-micro text-fg-muted"
-            onClick={() => onWidth(width === INSPECTOR_SNAP_A ? INSPECTOR_SNAP_B : INSPECTOR_SNAP_A)}
-          >
-            Width
-          </button>
-        ) : null}
       </div>
       {locked ? <div className="px-2 pt-2"><WorkoutLockBanner message={lockMessage} /></div> : null}
       {conflicts?.map((conflict) => (
@@ -155,7 +136,7 @@ export function SessionInspector({
           disabled={locked}
           onChange={(event) => setNotes(event.target.value)}
           onBlur={() => onNotes(notes)}
-          className="min-h-24 bg-canvas border border-border rounded p-1 text-caption text-fg resize-y"
+          className="min-h-16 bg-canvas border border-border rounded p-1 text-caption text-fg resize-y"
         />
       </label>
       {editOpen ? (
@@ -191,6 +172,6 @@ export function SessionInspector({
           />
         </CenteredDialog>
       ) : null}
-    </aside>
+    </section>
   );
 }

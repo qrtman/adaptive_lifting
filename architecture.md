@@ -1289,7 +1289,7 @@ The PWA has no react-router. Workspaces are hash routes written by `src/navigati
 - `#/calendar`, `#/sessions`, `#/insights`, `#/integrations`, `#/security`
 - Optional query: `athlete=<id>`, `panel=athlete-scope`, `session=<id>`, `grid=1`
 - Wide-screen sheet: `#/sessions/:id/grid`
-- Deep link `#/calendar?session=<id>` opens the right inspector without leaving the month grid
+- Deep link `#/calendar?session=<id>` opens the main-surface session editor (month calendar unmounts; Back returns to the month)
 - Legacy `#/roster`, `#/athletes`, `?view=roster` redirect to calendar and open the sidebar athlete-plan selector
 - Legacy `#/analytics` redirects to Insights
 - Telegram Mini App still enters at `/?tg_auth=true`; if `view=` is present it is resolved through the same redirect table

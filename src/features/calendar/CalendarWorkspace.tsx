@@ -5,12 +5,13 @@ import { usePeriodization } from '../../contexts/PeriodizationContext';
 import { useSync } from '../../contexts/SyncContext';
 import { apiService } from '../../services/api';
 import { queueMutation } from '../../services/sync_engine';
-import { getUiPref, setUiPref, UI_KEYS } from '../../storage/uiPrefs';
+import { getUiPref, UI_KEYS } from '../../storage/uiPrefs';
 import { MonthCalendar } from '../../surface/calendar/MonthCalendar';
+import { DayNotesCard } from '../../surface/calendar/DayNotesCard';
 import { QuickCreatePopover } from '../../surface/calendar/QuickCreatePopover';
 import { rescheduleFields } from '../../surface/calendar/chipLabel';
 import { todayIso } from '../../surface/calendar/monthModel';
-import { BP_WEEK_STRIP, calendarLayout, inspectorOverlays, INSPECTOR_SNAP_B } from '../../surface/breakpoints';
+import { BP_WEEK_STRIP, calendarLayout, inspectorOverlays } from '../../surface/breakpoints';
 import { SessionInspector } from '../../surface/inspector/SessionInspector';
 import { ShortcutsOverlay } from '../../surface/ShortcutsOverlay';
 import type { WorkoutData } from '../../types';
@@ -61,8 +62,8 @@ export function CalendarWorkspace({
   const [focusedIso, setFocusedIso] = useState(todayIso(now));
   const [filter, setFilter] = useState<LiftFilterValue>('All');
   const [createIso, setCreateIso] = useState<string | null>(null);
-  const [createFocusNotes, setCreateFocusNotes] = useState(false);
-  const [focusInspectorNotes, setFocusInspectorNotes] = useState(false);
+  const [notesIso, setNotesIso] = useState<string | null>(null);
+  const [notesSessionId, setNotesSessionId] = useState<string | null>(null);
   const [popoverIso, setPopoverIso] = useState<string | null>(null);
   const [copySource, setCopySource] = useState<WorkoutData | null>(null);
   const [copyWithLogs, setCopyWithLogs] = useState(false);
@@ -70,7 +71,6 @@ export function CalendarWorkspace({
   const [copyError, setCopyError] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   const [highlight, setHighlight] = useState<Set<string>>(new Set());
-  const [inspectorWidth, setInspectorWidth] = useState(() => Number(getUiPref(UI_KEYS.inspectorWidth)) || INSPECTOR_SNAP_B);
   const weekStartsOn = (Number(getUiPref(UI_KEYS.weekStartsOn) || '1') === 0 ? 0 : 1) as 0 | 1;
 
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
@@ -102,10 +102,6 @@ export function CalendarWorkspace({
   const locked = Boolean(sessionId && locks.some((lock) => lock.workout_id === sessionId));
 
   useEffect(() => {
-    setUiPref(UI_KEYS.inspectorWidth, String(inspectorWidth));
-  }, [inspectorWidth]);
-
-  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === '?' && (event.target as HTMLElement)?.tagName !== 'INPUT') setHelp(true);
     };
@@ -121,33 +117,27 @@ export function CalendarWorkspace({
     void reloadMicrocycles(planAthleteId);
   });
 
-  const open = (workout: WorkoutData, grid?: boolean, notes?: boolean) => {
+  const open = (workout: WorkoutData, grid?: boolean) => {
     const microId = entries.find((item) => item.workout.id === workout.id)?.microId || '';
     setActiveWorkoutId(workout.id);
     setActiveMicrocycleId(microId);
-    setFocusInspectorNotes(Boolean(notes));
     onOpenSession(workout, microId, grid);
   };
 
-  const startCreate = (iso: string, notes = false) => {
+  const startCreate = (iso: string) => {
     if (copySource || showCoachSelectAthlete) return;
     setPopoverIso(null);
-    setCreateFocusNotes(notes);
+    setNotesIso(null);
+    setNotesSessionId(null);
     setCreateIso(iso);
   };
 
   const handleNote = (iso: string) => {
-    const list = sessionsByDate.get(iso) || [];
-    if (!list.length) {
-      startCreate(iso, true);
-      return;
-    }
-    if (list.length === 1) {
-      setPopoverIso(null);
-      open(list[0], false, true);
-      return;
-    }
-    setPopoverIso(iso);
+    if (copySource || showCoachSelectAthlete) return;
+    setPopoverIso(null);
+    setCreateIso(null);
+    setNotesSessionId(null);
+    setNotesIso(iso);
   };
 
   const reschedule = async (workout: WorkoutData, date: string) => {
@@ -212,69 +202,23 @@ export function CalendarWorkspace({
     });
   }, [openWorkout, updateExerciseSets]);
 
+  const editing = Boolean(openWorkout && sessionId === openWorkout.id);
+
   return (
     <div className="flex-1 flex overflow-hidden relative bg-canvas" data-testid="calendar-workspace">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex justify-end px-2 pt-1">
-          <LiftFilter value={filter} onChange={setFilter} />
-        </div>
-        {copySource ? (
-          <div data-testid="copy-to-banner" className="min-h-8 px-2 py-1 flex flex-wrap items-center justify-between gap-2 text-mini text-fg-strong bg-accent/15 border border-accent/40 rounded mx-1">
-            <span>Copy {copySource.title} — click a day{copyBusy ? ' · Copying…' : ''}{copyError ? ` · ${copyError}` : ''}</span>
-            <div className="flex gap-2">
-              <button type="button" data-testid="copy-to-lifts" onClick={() => setCopyWithLogs(false)} className={`h-6 px-2 rounded ${!copyWithLogs ? 'bg-accent/20 text-fg-strong' : 'text-fg-muted'}`}>Lifts only</button>
-              <button type="button" data-testid="copy-to-logs" onClick={() => setCopyWithLogs(true)} className={`h-6 px-2 rounded ${copyWithLogs ? 'bg-accent/20 text-fg-strong' : 'text-fg-muted'}`}>With logs</button>
-              <button type="button" data-testid="copy-to-cancel" onClick={() => setCopySource(null)} className="h-6 px-2 text-fg-muted">Cancel</button>
-            </div>
-          </div>
-        ) : null}
-        <MonthCalendar
-          year={year}
-          month={month}
-          weekStartsOn={weekStartsOn}
-          layout={layout}
-          focusedIso={focusedIso}
-          sessionsByDate={sessionsByDate}
-          highlightedIds={highlight}
-          copyMode={Boolean(copySource)}
-          popoverIso={popoverIso}
-          empty={showCoachSelectAthlete}
-          onYearMonth={({ year: y, month: m }) => { setYear(y); setMonth(m); }}
-          onFocus={setFocusedIso}
-          onOpenDay={handleOpenDay}
-          onCreate={(iso) => startCreate(iso)}
-          onNote={handleNote}
-          onOpenSession={(workout) => open(workout, false)}
-          onOpenGrid={(workout) => open(workout, true)}
-          onOpenNotes={(workout) => {
-            setPopoverIso(null);
-            open(workout, false, true);
-          }}
-          onReschedule={reschedule}
-          onCopy={setCopySource}
-          onPopoverIso={setPopoverIso}
-        />
-      </div>
-      {openWorkout && sessionId === openWorkout.id ? (
+      {editing && openWorkout ? (
         <SessionInspector
           workout={openWorkout}
           role={roleMode}
           locked={locked}
           lockMessage={locks.find((lock) => lock.workout_id === sessionId)?.message}
-          overlay={overlay}
-          width={inspectorWidth}
           gridFocus={gridFocus}
-          focusNotes={focusInspectorNotes}
           conflicts={conflicts.filter((c) => c.workout_id === sessionId).map((c) => ({
             field: c.field_path || 'State',
             server: c.reason || 'server',
             client: 'local edit',
           }))}
-          onWidth={setInspectorWidth}
-          onClose={() => {
-            setFocusInspectorNotes(false);
-            onCloseSession();
-          }}
+          onClose={onCloseSession}
           onNotes={(notes) => {
             void queueMutation(openWorkout.id, 'Workout', openWorkout.id, { notes });
             if (isOnline) void apiService.updateSession(openWorkout.id, { notes });
@@ -304,28 +248,75 @@ export function CalendarWorkspace({
           onDeleted={() => { void reloadMicrocycles(planAthleteId); onCloseSession(); }}
           onReload={() => reloadMicrocycles(planAthleteId)}
         />
-      ) : null}
-      {createIso ? (
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex justify-end px-2 pt-1">
+            <LiftFilter value={filter} onChange={setFilter} />
+          </div>
+          {copySource ? (
+            <div data-testid="copy-to-banner" className="min-h-8 px-2 py-1 flex flex-wrap items-center justify-between gap-2 text-mini text-fg-strong bg-accent/15 border border-accent/40 rounded mx-1">
+              <span>Copy {copySource.title} — click a day{copyBusy ? ' · Copying…' : ''}{copyError ? ` · ${copyError}` : ''}</span>
+              <div className="flex gap-2">
+                <button type="button" data-testid="copy-to-lifts" onClick={() => setCopyWithLogs(false)} className={`h-6 px-2 rounded ${!copyWithLogs ? 'bg-accent/20 text-fg-strong' : 'text-fg-muted'}`}>Lifts only</button>
+                <button type="button" data-testid="copy-to-logs" onClick={() => setCopyWithLogs(true)} className={`h-6 px-2 rounded ${copyWithLogs ? 'bg-accent/20 text-fg-strong' : 'text-fg-muted'}`}>With logs</button>
+                <button type="button" data-testid="copy-to-cancel" onClick={() => setCopySource(null)} className="h-6 px-2 text-fg-muted">Cancel</button>
+              </div>
+            </div>
+          ) : null}
+          <MonthCalendar
+            year={year}
+            month={month}
+            weekStartsOn={weekStartsOn}
+            layout={layout}
+            focusedIso={focusedIso}
+            sessionsByDate={sessionsByDate}
+            highlightedIds={highlight}
+            copyMode={Boolean(copySource)}
+            popoverIso={popoverIso}
+            empty={showCoachSelectAthlete}
+            onYearMonth={({ year: y, month: m }) => { setYear(y); setMonth(m); }}
+            onFocus={setFocusedIso}
+            onOpenDay={handleOpenDay}
+            onCreate={(iso) => startCreate(iso)}
+            onNote={handleNote}
+            onOpenSession={(workout) => open(workout, false)}
+            onOpenGrid={(workout) => open(workout, true)}
+            onOpenNotes={(workout) => {
+              setPopoverIso(null);
+              setNotesSessionId(workout.id);
+              setNotesIso(workout.date);
+            }}
+            onReschedule={reschedule}
+            onCopy={setCopySource}
+            onPopoverIso={setPopoverIso}
+          />
+        </div>
+      )}
+      {createIso && !editing ? (
         <QuickCreatePopover
           date={createIso}
           athleteId={planAthleteId}
           overlay={overlay}
-          focusNotes={createFocusNotes}
           online={isOnline}
-          onClose={() => {
-            setCreateIso(null);
-            setCreateFocusNotes(false);
-          }}
+          onClose={() => setCreateIso(null)}
           onCreated={async (created) => {
             setCreateIso(null);
-            setCreateFocusNotes(false);
-            setInspectorWidth(INSPECTOR_SNAP_B);
             setActiveWorkoutId(created.id);
             if (created.microcycleId) setActiveMicrocycleId(created.microcycleId);
-            if (createFocusNotes || created.notes) setFocusInspectorNotes(true);
             await reloadMicrocycles(planAthleteId);
             onOpenSession(created, created.microcycleId || '', false);
           }}
+        />
+      ) : null}
+      {notesIso && !editing ? (
+        <DayNotesCard
+          iso={notesIso}
+          sessions={sessionsByDate.get(notesIso) || []}
+          preferId={notesSessionId}
+          athleteId={planAthleteId}
+          online={isOnline}
+          onClose={() => setNotesIso(null)}
+          onSaved={() => reloadMicrocycles(planAthleteId)}
         />
       ) : null}
       {help ? <ShortcutsOverlay onClose={() => setHelp(false)} /> : null}

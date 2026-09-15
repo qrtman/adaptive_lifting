@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { CenteredDialog } from './CenteredDialog';
-import { LabelCombo, uniquePlanLabels } from './LabelCombo';
+import { LabelCombo, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
+import { ComboBox } from '../surface/ui/ComboBox';
 
 export function EditSessionDialog({
   session,
@@ -22,9 +23,10 @@ export function EditSessionDialog({
   onDeleted?: () => void | Promise<void>;
 }) {
   const { microcycles } = usePeriodization();
+  const nameOptions = uniquePlanTitles(microcycles);
   const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
   const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
-  const [title, setTitle] = useState(session.title || 'Session');
+  const [title, setTitle] = useState(session.title || '');
   const [blockLabel, setBlockLabel] = useState(session.blockLabel || '');
   const [weekLabel, setWeekLabel] = useState(session.weekLabel || '');
   const [busy, setBusy] = useState(false);
@@ -32,11 +34,15 @@ export function EditSessionDialog({
 
   const save = async () => {
     if (busy) return;
+    if (!title.trim()) {
+      setError('Name is required');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await apiService.updateSession(session.id, {
-        title: title.trim() || 'Session',
+        title: title.trim(),
         blockLabel: blockLabel.trim(),
         weekLabel: weekLabel.trim(),
       });
@@ -90,7 +96,7 @@ export function EditSessionDialog({
           <button
             type="button"
             data-testid="edit-session-save"
-            disabled={busy}
+            disabled={busy || !title.trim()}
             onClick={() => void save()}
             className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
           >
@@ -100,15 +106,15 @@ export function EditSessionDialog({
       )}
     >
       <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-[#636366]">Name</span>
-          <input
-            data-testid="session-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-          />
-        </label>
+        <ComboBox
+          label="Name"
+          value={title}
+          onChange={setTitle}
+          options={nameOptions}
+          testId="session-title"
+          allowCreate
+          required
+        />
         <div className="grid grid-cols-2 gap-2">
           <LabelCombo
             label="Block (optional)"

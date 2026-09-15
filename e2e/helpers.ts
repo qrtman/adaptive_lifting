@@ -43,6 +43,9 @@ export async function fillLogCell(page: Page, cellId: string, value: string | nu
 
 export async function fillCombo(page: Page, testId: string, value: string) {
   const input = page.getByTestId(testId);
+  if (await page.getByRole('listbox').count()) {
+    await page.keyboard.press('Escape');
+  }
   await input.click();
   await input.fill(value);
   await input.press('Enter');

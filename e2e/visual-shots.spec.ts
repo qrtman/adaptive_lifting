@@ -34,6 +34,7 @@ test('desktop and narrow calendar/grid/inspector screenshots', async ({ page, re
   await fillCombo(page, 'new-session-week', 'Week1');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-inspector')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toHaveCount(0);
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-exercise').selectOption('Squat');

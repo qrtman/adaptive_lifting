@@ -8,7 +8,7 @@ const ARTIFACTS = fs.existsSync('/opt/cursor/artifacts')
 
 test.use({ baseURL: 'http://localhost:3000' });
 
-test('Workspace month: empty days, hover actions, anchored create, pattern badge', async ({ page, request }) => {
+test('three layout states: home month, notes card, main-surface set editor', async ({ page, request }) => {
   fs.mkdirSync(ARTIFACTS, { recursive: true });
   const email = `parity-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
@@ -32,12 +32,25 @@ test('Workspace month: empty days, hover actions, anchored create, pattern badge
 
   await emptyDay.click();
   await expect(page.getByTestId('new-session-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('day-notes-card')).toHaveCount(0);
+  await expect(page.getByTestId('session-inspector')).toHaveCount(0);
 
   await emptyDay.hover();
   await expect(page.getByTestId('calendar-new-session-2026-09-03')).toBeVisible();
   await expect(page.getByTestId('calendar-day-note-2026-09-03')).toBeVisible();
   await emptyDay.screenshot({ path: path.join(ARTIFACTS, 'calendar_hovered_day.png') });
 
+  await page.getByTestId('calendar-day-note-2026-09-03').click();
+  await expect(page.getByTestId('day-notes-card')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toBeVisible();
+  await expect(page.getByTestId('session-inspector')).toHaveCount(0);
+  await expect(page.getByTestId('new-session-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('day-notes-text')).toBeVisible();
+  await page.screenshot({ path: path.join(ARTIFACTS, 'calendar_notes_card.png') });
+  await page.getByTestId('day-notes-close').click();
+  await expect(page.getByTestId('day-notes-card')).toHaveCount(0);
+
+  await emptyDay.hover();
   await page.getByTestId('calendar-new-session-2026-09-03').click();
   const create = page.getByTestId('new-session-dialog');
   await expect(create).toBeVisible();
@@ -49,14 +62,14 @@ test('Workspace month: empty days, hover actions, anchored create, pattern badge
   await expect(create).toHaveCount(0);
 
   await emptyDay.hover();
-  await page.getByTestId('calendar-day-note-2026-09-03').click();
-  await expect(page.getByTestId('new-session-dialog')).toBeVisible();
-  await expect(page.getByTestId('new-session-notes')).toBeFocused();
+  await page.getByTestId('calendar-new-session-2026-09-03').click();
   await page.getByTestId('new-session-title').fill('Parity day');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-inspector')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toHaveCount(0);
+  await expect(page.getByTestId('day-notes-card')).toHaveCount(0);
   const inspectorBox = await page.getByTestId('session-inspector').boundingBox();
-  expect(inspectorBox?.width || 0).toBeGreaterThanOrEqual(360);
+  expect(inspectorBox?.width || 0).toBeGreaterThan(800);
 
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
@@ -71,4 +84,16 @@ test('Workspace month: empty days, hover actions, anchored create, pattern badge
   await load.click();
   await expect(page.getByRole('listbox', { name: 'Movement pattern' })).toHaveCount(0);
   await page.screenshot({ path: path.join(ARTIFACTS, 'inspector_grid_editing.png') });
+
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('month-calendar')).toBeVisible();
+  await expect(page.getByTestId('session-inspector')).toHaveCount(0);
+  await expect(page.getByTestId('calendar-day-2026-09-03').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
+
+  await page.getByTestId('calendar-day-2026-09-03').hover();
+  await page.getByTestId('calendar-day-note-2026-09-03').click();
+  await expect(page.getByTestId('day-notes-card')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toBeVisible();
+  await expect(page.getByTestId('session-inspector')).toHaveCount(0);
+  await expect(page.getByTestId('day-notes-text')).toBeVisible();
 });
