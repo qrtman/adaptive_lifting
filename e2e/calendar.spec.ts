@@ -29,6 +29,7 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('new-session-title').fill('Unlabeled');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toHaveCount(0);
   await expect(page.getByTestId('session-labels')).toHaveText('No block/week');
   await page.getByRole('button', { name: 'Back' }).click();
 

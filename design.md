@@ -113,7 +113,7 @@ The design system follows three product principles:
 | :--- | :--- | :--- | :--- |
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
-| Calendar workspace | Coach / Athlete | Date-first month grid with session chips and right inspector | Hover a day shows New session (and Copy to when a session exists). SSE `WORKOUT_SYNCED` updates chips in place. Deep link `#/calendar?session=<id>`. |
+| Calendar workspace | Coach / Athlete | Date-first month grid with session chips; set editor is a main surface | Hover a day shows + and note. Chip / Create opens SetGrid (calendar hidden). Note opens a day card. SSE `WORKOUT_SYNCED` updates chips in place. Deep link `#/calendar?session=<id>`. |
 | Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts in SetGrid | Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift. `COMPLETED` / `MISSED` stay writable. |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for name/block/week |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |

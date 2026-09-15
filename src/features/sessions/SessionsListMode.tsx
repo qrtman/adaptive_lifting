@@ -4,12 +4,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePeriodization } from '../../contexts/PeriodizationContext';
 import { useSync } from '../../contexts/SyncContext';
 import { apiService } from '../../services/api';
-import { getUiPref, setUiPref, UI_KEYS } from '../../storage/uiPrefs';
+import { getUiPref, UI_KEYS } from '../../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from '../../components/LiftFilter';
 import { NewSessionDialog } from '../../components/NewSessionDialog';
 import { EditSessionDialog } from '../../components/EditSessionDialog';
 import { PATTERN_ABBREV } from '../../surface/calendar/chipLabel';
-import { inspectorOverlays, INSPECTOR_SNAP_B } from '../../surface/breakpoints';
 import { SessionInspector } from '../../surface/inspector/SessionInspector';
 import { addSetBelow, applyCommits } from '../plan/sessionActions';
 import { usePlanLive } from '../plan/usePlanLive';
@@ -75,8 +74,6 @@ export function SessionsListMode({
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [copyOffsetDays, setCopyOffsetDays] = useState<Record<string, number>>({});
-  const [inspectorWidth, setInspectorWidth] = useState(() => Number(getUiPref(UI_KEYS.inspectorWidth)) || INSPECTOR_SNAP_B);
-  const overlay = typeof window !== 'undefined' ? inspectorOverlays(window.innerWidth) : false;
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   usePlanLive(planAthleteId, sessionId, () => {
@@ -140,8 +137,61 @@ export function SessionsListMode({
     onOpenSession(workout, microId, grid);
   };
 
+  const editing = Boolean(openWorkout && sessionId === openWorkout.id);
+
   return (
     <div className="flex-1 flex relative h-full overflow-hidden bg-canvas">
+      {editing && openWorkout ? (
+        <SessionInspector
+          workout={openWorkout}
+          role={roleMode}
+          locked={locked}
+          lockMessage={locks.find((lock) => lock.workout_id === sessionId)?.message}
+          gridFocus={gridFocus}
+          conflicts={conflicts.filter((c) => c.workout_id === sessionId).map((c) => ({
+            field: c.field_path || 'State',
+            server: c.reason || 'server',
+            client: 'local edit',
+          }))}
+          onClose={onCloseSession}
+          onNotes={(notes) => {
+            void queueMutation(openWorkout.id, 'Workout', openWorkout.id, { notes });
+            if (isOnline) void apiService.updateSession(openWorkout.id, { notes });
+          }}
+          onStatus={async (status) => { await finishSession(status); onCloseSession(); }}
+          onCommit={(commits: GridCommit[]) => {
+            const byEx = new Map<string, GridCommit[]>();
+            for (const commit of commits) {
+              const list = byEx.get(commit.exerciseId) || [];
+              list.push(commit);
+              byEx.set(commit.exerciseId, list);
+            }
+            byEx.forEach((list, exerciseId) => {
+              const exercise = openWorkout.exercises.find((item) => item.id === exerciseId);
+              if (exercise) updateExerciseSets(exerciseId, applyCommits(exercise.sets, list));
+            });
+          }}
+          onAddSet={(exerciseId) => {
+            const exercise = openWorkout.exercises.find((item) => item.id === exerciseId);
+            if (exercise) updateExerciseSets(exerciseId, addSetBelow(exercise.sets));
+          }}
+          onPattern={(exerciseId, value: MovementPattern) => {
+            void apiService.updateSessionExercise(openWorkout.id, exerciseId, { movementPattern: value }).then(() => reloadMicrocycles(planAthleteId));
+          }}
+          onMoveExercise={(exerciseId, move) => {
+            void apiService.updateSessionExercise(openWorkout.id, exerciseId, { move }).then(() => reloadMicrocycles(planAthleteId));
+          }}
+          onRemoveExercise={(exerciseId) => {
+            void apiService.removeSessionExercise(openWorkout.id, exerciseId).then(() => reloadMicrocycles(planAthleteId));
+          }}
+          onUpdateMeta={(exerciseId, patch) => {
+            void apiService.updateSessionExercise(openWorkout.id, exerciseId, patch).then(() => reloadMicrocycles(planAthleteId));
+          }}
+          onSaved={() => reloadMicrocycles(planAthleteId)}
+          onDeleted={() => { void reloadMicrocycles(planAthleteId); onCloseSession(); }}
+          onReload={() => reloadMicrocycles(planAthleteId)}
+        />
+      ) : (
       <div className="flex-1 overflow-y-auto p-2">
         <div className="space-y-2 pb-8">
           <div className="h-7 px-1 flex items-center justify-between gap-2">
@@ -233,61 +283,8 @@ export function SessionsListMode({
           )}
         </div>
       </div>
-      {openWorkout && sessionId === openWorkout.id ? (
-        <SessionInspector
-          workout={openWorkout}
-          role={roleMode}
-          locked={locked}
-          lockMessage={locks.find((lock) => lock.workout_id === sessionId)?.message}
-          overlay={overlay}
-          width={inspectorWidth}
-          gridFocus={gridFocus}
-          conflicts={conflicts.filter((c) => c.workout_id === sessionId).map((c) => ({
-            field: c.field_path || 'State',
-            server: c.reason || 'server',
-            client: 'local edit',
-          }))}
-          onWidth={(w) => { setInspectorWidth(w); setUiPref(UI_KEYS.inspectorWidth, String(w)); }}
-          onClose={onCloseSession}
-          onNotes={(notes) => {
-            void queueMutation(openWorkout.id, 'Workout', openWorkout.id, { notes });
-            if (isOnline) void apiService.updateSession(openWorkout.id, { notes });
-          }}
-          onStatus={async (status) => { await finishSession(status); onCloseSession(); }}
-          onCommit={(commits: GridCommit[]) => {
-            const byEx = new Map<string, GridCommit[]>();
-            for (const commit of commits) {
-              const list = byEx.get(commit.exerciseId) || [];
-              list.push(commit);
-              byEx.set(commit.exerciseId, list);
-            }
-            byEx.forEach((list, exerciseId) => {
-              const exercise = openWorkout.exercises.find((item) => item.id === exerciseId);
-              if (exercise) updateExerciseSets(exerciseId, applyCommits(exercise.sets, list));
-            });
-          }}
-          onAddSet={(exerciseId) => {
-            const exercise = openWorkout.exercises.find((item) => item.id === exerciseId);
-            if (exercise) updateExerciseSets(exerciseId, addSetBelow(exercise.sets));
-          }}
-          onPattern={(exerciseId, value: MovementPattern) => {
-            void apiService.updateSessionExercise(openWorkout.id, exerciseId, { movementPattern: value }).then(() => reloadMicrocycles(planAthleteId));
-          }}
-          onMoveExercise={(exerciseId, move) => {
-            void apiService.updateSessionExercise(openWorkout.id, exerciseId, { move }).then(() => reloadMicrocycles(planAthleteId));
-          }}
-          onRemoveExercise={(exerciseId) => {
-            void apiService.removeSessionExercise(openWorkout.id, exerciseId).then(() => reloadMicrocycles(planAthleteId));
-          }}
-          onUpdateMeta={(exerciseId, patch) => {
-            void apiService.updateSessionExercise(openWorkout.id, exerciseId, patch).then(() => reloadMicrocycles(planAthleteId));
-          }}
-          onSaved={() => reloadMicrocycles(planAthleteId)}
-          onDeleted={() => { void reloadMicrocycles(planAthleteId); onCloseSession(); }}
-          onReload={() => reloadMicrocycles(planAthleteId)}
-        />
-      ) : null}
-      {showNewSession && (
+      )}
+      {showNewSession && !editing && (
         <NewSessionDialog
           date={new Date().toISOString().slice(0, 10)}
           allowDateEdit

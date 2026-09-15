@@ -3,7 +3,7 @@ import { html5Drag } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
-test('calendar deep link opens inspector; keyboard create stays on calendar', async ({ page, request }) => {
+test('calendar deep link opens editor; keyboard create hides calendar until Back', async ({ page, request }) => {
   const email = `surface-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
     data: { email, password: 'password123', role: 'ATHLETE' },
@@ -27,6 +27,7 @@ test('calendar deep link opens inspector; keyboard create stays on calendar', as
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-inspector')).toBeVisible();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toHaveCount(0);
   await expect(page).toHaveURL(/session=/);
 
   const hash = await page.evaluate(() => window.location.hash);
@@ -35,6 +36,7 @@ test('calendar deep link opens inspector; keyboard create stays on calendar', as
 
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByTestId('session-inspector')).toHaveCount(0);
+  await expect(page.getByTestId('month-calendar')).toBeVisible();
 
   const chip = page.getByTestId(`workout-card-${sessionId}`);
   await expect(chip).toBeVisible();
@@ -43,8 +45,10 @@ test('calendar deep link opens inspector; keyboard create stays on calendar', as
 
   await page.goto(`/#/calendar?session=${sessionId}`);
   await expect(page.getByTestId('session-inspector')).toBeVisible();
+  await expect(page.getByTestId('month-calendar')).toHaveCount(0);
   await expect(page.getByTestId('session-name')).toContainText('Surface day');
   await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('month-calendar')).toBeVisible();
 
   await page.getByTestId('month-calendar').focus();
   await page.keyboard.press('t');
