@@ -8,6 +8,7 @@ import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { NewSessionDialog } from './NewSessionDialog';
 import { EditSessionDialog } from './EditSessionDialog';
 import {
+  buildBlockClipboard,
   buildDayClipboard,
   buildWeekClipboard,
   groupLabeledSessions,
@@ -245,6 +246,12 @@ export function SessionsView({
     onStartCopy(buildWeekClipboard(workouts, getRecentBlock(planAthleteId)));
   };
 
+  const startBlockCopy = (entries: SessionEntry[], blockLabel: string) => {
+    const workouts = entries.map(({ workout }) => workout);
+    if (!canCopy || workouts.length === 0) return;
+    onStartCopy(buildBlockClipboard(workouts, blockLabel));
+  };
+
   return (
     <div className="flex-1 flex relative h-full overflow-hidden bg-[#0A0A0A]">
       <div className="flex-1 overflow-y-auto p-2">
@@ -310,7 +317,18 @@ export function SessionsView({
                     className="min-h-8 px-1 flex items-center justify-between gap-2"
                   >
                     <h4 className="text-xs text-white">Block {block.blockLabel}</h4>
-                    <span className="text-[10px] font-mono text-[#AEAEB2]">{block.all.length} session{block.all.length !== 1 ? 's' : ''}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        data-testid={`sessions-copy-block-${block.blockLabel}`}
+                        disabled={!canCopy}
+                        onClick={() => startBlockCopy(block.all, block.blockLabel)}
+                        className="h-6 px-2 rounded bg-white/10 text-white text-[10px] disabled:opacity-40"
+                      >
+                        Copy block
+                      </button>
+                      <span className="text-[10px] font-mono text-[#AEAEB2]">{block.all.length} session{block.all.length !== 1 ? 's' : ''}</span>
+                    </div>
                   </div>
                   {block.weeks.map((week) => {
                     const rowKey = weekRowKey(block.blockLabel, week.weekLabel);
