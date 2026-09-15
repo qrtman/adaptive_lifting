@@ -1378,6 +1378,7 @@ class CopyWeekRequest(BaseModel):
     targetBlockLabel: Optional[str] = None
     targetWeekLabel: Optional[str] = None
     includeLogs: bool = False
+    preserveWeekLabel: bool = False
 
 
 ALLOWED_LIFT_CATEGORIES = {"Squat", "Bench", "Deadlift", "Other"}
@@ -1571,7 +1572,12 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
     created = []
     for source in sources:
         target_block = req.targetBlockLabel if req.targetBlockLabel is not None else source.block_label
-        target_week = req.targetWeekLabel if req.targetWeekLabel is not None else next_week_label(source.week_label)
+        if req.targetWeekLabel is not None:
+            target_week = req.targetWeekLabel
+        elif req.preserveWeekLabel:
+            target_week = source.week_label
+        else:
+            target_week = next_week_label(source.week_label)
         clone = clone_session_prescription(
             db,
             source,

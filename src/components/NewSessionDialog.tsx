@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
+import { UI_KEYS, getUiPref, setRecentBlock } from '../storage/uiPrefs';
 import { CenteredDialog } from './CenteredDialog';
 import { LabelCombo, uniquePlanLabels } from './LabelCombo';
 
@@ -57,6 +57,9 @@ export function NewSessionDialog({
         weekLabel: weekLabel.trim() || null,
         athleteId: isCoach ? linkedAthleteId || undefined : undefined,
       });
+      if (blockLabel.trim()) {
+        setRecentBlock(isCoach ? linkedAthleteId : (user?.id ? String(user.id) : athleteId), blockLabel.trim());
+      }
       await onCreated(created);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create session');

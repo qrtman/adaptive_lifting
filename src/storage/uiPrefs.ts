@@ -13,6 +13,7 @@ export const UI_KEYS = {
   activeAthleteId: 'al_active_athlete_id',
   deviceId: 'al_client_device_id',
   sidebarCollapsed: 'al_sidebar_collapsed',
+  recentBlock: 'al_recent_block',
 } as const;
 
 const LEGACY_UI_MAP: Array<[string, string]> = [
@@ -59,4 +60,20 @@ export function setUiPref(key: string, value: string): void {
 
 export function removeUiPref(key: string): void {
   localStorage.removeItem(key);
+}
+
+function recentBlockKey(athleteId: string): string {
+  return `${UI_KEYS.recentBlock}:${athleteId}`;
+}
+
+/** Athlete-scoped UI pref. Not used for workout sync. */
+export function getRecentBlock(athleteId: string | null | undefined): string {
+  if (!athleteId) return '';
+  return (getUiPref(recentBlockKey(athleteId)) || '').trim();
+}
+
+export function setRecentBlock(athleteId: string | null | undefined, block: string | null | undefined): void {
+  const value = (block || '').trim();
+  if (!athleteId || !value) return;
+  setUiPref(recentBlockKey(athleteId), value);
 }
