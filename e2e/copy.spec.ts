@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
@@ -10,52 +10,55 @@ async function signIn(page: Page, email: string) {
   await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
 }
 
-test('day, week, and block copy grains paste on a Calendar D1 click', async ({ page, request }) => {
-  test.setTimeout(90_000);
-  const email = `copy-${Date.now()}@example.com`;
+async function registerAthlete(request: APIRequestContext, prefix: string) {
+  const email = `${prefix}-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
+  return email;
+}
 
-  const squat = await request.post('http://localhost:8000/api/sessions', {
-    data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
-  });
-  const bench = await request.post('http://localhost:8000/api/sessions', {
-    data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
-  });
-  const accessory = await request.post('http://localhost:8000/api/sessions', {
-    data: { date: '2026-09-18', title: 'Accessories', blockLabel: 'Block2', weekLabel: 'Week4' },
-  });
+test('unlabeled sessions have day copy only; no week or block rows', async ({ page, request }) => {
+  const email = await registerAthlete(request, 'copy-open');
   const open = await request.post('http://localhost:8000/api/sessions', {
     data: { date: '2026-09-14', title: 'Open' },
   });
-  expect(squat.ok()).toBeTruthy();
-  expect(bench.ok()).toBeTruthy();
-  expect(accessory.ok()).toBeTruthy();
   expect(open.ok()).toBeTruthy();
-  const squatId = (await squat.json()).id as string;
-  const benchId = (await bench.json()).id as string;
   const openId = (await open.json()).id as string;
 
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
   await expect(page.getByTestId(`sessions-card-${openId}`)).toBeVisible();
-  await expect(page.getByTestId('sessions-week-row-Block2::Week3')).toBeVisible();
-  await expect(page.getByTestId('sessions-week-row-Block2::Week4')).toBeVisible();
-  await expect(page.getByTestId('sessions-block-row-Block2')).toBeVisible();
-  await expect(page.getByTestId('sessions-copy-week-Block2::Week3')).toBeVisible();
-  await expect(page.getByTestId('sessions-copy-block-Block2')).toBeVisible();
+  await expect(page.getByTestId(`sessions-copy-to-${openId}`)).toBeVisible();
+  await expect(page.locator('[data-testid^="sessions-week-row-"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid^="sessions-block-row-"]')).toHaveCount(0);
   await expect(page.getByTestId('sessions-copy-days-Ungrouped')).toHaveCount(0);
   await expect(page.getByTestId('sessions-copy-lifts-Ungrouped')).toHaveCount(0);
 
   await page.getByTestId(`sessions-copy-to-${openId}`).click();
   await expect(page.getByTestId('copy-to-banner')).toBeVisible();
   await expect(page.getByTestId('copy-to-banner')).toContainText('click a day');
+  await expect(page.getByTestId('copy-to-banner')).not.toContainText('Block');
   await page.getByTestId('calendar-day-2026-09-21').click();
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
   await expect(page.getByTestId('calendar-day-2026-09-21').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
+});
 
+test('copy selected keeps relative dates and source week labels', async ({ page, request }) => {
+  const email = await registerAthlete(request, 'copy-day');
+  const squat = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
+  });
+  const bench = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
+  });
+  expect(squat.ok()).toBeTruthy();
+  expect(bench.ok()).toBeTruthy();
+  const squatId = (await squat.json()).id as string;
+  const benchId = (await bench.json()).id as string;
+
+  await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
   await page.getByTestId(`sessions-select-${squatId}`).check();
   await page.getByTestId(`sessions-select-${benchId}`).check();
@@ -67,16 +70,49 @@ test('day, week, and block copy grains paste on a Calendar D1 click', async ({ p
   await expect(page.getByTestId('calendar-day-2026-09-24').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
   await expect(page.getByTestId('calendar-day-2026-09-22')).toContainText('Block2 · Week3');
   await expect(page.getByTestId('calendar-day-2026-09-24')).toContainText('Block2 · Week3');
+});
 
+test('copy week lands D1 and increments the week label', async ({ page, request }) => {
+  const email = await registerAthlete(request, 'copy-week');
+  const squat = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
+  });
+  const bench = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
+  });
+  expect(squat.ok()).toBeTruthy();
+  expect(bench.ok()).toBeTruthy();
+
+  await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
+  await expect(page.getByTestId('sessions-week-row-Block2::Week3')).toBeVisible();
   await page.getByTestId('sessions-copy-week-Block2::Week3').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('Copy week');
-  await page.getByTestId('calendar-day-2026-09-08').click();
+  await expect(page.getByTestId('copy-to-banner')).toContainText('click where D1 lands');
+  await page.getByTestId('calendar-day-2026-09-22').click();
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
-  await expect(page.getByTestId('calendar-day-2026-09-08')).toContainText('Block2 · Week4');
-  await expect(page.getByTestId('calendar-day-2026-09-10')).toContainText('Block2 · Week4');
+  await expect(page.getByTestId('calendar-day-2026-09-22')).toContainText('Block2 · Week4');
+  await expect(page.getByTestId('calendar-day-2026-09-24')).toContainText('Block2 · Week4');
+});
 
+test('copy block keeps week labels and relative dates', async ({ page, request }) => {
+  const email = await registerAthlete(request, 'copy-block');
+  const squat = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
+  });
+  const bench = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
+  });
+  const accessory = await request.post('http://localhost:8000/api/sessions', {
+    data: { date: '2026-09-18', title: 'Accessories', blockLabel: 'Block2', weekLabel: 'Week4' },
+  });
+  expect(squat.ok()).toBeTruthy();
+  expect(bench.ok()).toBeTruthy();
+  expect(accessory.ok()).toBeTruthy();
+
+  await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
+  await expect(page.getByTestId('sessions-block-row-Block2')).toBeVisible();
   await page.getByTestId('sessions-copy-block-Block2').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('Copy block');
   await page.getByTestId('calendar-day-2026-09-01').click();
@@ -109,16 +145,13 @@ test('offline disables copy; coach without an athlete has no copy', async ({ pag
     await expect(page.getByTestId('copy-offline')).toBeVisible();
     await expect(page.getByTestId('sessions-copy-week-Block2::Week3')).toBeDisabled();
     await context.setOffline(false);
+    await page.getByRole('button', { name: 'Sign out' }).click();
 
     const coachReg = await coachApi.post('/api/auth/register', {
       data: { email: coachEmail, password: 'password123', role: 'COACH' },
     });
     expect(coachReg.ok()).toBeTruthy();
-    await page.goto('/');
-    await page.getByPlaceholder('coach@example.com').fill(coachEmail);
-    await page.getByPlaceholder('Password').fill('password123');
-    await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
+    await signIn(page, coachEmail);
     await page.getByRole('button', { name: 'Sessions' }).click();
     await expect(page.getByTestId('sessions-empty')).toBeVisible();
     await expect(page.getByText('Select an athlete')).toBeVisible();
