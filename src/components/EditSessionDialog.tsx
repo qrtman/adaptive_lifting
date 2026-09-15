@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
+import { setRecentBlock } from '../storage/uiPrefs';
 import { CenteredDialog } from './CenteredDialog';
 import { LabelCombo, uniquePlanLabels } from './LabelCombo';
 
@@ -21,7 +22,7 @@ export function EditSessionDialog({
   onSaved: () => void | Promise<void>;
   onDeleted?: () => void | Promise<void>;
 }) {
-  const { microcycles } = usePeriodization();
+  const { microcycles, planAthleteId } = usePeriodization();
   const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
   const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
   const [title, setTitle] = useState(session.title || 'Session');
@@ -40,6 +41,7 @@ export function EditSessionDialog({
         blockLabel: blockLabel.trim(),
         weekLabel: weekLabel.trim(),
       });
+      if (blockLabel.trim()) setRecentBlock(planAthleteId, blockLabel.trim());
       await onSaved();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save session');

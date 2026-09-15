@@ -2,16 +2,24 @@ import { useMemo, useState } from 'react';
 import { ExerciseData, WorkoutData } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { apiService } from '../services/api';
-import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import { useSync } from '../contexts/SyncContext';
+import { getRecentBlock, getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { NewSessionDialog } from './NewSessionDialog';
 import { EditSessionDialog } from './EditSessionDialog';
+import {
+  buildBlockClipboard,
+  buildDayClipboard,
+  buildWeekClipboard,
+  groupLabeledSessions,
+  type CopyClipboard,
+} from '../features/plan/copyClipboard';
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
   filter: LiftFilterValue;
   onFilterChange: (value: LiftFilterValue) => void;
+  onStartCopy: (clip: CopyClipboard) => void;
 }
 
 type SessionEntry = { workout: WorkoutData; microId: string };
@@ -55,26 +63,134 @@ function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
   return false;
 }
 
-function sessionGroupKey(workout: WorkoutData): string {
-  const block = workout.blockLabel?.trim() || '';
-  const week = workout.weekLabel?.trim() || '';
-  if (!block && !week) return 'Ungrouped';
-  return `${block}/${week}`;
+function weekRowKey(blockLabel: string, weekLabel: string): string {
+  return `${blockLabel || '_'}::${weekLabel}`;
 }
 
-function sessionGroupLabel(key: string): string {
-  if (key === 'Ungrouped') return 'Ungrouped';
-  const [block, week] = key.split('/');
-  const parts = [];
-  if (block) parts.push(`Block ${block}`);
-  if (week) parts.push(`Week ${week}`);
-  return parts.join(' · ') || key;
+function SessionCard({
+  workout,
+  microId,
+  active,
+  canCopy,
+  selected,
+  onOpen,
+  onToggleSelected,
+  onCopyTo,
+  onEdit,
+}: {
+  workout: WorkoutData;
+  microId: string;
+  active: boolean;
+  canCopy: boolean;
+  selected: boolean;
+  onOpen: () => void;
+  onToggleSelected: (checked: boolean) => void;
+  onCopyTo: () => void;
+  onEdit: () => void;
+  key?: string;
+}) {
+  const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
+  return (
+    <div
+      data-testid={`sessions-card-${workout.id}`}
+      className={`py-2 px-1 flex flex-col gap-2 ${active ? 'bg-[#161616]' : ''}`}
+    >
+      <button type="button" onClick={onOpen} className="text-left flex flex-col gap-1 hover:opacity-90">
+        <div className="flex items-center justify-between gap-2 h-6">
+          <span className="text-xs text-white truncate">{workout.date}</span>
+          <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
+            {workout.status} · {workout.tonnage}kg
+          </span>
+        </div>
+        <p className="text-xs text-white truncate">{workout.title || 'Session'}</p>
+        <p className="text-[10px] text-[#AEAEB2] truncate">{labels || 'No block/week'}</p>
+        <div className="flex flex-col gap-0.5">
+          {workout.exercises.map((ex) => {
+            const { planned, logged } = setLine(ex);
+            return (
+              <div key={ex.id} className="flex items-center gap-2 font-mono text-[11px] leading-tight min-h-5">
+                <span className={`${liftColor(ex.title)} w-6 shrink-0`}>{liftAbbrev(ex.title)}</span>
+                <span className="text-white truncate flex-1 min-w-0" title={ex.title}>{ex.title}</span>
+                <span className="text-[#AEAEB2] shrink-0">{planned}</span>
+                <span className={`shrink-0 ${logged ? 'text-white' : 'text-[#636366]'}`}>{logged ?? '—'}</span>
+              </div>
+            );
+          })}
+        </div>
+      </button>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1 text-[11px] text-[#AEAEB2]">
+          <input
+            type="checkbox"
+            data-testid={`sessions-select-${workout.id}`}
+            checked={selected}
+            disabled={!canCopy}
+            onChange={(event) => onToggleSelected(event.target.checked)}
+          />
+          Select
+        </label>
+        <button
+          type="button"
+          data-testid={`sessions-copy-to-${workout.id}`}
+          disabled={!canCopy}
+          onClick={onCopyTo}
+          className="h-7 px-2 text-[11px] text-white bg-white/15 rounded disabled:opacity-40"
+        >
+          Copy to
+        </button>
+        <button
+          type="button"
+          data-testid={`sessions-edit-${workout.id}`}
+          onClick={onEdit}
+          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WeekRow({
+  rowKey,
+  weekLabel,
+  count,
+  canCopy,
+  onCopyWeek,
+}: {
+  rowKey: string;
+  weekLabel: string;
+  count: number;
+  canCopy: boolean;
+  onCopyWeek: () => void;
+}) {
+  return (
+    <div
+      data-testid={`sessions-week-row-${rowKey}`}
+      className="min-h-8 px-1 flex items-center justify-between gap-2"
+    >
+      <h4 className="text-xs text-white">Week {weekLabel}</h4>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-testid={`sessions-copy-week-${rowKey}`}
+          disabled={!canCopy}
+          onClick={onCopyWeek}
+          className="h-6 px-2 rounded bg-white/10 text-white text-[10px] disabled:opacity-40"
+        >
+          Copy week
+        </button>
+        <span className="text-[10px] font-mono text-[#AEAEB2]">{count} session{count !== 1 ? 's' : ''}</span>
+      </div>
+    </div>
+  );
 }
 
 export function SessionsView({
   onViewSession,
   filter,
   onFilterChange,
+  onStartCopy,
 }: SessionsViewProps) {
   const {
     microcycles,
@@ -83,8 +199,10 @@ export function SessionsView({
     activeAthleteId,
     planAthleteId,
   } = usePeriodization();
+  const { isOnline } = useSync();
 
   const [editingSession, setEditingSession] = useState<WorkoutData | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { user } = useAuth();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
 
@@ -100,49 +218,39 @@ export function SessionsView({
       .sort((a, b) => a.workout.date.localeCompare(b.workout.date));
   }, [microcycles, filter]);
 
-  const groupedSessions = useMemo(() => {
-    const groups = new Map<string, SessionEntry[]>();
-    for (const entry of allSessions) {
-      const key = sessionGroupKey(entry.workout);
-      const list = groups.get(key) || [];
-      list.push(entry);
-      groups.set(key, list);
-    }
-    const keys = Array.from(groups.keys()).sort((a, b) => {
-      if (a === 'Ungrouped') return 1;
-      if (b === 'Ungrouped') return -1;
-      return a.localeCompare(b);
-    });
-    return keys.map((key) => ({ key, label: sessionGroupLabel(key), entries: groups.get(key)! }));
-  }, [allSessions]);
+  const groupedSessions = useMemo(
+    () => groupLabeledSessions<SessionEntry>(allSessions, (entry) => entry.workout),
+    [allSessions],
+  );
 
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   const [showNewSession, setShowNewSession] = useState(false);
-  const [copyingKey, setCopyingKey] = useState<string | null>(null);
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const [copyOffsetDays, setCopyOffsetDays] = useState<Record<string, number>>({});
+  const canCopy = isOnline && !showCoachSelectAthlete;
 
-  const handleCopySessions = async (copyKey: string, sessionIds: string[], includeLogs: boolean, days: number) => {
-    if (showCoachSelectAthlete || sessionIds.length === 0) return;
-    if (!Number.isFinite(days) || days < 1) {
-      setCopyError('Shift days must be at least 1');
-      return;
-    }
-    setCopyingKey(copyKey);
-    setCopyError(null);
-    try {
-      await apiService.copyWeek({
-        sessionIds,
-        athleteId: planAthleteId || undefined,
-        dateOffsetDays: days,
-        includeLogs,
-      });
-      await reloadMicrocycles(planAthleteId);
-    } catch (err: any) {
-      setCopyError(err?.message || 'Failed to copy');
-    } finally {
-      setCopyingKey(null);
-    }
+  const toggleSelected = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const startDayCopy = (workouts: WorkoutData[]) => {
+    if (!canCopy || workouts.length === 0) return;
+    onStartCopy(buildDayClipboard(workouts, getRecentBlock(planAthleteId)));
+  };
+
+  const startWeekCopy = (entries: SessionEntry[]) => {
+    const workouts = entries.map(({ workout }) => workout);
+    if (!canCopy || workouts.length === 0) return;
+    onStartCopy(buildWeekClipboard(workouts, getRecentBlock(planAthleteId)));
+  };
+
+  const startBlockCopy = (entries: SessionEntry[], blockLabel: string) => {
+    const workouts = entries.map(({ workout }) => workout);
+    if (!canCopy || workouts.length === 0) return;
+    onStartCopy(buildBlockClipboard(workouts, blockLabel));
   };
 
   return (
@@ -154,7 +262,7 @@ export function SessionsView({
           </div>
 
           {!showCoachSelectAthlete && (
-            <div className="px-1">
+            <div className="px-1 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 data-testid="sessions-add"
@@ -163,7 +271,25 @@ export function SessionsView({
               >
                 Add session
               </button>
-              {copyError && <p className="w-full text-[10px] text-red-400 mt-1">{copyError}</p>}
+              {selectedIds.size > 0 ? (
+                <button
+                  type="button"
+                  data-testid="sessions-copy-selected"
+                  disabled={!canCopy}
+                  onClick={() => {
+                    const selected = allSessions
+                      .filter(({ workout }) => selectedIds.has(workout.id))
+                      .map(({ workout }) => workout);
+                    startDayCopy(selected);
+                  }}
+                  className="h-7 px-3 rounded bg-white/10 text-white text-[11px] disabled:opacity-40"
+                >
+                  Copy selected
+                </button>
+              ) : null}
+              {!isOnline ? (
+                <p data-testid="copy-offline" className="w-full text-[10px] text-[#F5A623]">Connect to copy sessions.</p>
+              ) : null}
             </div>
           )}
 
@@ -185,110 +311,132 @@ export function SessionsView({
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              {groupedSessions.map(({ key, label, entries }) => (
-                <section key={key}>
-                  <div className="min-h-8 px-1 flex items-center justify-between gap-2">
-                    <h4 className="text-xs text-white">{label}</h4>
+              {groupedSessions.blocks.map((block) => (
+                <section key={`block-${block.blockLabel}`}>
+                  <div
+                    data-testid={`sessions-block-row-${block.blockLabel}`}
+                    className="min-h-8 px-1 flex items-center justify-between gap-2"
+                  >
+                    <h4 className="text-xs text-white">Block {block.blockLabel}</h4>
                     <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1">
-                        <span className="text-[10px] text-[#636366]">Shift</span>
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          data-testid={`sessions-copy-days-${key}`}
-                          value={copyOffsetDays[key] ?? 7}
-                          onChange={(e) => {
-                            const next = Number(e.target.value);
-                            setCopyOffsetDays(prev => ({ ...prev, [key]: next }));
-                          }}
-                          className="h-6 w-12 px-1 rounded bg-[#0A0A0A] border border-white/10 text-[11px] text-white font-mono"
-                        />
-                        <span className="text-[10px] text-[#636366]">days</span>
-                      </label>
                       <button
                         type="button"
-                        data-testid={`sessions-copy-lifts-${key}`}
-                        onClick={() => handleCopySessions(`${key}::lifts`, entries.map(({ workout }) => workout.id), false, copyOffsetDays[key] ?? 7)}
-                        disabled={copyingKey === `${key}::lifts`}
-                        className="h-6 px-2 rounded bg-[#007AFF]/20 text-[#007AFF] text-[10px] hover:bg-[#007AFF]/30 disabled:opacity-50"
+                        data-testid={`sessions-copy-block-${block.blockLabel}`}
+                        disabled={!canCopy}
+                        onClick={() => startBlockCopy(block.all, block.blockLabel)}
+                        className="h-6 px-2 rounded bg-white/10 text-white text-[10px] disabled:opacity-40"
                       >
-                        {copyingKey === `${key}::lifts` ? 'Copying…' : 'Copy lifts'}
+                        Copy block
                       </button>
-                      <button
-                        type="button"
-                        data-testid={`sessions-copy-logs-${key}`}
-                        onClick={() => handleCopySessions(`${key}::logs`, entries.map(({ workout }) => workout.id), true, copyOffsetDays[key] ?? 7)}
-                        disabled={copyingKey === `${key}::logs`}
-                        className="h-6 px-2 rounded bg-white/10 text-white text-[10px] hover:bg-white/15 disabled:opacity-50"
-                      >
-                        {copyingKey === `${key}::logs` ? 'Copying…' : 'Copy with logs'}
-                      </button>
-                      <span className="text-[10px] font-mono text-[#AEAEB2]">{entries.length} session{entries.length !== 1 ? 's' : ''}</span>
+                      <span className="text-[10px] font-mono text-[#AEAEB2]">{block.all.length} session{block.all.length !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
-                  <div className="divide-y divide-white/10 border-t border-white/10">
-                    {entries.map(({ workout, microId }) => {
-                      const isWorkoutActive = activeWorkoutId === workout.id;
-                      const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
-                      return (
-                        <div
-                          key={workout.id}
-                          data-testid={`sessions-card-${workout.id}`}
-                          className={`py-2 px-1 flex flex-col gap-2 ${
-                            isWorkoutActive ? 'bg-[#161616]' : ''
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => onViewSession(workout, microId)}
-                            className="text-left flex flex-col gap-1 hover:opacity-90"
-                          >
-                            <div className="flex items-center justify-between gap-2 h-6">
-                              <span className="text-xs text-white truncate">{workout.date}</span>
-                              <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">
-                                {workout.status} · {workout.tonnage}kg
-                              </span>
-                            </div>
-                            <p className="text-xs text-white truncate">{workout.title || 'Session'}</p>
-                            <p className="text-[10px] text-[#AEAEB2] truncate">{labels || 'No block/week'}</p>
-                            <div className="flex flex-col gap-0.5">
-                              {workout.exercises.map(ex => {
-                                const { planned, logged } = setLine(ex);
-                                return (
-                                  <div
-                                    key={ex.id}
-                                    className="flex items-center gap-2 font-mono text-[11px] leading-tight min-h-5"
-                                  >
-                                    <span className={`${liftColor(ex.title)} w-6 shrink-0`}>
-                                      {liftAbbrev(ex.title)}
-                                    </span>
-                                    <span className="text-white truncate flex-1 min-w-0" title={ex.title}>
-                                      {ex.title}
-                                    </span>
-                                    <span className="text-[#AEAEB2] shrink-0">{planned}</span>
-                                    <span className={`shrink-0 ${logged ? 'text-white' : 'text-[#636366]'}`}>
-                                      {logged ?? '—'}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            data-testid={`sessions-edit-${workout.id}`}
-                            onClick={() => setEditingSession(workout)}
-                            className="self-start h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
-                          >
-                            Edit
-                          </button>
+                  {block.weeks.map((week) => {
+                    const rowKey = weekRowKey(block.blockLabel, week.weekLabel);
+                    return (
+                      <div key={rowKey}>
+                        <WeekRow
+                          rowKey={rowKey}
+                          weekLabel={week.weekLabel}
+                          count={week.items.length}
+                          canCopy={canCopy}
+                          onCopyWeek={() => startWeekCopy(week.items)}
+                        />
+                        <div className="divide-y divide-white/10 border-t border-white/10">
+                          {week.items.map(({ workout, microId }) => (
+                            <SessionCard
+                              key={workout.id}
+                              workout={workout}
+                              microId={microId}
+                              active={activeWorkoutId === workout.id}
+                              canCopy={canCopy}
+                              selected={selectedIds.has(workout.id)}
+                              onOpen={() => onViewSession(workout, microId)}
+                              onToggleSelected={(checked) => toggleSelected(workout.id, checked)}
+                              onCopyTo={() => startDayCopy([workout])}
+                              onEdit={() => setEditingSession(workout)}
+                            />
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
+                  {block.noWeek.length > 0 ? (
+                    <div className="divide-y divide-white/10 border-t border-white/10">
+                      {block.noWeek.map(({ workout, microId }) => (
+                        <SessionCard
+                          key={workout.id}
+                          workout={workout}
+                          microId={microId}
+                          active={activeWorkoutId === workout.id}
+                          canCopy={canCopy}
+                          selected={selectedIds.has(workout.id)}
+                          onOpen={() => onViewSession(workout, microId)}
+                          onToggleSelected={(checked) => toggleSelected(workout.id, checked)}
+                          onCopyTo={() => startDayCopy([workout])}
+                          onEdit={() => setEditingSession(workout)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                 </section>
               ))}
+              {groupedSessions.weeksNoBlock.map((week) => {
+                const rowKey = weekRowKey('', week.weekLabel);
+                return (
+                  <section key={rowKey}>
+                    <WeekRow
+                      rowKey={rowKey}
+                      weekLabel={week.weekLabel}
+                      count={week.items.length}
+                      canCopy={canCopy}
+                      onCopyWeek={() => startWeekCopy(week.items)}
+                    />
+                    <div className="divide-y divide-white/10 border-t border-white/10">
+                      {week.items.map(({ workout, microId }) => (
+                        <SessionCard
+                          key={workout.id}
+                          workout={workout}
+                          microId={microId}
+                          active={activeWorkoutId === workout.id}
+                          canCopy={canCopy}
+                          selected={selectedIds.has(workout.id)}
+                          onOpen={() => onViewSession(workout, microId)}
+                          onToggleSelected={(checked) => toggleSelected(workout.id, checked)}
+                          onCopyTo={() => startDayCopy([workout])}
+                          onEdit={() => setEditingSession(workout)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+              {groupedSessions.unlabeled.length > 0 ? (
+                <section>
+                  <div className="min-h-8 px-1 flex items-center justify-between gap-2">
+                    <h4 className="text-xs text-white">Ungrouped</h4>
+                    <span className="text-[10px] font-mono text-[#AEAEB2]">
+                      {groupedSessions.unlabeled.length} session{groupedSessions.unlabeled.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-white/10 border-t border-white/10">
+                    {groupedSessions.unlabeled.map(({ workout, microId }) => (
+                      <SessionCard
+                        key={workout.id}
+                        workout={workout}
+                        microId={microId}
+                        active={activeWorkoutId === workout.id}
+                        canCopy={canCopy}
+                        selected={selectedIds.has(workout.id)}
+                        onOpen={() => onViewSession(workout, microId)}
+                        onToggleSelected={(checked) => toggleSelected(workout.id, checked)}
+                        onCopyTo={() => startDayCopy([workout])}
+                        onEdit={() => setEditingSession(workout)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           )}
         </div>

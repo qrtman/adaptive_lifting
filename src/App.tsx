@@ -14,8 +14,9 @@ import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
-import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
+import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
+import { type CopyClipboard } from './features/plan/copyClipboard';
 
 export default function App() {
   const { user, roleMode, setRoleMode } = useAuth();
@@ -45,6 +46,7 @@ export default function App() {
 
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [editSessionOpen, setEditSessionOpen] = useState(false);
+  const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -72,6 +74,10 @@ export default function App() {
   }, [focusAthleteScope, sidebarCollapsed]);
 
   useEffect(() => {
+    setCopyClipboard(null);
+  }, [planAthleteId]);
+
+  useEffect(() => {
     const onHashChange = () => {
       const next = parseAppLocation();
       setDashboardMode(next.mode);
@@ -88,6 +94,17 @@ export default function App() {
     setCurrentView('dashboard');
     if (mode !== 'calendar') setFocusAthleteScope(false);
   };
+
+  const startCopy = (clip: CopyClipboard) => {
+    const uniqueBlocks = [...new Set(Object.values(clip.sourceBlocks).filter(Boolean))];
+    if (uniqueBlocks.length === 1) setRecentBlock(planAthleteId, uniqueBlocks[0]);
+    else if (clip.targetBlockLabel) setRecentBlock(planAthleteId, clip.targetBlockLabel);
+    setCopyClipboard(clip);
+    setDashboardMode('calendar');
+    setCurrentView('dashboard');
+  };
+
+  const clearCopy = () => setCopyClipboard(null);
 
   const handleViewSession = (workout: { id: string }, microId: string) => {
     setActiveWorkoutId(workout.id);
@@ -166,12 +183,16 @@ export default function App() {
                     onViewSession={handleViewSession}
                     filter={filter}
                     onFilterChange={setFilter}
+                    copyClipboard={copyClipboard}
+                    onStartCopy={startCopy}
+                    onClearCopy={clearCopy}
                   />
                 ) : dashboardMode === 'sessions' ? (
                   <SessionsView 
                     onViewSession={handleViewSession}
                     filter={filter}
                     onFilterChange={setFilter}
+                    onStartCopy={startCopy}
                   />
                 ) : dashboardMode === 'insights' ? (
                   <InsightsView />

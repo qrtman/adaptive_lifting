@@ -336,6 +336,64 @@ def test_copy_week_shifts_dates_and_increments_week_label():
     assert cleared.json()["weekLabel"] is None
 
 
+def test_copy_week_preserve_week_label_keeps_source():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    squat = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-15", "title": "Squat", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    bench = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-17", "title": "Bench", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    unlabeled = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-14", "title": "Open"},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    assert bench.status_code == 200
+    assert unlabeled.status_code == 200
+
+    preserved = client.post(
+        "/api/sessions/copy-week",
+        json={
+            "sessionIds": [squat.json()["id"], bench.json()["id"]],
+            "dateOffsetDays": 7,
+            "preserveWeekLabel": True,
+        },
+        cookies=cookies,
+    )
+    assert preserved.status_code == 200
+    rows = preserved.json()["copied"]
+    assert sorted(row["date"] for row in rows) == ["2026-09-22", "2026-09-24"]
+    assert all(row["weekLabel"] == "Week3" for row in rows)
+    assert all(row["blockLabel"] == "Block2" for row in rows)
+
+    unlabeled_copy = client.post(
+        "/api/sessions/copy-week",
+        json={
+            "sessionIds": [unlabeled.json()["id"]],
+            "dateOffsetDays": 3,
+            "preserveWeekLabel": True,
+        },
+        cookies=cookies,
+    )
+    assert unlabeled_copy.status_code == 200
+    clone = unlabeled_copy.json()["copied"][0]
+    assert clone["date"] == "2026-09-17"
+    assert clone["weekLabel"] is None
+    assert clone["blockLabel"] is None
+
+
 def test_plan_sets_persist_typed_weight_and_empty_backoff():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]

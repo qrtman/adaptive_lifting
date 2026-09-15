@@ -562,19 +562,22 @@ export const apiService = {
     targetBlockLabel?: string | null;
     targetWeekLabel?: string | null;
     includeLogs?: boolean;
+    preserveWeekLabel?: boolean;
   }): Promise<{ status: string; copied: Array<{ id: string; date: string; title: string; blockLabel: string | null; weekLabel: string | null; sourceId: string }> }> {
+    const body: Record<string, unknown> = {
+      sessionIds: payload.sessionIds,
+      athleteId: payload.athleteId,
+      dateOffsetDays: payload.dateOffsetDays ?? 7,
+      includeLogs: payload.includeLogs === true,
+      preserveWeekLabel: payload.preserveWeekLabel === true,
+    };
+    if (payload.targetBlockLabel !== undefined) body.targetBlockLabel = payload.targetBlockLabel;
+    if (payload.targetWeekLabel !== undefined) body.targetWeekLabel = payload.targetWeekLabel;
     const response = await fetch(`${BACKEND_URL}/api/sessions/copy-week`, {
       method: 'POST',
       headers: getHeaders(),
       credentials: 'include',
-      body: JSON.stringify({
-        sessionIds: payload.sessionIds,
-        athleteId: payload.athleteId,
-        dateOffsetDays: payload.dateOffsetDays ?? 7,
-        targetBlockLabel: payload.targetBlockLabel,
-        targetWeekLabel: payload.targetWeekLabel,
-        includeLogs: payload.includeLogs === true,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
