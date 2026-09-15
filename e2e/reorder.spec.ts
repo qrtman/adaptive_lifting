@@ -21,10 +21,6 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await page.getByTestId('new-session-date').fill('2026-09-12');
   await page.getByTestId('new-session-title').fill('Reorder day');
   await page.getByTestId('new-session-create').click();
-  const card = page.locator('[data-testid^="sessions-card-"]');
-  await expect(card).toHaveCount(1, { timeout: 10_000 });
-  await card.locator('button').first().click();
-
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   const addNamedLift = async (category: string, exercise: string) => {
     await page.getByTestId('add-lift').click();

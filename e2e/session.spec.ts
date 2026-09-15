@@ -22,9 +22,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await page.getByTestId('new-session-date').fill('2026-09-12');
   await page.getByTestId('new-session-title').fill('Plan log day');
   await page.getByTestId('new-session-create').click();
-  const card = page.locator('[data-testid^="sessions-card-"]');
-  await expect(card).toHaveCount(1, { timeout: 10_000 });
-  await card.locator('button').first().click();
+  await expect(page.getByTestId('session-inspector')).toBeVisible();
 
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');

@@ -35,6 +35,7 @@ export function AnchoredMenu({
   label,
   children,
   minWidth,
+  placement = 'bottom-start',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,11 +45,12 @@ export function AnchoredMenu({
   label?: string;
   children: ReactNode;
   minWidth?: number;
+  placement?: 'bottom-start' | 'right-start';
 }): ReactElement | null {
   const { refs, floatingStyles } = useFloating({
     open,
     onOpenChange,
-    placement: 'bottom-start',
+    placement,
     strategy: 'fixed',
     whileElementsMounted: autoUpdate,
     middleware: [
@@ -73,7 +75,7 @@ export function AnchoredMenu({
   if (!open) return null;
   return (
     <FloatingPortal>
-      <div ref={refs.setFloating} style={floatingStyles} className="z-50 pt-1.5">
+      <div ref={refs.setFloating} style={floatingStyles} className={`z-50 ${placement === 'right-start' ? 'pl-1.5' : 'pt-1.5'}`}>
         <ul
           id={listId}
           role="listbox"
@@ -318,6 +320,7 @@ export function ComboBox({
         testId={`${testId}-listbox`}
         listId={listId}
         label={label}
+        placement="right-start"
       >
         {rows.map((row, index) => (
           <MenuOption

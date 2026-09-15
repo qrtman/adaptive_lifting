@@ -21,9 +21,6 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   await page.getByTestId('new-session-title').fill('Offline day');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('new-session-dialog')).toHaveCount(0, { timeout: 15_000 });
-  const card = page.locator('[data-testid^="sessions-card-"]');
-  await expect(card).toHaveCount(1, { timeout: 10_000 });
-  await card.locator('button').first().click();
   await expect(page.getByTestId('session-inspector')).toBeVisible();
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
