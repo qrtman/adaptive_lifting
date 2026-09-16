@@ -36,6 +36,7 @@ These rules are always active:
 - Do not invent fixed Mon–Sun week containers or require creating a week before the first session.
 - Calendar is date-first. Sessions view groups by Block/Week labels when present. Coach Calendar/Sessions must follow the active athlete switcher.
 - **Web first:** Build Calendar, Sessions, and the web session screen (add lifts, prescribe, log) before Telegram Mini App / phone logging. Do not swap the web session into a phone mock. Do not block web logging on mobile work.
+- File map: see `.cursor/rules/agent-file-map.mdc`. For a mapped need, read those files first and stop unless the task requires more.
 
 ### Layer 2: Task Brief
 
