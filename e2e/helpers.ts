@@ -1,4 +1,4 @@
-import { Page, Locator } from '@playwright/test';
+import { expect, Page, Locator } from '@playwright/test';
 
 export async function signInCoach(page: Page, prefs: Record<string, string> = {}) {
   await page.addInitScript((extra: Record<string, string>) => {
@@ -16,6 +16,17 @@ export async function startCellEdit(cell: Locator) {
   if (tag !== 'input') {
     await cell.press('F2');
   }
+}
+
+/** Display cells are divs — Playwright toBeEditable() throws on them. */
+export async function expectCellSelected(cell: Locator) {
+  await expect(cell).toHaveAttribute('data-grid-mode', 'selected');
+  await expect.poll(async () => cell.evaluate((el) => el.tagName)).toBe('DIV');
+}
+
+export async function expectCellEditing(cell: Locator) {
+  await expect(cell).toHaveAttribute('data-grid-mode', 'editing');
+  await expect(cell).toBeEditable();
 }
 
 export async function fillEditableCell(cell: Locator, value: string | number) {

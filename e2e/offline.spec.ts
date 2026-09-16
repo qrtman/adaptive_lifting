@@ -1,13 +1,43 @@
 import { expect, test } from '@playwright/test';
-import { fillLogCell, signInCoach } from './helpers';
+import { fillLogCell } from './helpers';
 
-test('queues a set offline and flushes it when the network returns', async ({ page, context }) => {
-  await signInCoach(page, {
-    al_app_view: 'session',
-    al_dashboard_mode: 'sessions',
-    al_active_workout_id: 'w-3-2',
-    al_active_microcycle_id: 'micro-3',
+test('queues a set offline and flushes it when the network returns', async ({ page, context, request }) => {
+  const email = `offline-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
   });
+  expect(register.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sessions' }).click();
+  await page.getByTestId('sessions-add').click();
+  await page.getByTestId('new-session-date').fill('2026-09-12');
+  await page.getByTestId('new-session-title').fill('Offline log day');
+  await page.getByTestId('new-session-create').click();
+  const card = page.locator('[data-testid^="sessions-card-"]');
+  await expect(card).toHaveCount(1, { timeout: 10_000 });
+  await card.locator('button').first().click();
+
+  await page.getByTestId('add-lift').click();
+  await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
+  await page.getByTestId('add-lift-result-Deadlift').click();
+  await page.getByTestId('add-lift-confirm').click();
+  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+
+  const logReps = page.locator('[data-testid$="-reps"]').first();
+  const logRpe = page.locator('[data-testid$="-executedRpe"]').first();
+  const logKg = page.locator('[data-testid$="-actual-weight"]').first();
+  const repsId = await logReps.getAttribute('id');
+  const rpeId = await logRpe.getAttribute('id');
+  const kgId = await logKg.getAttribute('id');
+  expect(repsId).toBeTruthy();
+  expect(rpeId).toBeTruthy();
+  expect(kgId).toBeTruthy();
 
   const syncPosts: string[] = [];
   await page.route('**/api/workouts/**/sync', async (route) => {
@@ -25,15 +55,12 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
     });
   });
 
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Secondary Deadlift, Secondary Bench' })).toBeVisible();
-
   await context.setOffline(true);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'offline');
 
-  await fillLogCell(page, 'cell-e-3-2-1-reps-0', 3);
-  await fillLogCell(page, 'cell-e-3-2-1-executedRpe-0', 8);
-  await fillLogCell(page, 'cell-e-3-2-1-actual-weight-0', 190);
+  await fillLogCell(page, repsId!, 3);
+  await fillLogCell(page, rpeId!, 8);
+  await fillLogCell(page, kgId!, 190);
 
   await expect.poll(async () => {
     return page.evaluate(async () => {
