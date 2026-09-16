@@ -167,13 +167,13 @@ export const ExerciseCard = ({
           <span className="text-xs text-[#AEAEB2] truncate">
             {tier ? `${tier} · ${variation}` : variation}
           </span>
-          {onUpdateMeta ? (
-            <MovementPatternSelect
-              id={id}
-              value={movementPattern}
-              locked={locked}
-              onChange={(next) => onUpdateMeta({ movementPattern: next })}
-            />
+          {movementPattern ? (
+            <span
+              className="text-xs text-[#AEAEB2] truncate"
+              data-testid={`movement-pattern-label-${id}`}
+            >
+              {movementPattern}
+            </span>
           ) : null}
           {onUpdateMeta ? (
             <button
@@ -446,7 +446,7 @@ export const ExerciseCard = ({
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}
-          subtitle="Bar, tempo, ROM, and gear. The compiled name stays readonly."
+          subtitle="Pattern, bar, tempo, ROM, and gear. The compiled name stays readonly."
           onClose={() => setEditOpen(false)}
           testId="edit-lift-dialog"
           footer={(

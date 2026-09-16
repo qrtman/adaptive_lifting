@@ -37,10 +37,20 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await page.getByTestId('add-lift-exercise').selectOption('Squat');
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
-  const pattern = page.locator('[data-testid^="movement-pattern-e-"]');
+  const liftRow = page.getByRole('heading', { name: 'Squat', exact: true })
+    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]');
+  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
+  await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Knee Dominant');
+  await page.getByTestId(/^edit-lift-/).first().click();
+  await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
+  const pattern = page.getByTestId(/^movement-pattern-edit-/);
   await expect(pattern).toHaveValue('Knee Dominant');
   await pattern.selectOption('Hip Dominant');
   await expect(pattern).toHaveValue('Hip Dominant');
+  await page.getByTestId('edit-lift-done').click();
+  await expect(page.getByTestId('edit-lift-dialog')).toHaveCount(0);
+  await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Hip Dominant');
+  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
 
   await expect(page.getByRole('columnheader', { name: /Plan/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
