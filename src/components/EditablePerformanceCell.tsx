@@ -1,6 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Minus, Plus, X } from 'lucide-react';
+import {
+  reduceCellKey,
+  type CellKeyEffect,
+  type SetGridBind,
+} from '../services/sheetsCellKeyboard';
 
 export const EditablePerformanceCell = ({
   value: rawValue,
@@ -14,7 +20,8 @@ export const EditablePerformanceCell = ({
   suggestedValue = null,
   step = 1,
   variant = "default",
-  rowIndex
+  rowIndex,
+  grid,
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -28,11 +35,21 @@ export const EditablePerformanceCell = ({
   step?: number;
   variant?: "default" | "transparent";
   rowIndex?: number;
+  grid: SetGridBind;
 }) => {
   const value = rawValue === "---" ? "" : rawValue;
   const [activeCell, setActiveCell] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const displayRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skipBlurRef = useRef(false);
+  const blurAwayRef = useRef(false);
+
+  const isEditing = !isMobile && grid.isActive && grid.mode === 'editing';
+  const isSelected = !isMobile && grid.isActive && grid.mode === 'selected';
+  const domId = rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined;
+  const editDefault = grid.editOverwrite && grid.editSeed !== undefined ? grid.editSeed : (value || '');
 
   useEffect(() => {
     const checkMobile = () => {
@@ -43,13 +60,22 @@ export const EditablePerformanceCell = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleCellClick = () => {
-    if (isMobile) {
-      setActiveCell(true);
-    } else {
-      setIsEditing(true);
+  useLayoutEffect(() => {
+    if (isMobile || !grid.isActive) return;
+    if (isEditing) {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+      return;
     }
-  };
+    if (blurAwayRef.current) {
+      blurAwayRef.current = false;
+      return;
+    }
+    displayRef.current?.focus({ preventScroll: true });
+  }, [isMobile, grid.isActive, isEditing]);
 
   const handlePickerPreset = (presetValue: number | string) => {
     onChange(presetValue.toString());
@@ -76,102 +102,230 @@ export const EditablePerformanceCell = ({
     return [40, 60, 80, 100, 120, 140, 150, 160];
   };
 
+  const applyEffect = (event: KeyboardEvent, effect: CellKeyEffect, currentDraft: string) => {
+    if (effect.type === 'none' || effect.type === 'ignore' || effect.type === 'caret') {
+      return;
+    }
+    if ('preventDefault' in effect && effect.preventDefault) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (effect.type === 'noop') return;
+
+    if (effect.type === 'move') {
+      grid.onMove(grid.row, grid.col, effect.direction, effect.kind);
+      return;
+    }
+    if (effect.type === 'beginEdit') {
+      flushSync(() => {
+        grid.onBeginEdit(grid.row, grid.col, effect.overwrite, effect.draft);
+      });
+      return;
+    }
+    if (effect.type === 'clear') {
+      onChange('');
+      return;
+    }
+    if (effect.type === 'commit') {
+      skipBlurRef.current = true;
+      onChange(currentDraft);
+      grid.onCommit(grid.row, grid.col, currentDraft, effect.move, effect.kind);
+      return;
+    }
+    if (effect.type === 'cancel') {
+      skipBlurRef.current = true;
+      grid.onCancel(grid.row, grid.col);
+      return;
+    }
+    if (effect.type === 'copy') {
+      void navigator.clipboard.writeText(value).catch(() => {});
+      return;
+    }
+    if (effect.type === 'paste') {
+      void navigator.clipboard.readText().then((text) => {
+        const first = (text.split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
+        onChange(first);
+      }).catch(() => {});
+    }
+  };
+
+  const handleDisplayKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (isMobile) return;
+    const effect = reduceCellKey(
+      { mode: 'selected', composing },
+      {
+        key: event.key,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        isComposing: event.nativeEvent.isComposing,
+      },
+    );
+    applyEffect(event, effect, value);
+  };
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const el = event.currentTarget;
+    const effect = reduceCellKey(
+      {
+        mode: 'editing',
+        composing: composing || event.nativeEvent.isComposing,
+        caretAtStart: el.selectionStart === 0 && el.selectionEnd === 0,
+        caretAtEnd: el.selectionStart === el.value.length && el.selectionEnd === el.value.length,
+      },
+      {
+        key: event.key,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        isComposing: event.nativeEvent.isComposing,
+      },
+    );
+    applyEffect(event, effect, el.value);
+  };
+
+  const handleClick = () => {
+    if (isMobile) {
+      setActiveCell(true);
+      return;
+    }
+    if (isSelected) {
+      grid.onBeginEdit(grid.row, grid.col, false);
+    } else {
+      grid.onSelect(grid.row, grid.col);
+    }
+  };
+
+  const handleDoubleClick = () => {
+    if (isMobile) return;
+    grid.onBeginEdit(grid.row, grid.col, false);
+  };
+
+  const displayValue = value
+    ? value
+    : isAuto && suggestedValue
+      ? suggestedValue
+      : placeholder;
+
+  const selectedRing = isSelected ? 'border-[#007AFF] ring-1 ring-[#007AFF]' : '';
+
+  const sharedAttrs = {
+    id: domId,
+    'data-cell-id': grid.cellId,
+    'data-testid': fieldKey,
+    'data-grid-mode': grid.isActive && !isMobile ? grid.mode : undefined,
+    'aria-label': label,
+  };
+
   return (
     <>
       {isEditing ? (
         <input
+          key={`${grid.cellId}-edit-${grid.editOverwrite ? grid.editSeed ?? '' : 'insert'}`}
+          ref={inputRef}
           autoFocus
           type="text"
-          data-testid={fieldKey}
-          defaultValue={value || suggestedValue || ''}
+          inputMode="decimal"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          {...sharedAttrs}
+          defaultValue={editDefault}
+          onCompositionStart={() => setComposing(true)}
+          onCompositionEnd={() => setComposing(false)}
           onBlur={(e) => {
-            onChange(e.target.value);
-            setIsEditing(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              onChange((e.target as HTMLInputElement).value);
-              setIsEditing(false);
-              if (rowIndex !== undefined) {
-                setTimeout(() => {
-                  const nextCell = document.getElementById(`cell-${fieldKey}-${rowIndex + 1}`);
-                  if (nextCell) nextCell.click();
-                }, 50);
-              }
-            } else if (e.key === 'ArrowDown') {
-              onChange((e.target as HTMLInputElement).value);
-              setIsEditing(false);
-              if (rowIndex !== undefined) {
-                setTimeout(() => {
-                  const nextCell = document.getElementById(`cell-${fieldKey}-${rowIndex + 1}`);
-                  if (nextCell) nextCell.click();
-                }, 50);
-              }
-            } else if (e.key === 'ArrowUp') {
-              onChange((e.target as HTMLInputElement).value);
-              setIsEditing(false);
-              if (rowIndex !== undefined && rowIndex > 0) {
-                setTimeout(() => {
-                  const nextCell = document.getElementById(`cell-${fieldKey}-${rowIndex - 1}`);
-                  if (nextCell) nextCell.click();
-                }, 50);
-              }
-            } else if (e.key === 'Escape') {
-              setIsEditing(false);
+            if (skipBlurRef.current) {
+              skipBlurRef.current = false;
+              return;
             }
+            const next = e.relatedTarget as HTMLElement | null;
+            if (next && !next.closest('[data-cell-id]')) {
+              blurAwayRef.current = true;
+            }
+            onChange(e.target.value);
+            grid.onCommit(grid.row, grid.col, e.target.value);
           }}
+          onKeyDown={handleInputKeyDown}
           className={`${variant === "transparent" ? "w-12 py-0 text-center text-xs" : `${widthClass} py-0 h-6 text-center text-xs`} bg-[#161616] border ${
             isLogged ? 'border-[#34C759] text-[#34C759]' : 'border-[#007AFF] text-white'
           } rounded-sm font-mono tabular-nums focus:outline-none`}
         />
       ) : variant === "transparent" ? (
-        <div 
-          data-testid={fieldKey}
-          onClick={handleCellClick}
-          id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
-          className={`${widthClass} h-6 flex items-center justify-center cursor-pointer select-none`}
+        <div
+          ref={displayRef}
+          {...sharedAttrs}
+          tabIndex={isMobile ? -1 : (grid.tabStop ? 0 : -1)}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onKeyDown={handleDisplayKeyDown}
+          onCopy={(e) => {
+            if (!isSelected) return;
+            e.preventDefault();
+            e.clipboardData.setData('text/plain', value);
+          }}
+          onPaste={(e) => {
+            if (!isSelected) return;
+            e.preventDefault();
+            const text = (e.clipboardData.getData('text/plain').split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
+            onChange(text);
+          }}
+          className={`${widthClass} h-6 flex items-center justify-center cursor-pointer select-none ${selectedRing}`}
         >
           <span className={`text-xs font-mono tabular-nums ${value ? 'text-white' : 'text-[#636366]'}`}>
             {value ? value : placeholder}
           </span>
         </div>
       ) : (
-        <div 
-          data-testid={fieldKey}
-          onClick={handleCellClick}
-          id={rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined}
+        <div
+          ref={displayRef}
+          {...sharedAttrs}
+          tabIndex={isMobile ? -1 : (grid.tabStop ? 0 : -1)}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onKeyDown={handleDisplayKeyDown}
+          onCopy={(e) => {
+            if (!isSelected) return;
+            e.preventDefault();
+            e.clipboardData.setData('text/plain', value);
+          }}
+          onPaste={(e) => {
+            if (!isSelected) return;
+            e.preventDefault();
+            const text = (e.clipboardData.getData('text/plain').split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
+            onChange(text);
+          }}
           className={`${widthClass} h-6 rounded-sm text-center text-xs font-mono tabular-nums cursor-pointer border flex items-center justify-center ${
-            isLogged 
-              ? value 
-                ? 'border-[#34C759]/40 text-[#34C759]' 
-                : 'border-white/10 text-[#636366]'
-              : value
-                ? 'border-white/10 text-white'
-                : isAuto && suggestedValue
-                  ? 'border-dashed border-[#007AFF]/40 text-[#007AFF]/70'
+            isSelected
+              ? `border-[#007AFF] ring-1 ring-[#007AFF] ${isLogged && value ? 'text-[#34C759]' : value ? 'text-white' : 'text-[#636366]'}`
+              : isLogged
+                ? value
+                  ? 'border-[#34C759]/40 text-[#34C759]'
                   : 'border-white/10 text-[#636366]'
+                : value
+                  ? 'border-white/10 text-white'
+                  : isAuto && suggestedValue
+                    ? 'border-dashed border-[#007AFF]/40 text-[#007AFF]/70'
+                    : 'border-white/10 text-[#636366]'
           }`}
         >
-          {value 
-            ? value 
-            : isAuto && suggestedValue
-              ? suggestedValue
-              : placeholder}
+          {displayValue}
         </div>
       )}
 
       <AnimatePresence>
         {activeCell && (
           <div className="fixed inset-0 z-50 flex items-end justify-center select-none">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setActiveCell(false)}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
-            
-            <motion.div 
+
+            <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
@@ -179,7 +333,7 @@ export const EditablePerformanceCell = ({
               className="relative w-full max-w-md bg-zinc-950 border-t border-white/10 rounded-t-3xl shadow-2xl p-6 pb-12 z-10 flex flex-col space-y-6"
             >
               <div className="w-12 h-1 bg-white/15 rounded-full mx-auto" />
-              
+
               <div className="flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-gray-400 text-xs font-bold uppercase tracking-widest">
@@ -189,14 +343,14 @@ export const EditablePerformanceCell = ({
                     {label}
                   </h3>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveCell(false)}
                   className="p-2 rounded-full hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="flex flex-col items-center justify-center py-4 relative bg-white/[0.02] rounded-2xl border border-white/5 mx-2">
                 <span className={`text-6xl font-black tracking-widest font-mono select-none tabular-nums ${
                   isLogged ? 'text-mac-green' : 'text-mac-blue'
@@ -209,7 +363,7 @@ export const EditablePerformanceCell = ({
                   </span>
                 )}
               </div>
-              
+
               <div className="flex flex-col space-y-4">
                 <div className="flex items-center justify-between gap-4">
                   <button
@@ -219,7 +373,7 @@ export const EditablePerformanceCell = ({
                   >
                     <Minus size={24} className="stroke-[3]" />
                   </button>
-                  
+
                   <button
                     type="button"
                     onClick={() => handlePickerStep(true)}
@@ -228,7 +382,7 @@ export const EditablePerformanceCell = ({
                     <Plus size={24} className="stroke-[3]" />
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                     Tap Preset
@@ -241,7 +395,7 @@ export const EditablePerformanceCell = ({
                         onClick={() => handlePickerPreset(preset)}
                         className={`py-3 rounded-xl text-center text-lg font-black transition-all cursor-pointer border ${
                           value === preset.toString()
-                            ? isLogged 
+                            ? isLogged
                               ? 'bg-mac-green border-mac-green text-black shadow-[0_0_15px_rgba(52,199,89,0.3)]'
                               : 'bg-mac-blue border-mac-blue text-white shadow-[0_0_15px_rgba(0,122,255,0.3)]'
                             : 'bg-white/5 border-white/5 text-gray-300 hover:bg-white/10 hover:border-white/10'
@@ -253,8 +407,8 @@ export const EditablePerformanceCell = ({
                   </div>
                 </div>
               </div>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveCell(false)}
                 className="w-full py-4 bg-white/10 hover:bg-white/15 text-white font-black uppercase text-center rounded-2xl transition-all tracking-widest cursor-pointer text-[14px] font-sans border border-white/5"
               >

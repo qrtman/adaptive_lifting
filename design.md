@@ -1748,14 +1748,33 @@ Gym environments introduce specific physical challenges: sweat, dust, low dungeo
 - **Focus Shifts:** Background app suspensions (like telephone calls or battery warnings) trigger automatic storage hydration. Active unsaved state must be persisted to IndexedDB snapshots within **200ms** of focus loss to guarantee zero data loss.
 
 ### 11.4 Power-User Spreadsheet Keyboard Navigation (Desktop Console)
-Coaches designing programs or logging data require high-velocity data-entry models that match standard spreadsheet platforms.
-- **Trigger Mechanic:** Selecting any editable set cell (Reps, RPE, Weight, Baseline, fatigue) opens the inline text input field with programmatically triggered autofocus.
-- **Keyboard Mappings:**
-  - **`Enter` or `ArrowDown`:** Commits the current value, blurs active cell (triggering IndexedDB queueing), and simulates a programmatic `.click()` on the next row's cell in the same column (`rowIndex + 1`).
-  - **`ArrowUp`:** Commits the current value, blurs active cell, and simulates a programmatic `.click()` on the previous row's cell in the same column (`rowIndex - 1`), capped at `rowIndex >= 0`.
-  - **`Escape`:** Cancels the active editing focus state immediately without committing changes.
-- **Visual Smoothness:** Transition clicks must execute under a **50ms** setTimeout buffer. This prevents race conditions during state commit cycles, ensuring focus shifts cleanly without causing layout shifts or scroll jumping.
-- **Mobile Guard:** This spreadsheet pattern is restricted to desktop screen sizes. On touch-screen mobile devices, cell tap triggers invoke the large touch-safe quick adjuster bottom sheet.
+Coaches designing programs or logging data require high-velocity data-entry that matches Google Sheets for the PLAN/LOG set grid only — not a general spreadsheet. Do not add Handsontable, AG Grid, Luckysheet, Univer, FullCalendar, or any grid library.
+
+Each lift’s set table is a 6-column keyboard grid, row-major:
+
+`plan kg → plan reps → plan rpe → log kg → log reps → log rpe`
+
+then the next set of the **same** lift. Chrome (set #, `×`, `@`, plan→log, RPE/% unit toggle, Δ, e1RM, INOL, duplicate, delete, lift header, + Set) is skipped. Locked / readonly rows are not in the grid.
+
+**Two modes**
+- **Selected:** Focus ring (`#007AFF` / `--ok-blue`) on the display cell. No caret. `tabIndex=0` on the active cell, `-1` on others. Arrows move **cells and clamp** (ArrowRight on log rpe stays; no wrap). Tab / Shift+Tab move cells and **wrap** within the lift (`log.rpe` of set `i` → `plan.kg` of set `i+1`; last-set `log.rpe` stays). Enter / F2 begin insert-edit (keep the committed value; caret at end; **do not move**). A printable character begins overwrite-edit (draft starts as that character). Delete / Backspace clear to empty (`"—"`). Home / End jump to the first / last cell of the row. Ctrl/Cmd+C copies the committed display string (empty copies `""`, not the dash). Ctrl/Cmd+V pastes into the cell and commits immediately.
+- **Editing:** Native `<input type="text" inputMode="decimal">` (never `type="number"`). Draft is a **string** until commit. Arrows / Home / End move the **caret** only, including at string edges — they do not commit or change cells. Enter commits and moves **down the same column** into selected; Shift+Enter commits and moves up. Last/first row: commit and **stay** selected (do not create a set). Tab commits and moves right **with wrap**; Shift+Tab left with wrap. Escape cancels, restores the previous committed value, and stays selected on the same cell. Delete / Backspace edit the string. IME composition (`event.isComposing` or `key === 'Process'`) is not treated as a grid command. F2 while editing is a no-op (no formula range mode).
+
+**Click**
+- Click selects. Click does **not** open the editor.
+- Double-click, or a second click on the already-selected cell, starts insert-edit.
+- Click a different editable cell: commit if editing, then **select** the target (do not auto-edit it).
+- Click outside the grid (sidebar, another control): commit if editing.
+
+**Commit**
+- Enter / Tab / click-away parse with `trainingNumber` / `trainingInt`. Empty or invalid → `null` → display `"—"`. Reps are integers after commit. RPE may be `8.5`. Do not parse prescriptions like `5x8@8` in one cell.
+
+**Edges**
+- **Tab ≠ ArrowRight.** Arrows clamp at the first/last cell of the row. Tab wraps `log.rpe` → next set `plan.kg` and stays on last-set `log.rpe`. Enter while editing stays on the last row, same column. Navigating off the bottom does not create sets. After commit+move, the destination is **selected**, not editing. `preventDefault` on Tab / Arrows / Enter when the grid owns focus.
+
+**Mobile Guard:** This Sheets keyboard is restricted to desktop. On touch-screen mobile devices (`<768px` or `maxTouchPoints > 0`), cell tap opens the large touch-safe Quick Adjuster bottom sheet. Do not apply spreadsheet keys to that sheet.
+
+**Out of scope:** range selection, TSV paste, fill handle, formulas, freeze, sheet tabs, Ctrl+Arrow jump, Page Up/Down.
 
 ---
 

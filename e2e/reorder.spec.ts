@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { fillEditableCell } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
@@ -38,7 +39,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
     res.url().includes('/sets') && res.request().method() === 'PUT'
   );
   await page.getByTestId('rx-weight').first().click();
-  await page.getByTestId('rx-weight').first().fill('180');
+  await fillEditableCell(page.getByTestId('rx-weight').first(), '180');
   await page.getByTestId('rx-weight').first().press('Enter');
   expect((await savedSets).ok()).toBeTruthy();
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
@@ -81,9 +82,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   const squatPlan = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"border-b")][1]')
     .getByTestId('rx-weight').first();
-  await squatPlan.click();
-  await expect(squatPlan).toBeEditable();
-  await squatPlan.fill('182.5');
+  await fillEditableCell(squatPlan, '182.5');
   await squatPlan.blur();
   await expect(squatPlan).toHaveText('182.5');
 });

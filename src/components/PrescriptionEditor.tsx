@@ -1,13 +1,25 @@
 import React from 'react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
+import { trainingInt, trainingNumber } from '../services/numericTraining';
+import type { SetGridBind } from '../services/sheetsCellKeyboard';
 
 interface PrescriptionEditorProps {
   reps: number | null;
   intensityType: string;
   targetValue: number | null;
   weight: number | null;
-  onChange: (updates: { reps?: number | null; intensityType?: string; targetValue?: number; weight?: number | null }) => void;
+  rowIndex: number;
+  liftId: string;
+  kgGrid: SetGridBind;
+  repsGrid: SetGridBind;
+  rpeGrid: SetGridBind;
+  onChange: (updates: {
+    reps?: number | null;
+    intensityType?: string;
+    targetValue?: number | null;
+    weight?: number | null;
+  }) => void;
 }
 
 const Sep = ({ children }: { children: string }) => (
@@ -17,38 +29,44 @@ const Sep = ({ children }: { children: string }) => (
 );
 
 export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
-  reps, intensityType, targetValue, weight, onChange
+  reps, intensityType, targetValue, weight, rowIndex, liftId, kgGrid, repsGrid, rpeGrid, onChange
 }) => {
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5" data-lift-id={liftId}>
       <EditablePerformanceCell
         value={weight !== null && weight !== undefined ? weight.toString() : ""}
-        onChange={(val) => onChange({ weight: val ? parseFloat(val) : null })}
+        onChange={(val) => onChange({ weight: trainingNumber(val) })}
         placeholder="—"
         fieldKey="rx-weight"
         label="Plan weight"
         widthClass="w-12"
         step={2.5}
+        rowIndex={rowIndex}
+        grid={kgGrid}
       />
       <Sep>×</Sep>
       <EditablePerformanceCell
         value={reps !== null && reps !== undefined ? reps.toString() : ""}
-        onChange={(val) => onChange({ reps: val ? parseFloat(val) : null })}
+        onChange={(val) => onChange({ reps: trainingInt(val) })}
         placeholder="—"
         fieldKey="reps"
         label="Reps"
         widthClass="w-8"
         step={1}
+        rowIndex={rowIndex}
+        grid={repsGrid}
       />
       <Sep>@</Sep>
       <EditablePerformanceCell
         value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
-        onChange={(val) => onChange({ targetValue: val ? parseFloat(val) : 0 })}
-        placeholder={intensityType === "PERCENT" ? "80" : "8"}
+        onChange={(val) => onChange({ targetValue: trainingNumber(val) })}
+        placeholder="—"
         fieldKey="targetValue"
         label={intensityType === "PERCENT" ? "Target %" : "Target RPE"}
         widthClass="w-8"
         step={intensityType === "PERCENT" ? 1 : 0.5}
+        rowIndex={rowIndex}
+        grid={rpeGrid}
       />
       <button
         type="button"

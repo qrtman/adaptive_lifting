@@ -9,6 +9,16 @@ import {
   calculateINOL,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
+import {
+  addressFrom,
+  colOf,
+  makeCellId,
+  neighbor,
+  type CellMode,
+  type MoveKind,
+  type NeighborDir,
+  type SetGridBind,
+} from '../services/sheetsCellKeyboard';
 import { refreshSetAnchors } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
 import type { MovementPattern } from '../services/exerciseCatalog';
@@ -81,6 +91,18 @@ export const ExerciseCard = ({
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
   const [removing, setRemoving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [grid, setGrid] = useState<{
+    row: number;
+    col: number;
+    mode: CellMode;
+    overwrite: boolean;
+    seed?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!grid) return;
+    if (grid.row >= sets.length) setGrid(null);
+  }, [sets.length, grid]);
 
   // Keep state in sync when workout changes
   useEffect(() => {
@@ -152,6 +174,38 @@ export const ExerciseCard = ({
       executedRpe: null
     }]);
   };
+
+  const bindGrid = (row: number, col: number): SetGridBind => ({
+    cellId: makeCellId(id, row, col),
+    row,
+    col,
+    isActive: grid?.row === row && grid?.col === col,
+    mode: grid?.row === row && grid?.col === col ? grid.mode : 'selected',
+    editOverwrite: grid?.overwrite ?? false,
+    editSeed: grid?.seed,
+    tabStop: (grid == null && row === 0 && col === 0) || (grid?.row === row && grid?.col === col),
+    onSelect: (nextRow, nextCol) => {
+      setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
+    },
+    onBeginEdit: (nextRow, nextCol, overwrite, seed) => {
+      setGrid({ row: nextRow, col: nextCol, mode: 'editing', overwrite, seed });
+    },
+    onCommit: (nextRow, nextCol, _value, move, kind) => {
+      if (move && kind) {
+        const next = neighbor(addressFrom(id, nextRow, nextCol), move, kind, sets.length);
+        setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
+        return;
+      }
+      setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
+    },
+    onCancel: (nextRow, nextCol) => {
+      setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
+    },
+    onMove: (nextRow, nextCol, direction: NeighborDir, kind: MoveKind) => {
+      const next = neighbor(addressFrom(id, nextRow, nextCol), direction, kind, sets.length);
+      setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
+    },
+  });
 
   const td = "px-2 py-0.5 align-middle whitespace-nowrap";
   const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[#636366] whitespace-nowrap";
@@ -243,7 +297,7 @@ export const ExerciseCard = ({
         </div>
       </div>
       <div className="overflow-x-auto">
-      <table className="text-left border-collapse w-max max-w-full">
+      <table role="grid" aria-label="Plan and log sets" className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-white/5">
             <th className={`${th} w-6`}>#</th>
@@ -306,6 +360,11 @@ export const ExerciseCard = ({
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
                             weight={set.plannedWeight}
+                            rowIndex={i}
+                            liftId={id}
+                            kgGrid={bindGrid(i, 0)}
+                            repsGrid={bindGrid(i, 1)}
+                            rpeGrid={bindGrid(i, 2)}
                             onChange={(updates) => updateSet(i, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
@@ -370,6 +429,7 @@ export const ExerciseCard = ({
                         suggestedValue={null}
                         step={2.5}
                         rowIndex={i}
+                        grid={bindGrid(i, 3)}
                       />
                       {sep('×')}
                       <EditablePerformanceCell
@@ -382,6 +442,7 @@ export const ExerciseCard = ({
                         isLogged={true}
                         step={1}
                         rowIndex={i}
+                        grid={bindGrid(i, 4)}
                       />
                       {sep('@')}
                       <EditablePerformanceCell
@@ -394,6 +455,7 @@ export const ExerciseCard = ({
                         isLogged={true}
                         step={0.5}
                         rowIndex={i}
+                        grid={bindGrid(i, 5)}
                       />
                     </div>
                     )}
