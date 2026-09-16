@@ -33,6 +33,19 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByTestId('session-name')).toBeVisible();
+  await expect(page.getByTestId('add-lift')).toBeVisible();
+  await expect(page.getByTestId('sync-status')).toHaveCount(0);
+
+  const topOf = async (testId: string) =>
+    Math.round(await page.getByTestId(testId).evaluate((el) => el.getBoundingClientRect().top));
+  const workspaceTopOf = async () =>
+    Math.round(
+      await page.locator('[data-testid="app-main"] > *').first().evaluate((el) => el.getBoundingClientRect().top),
+    );
+  const sessionNameTop = await topOf('session-name');
+  const addLiftTop = await topOf('add-lift');
+  const workspaceTop = await workspaceTopOf();
 
   const logReps = page.locator('[data-testid$="-reps"]').first();
   const logRpe = page.locator('[data-testid$="-executedRpe"]').first();
@@ -62,6 +75,11 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
 
   await context.setOffline(true);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'offline');
+  await expect(page.getByTestId('sync-status')).toHaveCSS('position', 'fixed');
+  expect(await page.getByTestId('sync-status').evaluate((el) => Boolean(el.closest('[data-testid="app-main"]')))).toBe(false);
+  expect(await topOf('session-name')).toBe(sessionNameTop);
+  expect(await topOf('add-lift')).toBe(addLiftTop);
+  expect(await workspaceTopOf()).toBe(workspaceTop);
 
   await fillLogCell(page, repsId!, 3);
   await fillLogCell(page, rpeId!, 8);
@@ -94,8 +112,13 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   }).toBeGreaterThan(0);
 
   expect(syncPosts.length).toBe(0);
+  expect(await topOf('session-name')).toBe(sessionNameTop);
+  expect(await topOf('add-lift')).toBe(addLiftTop);
 
   await context.setOffline(false);
   await expect.poll(() => syncPosts.length).toBeGreaterThan(0);
   await expect(page.getByTestId('sync-status')).toHaveCount(0);
+  expect(await topOf('session-name')).toBe(sessionNameTop);
+  expect(await topOf('add-lift')).toBe(addLiftTop);
+  expect(await workspaceTopOf()).toBe(workspaceTop);
 });
