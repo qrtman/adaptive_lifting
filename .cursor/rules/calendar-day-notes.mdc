@@ -1,0 +1,146 @@
+---
+description: Calendar day hover overlay must not resize cells; add Notes + a per-date note card. Apply when changing CalendarView hover, day notes, or calendar e2e.
+alwaysApply: true
+---
+
+# Calendar day hover + day notes
+
+Do **not** put hover actions in the day cell’s in-flow layout. Do **not** reuse `ExerciseSet.note` or invent a second notes store. Do **not** key notes to weekday columns. Do **not** change Copy-to D1 (date offset).
+
+**User prompt overrides `design.md`.** Patch `design.md` / `knowledge.md` (and `architecture.md` §5.1) in the **implementation** PR, not a rule-only PR.
+
+Override (quote):
+
+> The popover is making the day container change size. Make it smaller. Add a 3rd action for notes. When a note is made it should be a card on that day. If something conflicts with design.md, follow this prompt instead.
+
+Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cell vs neighbors; (2) rest — compact date `01`, `1 · 1`, `SQ 150×5@5`.
+
+---
+
+## Grill (locked answers — do not re-litigate)
+
+| Challenge | Verdict |
+| :--- | :--- |
+| Hover actions in-flow vs overlay? | **Out-of-flow overlay.** Today `CalendarView` mounts `mt-auto pt-1 flex flex-col gap-1` **inside** the day cell (`h-auto min-h-[128px]`). Those `h-7 w-full` buttons add in-flow height; the CSS-grid week row grows; neighbors stretch. Hover **must not** change the day cell’s used layout size. Neighboring days stay aligned. |
+| Overlay vs portal? | **`position: absolute` child of the day cell** (cell is already `relative`). Absolute / fixed children do not contribute to grid row height. Keep the existing cell `onMouseEnter` / `onMouseLeave` so moving onto the actions does not dismiss. A **portal is allowed only** if a pointer-bridge prevents `mouseleave` from closing when the pointer is on the popover. Default: in-cell absolute. `overflow: visible` on the cell; the menu may paint over adjacent days. **Forbidden:** in-flow `mt-auto` stacks, `h-auto` growth from buttons, MUI/shadcn/Radix Popover. |
+| Smaller than today’s buttons? | **Yes.** Today: full-width `h-7` primary slabs. Overlay is `width: max-content` (cap ~160px, not `w-full`), actions `h-6` / `text-[10px]–[11px]`, stacked compact. New session stays the one filled `#007AFF` action; Copy to and Notes are secondary (`bg-white/15` or text). Do not duplicate the screenshot’s large stacked CTAs. |
+| Empty day vs day with sessions? | **Empty:** overlay = **New session** + **Notes**. No Copy to. Empty-day **click** still opens New session (unchanged). **Has ≥1 session:** overlay = **New session** + **Copy to** + **Notes**. Copy to still uses `dayWorkouts[0]` / existing clipboard rules. Copy-to mode hides the overlay (unchanged). Coach with no athlete: no overlay (`calendar-empty`). |
+| One note vs many? | **One `DayNote` per `(owner_id, date)`.** One card on that calendar day. Hover **Notes** and click-the-card edit the same document. Extra paragraphs go in that body. Do not stack many note cards. Saving empty / whitespace **tombstones** the row; the card disappears. |
+| Click note card vs hover Notes? | **Same editor** (`CenteredDialog`, title `Notes · YYYY-MM-DD`, no duplicate date field). Click note card: `stopPropagation`, open editor — **never** open a session. Hover **Notes**: create if none, else edit. Click session card: still opens the session. Click empty padding on a day with a note: still New session only when there are **zero** sessions (same as today). |
+| Overlay vs rest card? | Overlay = **actions only** (no textarea in the hover menu). The note **card is visible at rest**, not hover-only. Resting content (sessions + note card) **may** grow the cell; that is real data, like extra sessions. Hover chrome must not. |
+| Coach vs athlete? | **Same calendar UI.** Notes live in **athlete plan space** (`planAthleteId`). Linked coach has shared full write; unlink revokes access only; notes stay with the athlete. Coach without selected athlete: existing empty state, no hover, no notes fetch. RBAC matches sessions (`athlete_id` query, ended links blocked). |
+| Reuse set notes / workout notes / vs-note? | **No existing day-note store.** Repo search: `ExerciseSet.note` (Telegram micro-note), analytics `coaching_notes`, Sheets prose “session notes” with **no Workout column**. **No** `DayNote`, **no** `vs-note` component. Do **not** stuff day text into `ExerciseSet.note`, `Workout.title`, or `InsightCard`. **First** store: new `DayNote`. Not a second store. |
+| Date vs weekday vs session? | **Per calendar date** (`YYYY-MM-DD`) on the athlete plan. Not Mon–Sun containers, not `dayLabel`, not attached to a Workout (notes may exist on a day with zero sessions). Calendar stays date-first. |
+| Copy-to D1? | **Unchanged.** Destination click = earliest source **date** (`copyClipboard.ts` `dateOffsetDays`). Not `workout.dayLabel`. Copy copies **sessions**, not day notes. Notes stay on the source date. |
+| Telegram / Sheets / demo / nested cards? | Unchanged unless notes already publish — they **do not**. Do not add a Sheets tab or Telegram command this pass. No demo seed. Note card is a **sibling** of session chips in the cell, not nested inside `workout-card`. No MUI/shadcn. |
+
+---
+
+## Diagnosis (this checkout)
+
+1. Hover actions are in-flow (`CalendarView.tsx` ~635–662). That is the size bug in screenshot 1.
+2. Copy to already hides when `!dayWorkouts[0]`. New session always on hover. No Notes action.
+3. Resting session chip is compact (screenshot 2). Keep that chip; do not restyle it into the overlay.
+4. Notes data: set-level `note` only. Architecture §5.1 Workout has no notes field. Sheets Workouts “session notes” is publish prose, not a schema.
+
+---
+
+## Product verdict
+
+| Keep | Drop |
+| :--- | :--- |
+| Date-first calendar; session chips at rest | In-flow hover buttons that resize the cell |
+| Copy to only when a session exists; dest click = date D1 | Copying day notes; relabeling copy D1 as `dayLabel` |
+| New session dialog path unchanged | Notes textarea inside the hover popover |
+| One note card per date, visible at rest | Many note cards; hover-only notes; notes inside session cards |
+| New `DayNote` `(owner_id, date)` | `ExerciseSet.note` as calendar notes; Workout-as-note; `vs-note`; LocalStorage store |
+| `CenteredDialog` editor | MUI/shadcn/Radix; nested cards; demo seed |
+| Online REST upsert like New session / Copy to | Fake workout_id sync; Sheets/Telegram work this pass |
+
+---
+
+## Spec
+
+### Hover overlay (layout)
+
+- Mount only when `hoveredDate === dateStr` && current month && athlete selected && `!copyClipboard`.
+- **Out of flow:** `absolute` (e.g. bottom-center of the cell). Must not participate in the cell’s in-flow height. Week row height with overlay open **equals** the same week with overlay closed (e2e: `boundingBox` of hovered day vs neighbor, and/or hovered day height before vs after hover).
+- **Smaller** than today’s full-width `h-7` stack (see grill).
+- Actions, top to bottom: **New session** (always) → **Copy to** (iff a session exists) → **Notes** (always).
+- `data-testid`: keep `calendar-new-session-{date}` and `calendar-copy-to-{workoutId}`; add `calendar-notes-{date}`.
+- Existing click-day / click-session / copy-to-banner behavior stays.
+
+### Note card (rest)
+
+- If a non-tombstoned `DayNote` exists for that `dateStr`, render a card in the cell **without hover**.
+- Distinct from session cards: no SQ/BP/DL load line; muted surface; label **Note**; 2-line truncated body.
+- Place **after** session chips (date header → sessions → note). Empty day with only a note: date → note card.
+- `data-testid="day-note-card-{date}"`. Click opens the editor; `stopPropagation`.
+- Not nested inside `workout-card`. No decorative hero.
+
+### Editor
+
+- Reuse `CenteredDialog`. Title `Notes · YYYY-MM-DD`. Body: one textarea (`data-testid="day-note-body"`), freeform text (not a prescription parser). Cap **2000** chars.
+- Footer: Cancel / Save. Empty save deletes (tombstone) and closes.
+- Offline: disable Save; copy **Connect to save notes.** (same idea as Copy to).
+- Loading / error / permission-denied visible. Locked/conflict: N/A unless a workout lock is later reused — **do not** require `WorkoutLock` for a date with no session.
+
+### Data model (new, one store)
+
+`DayNote`: `id`, `owner_id` (athlete), `date` (`YYYY-MM-DD`), `body` (text), `updated_at`, `deleted_at`. Unique `(owner_id, date)` among live rows.
+
+- Athlete-owned plan; linked coach shared write; ended link → 403.
+- REST: list/upsert/delete scoped like `/api/microcycles?athlete_id=`. Upsert is **idempotent** on `(owner_id, date)`.
+- Fetch with the plan (PeriodizationContext snapshot **or** sibling list loaded in `CalendarView`). Do not use LocalStorage. IndexedDB snapshot of notes is OK if the plan snapshot already works that way; canonical writes are backend.
+- Do **not** add `mutation_type: day_note` to workout sync this pass (workout sync still needs `workout_id`). Do not fake a workout to attach a note.
+
+### Out of scope
+
+- Sessions view note list; Insights; Telegram; Sheets publish of notes
+- Copying notes; weekday note columns; set micro-notes UI on web
+- Demo seed; nested cards; MUI/shadcn
+
+---
+
+## Files to edit (implementation PR)
+
+- `.cursor/rules/agent-file-map.mdc` — already updated on the rule branch; keep in sync
+- `src/components/CalendarView.tsx` — absolute overlay; Notes action; rest note card; height must not change on hover
+- `src/components/DayNoteDialog.tsx` (new) — `CenteredDialog` editor
+- `src/types.ts` — `DayNote`
+- `src/services/api.ts` — list/upsert/delete
+- `src/contexts/PeriodizationContext.tsx` — only if notes ride the plan snapshot
+- `backend/database.py` — `DayNote` table
+- `backend/main.py` — CRUD + RBAC
+- `e2e/calendar.spec.ts` — hover height vs neighbor; three actions; rest card; click card ≠ session; Copy to D1 unchanged
+- `design.md` §2 Calendar workspace + §16.3 hover bullet; `knowledge.md` Surfaces; `architecture.md` §5.1 `DayNote`
+
+Do not refactor Sessions, Insights, Sheets UI, Telegram, coach-code, or math.
+
+---
+
+## Acceptance
+
+- [ ] Hovering a day does **not** change that cell’s layout height or the week row vs neighbors; overlay is smaller than today’s full-width `h-7` stack.
+- [ ] Empty day hover: New session + Notes. Day with a session: New session + Copy to + Notes.
+- [ ] Saving a note shows a **Note** card on that date at rest, distinct from session chips; empty save removes it.
+- [ ] Click note card opens Notes editor; click session chip still opens the session.
+- [ ] One note per athlete calendar date; no weekday container; no second notes store.
+- [ ] Copy to dest click still maps dates (D1 = earliest source date); notes are not copied.
+- [ ] Coach follows athlete switcher; no athlete → no overlay. No demo seed; no nested cards; Telegram/Sheets untouched.
+- [ ] E2E covers overlay height, three actions, rest card, click vs session, copy D1.
+
+---
+
+## Execution prompt (implementer)
+
+```text
+Branch: cursor/calendar-day-notes-9f4a from cursor/calendar-day-notes-rule-9f4a.
+Follow .cursor/rules/calendar-day-notes.mdc. Do not re-litigate overlay vs in-flow,
+one-note-per-date, or Copy-to D1.
+
+Implement: absolute (not in-flow) compact hover menu with New session, Copy to
+(when a session exists), Notes; DayNote REST + card at rest; CenteredDialog editor.
+User prompt overrides design.md; patch design.md/knowledge.md/architecture.md §5.1
+in this implementation PR. No UI in the rule-only PR.
+```
