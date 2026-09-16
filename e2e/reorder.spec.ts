@@ -28,7 +28,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   const addNamedLift = async (category: string, exercise: string) => {
     await page.getByTestId('add-lift').click();
     await page.getByTestId('add-lift-category').selectOption(category);
-    await page.getByTestId('add-lift-exercise').selectOption(exercise);
+    await page.getByTestId(`add-lift-result-${exercise}`).click();
     await page.getByTestId('add-lift-confirm').click();
     await expect(page.getByRole('heading', { name: exercise, exact: true })).toBeVisible();
   };
