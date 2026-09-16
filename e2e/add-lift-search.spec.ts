@@ -80,3 +80,11 @@ test('User Defined hides catalog results and ignores search', async ({ page, req
   await expect(page.getByText('Catalog search does not apply. Name this lift.')).toBeVisible();
   await expect(page.getByTestId('add-lift-custom-name')).toBeVisible();
 });
+
+test('search results stay visible at 360px', async ({ page, request }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openAddLift(page, request);
+  await page.getByTestId('add-lift-search').fill('bench');
+  await expect(page.getByTestId('add-lift-results')).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Bench', exact: true })).toBeVisible();
+});
