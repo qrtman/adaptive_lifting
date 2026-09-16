@@ -1,0 +1,117 @@
+---
+description: Add-lift catalog search — live visible filter of CATALOG_EXERCISES. Apply when changing AddLiftBar, exerciseCatalog, or add-lift search.
+alwaysApply: true
+---
+
+# Add-lift catalog search
+
+Search Exercises in the add-lift dialog must **visibly filter the catalog as the user types**. It is not a stub, not a global shortcut, and not a freeform prescription parser.
+
+Source of truth: `knowledge.md` Add lift (RTS-style: category, search, exercise, then variation chips). Do not implement `design.md` §6.2 two-pane builder or §7.3 mobile bottom-sheet / Create Custom from query.
+
+## Diagnosis (do not re-litigate)
+
+Wiring already exists and **does filter in memory**:
+
+- `AddLiftBar` holds `search` and `options = filterCatalog(category, search)` (`src/components/AddLiftBar.tsx`).
+- Input `data-testid="add-lift-search"` updates `search` (`placeholder="Search"` — the **S** the user pointed at).
+- `filterCatalog` substring-matches `item.name` only (`src/services/exerciseCatalog.ts`). Unit test: `search finds bench across categories`.
+
+It **feels dead** because matches are only `<option>`s inside a **closed native `<select data-testid="add-lift-exercise">`**. Typing never reveals a list, count, or empty state. User Defined hides the select and ignores search. Stale `exerciseName` can remain selected after it drops out of `options`.
+
+The **S** is the Search placeholder, **not** a keyboard shortcut. Do not add ⌘S, `/`, or an S keycap.
+
+## Product verdict
+
+| Keep | Drop |
+| :--- | :--- |
+| In-memory `CATALOG_EXERCISES` + `filterCatalog` as the only filter | Backend / remote exercise search |
+| Category **AND** search (constraint × query) | Replacing category with search-only |
+| Explicit **User Defined → Misc** custom name field | Auto-creating a lift from the query string |
+| Then `LiftVariationPicker` chips | Starting-set editor in this dialog |
+| Structured pick from catalog | Parsing prescriptions / aliases from freeform text as the lift |
+| Catalog bundled in the client (works offline) | Network fetch, debounce for ~25 rows |
+| Visible results list (RTS picker) | “Just shrink the closed `<select>` options” |
+
+Naive “filter the `<select>`” is **insufficient**. Smallest change that makes search real: **show the filtered catalog in the dialog**.
+
+## Spec
+
+### Query (`filterCatalog` only — do not duplicate in the component)
+
+- Trim; case-insensitive.
+- Split on whitespace; **every token must match** (AND).
+- A token matches if it is a substring of any of: `name`, `movementPattern`, `category`, `liftCategory`, or a compact **alias** list on that row (or a small `EXERCISE_ALIASES` map). Examples: `bench` → Bench / Close Grip Bench / Incline Bench; `hip` → Hip Dominant rows; `rdl` / `romanian` → RDL if aliased; `close bench` → Close Grip Bench.
+- Empty query + empty category → **full catalog** (scrollable list, not an empty “Select exercise”).
+- Empty query + category → that category only.
+- `category === 'User Defined'` → `[]` (search does not apply).
+- Rank: name prefix, then name includes, then pattern/category/alias. No fuzzy/Levenshtein.
+- **No debounce.** Catalog is tiny and local.
+
+### Category × search
+
+- Both apply (AND). Knee Dominant + `press` → Leg Press, not Bench.
+- Changing category still clears the selected exercise (existing). **Keep** the search string.
+- Do not auto-set category from a search hit until the user **picks** a row (`pickExercise` may still fill category when it was empty).
+
+### User Defined
+
+- Catalog list hidden; custom name field stays.
+- Disable or ignore Search; helper: `Catalog search does not apply. Name this lift.`
+- Custom lifts still store `movementPattern: 'Misc'`.
+- No-results must **not** auto-switch to User Defined. User picks that category.
+
+### UI (AddLiftBar)
+
+- Keep the centered dialog, Category select, Search input, then variation chips. No nested cards, no two-pane split, no Comp/Variation/Accessory tabs.
+- **Replace the closed native exercise `<select>`** with a visible listbox (`role="listbox"`) of catalog rows. Max-height + `overflow-y: auto`. Each row: exercise **name** (optionally muted pattern). Click = existing `pickExercise`.
+- Autofocus Search when the dialog opens.
+- Empty query: list is the filtered catalog (all or category).
+- No matches: `data-testid="add-lift-no-results"` copy **No catalog matches.** Hint: clear search, change category, or pick User Defined to name a custom lift.
+- If the selected exercise is not in `options`, **clear selection** (Confirm must not stay enabled on a hidden pick).
+- Clear-search control when query is non-empty (optional `[x]`). Do not hijack Escape — `CenteredDialog` already closes on Escape.
+- Keyboard in the list: ArrowUp/ArrowDown highlight; Enter picks highlighted (from search field, Enter picks first/highlighted match if any).
+- Placeholder may stay `Search` or become `Name, pattern, or category`. No S-shortcut badge.
+- `LiftVariationPicker` only after a pick. Confirm still requires `selected`.
+
+### Offline / RBAC / locks
+
+- Catalog-only; no new API. Works offline.
+- No extra RBAC; add-lift already uses session write.
+- Do not add search on locked/finished sessions beyond existing Add lift visibility.
+
+### Tests
+
+- Extend `src/services/exerciseCatalog.test.ts`: name; pattern (`vertical`); category token (`hip`); AND with category constraint; User Defined → `[]`; aliases if added; multi-token AND; empty query returns catalog (not empty).
+- E2E: type in `add-lift-search` and **assert visible names without `selectOption`**. Cover: `bench` shows Bench variants; click + Confirm adds the lift; `zzzz` shows no-results; Knee Dominant + `press` is Leg Press not Bench; User Defined hides results.
+- Update `e2e/session.spec.ts` and `e2e/reorder.spec.ts` — they use `add-lift-exercise` `selectOption`. After listbox, pick by test id / role option (e.g. `add-lift-result-Squat` or `getByRole('option', { name: 'Squat' })`).
+- Keep `data-testid="add-lift-search"`. Add `add-lift-results` on the listbox. Prefer `add-lift-result-{name}` per row.
+
+## Files to edit
+
+- `src/services/exerciseCatalog.ts` — tokens, pattern/category/alias haystack, stable rank.
+- `src/services/exerciseCatalog.test.ts`
+- `src/components/AddLiftBar.tsx` — visible list, empty state, autofocus, clear stale selection, User Defined vs search. Reuse `pickExercise` / `addLift`.
+- `e2e/session.spec.ts`, `e2e/reorder.spec.ts`, and/or new `e2e/add-lift-search.spec.ts`
+
+Do not refactor `LiftVariationPicker`, session rows, backend, or Telegram.
+
+## Non-goals
+
+- `design.md` §6.2 two-pane console or §7.3 bottom sheet / Create Custom `"query"`
+- Starting-set editor in the add-lift dialog
+- Remote exercise DB, Google, or demo-seed catalog
+- Freeform prescription parse; inventing lifts from the search string
+- Global S / `/` shortcut
+- Persisting search; debounce; new endpoints
+- Changing coach-code, sync, or math
+
+## Acceptance
+
+- [ ] Typing in Search Exercises updates a **visible** list on this keystroke (no extra click on a closed select).
+- [ ] Empty search shows catalog (or current category), not a blank control.
+- [ ] No matches shows the empty state; Confirm disabled.
+- [ ] Category AND search; User Defined is name-only + Misc.
+- [ ] Pick → variation chips → Confirm still adds the lift via existing `addSessionExercise`.
+- [ ] Existing session/reorder e2e still add Squat (updated selectors).
+- [ ] No new API; no demo seed; no nested cards.
