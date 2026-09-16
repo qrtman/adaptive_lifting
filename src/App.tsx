@@ -17,6 +17,7 @@ import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
+import { formatPlanLabel } from './features/plan/sessionLabels';
 
 export default function App() {
   const { user, roleMode, setRoleMode } = useAuth();
@@ -47,6 +48,8 @@ export default function App() {
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [editSessionOpen, setEditSessionOpen] = useState(false);
   const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
+  const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
+  const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -217,7 +220,7 @@ export default function App() {
             >
               {activeWorkout ? (
                 <>
-                  <div id="training-focus" className="min-h-7 flex flex-wrap items-center justify-between gap-2 px-1">
+                  <div id="training-focus" className="min-h-8 flex flex-wrap items-center justify-between gap-2 px-1">
                     <div className="flex flex-wrap items-center gap-2 min-w-0">
                         <button 
                           onClick={() => {
@@ -228,14 +231,26 @@ export default function App() {
                         >
                           Back
                         </button>
-                        <p data-testid="session-name" className="text-sm text-white truncate max-w-[220px]">
+                        <p data-testid="session-name" className="text-base font-semibold text-white truncate max-w-[220px]">
                           {activeWorkout.title}
+                        </p>
+                        <p data-testid="session-labels" className="flex items-baseline gap-2 min-w-0">
+                          {sessionWeekLabel ? (
+                            <span className="text-sm font-semibold text-white truncate">
+                              {sessionWeekLabel}
+                            </span>
+                          ) : null}
+                          {sessionBlockLabel ? (
+                            <span className="text-[11px] text-[#E0E0E0] truncate">
+                              {sessionBlockLabel}
+                            </span>
+                          ) : null}
+                          {!sessionWeekLabel && !sessionBlockLabel ? (
+                            <span className="text-[11px] text-[#AEAEB2]">No block/week</span>
+                          ) : null}
                         </p>
                         <p data-testid="workout-tonnage" className="text-[11px] text-[#AEAEB2] font-mono shrink-0">
                           {activeWorkout.tonnage}kg
-                        </p>
-                        <p data-testid="session-labels" className="text-[11px] text-[#AEAEB2] truncate">
-                          {[activeWorkout.blockLabel, activeWorkout.weekLabel].filter(Boolean).join(' · ') || 'No block/week'}
                         </p>
                         <button
                           type="button"
