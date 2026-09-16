@@ -1,0 +1,191 @@
+---
+description: Session Day vs Name — separate Day slot from Name; remember last picks athlete-scoped. Apply when changing NewSessionDialog, EditSessionDialog, session header, or dayLabel.
+alwaysApply: true
+---
+
+# Session Day vs Name
+
+Do **not** invent a second date. Do **not** add a new backend column. Do **not** encode Day inside `title`. Do **not** make Day a Monday–Sunday weekday. Sessions stay **dated workouts**; calendar date is already first-class.
+
+Source of truth: `architecture.md` §5.1 Workout (`date`, `dayLabel`, `title`, optional `block_label` / `week_label`). This rule **overrides** `design.md` §16.3 “New session dialog is name + optional block/week” and `knowledge.md` surfaces that treat Name as the only identity besides Block/Week. Patch those lines in the **implementation** PR.
+
+This checkout has **no** `SessionCreateForm`. Create lives in `NewSessionDialog`. There is **no** ComboBox component; Name is a freeform `<input>` defaulting to `"Session"`. `LabelCombo` is a skinny native `<select>` used for Block/Week only.
+
+---
+
+## Grill (locked answers — do not re-litigate)
+
+| Challenge | Verdict |
+| :--- | :--- |
+| Is Day the calendar date, weekday, or a training-slot label? | **Training-slot label** (Day 1–Day 7 / D1–D7), independent of `date`. Architecture already has `dayLabel` (`src/types.ts`: `e.g. "D1"`). Date is the calendar field. Weekday would invent required Mon–Sun week containers (`AGENTS.md` / architecture forbid that). Insights `weekday_matrix` already buckets by **calendar weekday from `date`** — do not retarget it at `dayLabel`. |
+| Why not use the date as the day? | Date is already chosen (calendar hover / date input). Coaches reuse **Day 1** across weeks on different dates. Using ISO date as `dayLabel` (today’s create/copy fallback) duplicates Date and makes copy-week alignment by slot impossible. |
+| Why a dropdown vs the existing Name combobox? | **There is no Name combobox.** Name is a text input whose default is `"Session"`; users type `"day 1"` into the title because that is the only free field. Day is a small closed-ish vocabulary; Name is a freeform session title (Squat, Meet, Upper). Merging them is the bug. |
+| Collision with Week copy **D1**? | Copy-to “destination Calendar day = **D1**” means **earliest source date** (`copyClipboard.ts` `dateOffsetDays`). That is **not** `workout.dayLabel`. Do not reuse copy-grain “D1” copy in the Day control. Display Day as **Day 1**, not `D1`, so the two languages do not collide. Store canonical `"1"`…`"7"`. |
+| Persistence: per athlete vs global? | **Athlete-scoped**, same pattern as `al_recent_block:{athleteId}`. Coach switching athletes must not leak another athlete’s Day 3 / “Squat”. |
+| Unlabeled sessions? | Allowed. `dayLabel` is NOT NULL, so create-without-Day keeps the existing ISO-date fallback. UI treats ISO `YYYY-MM-DD` (and empty) as **unlabeled** — do not render “Day 2026-09-04”. |
+| Copy-week? | `clone_session_prescription` currently sets `dayLabel=new_date` (destroys the slot). **Preserve** source `dayLabel` when it is a real slot (not ISO). If source is unlabeled (ISO/empty), keep dest-date fallback. Titles already copy. Do not ask for Day on paste. |
+| Google Sheets? | Publish already has columns Date, **Day** (`dayLabel`), Title (`integrations.py` Workouts tab). No schema change. Filling real Day 1 makes Day ≠ Date. One-way publish only. |
+| New backend column / title prefix? | **No.** `dayLabel` already exists on create/update (`CreateSessionRequest.dayLabel`, `apiService.createSession`). Wire it. Do not prefix `"Day 1 · "` into `title`. Do not migrate historical ISO `dayLabel` rows. |
+
+---
+
+## Diagnosis (this checkout)
+
+1. `NewSessionDialog` Name = `<input data-testid="new-session-title">` initial `"Session"`. No Day field. `createSession` can send `dayLabel` but the dialog never does → backend `day_label = req.dayLabel or session_date`.
+2. `EditSessionDialog` edits title / Block / Week only. Header (`App.tsx`) is prominent **Name** + **Week n** + **Block n** (`formatPlanLabel`). `dayLabel` is unused on web (Telegram still shows `dayLabel • date`).
+3. `uniquePlanLabels` exists for Block/Week. **`uniquePlanTitles` does not exist.**
+4. `getRecentBlock` is athlete-scoped but **New session does not prefill it** (copy paste does). No `al_recent_day` / `al_recent_name` / `al_recent_week`.
+5. `LabelCombo` = native `<select>` + “Add new…”. User asked for easy mouse/keyboard pick: **ComboBox**, not that select, not a native Day `<select>`.
+
+---
+
+## Product verdict
+
+| Keep | Drop |
+| :--- | :--- |
+| Existing `Workout.dayLabel` | New column, title-prefix encoding, migration of ISO dayLabels |
+| Date as calendar `YYYY-MM-DD` | Day = date, Day = Mon–Sun, required week containers |
+| Name = `title` (freeform) | Default visible title `"Session"` |
+| Day 1–7 presets + custom slot | Inventing `day_sequence` for this PR |
+| Athlete-scoped `al_recent_*` | Global last-Day / last-Name |
+| Copy dest click = date D1 (offset) | Relabeling copy-grain D1 as session Day |
+| Sheets Date + Day + Title | Sheets as editable store |
+| Optional Day (unlabeled OK) | Required Day on every session |
+| ComboBox for Day **and** Name | Skinny native `<select>` for Day/Name; a second Name text field plus a Day select that cannot type |
+
+---
+
+## Spec
+
+### Meaning
+
+- **Date** — when the workout happens. Unchanged.
+- **Day** — training-slot label inside a block/week template (`dayLabel`). Independent of weekday and of Name.
+- **Name** — session title (`title`). Not “Day 1”.
+- **Week / Block** — optional grouping labels. Unchanged.
+
+### Canonical Day values
+
+- Presets always listed: **Day 1 … Day 7**.
+- Store `"1"` … `"7"`. Aliases `D1`, `d1`, `Day1`, `Day 1` normalize to `"1"` (same idea as `formatPlanLabel` stripping `Week`/`Block`).
+- Display: extend `formatPlanLabel` with kind `'Day'` → `"Day 1"`. Never show raw `D1` in the session header.
+- Custom slots allowed (type in the ComboBox): `"8"`, `"AM"`, `"Meet"`. Display `Day {stripped}` when it is a numeric/Day-prefixed token; otherwise show the custom string (do not force `"Day Meet"` if that reads worse — custom non-numeric displays as typed).
+- Unlabeled: `dayLabel` empty or matching `ISO_DATE` (`/^\d{4}-\d{2}-\d{2}$/`). `formatPlanLabel('Day', iso)` returns **null**.
+
+### ComboBox (new, reuse for Day and Name)
+
+There is no ComboBox in tree. Add a small one (new file or next to `LabelCombo.tsx`). **Do not** use native `<select>` for Day or Name.
+
+- Text input + visible listbox (`role="listbox"` / `role="option"`). Filter as you type. ArrowUp/Down highlight; Enter picks; click picks; Escape does not fight `CenteredDialog` (let the dialog keep Escape-to-close when the list is closed).
+- Easy pick: last value already in the input; one click/arrow to change.
+- Day options = presets 1–7 ∪ unique non-ISO `dayLabel`s from the plan (normalized).
+- Name options = **`uniquePlanTitles(microcycles)`**: unique trimmed `workout.title`, exclude `""` and `"Session"`.
+- Custom / unknown value stays valid (Name is always freeform; Day allows custom).
+- Block/Week may stay `LabelCombo` this pass.
+
+### New session (`NewSessionDialog`)
+
+Layout: Date (if `allowDateEdit`) → **Day** ComboBox → **Name** ComboBox → Block / Week.
+
+Prefill when the dialog opens (athlete id = linked athlete for coach, else current user — same as `setRecentBlock`):
+
+| Field | Source |
+| :--- | :--- |
+| Day | `al_recent_day:{athleteId}` |
+| Name | `al_recent_name:{athleteId}` — **never** the literal `"Session"` |
+| Block | existing `getRecentBlock` (today stored, not prefilled — **prefill it**) |
+| Week | add `al_recent_week:{athleteId}` on the same helper pattern |
+
+- Name placeholder if no last name: `Name` or `Squat, Meet…` — input value `""`, not `"Session"`. Create with empty Name: require a name (`setError`) rather than silently saving `"Session"`.
+- Day may stay empty (unlabeled). Do not infer Day from the calendar weekday of `date`.
+- On successful create: `setRecentDay` / `setRecentName` / `setRecentBlock` / `setRecentWeek` when those fields are non-empty. Send `dayLabel` only when Day is labeled; omit so backend keeps ISO fallback when unlabeled.
+- Keep `data-testid="new-session-title"` on the Name input. Add `new-session-day`.
+
+### Edit (`EditSessionDialog`) + header
+
+- Same Day + Name ComboBoxes. Day initial = unlabeled if ISO, else stored slot.
+- Save sends `title` and `dayLabel` (ISO date when Day cleared, to keep NOT NULL unlabeled sentinel).
+- Header (`App.tsx` `session-name` / `session-labels`): **Name (`title`)** then **Day n** (if labeled) then Week n then Block n. Do not put Day in `session-name`. Unlabeled Day omitted (keep `No block/week` only when both week and block empty; Day absence is not that message).
+- Calendar/Sessions cards may keep showing **title** only this pass.
+
+### Copy / Sheets / Telegram
+
+- Copy grain language unchanged (dest click = date D1).
+- `clone_session_prescription`: `dayLabel = source.dayLabel` unless unlabeled (ISO/empty) → then `new_date`.
+- Sheets: no change besides real values in Day.
+- Telegram: already shows `dayLabel`; formatting Day 1 is optional/out of scope.
+
+### Pref keys (`src/storage/uiPrefs.ts`)
+
+LocalStorage UI prefs only (not IndexedDB, not sync):
+
+- `al_recent_block` (exists)
+- `al_recent_week`
+- `al_recent_day`
+- `al_recent_name`
+
+Helpers mirror `getRecentBlock` / `setRecentBlock` (`:athleteId` suffix). Coach uses the **plan athlete** id, not the coach user id.
+
+### Backend
+
+- **No new column.** Create/PATCH already accept `dayLabel`.
+- One behavior fix: copy clone preserves labeled `dayLabel` (above).
+- Do not parse Day from `title`.
+- Do not auto-seed Day 1 on empty plans.
+
+---
+
+## Files to edit (implementation PR)
+
+- `.cursor/rules/agent-file-map.mdc` — already updated on the rule branch; keep in sync
+- `src/storage/uiPrefs.ts` — recent week/day/name
+- `src/features/plan/sessionLabels.ts` (+ test) — `Day` kind; ISO → null
+- `src/components/LabelCombo.tsx` — `uniquePlanTitles`; ComboBox here or sibling
+- `src/components/NewSessionDialog.tsx` — Day + Name ComboBoxes, prefills, persist, `dayLabel`
+- `src/components/EditSessionDialog.tsx` — same controls; PATCH `dayLabel`
+- `src/App.tsx` — header Day via `formatPlanLabel('Day', …)`
+- `backend/main.py` — copy clone preserve labeled `dayLabel`
+- `e2e/calendar.spec.ts` (and create-session helpers): Day control; second create prefills last Day+Name; header Name ≠ Day; unlabeled still allowed
+- `design.md` §16.3 / `knowledge.md` surfaces: New session is Day + Name + optional Block/Week
+
+Do **not** add `SessionCreateForm` unless you extract the shared fields both dialogs already need. Do not refactor Calendar, Insights, Sheets UI, Telegram, coach-code, or math.
+
+---
+
+## Non-goals
+
+- New `day_label` / `day_sequence` column or title-prefix encoding
+- Required Mon–Sun week; Day 1 = Monday
+- Migrating existing ISO `dayLabel` rows
+- Native `<select>` Day control; default Name `"Session"`
+- Grouping Sessions view by Day
+- Changing copy dest-click D1 meaning
+- Demo seed; Google Sheets import
+
+---
+
+## Acceptance
+
+- [ ] New session: separate Day and Name ComboBoxes (not native select, not `"Session"` default).
+- [ ] Opening New session prefills last Day, last Name, last Week, last Block for **that athlete**.
+- [ ] Create with Day 1 + Name `Squat` stores `dayLabel: "1"`, `title: "Squat"` — not title `"day 1"`.
+- [ ] Header shows `Squat` then `Day 1` then Week/Block. Unlabeled Day omitted; ISO `dayLabel` not shown.
+- [ ] Empty Day still creates; date is the calendar date.
+- [ ] Copy week/day preserves labeled Day; dest click still maps dates.
+- [ ] No new DB column; no demo seed; no Mon–Sun containers.
+- [ ] E2E covers separate fields, remember-last, unlabeled, header.
+
+---
+
+## Execution prompt (implementer)
+
+```text
+Branch: cursor/session-day-name-9f4a from cursor/session-header-labels-9f4a.
+Follow .cursor/rules/session-day-name.mdc. Do not re-litigate Day vs date vs weekday.
+
+Implement: ComboBox for Day + Name on NewSessionDialog and EditSessionDialog;
+athlete-scoped al_recent_day / al_recent_name / al_recent_week (and prefill Block);
+wire existing dayLabel (store "1"…"7"); header Day via formatPlanLabel;
+copy clone preserves labeled dayLabel. No new backend column. No SessionCreateForm
+unless extracting shared fields. No UI in the rule-only PR.
+```
