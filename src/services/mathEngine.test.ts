@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import vectors from '../../tests/math_vectors.json';
 import {
+  E1RM_RPE_FLOOR,
   MATH_VERSION,
   calculateAttemptJumps,
   calculateDOTS,
   calculateE1RM,
   calculateINOL,
+  calculateWeightFromE1RM,
   roundToCompetitionPlates,
   setPreviewMetrics,
 } from './mathEngine';
@@ -55,5 +57,35 @@ describe('shared math vectors', () => {
       expect(jumps.suggested_second).toBe(row.suggested_second);
       expect(jumps.third_ceiling).toBe(row.third_ceiling);
     }
+  });
+});
+
+describe('e1RM RPE floor', () => {
+  it('pins the floor at 5.0', () => {
+    expect(E1RM_RPE_FLOOR).toBe(5.0);
+    expect(MATH_VERSION).toBe('linear-decay-v2');
+  });
+
+  it('computes 150×6 @5 as 200 and equals @4', () => {
+    const atFive = calculateE1RM(150, 6, 5);
+    const atFour = calculateE1RM(150, 6, 4);
+    expect(atFive).toBe(200);
+    expect(atFive).not.toBe(150);
+    expect(atFour).toBe(atFive);
+    expect(calculateE1RM(150, 6, 0)).toBe(150);
+  });
+
+  it('does not clamp RPE 5.5 to 5.0', () => {
+    expect(calculateE1RM(100, 3, 5)).toBe(126.58);
+    expect(calculateE1RM(100, 3, 5.5)).toBe(124.22);
+    expect(calculateE1RM(100, 3, 4)).toBe(126.58);
+  });
+
+  it('calculateWeightFromE1RM at RPE 5 does not return the raw e1RM', () => {
+    const atFive = calculateWeightFromE1RM(200, 6, 5);
+    const atFour = calculateWeightFromE1RM(200, 6, 4);
+    expect(atFive).not.toBe(200);
+    expect(atFive).toBe(150);
+    expect(atFour).toBe(atFive);
   });
 });
