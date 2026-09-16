@@ -6,7 +6,7 @@
 
 import { trainingIntOrZero, trainingOrZero } from './numericTraining';
 
-export const MATH_VERSION = 'linear-decay-v2';
+export const MATH_VERSION = 'linear-decay-v3';
 export const E1RM_RPE_FLOOR = 5.0;
 
 function formulaRpe(rpe: number): number {
@@ -47,8 +47,7 @@ export function calculateE1RM(weight: number, reps: number, rpe: number): number
   if (rpe <= 0) return weight;
 
   const formulaRpeValue = formulaRpe(rpe);
-  let effectiveDropPct = 0.03 * (10 - formulaRpeValue + reps - 1);
-  if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
+  const effectiveDropPct = 0.03 * (10 - formulaRpeValue + reps - 1);
 
   const denominator = 1.0 - effectiveDropPct;
   if (denominator <= 0.1) return weight;
@@ -252,8 +251,7 @@ export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number)
   if (rpe <= 0) return 0;
 
   const formulaRpeValue = formulaRpe(rpe);
-  let effectiveDropPct = 0.03 * (10 - formulaRpeValue + reps - 1);
-  if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
+  const effectiveDropPct = 0.03 * (10 - formulaRpeValue + reps - 1);
 
   const denominator = 1.0 - effectiveDropPct;
   if (denominator <= 0.1) return e1RM;

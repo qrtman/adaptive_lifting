@@ -321,7 +321,7 @@ $$\text{e1RM} = \frac{\text{Weight}}{1.0 - \text{Effective Drop \%}}$$
 #### 6.2.1 Boundary Constraints & Guards
 - **Null Inputs**: If `weight <= 0` or `reps <= 0`, return `0.0`.
 - **Reliability Fallback**: If `reps > 12`, return the raw `weight`. If `rpe <= 0` (missing RPE), return the raw `weight` — do not treat empty LOG RPE as RPE 5. If `0 < rpe < 5.0` (`E1RM_RPE_FLOOR`), clamp **formula input only** to `5.0`; persist the athlete's logged RPE unchanged. RPE `5.0` and `5.5` run as entered.
-- **Metabolic Drop-off Cap**: For high-rep sets (e.g., backoffs), the linear decay is capped to prevent absurdly inflated 1RM projections. If `Effective Drop % > 0.25`, the value is constrained to `0.25` (representing a maximum 25% drop).
+- **No Metabolic Drop-off Cap**: Do not clamp Effective Drop % at 25%. A fixed cap equalizes every formula RPE whose uncapped drop exceeds it (e.g. 150×6 @5 and @6 both become 200). After the RPE floor clamp, for the same `weight > 0` and `1 ≤ reps ≤ 12`, lower formula RPE ⇒ strictly higher e1RM (`e1RM(150, 6, 5) > e1RM(150, 6, 6) > e1RM(150, 6, 7)`).
 - **Zero-Division Guard**: If `denominator <= 0.1` (where `denominator = 1.0 - Effective Drop %`), the calculation is aborted, and the raw `weight` is returned.
 
 ### 6.3 INOL - Intensity Number of Lifts
@@ -993,7 +993,7 @@ The frontend sends delta payloads - only changed fields, not full entities, mini
   "client_device_id": "dev-456",
   "workout_id": "w-abc-123",
   "last_updated_at": "2026-05-29T09:30:00Z",
-  "math_version": "linear-decay-v2",
+  "math_version": "linear-decay-v3",
   "changes": [
     {
       "entity": "ExerciseSet",
@@ -1191,7 +1191,7 @@ Shared formula fixtures live in `tests/math_vectors.json` (`math_version` plus e
 
 | Test Area | Key Scenarios |
 | :--- | :--- |
-| e1RM calculation | RPE 10, RPE 5 floor, RPE < 5 clamps to 5.0, RPE 5.5 unclamped, missing RPE returns load, high-rep cap, zero weight, zero reps |
+| e1RM calculation | RPE 10, RPE 5 floor, RPE < 5 clamps to 5.0, RPE 5.5 unclamped, missing RPE returns load, ranking @5 > @6 > @7 (no 25% cap), zero weight, zero reps |
 | INOL calculation | Standard intensity, 100% intensity cap, zero intensity |
 | DOTS coefficient | Male coefficients, female coefficients, zero bodyweight guard |
 | Attempt Calculator | Correct rounding to 2.5kg, non-overlapping 2nd/3rd ranges |
@@ -1296,7 +1296,7 @@ Insights cards are saved per user (`InsightCard`) and executed against the curre
 
 **Query plan (weekday_matrix / heatmap over a block):** one SQL join of `workouts × exercises × sets × microcycles` filtered by owner and date window, then in-memory group-by. Avoids N+1. If a window regularly exceeds ~50,000 set rows, add a materialized `daily_set_facts` table keyed by `(owner_id, date, pattern)` — extension point documented on `fetch_set_rows`. ISO week is an analytics grain only, not a Mon–Sun scheduling container.
 
-Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview. `MATH_VERSION` (`linear-decay-v2`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build.
+Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview. `MATH_VERSION` (`linear-decay-v3`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build.
 
 Pattern-scoped cards (`weekday_matrix`, spacing vs e1RM) read `exercises.movement_pattern`. New lifts store the catalog field; existing rows are backfilled once via `pattern_for(title, lift_category)`. Query time does not re-run the title heuristic.
 

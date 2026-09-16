@@ -3,7 +3,7 @@ from typing import Dict, List
 
 # Bump this and the mirrored constant in src/services/mathEngine.ts together.
 # Shared tests/math_vectors.json.math_version must match; sync 409s on mismatch.
-MATH_VERSION = "linear-decay-v2"
+MATH_VERSION = "linear-decay-v3"
 E1RM_RPE_FLOOR = 5.0
 
 
@@ -17,7 +17,7 @@ def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
     e1RM = Weight / (1 - 0.03 * (10 - RPE + Reps - 1))
     Missing RPE (rpe <= 0) and reps > 12 return raw weight.
     0 < rpe < E1RM_RPE_FLOOR uses formula RPE 5.0; 5.0 and 5.5 run as entered.
-    High-rep sets cap the metabolic drop-off at 25%.
+    No metabolic drop cap: lower formula RPE yields strictly higher e1RM.
     """
     if weight <= 0 or reps <= 0:
         return 0.0
@@ -28,10 +28,6 @@ def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
 
     formula_rpe = _formula_rpe(rpe)
     effective_drop_pct = 0.03 * (10 - formula_rpe + reps - 1)
-
-    # Correction: cap the drop percentage for high-rep sets (e.g. max 25% drop)
-    if effective_drop_pct > 0.25:
-        effective_drop_pct = 0.25
 
     denominator = 1.0 - effective_drop_pct
     if denominator <= 0.1:
