@@ -1,6 +1,16 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 test.use({ baseURL: 'http://localhost:3000' });
+
+async function expectSelected(cell: Locator) {
+  await expect(cell).toHaveAttribute('data-grid-mode', 'selected');
+  await expect(cell).toHaveJSProperty('tagName', 'DIV');
+}
+
+async function expectEditing(cell: Locator) {
+  await expect(cell).toHaveAttribute('data-grid-mode', 'editing');
+  await expect(cell).toBeEditable();
+}
 
 test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN↔LOG arrows', async ({ page, request }) => {
   const email = `sheets-cell-${Date.now()}@example.com`;
@@ -43,55 +53,48 @@ test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN�
 
   // 1. Click plan kg → not an input; type 180; Enter → next set same column selected
   await planKg0.click();
-  await expect(planKg0).not.toBeEditable();
-  await expect(planKg0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planKg0);
   await page.keyboard.type('180');
-  await expect(planKg0).toBeEditable();
+  await expectEditing(planKg0);
   await expect(planKg0).toHaveValue('180');
   await planKg0.press('Enter');
   await expect(planKg0).toHaveText('180');
-  await expect(planKg0).not.toBeEditable();
-  await expect(planKg1).toHaveAttribute('data-grid-mode', 'selected');
-  await expect(planKg1).not.toBeEditable();
+  await expectSelected(planKg1);
 
   // 2. Tab kg→reps→rpe→log kg; never the copy-plan button
   await planKg0.click();
-  await expect(planKg0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planKg0);
   await planKg0.press('Tab');
-  await expect(planReps0).toHaveAttribute('data-grid-mode', 'selected');
-  await expect(planReps0).not.toBeEditable();
+  await expectSelected(planReps0);
   await planReps0.press('Tab');
-  await expect(planRpe0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planRpe0);
   await planRpe0.press('Tab');
-  await expect(logKg0).toHaveAttribute('data-grid-mode', 'selected');
-  await expect(logKg0).not.toBeEditable();
+  await expectSelected(logKg0);
   await expect(copyPlan).not.toBeFocused();
 
   // 3. Enter from plan kg set 0 (editing) → plan kg set 1
   await planKg0.click();
   await planKg0.press('F2');
-  await expect(planKg0).toBeEditable();
+  await expectEditing(planKg0);
   await planKg0.press('Enter');
-  await expect(planKg1).toHaveAttribute('data-grid-mode', 'selected');
-  await expect(planKg1).not.toBeEditable();
+  await expectSelected(planKg1);
 
   // 4. Left/Right across PLAN and LOG (skip copy button)
   await planRpe0.click();
   await planRpe0.press('ArrowRight');
-  await expect(logKg0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(logKg0);
   await expect(copyPlan).not.toBeFocused();
   await logKg0.press('ArrowLeft');
-  await expect(planRpe0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planRpe0);
 
   // 5. F2 on committed plan kg; Escape keeps the value
   await planKg0.click();
   await planKg0.press('F2');
-  await expect(planKg0).toBeEditable();
+  await expectEditing(planKg0);
   await expect(planKg0).toHaveValue('180');
   await planKg0.press('Escape');
   await expect(planKg0).toHaveText('180');
-  await expect(planKg0).not.toBeEditable();
-  await expect(planKg0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planKg0);
 
   // 6. Edit log reps; ArrowLeft at start stays in the input
   await logReps0.click();
@@ -99,35 +102,33 @@ test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN�
   await logReps0.fill('12');
   await logReps0.press('Home');
   await logReps0.press('ArrowLeft');
-  await expect(logReps0).toBeEditable();
+  await expectEditing(logReps0);
   await expect(logReps0).toBeFocused();
   await logReps0.press('Escape');
 
   // 7. Selected + Backspace on logged kg → —
   await logKg0.click();
   await page.keyboard.type('100');
-  await expect(logKg0).toBeEditable();
+  await expectEditing(logKg0);
   await logKg0.press('Enter');
   await expect(logKg0).toHaveText('100');
   await logKg0.click();
-  await expect(logKg0).toHaveAttribute('data-grid-mode', 'selected');
-  await expect(logKg0).not.toBeEditable();
+  await expectSelected(logKg0);
   await logKg0.press('Backspace');
   await expect(logKg0).toHaveText('—');
 
   // 8. Enter while selected starts insert-edit and does not move
   await planKg0.click();
-  await expect(planKg0).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planKg0);
   await planKg0.press('Enter');
-  await expect(planKg0).toBeEditable();
+  await expectEditing(planKg0);
   await expect(planKg1).not.toHaveAttribute('data-grid-mode', 'selected');
   await planKg0.press('Escape');
 
   // 9. Enter while editing last-set plan kg stays on last-set plan kg
   await planKg1.click();
   await planKg1.press('F2');
-  await expect(planKg1).toBeEditable();
+  await expectEditing(planKg1);
   await planKg1.press('Enter');
-  await expect(planKg1).not.toBeEditable();
-  await expect(planKg1).toHaveAttribute('data-grid-mode', 'selected');
+  await expectSelected(planKg1);
 });
