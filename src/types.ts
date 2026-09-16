@@ -112,6 +112,13 @@ export function isMicrocycleActive(status: string): boolean {
   return status === 'ACTIVE' || status === 'In Progress';
 }
 
+export interface DayNote {
+  id: string;
+  date: string; // YYYY-MM-DD calendar date, not weekday
+  body: string;
+  ownerId?: string;
+}
+
 export interface WorkoutData {
   id: string;
   date: string; // YYYY-MM-DD

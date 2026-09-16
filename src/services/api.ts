@@ -586,6 +586,42 @@ export const apiService = {
     return await response.json();
   },
 
+  async fetchDayNotes(athleteId?: string | null): Promise<import('../types').DayNote[]> {
+    const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/api/day-notes${query}`, {
+      headers: getHeaders(),
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(apiErrorMessage(errData, 'Failed to load notes'));
+    }
+    const data = await response.json();
+    return Array.isArray(data?.notes) ? data.notes : [];
+  },
+
+  async upsertDayNote(payload: {
+    date: string;
+    body: string;
+    athleteId?: string | null;
+  }): Promise<{ id: string | null; date: string; body: string | null; ownerId?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/day-notes`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        date: payload.date,
+        body: payload.body,
+        athleteId: payload.athleteId || undefined,
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(apiErrorMessage(errData, 'Failed to save note'));
+    }
+    return await response.json();
+  },
+
   async addSessionExercise(sessionId: string, payload: {
     title: string;
     variation?: string;

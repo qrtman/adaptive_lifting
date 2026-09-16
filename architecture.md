@@ -196,6 +196,7 @@ erDiagram
     User ||--o{ InviteCode : "publishes"
     User ||--o{ Mesocycle : "owns"
     User ||--o{ Workout : "owns as athlete"
+    User ||--o{ DayNote : "owns as athlete"
     Mesocycle ||--o{ Microcycle : "optional contains"
     Microcycle ||--o{ Workout : "soft groups"
     Workout ||--o{ Exercise : "contains"
@@ -217,6 +218,7 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
 | **Microcycle** | `id` (String) | `weekName`, `focus`, `status`, `owner_id`, optional `mesocycle_id` | Soft week aggregation for labeled sessions; owned by athlete; not required before first session |
 | **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
+| **DayNote** | `id` (String) | `date` (`YYYY-MM-DD`), `body`, `owner_id` | One note per calendar date in athlete plan space; not a weekday slot and not a Workout. Empty days may have a note. Distinct from set `note`. |
 | **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `movement_pattern`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
 | **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `deleted_at` | Belongs to Exercise |
 
@@ -231,6 +233,7 @@ Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `
 | **LexoRank Order**: Ordering strings (`lexo_rank`) must maintain lexical sortability without integer collisions. | Client generation, DB indexing |
 | **Accessory identity**: Isolation work is `Exercise.tier = Accessory`, never a workout-level blob without sets. | Schema + sync entity allow-list |
 | Session `date` is required (`YYYY-MM-DD`); Block/Week labels are optional and independently nullable | Schema + service validation |
+| Day notes are keyed by `(owner_id, date)` — calendar date, not weekday; one live note per date per athlete plan | Unique constraint + service validation |
 | Plan rows for an athlete remain after `CoachingRelationship.ended_at` is set | Unlink service never deletes athlete-owned sessions |
 
 ### 5.3 Lifecycle Status Values
@@ -279,6 +282,7 @@ Indexes should be declared with migrations, not created opportunistically at run
 | Index | Reason |
 | :--- | :--- |
 | `workouts(microcycle_id, date)` | Fast calendar and boundary validation lookups. |
+| `day_notes(owner_id, date)` unique | One calendar-date note per athlete plan; calendar month fetch. |
 | `exercises(workout_id, lexo_rank)` | Stable exercise ordering inside a workout. |
 | `exercise_sets(exercise_id, lexo_rank)` | Stable set ordering inside an exercise. |
 | `exercise_sets(exercise_id, isTop)` | Fast top-set/e1RM extraction. |
@@ -959,6 +963,8 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
+| `GET` | `/api/day-notes?athlete_id=` | List live calendar-date notes for an athlete plan (empty days included; not weekday-keyed) | Coach / Athlete |
+| `PUT` | `/api/day-notes` | Upsert a day note (`date` YYYY-MM-DD, `body`; empty body tombstones). Coach must pass `athleteId` | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
@@ -1262,6 +1268,7 @@ adaptive_lifting/
 |   \-- components/
 |       +-- AppShell.tsx / Sidebar.tsx / AthleteScopeSelector.tsx
 |       +-- CalendarView.tsx / SessionsView.tsx / InsightsView.tsx
+|       +-- DayNoteDialog.tsx / NewSessionDialog.tsx / EditSessionDialog.tsx
 |       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
 |       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |

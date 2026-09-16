@@ -113,7 +113,7 @@ The design system follows three product principles:
 | :--- | :--- | :--- | :--- |
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
-| Calendar workspace | Coach / Athlete | Date-first session timeline | Hover a day shows New session (and Copy to when a session exists). Copy to then click the destination day on the same calendar. |
+| Calendar workspace | Coach / Athlete | Date-first session timeline | Hover overlay (absolute; does not grow the day cell) shows compact New session, Copy to when a session exists, and Notes. Saved notes render as a distinct day card at rest. Copy to then click the destination day on the same calendar. |
 | Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for name, then Day/Block/Week |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
@@ -415,7 +415,8 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 * **Interactive Calendar Grid Controls:**
   * **Unified Sub-Header Navigation Panel:** Renders current active Month, Microcycle sequence progression metrics (`[ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]` matching rolling CNS fatigue schedules), responsive View Mode toggle keys (`[ MONTH ]` and `[ MICRO ]`), and a prominent manual `[ SYNC LOGS ]` trigger button.
   * **Expand All Sets (All Days) Global Toggle:** A visual checkbox option `[x] Expand All Sets` located in the header. Checking this toggle transitions **every** daily card and exercise block across the entire microcycle into their expanded planned-vs-executed set stack at once, allowing complete high-density session review without clicking individual tabs.
-  * **Active Day Highlight Overlay:** The active calendar column (DAY 06) is framed in a high-contrast `--ok-blue` border (`hsl(217, 91%, 60%)`) to instantly establish cognitive anchoring for the viewer.
+  * **Day hover overlay:** Hovering a day shows a compact action overlay (`New session`, `Copy to` when that day has a session, `Notes`). The overlay is absolutely positioned inside the cell (or portaled); it must not change the in-flow height of the day container. A hovered day stays the same height as its unhovered neighbor. Do not stack two full-width primary buttons in flow.
+  * **Day notes:** Notes are keyed by calendar date + athlete plan, not weekday. A saved note appears as a distinct card on that day at rest (including empty days with no session). Distinct from session cards — no nested cards. Coach Calendar notes follow the athlete switcher.
   * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
 * **Workout Cards Sizing & Functional States:**
   * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
@@ -1905,7 +1906,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
-- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is Name, then a compact Day / Block / Week row (Block/Week optional); cancel does not create. Date is in the dialog title on calendar hover — do not duplicate a date field. At 360px, Name then Day full width then Block|Week is allowed if three columns clip.
+- [ ] Hovering a calendar day shows a compact overlay: New session; Copy to when a session exists; Notes. The overlay must not grow the day cell — in-flow height matches the unhovered neighbor. Saved notes show as a distinct day card at rest (empty days included). New session dialog is Name, then a compact Day / Block / Week row (Block/Week optional); cancel does not create. Date is in the dialog title on calendar hover — do not duplicate a date field. At 360px, Name then Day full width then Block|Week is allowed if three columns clip.
 - [ ] Block/Week labels can be set or changed anytime, including after Copy to. Day/Name/Block/Week edit through a centered dialog (not always-open fields). Empty clears the label. Day is a training-slot label (`dayLabel`), not the calendar date.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to a session.

@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 from .accessory_migration import expand_legacy_accessory_sets
@@ -242,6 +242,18 @@ class IntegrationOutbox(Base):
     status = Column(String, nullable=False)
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
+
+class DayNote(Base, TimestampMixin):
+    """Athlete-plan note keyed by calendar date, not weekday and not a workout."""
+    __tablename__ = "day_notes"
+    id = Column(String, primary_key=True, index=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(String, nullable=False)  # YYYY-MM-DD
+    body = Column(String, nullable=False, default="")
+    __table_args__ = (
+        UniqueConstraint("owner_id", "date", name="uq_day_notes_owner_date"),
+    )
+
 
 class InsightCard(Base, TimestampMixin):
     __tablename__ = "insight_cards"
