@@ -21,4 +21,5 @@ Product constraints stay in `AGENTS.md`. This file is a file-index only.
 | auth / coach code | `src/components/SecurityView.tsx`, `src/components/CoachLinkPanel.tsx`, `src/contexts/AuthContext.tsx`, `src/components/LoginView.tsx`, `backend/main.py` (`/api/auth/coach-code`, link/unlink), `backend/test_auth.py`, `e2e/login.spec.ts`, `e2e/link.spec.ts` |
 | insights | `src/components/InsightsView.tsx`, `src/insights/*`, `backend/analytics_service.py`, `backend/analytics_router.py`, `backend/analytics_schemas.py`, `backend/analytics_registry.py`, `backend/test_analytics.py` |
 | math / e1RM | `src/services/mathEngine.ts`, `backend/math_utils.py`, `tests/math_vectors.json`, `src/services/mathEngine.test.ts`, `backend/test_math.py` |
-| sync / offline | `src/contexts/SyncContext.tsx`, `src/services/sync_engine.ts`, `src/services/db.ts`, `backend/sync_service.py`, `e2e/offline.spec.ts` |
+| sync / offline | `src/contexts/SyncContext.tsx`, `src/components/AppShell.tsx`, `src/services/sync_engine.ts`, `src/services/db.ts`, `backend/sync_service.py`, `e2e/offline.spec.ts` |
+| sync queue overlay (no layout shift) | `.cursor/rules/sync-queue-overlay.mdc`, `src/components/AppShell.tsx`, `src/contexts/SyncContext.tsx`, `src/components/SyncQueueOverlay.tsx`, `src/services/syncOverlayState.ts`, `e2e/offline.spec.ts` |
