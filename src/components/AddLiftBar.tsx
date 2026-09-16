@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { apiService } from '../services/api';
 import {
   CATALOG_EXERCISES,
@@ -27,15 +27,46 @@ export function AddLiftBar({
   const [tier, setTier] = useState<'Comp' | 'Variation' | 'Accessory'>('Comp');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const customRef = useRef<HTMLInputElement>(null);
 
+  const userDefined = category === 'User Defined';
   const options = useMemo(() => filterCatalog(category, search), [category, search]);
   const selected: CatalogExercise | null = useMemo(() => {
-    if (category === 'User Defined') {
+    if (userDefined) {
       const name = customName.trim() || 'Accessory';
       return { name, category: 'User Defined', movementPattern: 'Misc', liftCategory: 'Other', tier: 'Accessory' };
     }
+    if (!exerciseName || !options.some((item) => item.name === exerciseName)) return null;
     return CATALOG_EXERCISES.find((item) => item.name === exerciseName) ?? null;
-  }, [category, customName, exerciseName]);
+  }, [userDefined, customName, exerciseName, options]);
+
+  useEffect(() => {
+    if (userDefined) return;
+    if (exerciseName && !options.some((item) => item.name === exerciseName)) {
+      setExerciseName('');
+      setVariation('');
+    }
+  }, [userDefined, exerciseName, options]);
+
+  useEffect(() => {
+    setHighlightIndex((current) => {
+      if (options.length === 0) return 0;
+      const selectedIndex = options.findIndex((item) => item.name === exerciseName);
+      if (selectedIndex >= 0) return selectedIndex;
+      return Math.min(current, options.length - 1);
+    });
+  }, [options, exerciseName]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (userDefined) customRef.current?.focus();
+      else searchRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, userDefined]);
 
   const reset = () => {
     setCategory('');
@@ -45,6 +76,7 @@ export function AddLiftBar({
     setVariation('');
     setTier('Comp');
     setError(null);
+    setHighlightIndex(0);
   };
 
   const pickExercise = (name: string) => {
@@ -54,6 +86,29 @@ export function AddLiftBar({
     if (!category) setCategory(item.category);
     setVariation(compileVariation(item.name, defaultModifiers(item.liftCategory)));
     setTier(item.tier);
+    const nextIndex = options.findIndex((row) => row.name === name);
+    if (nextIndex >= 0) setHighlightIndex(nextIndex);
+  };
+
+  const pickHighlighted = () => {
+    const item = options[highlightIndex] ?? options[0];
+    if (item) pickExercise(item.name);
+  };
+
+  const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLDivElement>) => {
+    if (userDefined) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (options.length === 0) return;
+      setHighlightIndex((current) => Math.min(options.length - 1, current + 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (options.length === 0) return;
+      setHighlightIndex((current) => Math.max(0, current - 1));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      pickHighlighted();
+    }
   };
 
   const addLift = async () => {
@@ -131,6 +186,7 @@ export function AddLiftBar({
                     setCategory(next);
                     setExerciseName('');
                     setVariation('');
+                    setHighlightIndex(0);
                   }}
                   className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
                 >
@@ -140,21 +196,50 @@ export function AddLiftBar({
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">
                 <span className="text-[10px] uppercase tracking-wider text-[#636366]">Search Exercises</span>
-                <input
-                  data-testid="add-lift-search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search"
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-                />
-              </label>
+                <div className="relative">
+                  <input
+                    ref={searchRef}
+                    data-testid="add-lift-search"
+                    value={search}
+                    disabled={userDefined}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setHighlightIndex(0);
+                    }}
+                    onKeyDown={onSearchKeyDown}
+                    placeholder="Search"
+                    autoFocus
+                    aria-controls="add-lift-results"
+                    aria-autocomplete="list"
+                    className="w-full h-8 px-2 pr-7 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white disabled:opacity-40"
+                  />
+                  {search && !userDefined ? (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => {
+                        setSearch('');
+                        setHighlightIndex(0);
+                        searchRef.current?.focus();
+                      }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-[#AEAEB2] hover:text-white"
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                {userDefined ? (
+                  <p className="text-[11px] text-[#AEAEB2]">Catalog search does not apply. Name this lift.</p>
+                ) : null}
+              </div>
             </div>
-            {category === 'User Defined' ? (
+            {userDefined ? (
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
                 <input
+                  ref={customRef}
                   data-testid="add-lift-custom-name"
                   value={customName}
                   onChange={(event) => {
@@ -166,23 +251,48 @@ export function AddLiftBar({
                   className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
                 />
               </label>
+            ) : options.length === 0 ? (
+              <p className="text-xs text-[#AEAEB2]" data-testid="add-lift-no-results">
+                No catalog matches. Clear search, change category, or pick User Defined to name a custom lift.
+              </p>
             ) : (
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">
                 <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
-                <select
-                  data-testid="add-lift-exercise"
-                  value={exerciseName}
-                  onChange={(event) => pickExercise(event.target.value)}
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                <div
+                  id="add-lift-results"
+                  role="listbox"
+                  tabIndex={0}
+                  aria-label="Catalog exercises"
+                  data-testid="add-lift-results"
+                  onKeyDown={onSearchKeyDown}
+                  className="max-h-48 overflow-y-auto border border-white/10 rounded bg-[#0A0A0A] outline-none"
                 >
-                  <option value="">Select exercise</option>
-                  {options.map((item) => (
-                    <option key={`${item.category}-${item.name}`} value={item.name}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  {options.map((item, index) => {
+                    const active = index === highlightIndex;
+                    const isSelected = item.name === exerciseName;
+                    return (
+                      <button
+                        key={`${item.category}-${item.name}`}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        aria-label={item.name}
+                        data-testid={`add-lift-result-${item.name}`}
+                        onMouseEnter={() => setHighlightIndex(index)}
+                        onClick={() => pickExercise(item.name)}
+                        className={`w-full px-2 py-1.5 text-left ${
+                          active ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                        }`}
+                      >
+                        <span className="block text-xs">{item.name}</span>
+                        <span className="block text-[10px] text-[#636366]" aria-hidden="true">
+                          {item.movementPattern}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
             {selected ? (
               <LiftVariationPicker
