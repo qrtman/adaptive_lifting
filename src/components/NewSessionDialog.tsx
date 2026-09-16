@@ -119,12 +119,20 @@ export function NewSessionDialog({
         </>
       )}
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {needsAthlete && (
           <p data-testid="new-session-need-athlete" className="text-xs text-[#AEAEB2]">
             Select an athlete in the sidebar, then create a session on that plan.
           </p>
         )}
+        <ComboBox
+          label="Name"
+          value={title}
+          onChange={setTitle}
+          options={nameOptions}
+          placeholder="Squat, Meet…"
+          testId="new-session-title"
+        />
         {allowDateEdit && (
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[#636366]">Date</span>
@@ -137,37 +145,38 @@ export function NewSessionDialog({
             />
           </label>
         )}
-        <ComboBox
-          label="Day"
-          value={dayInput}
-          onChange={setDayInput}
-          options={dayOptions}
-          placeholder="Day 1…"
-          testId="new-session-day"
-        />
-        <ComboBox
-          label="Name"
-          value={title}
-          onChange={setTitle}
-          options={nameOptions}
-          placeholder="Squat, Meet…"
-          testId="new-session-title"
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <LabelCombo
-            label="Block (optional)"
-            value={blockLabel}
-            onChange={setBlockLabel}
-            options={blockOptions}
-            testId="new-session-block"
-          />
-          <LabelCombo
-            label="Week (optional)"
-            value={weekLabel}
-            onChange={setWeekLabel}
-            options={weekOptions}
-            testId="new-session-week"
-          />
+        <div
+          data-testid="new-session-slot-row"
+          className="grid grid-cols-3 gap-1.5 items-start min-w-0"
+        >
+          <div className="min-w-0">
+            <ComboBox
+              label="Day"
+              value={dayInput}
+              onChange={setDayInput}
+              options={dayOptions}
+              placeholder="Day 1…"
+              testId="new-session-day"
+            />
+          </div>
+          <div className="min-w-0">
+            <LabelCombo
+              label="Block (optional)"
+              value={blockLabel}
+              onChange={setBlockLabel}
+              options={blockOptions}
+              testId="new-session-block"
+            />
+          </div>
+          <div className="min-w-0">
+            <LabelCombo
+              label="Week (optional)"
+              value={weekLabel}
+              onChange={setWeekLabel}
+              options={weekOptions}
+              testId="new-session-week"
+            />
+          </div>
         </div>
         {error && <p data-testid="new-session-error" className="text-xs text-[#FF453A]">{error}</p>}
       </div>

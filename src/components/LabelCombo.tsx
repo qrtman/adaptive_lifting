@@ -83,8 +83,8 @@ export function LabelCombo({
   const selectValue = custom ? NEW_VALUE : value;
 
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366]">{label}</span>
+    <label className="flex w-full min-w-0 flex-col gap-1">
+      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4 truncate">{label}</span>
       <select
         data-testid={testId}
         value={selectValue}
@@ -98,7 +98,7 @@ export function LabelCombo({
           setAdding(false);
           onChange(next);
         }}
-        className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+        className="h-8 w-full px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
       >
         <option value="">None</option>
         {known.map((item) => (
@@ -111,7 +111,7 @@ export function LabelCombo({
           data-testid={`${testId}-custom`}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+          className="h-8 w-full px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
         />
       ) : null}
     </label>

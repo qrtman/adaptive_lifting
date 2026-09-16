@@ -75,9 +75,9 @@ export function ComboBox({
   };
 
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366]">{label}</span>
-      <div className="relative">
+    <label className="flex w-full min-w-0 flex-col gap-1">
+      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4 truncate">{label}</span>
+      <div className="relative min-w-0">
         <input
           data-testid={testId}
           role="combobox"

@@ -115,7 +115,7 @@ The design system follows three product principles:
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
 | Calendar workspace | Coach / Athlete | Date-first session timeline | Hover a day shows New session (and Copy to when a session exists). Copy to then click the destination day on the same calendar. |
 | Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
-| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for name/block/week |
+| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for name, then Day/Block/Week |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
 | Telegram Mini App + bot | Athlete / Coach | Later: Telegram-native logging and alerts | Deferred until the web constructor is done. Do not gate current session UI on Mini App. |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
@@ -1905,7 +1905,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
-- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is Day + Name + optional block/week; cancel does not create.
+- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is Name, then a compact Day / Block / Week row (Block/Week optional); cancel does not create. Date is in the dialog title on calendar hover — do not duplicate a date field.
 - [ ] Block/Week labels can be set or changed anytime, including after Copy to. Day/Name/Block/Week edit through a centered dialog (not always-open fields). Empty clears the label. Day is a training-slot label (`dayLabel`), not the calendar date.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to a session.

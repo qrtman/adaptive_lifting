@@ -117,15 +117,7 @@ export function EditSessionDialog({
         </>
       )}
     >
-      <div className="flex flex-col gap-3">
-        <ComboBox
-          label="Day"
-          value={dayInput}
-          onChange={setDayInput}
-          options={dayOptions}
-          placeholder="Day 1…"
-          testId="session-day"
-        />
+      <div className="flex flex-col gap-2">
         <ComboBox
           label="Name"
           value={title}
@@ -134,21 +126,38 @@ export function EditSessionDialog({
           placeholder="Squat, Meet…"
           testId="session-title"
         />
-        <div className="grid grid-cols-2 gap-2">
-          <LabelCombo
-            label="Block (optional)"
-            value={blockLabel}
-            onChange={setBlockLabel}
-            options={blockOptions}
-            testId="session-block"
-          />
-          <LabelCombo
-            label="Week (optional)"
-            value={weekLabel}
-            onChange={setWeekLabel}
-            options={weekOptions}
-            testId="session-week"
-          />
+        <div
+          data-testid="edit-session-slot-row"
+          className="grid grid-cols-3 gap-1.5 items-start min-w-0"
+        >
+          <div className="min-w-0">
+            <ComboBox
+              label="Day"
+              value={dayInput}
+              onChange={setDayInput}
+              options={dayOptions}
+              placeholder="Day 1…"
+              testId="session-day"
+            />
+          </div>
+          <div className="min-w-0">
+            <LabelCombo
+              label="Block (optional)"
+              value={blockLabel}
+              onChange={setBlockLabel}
+              options={blockOptions}
+              testId="session-block"
+            />
+          </div>
+          <div className="min-w-0">
+            <LabelCombo
+              label="Week (optional)"
+              value={weekLabel}
+              onChange={setWeekLabel}
+              options={weekOptions}
+              testId="session-week"
+            />
+          </div>
         </div>
         {error && <p data-testid="edit-session-error" className="text-xs text-[#FF453A]">{error}</p>}
       </div>

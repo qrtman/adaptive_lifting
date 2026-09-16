@@ -85,7 +85,7 @@ There is no ComboBox in tree. Add a small one (new file or next to `LabelCombo.t
 
 ### New session (`NewSessionDialog`)
 
-Layout: Date (if `allowDateEdit`) → **Day** ComboBox → **Name** ComboBox → Block / Week.
+Layout: **Name** ComboBox (full width, required) → Date only if `allowDateEdit` → **Day · Block · Week** as one compact 3-column row (same control height, tight gap). Calendar hover already puts the date in the dialog title (`New session · YYYY-MM-DD`); do not duplicate a date field on that path. Actions stay at the bottom. Compact: less space between Name and the slot row than stacked sections.
 
 Prefill when the dialog opens (athlete id = linked athlete for coach, else current user — same as `setRecentBlock`):
 
@@ -103,7 +103,7 @@ Prefill when the dialog opens (athlete id = linked athlete for coach, else curre
 
 ### Edit (`EditSessionDialog`) + header
 
-- Same Day + Name ComboBoxes. Day initial = unlabeled if ISO, else stored slot.
+- Same field order as New: Name full width, then Day · Block · Week in one compact row. Same Day + Name ComboBoxes. Day initial = unlabeled if ISO, else stored slot.
 - Save sends `title` and `dayLabel` (ISO date when Day cleared, to keep NOT NULL unlabeled sentinel).
 - Header (`App.tsx` `session-name` / `session-labels`): **Name (`title`)** then **Day n** (if labeled) then Week n then Block n. Do not put Day in `session-name`. Unlabeled Day omitted (keep `No block/week` only when both week and block empty; Day absence is not that message).
 - Calendar/Sessions cards may keep showing **title** only this pass.
@@ -141,12 +141,12 @@ Helpers mirror `getRecentBlock` / `setRecentBlock` (`:athleteId` suffix). Coach 
 - `src/storage/uiPrefs.ts` — recent week/day/name
 - `src/features/plan/sessionLabels.ts` (+ test) — `Day` kind; ISO → null
 - `src/components/LabelCombo.tsx` — `uniquePlanTitles`; ComboBox here or sibling
-- `src/components/NewSessionDialog.tsx` — Day + Name ComboBoxes, prefills, persist, `dayLabel`
-- `src/components/EditSessionDialog.tsx` — same controls; PATCH `dayLabel`
+- `src/components/NewSessionDialog.tsx` — Name, then Day · Block · Week row; ComboBoxes, prefills, persist, `dayLabel`
+- `src/components/EditSessionDialog.tsx` — same field order; PATCH `dayLabel`
 - `src/App.tsx` — header Day via `formatPlanLabel('Day', …)`
 - `backend/main.py` — copy clone preserve labeled `dayLabel`
 - `e2e/calendar.spec.ts` (and create-session helpers): Day control; second create prefills last Day+Name; header Name ≠ Day; unlabeled still allowed
-- `design.md` §16.3 / `knowledge.md` surfaces: New session is Day + Name + optional Block/Week
+- `design.md` §16.3 / `knowledge.md` surfaces: New session is Name, then a compact Day / Block / Week row (Block/Week optional)
 
 Do **not** add `SessionCreateForm` unless you extract the shared fields both dialogs already need. Do not refactor Calendar, Insights, Sheets UI, Telegram, coach-code, or math.
 
@@ -166,7 +166,7 @@ Do **not** add `SessionCreateForm` unless you extract the shared fields both dia
 
 ## Acceptance
 
-- [ ] New session: separate Day and Name ComboBoxes (not native select, not `"Session"` default).
+- [ ] New session: Name first (full width), then Day · Block · Week as one compact row. Separate Day and Name ComboBoxes (not native select, not `"Session"` default).
 - [ ] Opening New session prefills last Day, last Name, last Week, last Block for **that athlete**.
 - [ ] Create with Day 1 + Name `Squat` stores `dayLabel: "1"`, `title: "Squat"` — not title `"day 1"`.
 - [ ] Header shows `Squat` then `Day 1` then Week/Block. Unlabeled Day omitted; ISO `dayLabel` not shown.
