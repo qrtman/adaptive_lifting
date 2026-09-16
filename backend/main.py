@@ -17,6 +17,7 @@ from .database import (
     User,
     CoachingRelationship,
     InviteCode,
+    DayNote,
 )
 from .runtime_config import (
     JWT_KID_CURRENT,
@@ -563,6 +564,17 @@ def resolve_athlete_id(current_user: User, athlete_id: Optional[str]) -> str:
     if not athlete_id:
         raise HTTPException(status_code=400, detail="athlete_id is required for coaches")
     return athlete_id
+
+
+def resolve_plan_owner(db: Session, current_user: User, athlete_id: Optional[str]) -> str:
+    """RBAC like microcycles: athletes 403 on another athlete_id; coaches need a linked athlete."""
+    if current_user.role == "ATHLETE":
+        target = athlete_id or current_user.id
+        assert_plan_access(db, current_user, target)
+        return current_user.id
+    target = resolve_athlete_id(current_user, athlete_id)
+    assert_plan_access(db, current_user, target)
+    return target
 
 
 def require_iso_date(value: str) -> str:
@@ -1337,6 +1349,9 @@ def reset_database(db: Session = Depends(get_db), current_user: User = Depends(g
         orphans = db.query(Workout).filter(Workout.owner_id == current_user.id).all()
         for w in orphans:
             db.delete(w)
+        notes = db.query(DayNote).filter(DayNote.owner_id == current_user.id).all()
+        for note in notes:
+            db.delete(note)
         db.commit()
 
     mcs = get_visible_microcycles(db, current_user)
@@ -1655,6 +1670,79 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
         "ownerId": workout.owner_id,
         "exercises": [],
     }
+
+
+DAY_NOTE_MAX_LEN = 2000
+
+
+class UpsertDayNoteRequest(BaseModel):
+    date: str
+    body: Optional[str] = ""
+    athleteId: Optional[str] = None
+
+
+def format_day_note(note: DayNote) -> dict:
+    return {
+        "id": note.id,
+        "date": note.date,
+        "body": note.body,
+        "ownerId": note.owner_id,
+    }
+
+
+@app.get("/api/day-notes")
+def list_day_notes(
+    athlete_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    target_id = resolve_plan_owner(db, current_user, athlete_id)
+    rows = db.query(DayNote).filter(
+        DayNote.owner_id == target_id,
+        DayNote.deleted_at.is_(None),
+    ).order_by(DayNote.date.asc()).all()
+    return {"notes": [format_day_note(row) for row in rows if (row.body or "").strip()]}
+
+
+@app.put("/api/day-notes")
+def upsert_day_note(
+    req: UpsertDayNoteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    athlete_id = resolve_plan_owner(db, current_user, req.athleteId)
+    note_date = require_iso_date(req.date)
+    body = (req.body or "").strip()
+    if len(body) > DAY_NOTE_MAX_LEN:
+        raise HTTPException(status_code=400, detail=f"Note must be {DAY_NOTE_MAX_LEN} characters or fewer")
+
+    row = db.query(DayNote).filter(
+        DayNote.owner_id == athlete_id,
+        DayNote.date == note_date,
+    ).first()
+    now = datetime.utcnow()
+    if not body:
+        if row and row.deleted_at is None:
+            row.deleted_at = now
+            row.body = ""
+            db.commit()
+        return {"id": row.id if row else None, "date": note_date, "body": None, "ownerId": athlete_id}
+
+    if row:
+        row.body = body
+        row.deleted_at = None
+        row.updated_at = now
+    else:
+        row = DayNote(
+            id=f"dn-{uuid.uuid4().hex[:10]}",
+            owner_id=athlete_id,
+            date=note_date,
+            body=body,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return format_day_note(row)
 
 
 @app.post("/api/sessions/{session_id}/exercises")

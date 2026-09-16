@@ -156,3 +156,111 @@ test('coach without an athlete cannot create; linked coach can', async ({ page, 
     await athleteApi.dispose();
   }
 });
+
+test('hover overlay does not grow the day cell; Notes saves a day card', async ({ page, request }) => {
+  const email = `notes-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
+  });
+  expect(register.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
+  await page.getByRole('button', { name: 'Calendar' }).click();
+
+  const day01 = page.getByTestId('calendar-day-2026-09-01');
+  const day02 = page.getByTestId('calendar-day-2026-09-02');
+  await expect(day01).toBeVisible();
+
+  const restHeight = await day01.evaluate((el) => el.getBoundingClientRect().height);
+  const neighborHeight = await day02.evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.round(restHeight)).toBe(Math.round(neighborHeight));
+
+  await day01.hover();
+  const overlay = page.getByTestId('calendar-day-hover-2026-09-01');
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toHaveCSS('position', 'absolute');
+  await expect(page.getByTestId('calendar-new-session-2026-09-01')).toBeVisible();
+  await expect(page.getByTestId('calendar-day-notes-2026-09-01')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Copy to' })).toHaveCount(0);
+
+  const hoverHeight = await day01.evaluate((el) => el.getBoundingClientRect().height);
+  const neighborWhileHover = await day02.evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.round(hoverHeight)).toBe(Math.round(restHeight));
+  expect(Math.round(hoverHeight)).toBe(Math.round(neighborWhileHover));
+
+  const overlayBox = await overlay.boundingBox();
+  const cellBox = await day01.boundingBox();
+  expect(overlayBox).toBeTruthy();
+  expect(cellBox).toBeTruthy();
+  expect(overlayBox!.width).toBeLessThan(cellBox!.width);
+  expect(overlayBox!.width).toBeLessThanOrEqual(160);
+
+  await page.getByTestId('calendar-day-notes-2026-09-01').click();
+  await expect(page.getByTestId('day-note-dialog')).toBeVisible();
+  await expect(page.getByTestId('day-note-body')).toHaveValue('');
+  await page.getByTestId('day-note-body').fill('Deload — keep SQ light');
+  await page.getByTestId('day-note-save').click();
+  await expect(page.getByTestId('day-note-dialog')).toHaveCount(0);
+  const noteCard = page.getByTestId('calendar-day-note-card-2026-09-01');
+  await expect(noteCard).toBeVisible();
+  await expect(noteCard).toContainText('Deload — keep SQ light');
+  await expect(day01.locator('[data-testid^="workout-card-"]')).toHaveCount(0);
+
+  await noteCard.click();
+  await expect(page.getByTestId('day-note-dialog')).toBeVisible();
+  await expect(page.getByTestId('session-empty-lifts')).toHaveCount(0);
+  await page.getByTestId('day-note-body').fill('');
+  await page.getByTestId('day-note-save').click();
+  await expect(page.getByTestId('day-note-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('calendar-day-note-card-2026-09-01')).toHaveCount(0);
+
+  await day01.hover();
+  await page.getByTestId('calendar-day-notes-2026-09-01').click();
+  await page.getByTestId('day-note-body').fill('Deload — keep SQ light');
+  await page.getByTestId('day-note-save').click();
+  await expect(noteCard).toBeVisible();
+
+  await day02.hover();
+  await page.getByTestId('calendar-new-session-2026-09-02').click();
+  await page.getByTestId('new-session-title').fill('Squat');
+  await page.getByTestId('new-session-create').click();
+  await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByTestId('calendar-day-2026-09-02').hover();
+  await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
+  await page.getByTestId('calendar-day-notes-2026-09-02').click();
+  await page.getByTestId('day-note-body').fill('Meet week');
+  await page.getByTestId('day-note-save').click();
+  await expect(page.getByTestId('calendar-day-note-card-2026-09-02')).toContainText('Meet week');
+  await expect(page.getByTestId('calendar-day-2026-09-02').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
+
+  await page.getByTestId('calendar-day-note-card-2026-09-02').click();
+  await expect(page.getByTestId('day-note-dialog')).toBeVisible();
+  await expect(page.getByTestId('session-empty-lifts')).toHaveCount(0);
+  await page.getByTestId('day-note-cancel').click();
+
+  const restWithNote = await page.getByTestId('calendar-day-2026-09-02').evaluate((el) => el.getBoundingClientRect().height);
+  await page.getByTestId('calendar-day-2026-09-02').hover();
+  await expect(page.getByTestId('calendar-day-hover-2026-09-02')).toBeVisible();
+  const hoverWithNote = await page.getByTestId('calendar-day-2026-09-02').evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.round(hoverWithNote)).toBe(Math.round(restWithNote));
+
+  await page.mouse.move(0, 0);
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.getByTestId('sidebar-toggle').click();
+  const day03 = page.getByTestId('calendar-day-2026-09-03');
+  const day04 = page.getByTestId('calendar-day-2026-09-04');
+  await day03.scrollIntoViewIfNeeded();
+  const emptyRest = await day03.evaluate((el) => el.getBoundingClientRect().height);
+  await day03.hover({ position: { x: 6, y: 8 }, force: true });
+  await expect(page.getByTestId('calendar-day-hover-2026-09-03')).toBeVisible();
+  await expect(page.getByTestId('calendar-day-hover-2026-09-03')).toHaveCSS('position', 'absolute');
+  const emptyHover = await day03.evaluate((el) => el.getBoundingClientRect().height);
+  const emptyNeighbor = await day04.evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.round(emptyHover)).toBe(Math.round(emptyRest));
+  expect(Math.round(emptyHover)).toBe(Math.round(emptyNeighbor));
+});

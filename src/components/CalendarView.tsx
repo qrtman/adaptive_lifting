@@ -11,6 +11,7 @@ import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useSync } from '../contexts/SyncContext';
 import { getRecentBlock, getUiPref, setRecentBlock, UI_KEYS } from '../storage/uiPrefs';
 import { NewSessionDialog } from './NewSessionDialog';
+import { DayNoteDialog } from './DayNoteDialog';
 import { LiftFilter, type LiftFilterValue } from './LiftFilter';
 import { apiService } from '../services/api';
 import {
@@ -62,7 +63,11 @@ export function CalendarView({
   } | null>(null);
 
   const [newSessionDate, setNewSessionDate] = useState<string | null>(null);
+  const [notesDate, setNotesDate] = useState<string | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [dayNotes, setDayNotes] = useState<Record<string, string>>({});
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
   const [copyWithLogs, setCopyWithLogs] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -205,6 +210,38 @@ export function CalendarView({
     setCopyError(null);
     setCopyBusy(false);
   }, [copyClipboard]);
+
+  useEffect(() => {
+    if (showCoachSelectAthlete || !planAthleteId) {
+      setDayNotes({});
+      setNotesLoading(false);
+      setNotesError(null);
+      return;
+    }
+    let cancelled = false;
+    setNotesLoading(true);
+    setNotesError(null);
+    apiService.fetchDayNotes(isCoach ? planAthleteId : undefined)
+      .then((notes) => {
+        if (cancelled) return;
+        const next: Record<string, string> = {};
+        notes.forEach((note) => {
+          const body = (note.body || '').trim();
+          if (body) next[note.date] = body;
+        });
+        setDayNotes(next);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setNotesError(err instanceof Error ? err.message : 'Failed to load notes');
+      })
+      .finally(() => {
+        if (!cancelled) setNotesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planAthleteId, showCoachSelectAthlete, isCoach]);
 
   useEffect(() => {
     if (!copyClipboard) return;
@@ -374,9 +411,13 @@ export function CalendarView({
         ) : (
         <>
 
-        {workoutList.length === 0 && !copyClipboard && (
-          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Click or hover a day — New session.</p>
+        {workoutList.length === 0 && Object.keys(dayNotes).length === 0 && !copyClipboard && (
+          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day — New session or Notes.</p>
         )}
+
+        {notesError ? (
+          <p data-testid="calendar-notes-error" className="text-xs text-[#FF453A] px-1">{notesError}</p>
+        ) : null}
 
         {!isOnline ? (
           <p data-testid="copy-offline" className="text-xs text-[#F5A623] px-1">Connect to copy sessions.</p>
@@ -512,6 +553,7 @@ export function CalendarView({
                           {week.map((cell) => {
                             const dateStr = cell.dateString;
                             const dayWorkouts = workoutList.filter(item => item.workout.date === dateStr);
+                            const dayNote = dayNotes[dateStr];
 
                             return (
                               <div
@@ -537,14 +579,14 @@ export function CalendarView({
                                     openNewSession(dateStr);
                                   }
                                 }}
-                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
+                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
                                   !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : 'hover:border-white/25 hover:bg-[#161616]'
                                 } ${
                                   copyClipboard && cell.isCurrentMonth && dateStr !== copyOriginDate ? 'ring-1 ring-[#007AFF]/50' : ''
                                 } ${
                                   copyClipboard && dateStr === copyOriginDate ? 'ring-1 ring-white/30' : ''
                                 } ${
-                                  !copyClipboard && (newSessionDate === dateStr || hoveredDate === dateStr) ? 'ring-1 ring-[#007AFF] border-[#007AFF]/40' : ''
+                                  !copyClipboard && (newSessionDate === dateStr || hoveredDate === dateStr || notesDate === dateStr) ? 'ring-1 ring-[#007AFF] border-[#007AFF]/40' : ''
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
@@ -632,8 +674,29 @@ export function CalendarView({
                                       </div>
                                     );
                                   })}
+                                {cell.isCurrentMonth && dayNote ? (
+                                  <button
+                                    type="button"
+                                    data-testid={`calendar-day-note-card-${dateStr}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (copyClipboard) {
+                                        void copyToDate(dateStr);
+                                        return;
+                                      }
+                                      setNotesDate(dateStr);
+                                    }}
+                                    className="mt-1 px-1 py-0.5 text-left border border-dashed border-white/20 rounded bg-[#0A0A0A] relative z-10"
+                                  >
+                                    <span className="block text-[9px] uppercase tracking-wider text-[#636366]">Note</span>
+                                    <span className="block text-[10px] text-[#AEAEB2] line-clamp-2 leading-tight">{dayNote}</span>
+                                  </button>
+                                ) : null}
                                 {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard && (
-                                  <div className="mt-auto pt-1 flex flex-col gap-1">
+                                  <div
+                                    data-testid={`calendar-day-hover-${dateStr}`}
+                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded bg-[#0A0A0A]/95 border border-white/15"
+                                  >
                                     <button
                                       type="button"
                                       data-testid={`calendar-new-session-${dateStr}`}
@@ -641,7 +704,7 @@ export function CalendarView({
                                         event.stopPropagation();
                                         openNewSession(dateStr);
                                       }}
-                                      className="h-7 w-full px-1.5 text-[11px] text-white bg-[#007AFF] rounded"
+                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-white bg-[#007AFF] rounded whitespace-nowrap"
                                     >
                                       New session
                                     </button>
@@ -654,11 +717,22 @@ export function CalendarView({
                                           event.stopPropagation();
                                           startDayCopy(dayWorkouts[0].workout);
                                         }}
-                                        className="h-7 w-full px-1.5 text-[11px] text-white bg-white/15 rounded disabled:opacity-40"
+                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-white bg-white/15 rounded whitespace-nowrap disabled:opacity-40"
                                       >
                                         Copy to
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      data-testid={`calendar-day-notes-${dateStr}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setNotesDate(dateStr);
+                                      }}
+                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-white bg-white/15 rounded whitespace-nowrap"
+                                    >
+                                      Notes
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -679,7 +753,7 @@ export function CalendarView({
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
           </div>
-          <span className="truncate">{copyClipboard ? 'Click a day to drop the copy' : 'Click or hover a day · New session'}</span>
+          <span className="truncate">{copyClipboard ? 'Click a day to drop the copy' : 'Hover a day · New session, Copy to, Notes'}</span>
         </div>
         </>
         )}
@@ -694,6 +768,27 @@ export function CalendarView({
             await reloadMicrocycles(planAthleteId);
             setNewSessionDate(null);
             if (created.microcycleId) onViewSession({ id: created.id } as WorkoutData, created.microcycleId);
+          }}
+        />
+      )}
+
+      {notesDate && (
+        <DayNoteDialog
+          date={notesDate}
+          athleteId={planAthleteId}
+          initialBody={dayNotes[notesDate] || ''}
+          loading={notesLoading}
+          isOnline={isOnline}
+          onClose={() => setNotesDate(null)}
+          onSaved={async (body) => {
+            const date = notesDate;
+            setDayNotes((current) => {
+              const next = { ...current };
+              if (body.trim()) next[date] = body.trim();
+              else delete next[date];
+              return next;
+            });
+            setNotesDate(null);
           }}
         />
       )}
