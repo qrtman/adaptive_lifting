@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { getPendingMutations } from '../services/db';
+import { countMutationsByStatus, getPendingMutations } from '../services/db';
 import { isInsightCardMutation, isLockSyncCode, processInsightCardSync, processSyncQueue } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
 import { WorkoutLockBanner } from '../components/WorkoutLockBanner';
+import { SyncQueueOverlay } from '../components/SyncQueueOverlay';
 
 interface SyncLockNotice {
   workout_id: string;
@@ -13,6 +14,7 @@ interface SyncLockNotice {
 interface SyncState {
   isOnline: boolean;
   pendingCount: number;
+  rejectedCount: number;
   triggerSync: (workout_id: string) => void;
   conflicts: any[];
 }
@@ -20,6 +22,7 @@ interface SyncState {
 const SyncContext = createContext<SyncState>({
   isOnline: true,
   pendingCount: 0,
+  rejectedCount: 0,
   triggerSync: () => {},
   conflicts: []
 });
@@ -36,8 +39,16 @@ function isTrueConflict(item: { reason?: string }): boolean {
 export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
+  const [rejectedCount, setRejectedCount] = useState(0);
   const [conflicts, setConflicts] = useState<any[]>([]);
   const [locks, setLocks] = useState<SyncLockNotice[]>([]);
+
+  const refreshCounts = async () => {
+    const pending = await getPendingMutations();
+    const rejected = await countMutationsByStatus('REJECTED');
+    setPendingCount(pending.length);
+    setRejectedCount(rejected);
+  };
 
   useEffect(() => {
     const handleOnline = () => {
@@ -63,8 +74,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
               setConflicts((prev) => [...prev, ...nextConflicts.filter(isTrueConflict)]);
             }
           }
-          const left = await getPendingMutations();
-          setPendingCount(left.length);
+          await refreshCounts();
         } catch {
           // IndexedDB may not be ready
         }
@@ -96,11 +106,14 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     window.addEventListener('sync-conflicts', handleConflicts);
     window.addEventListener('sync-lock', handleLock);
 
+    void refreshCounts().catch(() => {
+      // IndexedDB may not be ready
+    });
+
     // Poll for pending count
     const interval = window.setInterval(async () => {
       try {
-        const pending = await getPendingMutations();
-        setPendingCount(pending.length);
+        await refreshCounts();
       } catch (e) {
         // Ignore DB not ready yet
       }
@@ -116,9 +129,14 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   }, []);
 
   const triggerSync = (workout_id: string) => {
-    processSyncQueue(workout_id).then(newConflicts => {
+    processSyncQueue(workout_id).then(async (newConflicts) => {
        if (newConflicts && newConflicts.length > 0) {
          setConflicts(prev => [...prev, ...newConflicts.filter(isTrueConflict)]);
+       }
+       try {
+         await refreshCounts();
+       } catch {
+         // IndexedDB may not be ready
        }
     });
   };
@@ -129,8 +147,9 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   };
 
   return (
-    <SyncContext.Provider value={{ isOnline, pendingCount, triggerSync, conflicts }}>
+    <SyncContext.Provider value={{ isOnline, pendingCount, rejectedCount, triggerSync, conflicts }}>
       {children}
+      <SyncQueueOverlay collide={locks.length > 0 || conflicts.length > 0} />
       {(locks.length > 0 || conflicts.length > 0) && (
         <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm mx-auto">
           {locks.map((lock) => (
