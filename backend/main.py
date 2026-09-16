@@ -566,6 +566,17 @@ def resolve_athlete_id(current_user: User, athlete_id: Optional[str]) -> str:
     return athlete_id
 
 
+def resolve_plan_owner(db: Session, current_user: User, athlete_id: Optional[str]) -> str:
+    """RBAC like microcycles: athletes 403 on another athlete_id; coaches need a linked athlete."""
+    if current_user.role == "ATHLETE":
+        target = athlete_id or current_user.id
+        assert_plan_access(db, current_user, target)
+        return current_user.id
+    target = resolve_athlete_id(current_user, athlete_id)
+    assert_plan_access(db, current_user, target)
+    return target
+
+
 def require_iso_date(value: str) -> str:
     raw = (value or "").strip()
     try:
@@ -1685,8 +1696,7 @@ def list_day_notes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    target_id = resolve_athlete_id(current_user, athlete_id)
-    assert_plan_access(db, current_user, target_id)
+    target_id = resolve_plan_owner(db, current_user, athlete_id)
     rows = db.query(DayNote).filter(
         DayNote.owner_id == target_id,
         DayNote.deleted_at.is_(None),
@@ -1700,8 +1710,7 @@ def upsert_day_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    athlete_id = resolve_athlete_id(current_user, req.athleteId)
-    assert_plan_access(db, current_user, athlete_id)
+    athlete_id = resolve_plan_owner(db, current_user, req.athleteId)
     note_date = require_iso_date(req.date)
     body = (req.body or "").strip()
     if len(body) > DAY_NOTE_MAX_LEN:

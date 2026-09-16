@@ -50,12 +50,17 @@ def test_day_notes_keyed_by_date_and_athlete_plan():
     assert other_list.status_code == 200
     assert other_list.json()["notes"] == []
 
-    hijack = client.put(
+    hijack = client.get(
+        f"/api/day-notes?athlete_id={payload['ownerId']}",
+        cookies=other,
+    )
+    assert hijack.status_code == 403
+    hijack_put = client.put(
         "/api/day-notes",
         json={"date": "2026-09-01", "body": "Nope", "athleteId": payload["ownerId"]},
         cookies=other,
     )
-    assert hijack.status_code == 403
+    assert hijack_put.status_code == 403
 
     coach_missing = client.get("/api/day-notes", cookies=coach)
     assert coach_missing.status_code == 400

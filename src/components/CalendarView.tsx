@@ -695,7 +695,7 @@ export function CalendarView({
                                 {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard && (
                                   <div
                                     data-testid={`calendar-day-hover-${dateStr}`}
-                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[160px] flex flex-col gap-0.5 p-0.5 rounded bg-[#0A0A0A]/95 border border-white/15"
+                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded bg-[#0A0A0A]/95 border border-white/15"
                                   >
                                     <button
                                       type="button"

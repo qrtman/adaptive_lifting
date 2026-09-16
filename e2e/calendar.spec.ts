@@ -249,12 +249,14 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
   const hoverWithNote = await page.getByTestId('calendar-day-2026-09-02').evaluate((el) => el.getBoundingClientRect().height);
   expect(Math.round(hoverWithNote)).toBe(Math.round(restWithNote));
 
+  await page.mouse.move(0, 0);
   await page.setViewportSize({ width: 360, height: 740 });
+  await page.getByTestId('sidebar-toggle').click();
   const day03 = page.getByTestId('calendar-day-2026-09-03');
   const day04 = page.getByTestId('calendar-day-2026-09-04');
   await day03.scrollIntoViewIfNeeded();
   const emptyRest = await day03.evaluate((el) => el.getBoundingClientRect().height);
-  await day03.hover();
+  await day03.hover({ position: { x: 6, y: 8 }, force: true });
   await expect(page.getByTestId('calendar-day-hover-2026-09-03')).toBeVisible();
   await expect(page.getByTestId('calendar-day-hover-2026-09-03')).toHaveCSS('position', 'absolute');
   const emptyHover = await day03.evaluate((el) => el.getBoundingClientRect().height);
