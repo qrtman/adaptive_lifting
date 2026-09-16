@@ -8,6 +8,7 @@ Persistent context for Cursor agents. Keep this short and aligned with `architec
 
 - **Functionality first**: Sync integrity and canonical math beat decorative UI.
 - **Exact paths**: Prefer precise file paths over broad scans when editing.
+- **File map**: `.cursor/rules/agent-file-map.mdc` — need → files to read first.
 - **Do not ingest** `node_modules/`, `dist/`, `build/`, `.cache/`, or `__pycache__/`. Config files (`package.json`, `.env*`, `tsconfig*.json`, `vite.config.ts`) stay visible.
 
 ## 2. Technical State
