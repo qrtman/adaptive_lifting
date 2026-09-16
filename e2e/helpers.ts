@@ -40,6 +40,11 @@ export async function fillLogCell(page: Page, cellId: string, value: string | nu
   await cell.press('Enter');
 }
 
+export async function pickComboOption(page: Page, testId: string, option: string) {
+  await page.getByTestId(testId).click();
+  await page.getByRole('option', { name: option, exact: true }).click();
+}
+
 export async function html5Drag(page: Page, sourceTestId: string, targetTestId: string) {
   const source = page.getByTestId(sourceTestId);
   const target = page.getByTestId(targetTestId);

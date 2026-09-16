@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { setRecentBlock } from '../storage/uiPrefs';
+import { displayDayField, normalizeDayLabel } from '../features/plan/sessionLabels';
+import { setRecentBlock, setRecentDay, setRecentName, setRecentWeek } from '../storage/uiPrefs';
 import { CenteredDialog } from './CenteredDialog';
-import { LabelCombo, uniquePlanLabels } from './LabelCombo';
+import { ComboBox } from './ComboBox';
+import { LabelCombo, dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
 export function EditSessionDialog({
   session,
@@ -15,6 +17,7 @@ export function EditSessionDialog({
     id: string;
     date: string;
     title: string;
+    dayLabel?: string | null;
     blockLabel?: string | null;
     weekLabel?: string | null;
   };
@@ -25,7 +28,10 @@ export function EditSessionDialog({
   const { microcycles, planAthleteId } = usePeriodization();
   const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
   const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
-  const [title, setTitle] = useState(session.title || 'Session');
+  const dayOptions = dayComboOptions(microcycles);
+  const nameOptions = uniquePlanTitles(microcycles);
+  const [dayInput, setDayInput] = useState(() => displayDayField(session.dayLabel));
+  const [title, setTitle] = useState(session.title || '');
   const [blockLabel, setBlockLabel] = useState(session.blockLabel || '');
   const [weekLabel, setWeekLabel] = useState(session.weekLabel || '');
   const [busy, setBusy] = useState(false);
@@ -33,15 +39,25 @@ export function EditSessionDialog({
 
   const save = async () => {
     if (busy) return;
+    const name = title.trim();
+    if (!name) {
+      setError('Enter a name');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
+      const dayCanonical = normalizeDayLabel(dayInput);
       await apiService.updateSession(session.id, {
-        title: title.trim() || 'Session',
+        title: name,
+        dayLabel: dayCanonical ?? session.date,
         blockLabel: blockLabel.trim(),
         weekLabel: weekLabel.trim(),
       });
+      if (dayCanonical) setRecentDay(planAthleteId, dayCanonical);
+      setRecentName(planAthleteId, name);
       if (blockLabel.trim()) setRecentBlock(planAthleteId, blockLabel.trim());
+      if (weekLabel.trim()) setRecentWeek(planAthleteId, weekLabel.trim());
       await onSaved();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save session');
@@ -102,15 +118,22 @@ export function EditSessionDialog({
       )}
     >
       <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-[#636366]">Name</span>
-          <input
-            data-testid="session-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-          />
-        </label>
+        <ComboBox
+          label="Day"
+          value={dayInput}
+          onChange={setDayInput}
+          options={dayOptions}
+          placeholder="Day 1…"
+          testId="session-day"
+        />
+        <ComboBox
+          label="Name"
+          value={title}
+          onChange={setTitle}
+          options={nameOptions}
+          placeholder="Squat, Meet…"
+          testId="session-title"
+        />
         <div className="grid grid-cols-2 gap-2">
           <LabelCombo
             label="Block (optional)"
@@ -127,7 +150,7 @@ export function EditSessionDialog({
             testId="session-week"
           />
         </div>
-        {error && <p className="text-xs text-[#FF453A]">{error}</p>}
+        {error && <p data-testid="edit-session-error" className="text-xs text-[#FF453A]">{error}</p>}
       </div>
     </CenteredDialog>
   );

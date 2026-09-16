@@ -14,6 +14,9 @@ export const UI_KEYS = {
   deviceId: 'al_client_device_id',
   sidebarCollapsed: 'al_sidebar_collapsed',
   recentBlock: 'al_recent_block',
+  recentWeek: 'al_recent_week',
+  recentDay: 'al_recent_day',
+  recentName: 'al_recent_name',
 } as const;
 
 const LEGACY_UI_MAP: Array<[string, string]> = [
@@ -62,18 +65,53 @@ export function removeUiPref(key: string): void {
   localStorage.removeItem(key);
 }
 
-function recentBlockKey(athleteId: string): string {
-  return `${UI_KEYS.recentBlock}:${athleteId}`;
+function athletePrefKey(base: string, athleteId: string): string {
+  return `${base}:${athleteId}`;
+}
+
+function getAthletePref(base: string, athleteId: string | null | undefined): string {
+  if (!athleteId) return '';
+  return (getUiPref(athletePrefKey(base, athleteId)) || '').trim();
+}
+
+function setAthletePref(base: string, athleteId: string | null | undefined, value: string | null | undefined): void {
+  const next = (value || '').trim();
+  if (!athleteId || !next) return;
+  setUiPref(athletePrefKey(base, athleteId), next);
 }
 
 /** Athlete-scoped UI pref. Not used for workout sync. */
 export function getRecentBlock(athleteId: string | null | undefined): string {
-  if (!athleteId) return '';
-  return (getUiPref(recentBlockKey(athleteId)) || '').trim();
+  return getAthletePref(UI_KEYS.recentBlock, athleteId);
 }
 
 export function setRecentBlock(athleteId: string | null | undefined, block: string | null | undefined): void {
-  const value = (block || '').trim();
-  if (!athleteId || !value) return;
-  setUiPref(recentBlockKey(athleteId), value);
+  setAthletePref(UI_KEYS.recentBlock, athleteId, block);
+}
+
+export function getRecentWeek(athleteId: string | null | undefined): string {
+  return getAthletePref(UI_KEYS.recentWeek, athleteId);
+}
+
+export function setRecentWeek(athleteId: string | null | undefined, week: string | null | undefined): void {
+  setAthletePref(UI_KEYS.recentWeek, athleteId, week);
+}
+
+export function getRecentDay(athleteId: string | null | undefined): string {
+  return getAthletePref(UI_KEYS.recentDay, athleteId);
+}
+
+export function setRecentDay(athleteId: string | null | undefined, day: string | null | undefined): void {
+  setAthletePref(UI_KEYS.recentDay, athleteId, day);
+}
+
+export function getRecentName(athleteId: string | null | undefined): string {
+  const value = getAthletePref(UI_KEYS.recentName, athleteId);
+  return value === 'Session' ? '' : value;
+}
+
+export function setRecentName(athleteId: string | null | undefined, name: string | null | undefined): void {
+  const next = (name || '').trim();
+  if (next === 'Session') return;
+  setAthletePref(UI_KEYS.recentName, athleteId, next);
 }

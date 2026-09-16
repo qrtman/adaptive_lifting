@@ -394,6 +394,45 @@ def test_copy_week_preserve_week_label_keeps_source():
     assert clone["blockLabel"] is None
 
 
+def test_copy_preserves_labeled_day_label_not_dest_date():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    labeled = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-15", "title": "Squat", "dayLabel": "1"},
+        cookies=cookies,
+    )
+    unlabeled = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-16", "title": "Open"},
+        cookies=cookies,
+    )
+    assert labeled.status_code == 200
+    assert unlabeled.status_code == 200
+    assert unlabeled.json()["dayLabel"] == "2026-09-16"
+
+    copied = client.post(
+        "/api/sessions/copy-week",
+        json={"sessionIds": [labeled.json()["id"], unlabeled.json()["id"]], "dateOffsetDays": 7},
+        cookies=cookies,
+    )
+    assert copied.status_code == 200
+    by_title = {row["title"]: row for row in copied.json()["copied"]}
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = {w["id"]: w for mc in tree.json() for w in mc["workouts"]}
+    squat_clone = workouts[by_title["Squat"]["id"]]
+    open_clone = workouts[by_title["Open"]["id"]]
+    assert squat_clone["date"] == "2026-09-22"
+    assert squat_clone["dayLabel"] == "1"
+    assert open_clone["date"] == "2026-09-23"
+    assert open_clone["dayLabel"] == "2026-09-23"
+
+
 def test_plan_sets_persist_typed_weight_and_empty_backoff():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]

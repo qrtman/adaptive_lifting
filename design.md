@@ -1905,8 +1905,8 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
-- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is name + optional block/week; cancel does not create.
-- [ ] Block/Week labels can be set or changed anytime, including after Copy to. Name/Block/Week edit through a centered dialog (not always-open fields). Empty clears the label.
+- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is Day + Name + optional block/week; cancel does not create.
+- [ ] Block/Week labels can be set or changed anytime, including after Copy to. Day/Name/Block/Week edit through a centered dialog (not always-open fields). Empty clears the label. Day is a training-slot label (`dayLabel`), not the calendar date.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to a session.
 - [ ] Coach or athlete can remove a lift from a session; completed sessions stay editable.

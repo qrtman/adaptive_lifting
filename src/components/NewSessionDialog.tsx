@@ -2,9 +2,22 @@ import { useState } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { UI_KEYS, getUiPref, setRecentBlock } from '../storage/uiPrefs';
+import { displayDayField, normalizeDayLabel } from '../features/plan/sessionLabels';
+import {
+  UI_KEYS,
+  getRecentBlock,
+  getRecentDay,
+  getRecentName,
+  getRecentWeek,
+  getUiPref,
+  setRecentBlock,
+  setRecentDay,
+  setRecentName,
+  setRecentWeek,
+} from '../storage/uiPrefs';
 import { CenteredDialog } from './CenteredDialog';
-import { LabelCombo, uniquePlanLabels } from './LabelCombo';
+import { ComboBox } from './ComboBox';
+import { LabelCombo, dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,13 +40,17 @@ export function NewSessionDialog({
   const coachUserId = user?.id ? String(user.id) : '';
   const linkedAthleteId = athleteId && athleteId !== coachUserId ? athleteId : null;
   const needsAthlete = isCoach && !linkedAthleteId;
+  const prefAthleteId = isCoach ? linkedAthleteId : (user?.id ? String(user.id) : athleteId);
   const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
   const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
+  const dayOptions = dayComboOptions(microcycles);
+  const nameOptions = uniquePlanTitles(microcycles);
 
   const [targetDate, setTargetDate] = useState(date);
-  const [title, setTitle] = useState('Session');
-  const [blockLabel, setBlockLabel] = useState('');
-  const [weekLabel, setWeekLabel] = useState('');
+  const [dayInput, setDayInput] = useState(() => displayDayField(getRecentDay(prefAthleteId)));
+  const [title, setTitle] = useState(() => getRecentName(prefAthleteId));
+  const [blockLabel, setBlockLabel] = useState(() => getRecentBlock(prefAthleteId));
+  const [weekLabel, setWeekLabel] = useState(() => getRecentWeek(prefAthleteId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,19 +64,27 @@ export function NewSessionDialog({
       setError('Pick a date');
       return;
     }
+    const name = title.trim();
+    if (!name) {
+      setError('Enter a name');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
+      const dayCanonical = normalizeDayLabel(dayInput);
       const created = await apiService.createSession({
         date: targetDate,
-        title: title.trim() || 'Session',
+        title: name,
+        dayLabel: dayCanonical || undefined,
         blockLabel: blockLabel.trim() || null,
         weekLabel: weekLabel.trim() || null,
         athleteId: isCoach ? linkedAthleteId || undefined : undefined,
       });
-      if (blockLabel.trim()) {
-        setRecentBlock(isCoach ? linkedAthleteId : (user?.id ? String(user.id) : athleteId), blockLabel.trim());
-      }
+      if (dayCanonical) setRecentDay(prefAthleteId, dayCanonical);
+      setRecentName(prefAthleteId, name);
+      if (blockLabel.trim()) setRecentBlock(prefAthleteId, blockLabel.trim());
+      if (weekLabel.trim()) setRecentWeek(prefAthleteId, weekLabel.trim());
       await onCreated(created);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create session');
@@ -112,15 +137,22 @@ export function NewSessionDialog({
             />
           </label>
         )}
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-[#636366]">Name</span>
-          <input
-            data-testid="new-session-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-          />
-        </label>
+        <ComboBox
+          label="Day"
+          value={dayInput}
+          onChange={setDayInput}
+          options={dayOptions}
+          placeholder="Day 1…"
+          testId="new-session-day"
+        />
+        <ComboBox
+          label="Name"
+          value={title}
+          onChange={setTitle}
+          options={nameOptions}
+          placeholder="Squat, Meet…"
+          testId="new-session-title"
+        />
         <div className="grid grid-cols-2 gap-2">
           <LabelCombo
             label="Block (optional)"
@@ -137,7 +169,7 @@ export function NewSessionDialog({
             testId="new-session-week"
           />
         </div>
-        {error && <p className="text-xs text-[#FF453A]">{error}</p>}
+        {error && <p data-testid="new-session-error" className="text-xs text-[#FF453A]">{error}</p>}
       </div>
     </CenteredDialog>
   );
