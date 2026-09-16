@@ -47,7 +47,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
-  await expect(page.getByTestId('session-labels')).toHaveText('Hypertrophy · Week1');
+  await expect(page.getByTestId('session-labels')).toContainText('Week 1');
+  await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Back' }).click();
   const reuseDay = page.getByTestId('calendar-day-2026-09-05');
@@ -57,7 +58,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('new-session-block').selectOption('Hypertrophy');
   await page.getByTestId('new-session-week').selectOption('Week1');
   await page.getByTestId('new-session-create').click();
-  await expect(page.getByTestId('session-labels')).toHaveText('Hypertrophy · Week1');
+  await expect(page.getByTestId('session-labels')).toContainText('Week 1');
+  await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await page.getByRole('button', { name: 'Back' }).click();
   await day.hover();
   await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
@@ -70,7 +72,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(copiedCard).toContainText('Hypertrophy · Week1');
 
   await copiedCard.click();
-  await expect(page.getByTestId('session-labels')).toHaveText('Hypertrophy · Week1');
+  await expect(page.getByTestId('session-labels')).toContainText('Week 1');
+  await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await page.getByTestId('session-edit').click();
   await expect(page.getByTestId('edit-session-dialog')).toBeVisible();
   await page.getByTestId('session-block').selectOption('__new__');
@@ -79,7 +82,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('session-week-custom').fill('Week2');
   await page.getByTestId('edit-session-save').click();
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
-  await expect(page.getByTestId('session-labels')).toHaveText('Meet · Week2');
+  await expect(page.getByTestId('session-labels')).toContainText('Week 2');
+  await expect(page.getByTestId('session-labels')).toContainText('Block Meet');
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(copiedCard).toContainText('Meet · Week2');
 });
