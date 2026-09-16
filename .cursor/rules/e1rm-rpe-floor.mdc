@@ -5,6 +5,8 @@ alwaysApply: true
 
 # e1RM RPE floor (RPE 5 counts)
 
+**Supersession:** the **25% drop cap** and **150×6 @5 → 200.00** numbers below are **void**. Ranking + cap live in `.cursor/rules/e1rm-rpe-order.mdc` (`linear-decay-v3`: @5 = 214.29 > @6 = 205.48 > @7 = 197.37). This file still owns the **RPE 5.0 floor**, missing-RPE guard, and persist-unchanged clamp.
+
 Do **not** add a second e1RM formula on the client. Do **not** add Helms/Brzycki/Liftosaur libraries. Canonical math stays **RPE-compensated linear decay** in `backend/math_utils.py` and `src/services/mathEngine.ts`, pinned by `MATH_VERSION` + `tests/math_vectors.json`. Sync **409**s on mismatch (`architecture.md` §10.2).
 
 Source of truth for the formula family: `architecture.md` §6.2. This rule **overrides** §6.2.1 “Reliability Fallback” (`RPE < 6.0` → return load). Patch §6.2.1 (and §12.1 test list) in the implementation PR.
@@ -48,13 +50,13 @@ Backend persist/analytics (`backend/main.py`, `analytics_service.py`) call `calc
 
 **In scope:** change the **input RPE** the existing linear-decay formula sees. RPE 5 must produce a real e1RM **> load** for multi-rep sets. RPE below 5.0 uses the **same formula result as RPE 5.0**.
 
-**Out of scope:** new %1RM tables, Brzycki/Epley, lifting the 25% metabolic drop cap, changing `RPE_CHART`, Insights client math, Sheets publish, Telegram.
+**Out of scope for the floor PR:** new %1RM tables, Brzycki/Epley, changing `RPE_CHART`, Insights client math, Sheets publish, Telegram. **The 25% cap is now in scope for the order PR** — see `e1rm-rpe-order.mdc`. Do not implement a floor-only PR that keeps the cap.
 
 ### Locked decisions
 
 | Decision | Verdict | Why |
 | :--- | :--- | :--- |
-| Formula family | **Keep** linear decay `e1RM = weight / (1 - 0.03 * (10 - rpe + reps - 1))` with 25% drop cap | Canonical; do not invent a second formula |
+| Formula family | **Keep** linear decay `e1RM = weight / (1 - 0.03 * (10 - rpe + reps - 1))` | Canonical; do not invent a second formula. **No 25% cap** — `e1rm-rpe-order.mdc` |
 | Floor | **`E1RM_RPE_FLOOR = 5.0`** (not 5.5, not 6.0) | User’s logged RPE **5** must run the formula at 5.0. 5.5 is a valid 0.5 step **above** the floor |
 | 0.5 steps below 5 | **`0 < rpe < 5.0` → formula RPE = 5.0** | 4.5, 4.0, 3.5, … all equal RPE 5.0. Cleaner than “≤ 4” which would leave 4.5 as a hole |
 | RPE 5.5 | **Use 5.5** (no clamp) | Half-step above the floor; linear decay is continuous |
@@ -62,8 +64,8 @@ Backend persist/analytics (`backend/main.py`, `analytics_service.py`) call `calc
 | `reps > 12` | **Unchanged** — return `weight` | Independent reliability guard |
 | Persist clamp? | **No.** Store the athlete’s 4.0. Clamp only the formula input | Numeric RPE stays the logged value |
 | Which RPE is the input? | **Executed RPE** for the LOG e1RM column | `ExerciseCard` already uses `set.executedRpe`. Planned RPE is prescription, not the log projection. Backend may fall back to `plannedRpe` when executed is null — that value still goes through the same clamp |
-| `MATH_VERSION` | **Bump** `linear-decay-v1` → **`linear-decay-v2`** | Outputs change for `0 < rpe < 6`. Sync 409 is the contract. Do **not** skip the bump because “only the floor changed” |
-| 25% drop cap | **Keep** | 150×6 @ RPE 5 hits the cap → **200.00**, not ~214. That is still ≠ 150. Do not lift the cap in this PR |
+| `MATH_VERSION` | Floor shipped **`linear-decay-v2`** on PR #19. Order PR bumps to **`linear-decay-v3`** | Do not keep v2’s capped 200.00 contract |
+| 25% drop cap | **Drop** (superseded) | Cap flattens 150×6 @5 and @6 to 200, so @5 is not higher than @6. See `e1rm-rpe-order.mdc` |
 | `RPE_CHART` / Helms table | **Do not add RPE 5 rows** | e1RM is linear decay, not a lookup. No new math libraries |
 
 ### Clamp (locked)
@@ -73,31 +75,24 @@ if weight <= 0 or reps <= 0: return 0
 if reps > 12: return weight
 if rpe <= 0: return weight          # missing RPE ≠ RPE 5
 formula_rpe = rpe if rpe >= 5.0 else 5.0
-# existing drop math using formula_rpe (25% cap, denom guard, round 2 dp)
+# drop math using formula_rpe — NO 25% cap (e1rm-rpe-order.mdc); denom guard; round 2 dp
 ```
 
 Named constant in **both** engines: `E1RM_RPE_FLOOR = 5.0`. Do not leave a stray `6.0` on the e1RM path. Apply the same clamp in `calculateWeightFromE1RM`.
 
-### Worked numbers (contract)
+### Worked numbers (floor only — cap numbers superseded)
 
-Existing 25% cap still applies: `effective_drop = min(0.03 * (10 - formula_rpe + reps - 1), 0.25)`.
+**Do not implement 200.00.** Live contract is `e1rm-rpe-order.mdc`: uncapped drop `0.03 * (10 - formula_rpe + reps - 1)`.
 
-| weight | reps | logged RPE | formula RPE | e1RM | note |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| 150 | 6 | 5.0 | 5.0 | **200.00** | user screenshot; drop 0.30 → cap 0.25; UI rounds to **200** |
-| 150 | 6 | 4.0 | 5.0 | **200.00** | == @5 |
-| 150 | 6 | 4.5 | 5.0 | **200.00** | 0.5 step below floor |
-| 150 | 6 | 5.5 | 5.5 | **200.00** | also capped; still ≠ 150 |
-| 150 | 6 | 6.0 | 6.0 | **200.00** | already computed today |
-| 150 | 6 | 0 / null | — | **150.00** | missing RPE: still load |
-| 100 | 5 | 5.5 | 5.5 | **133.33** | **replaces** vector `expected: 100` |
-| 100 | 3 | 5.0 | 5.0 | **126.58** | 5.0 ≠ 5.5 (uncapped) |
-| 100 | 3 | 5.5 | 5.5 | **124.22** | proves 5.5 is not clamped to 5.0 |
-| 100 | 3 | 4.0 | 5.0 | **126.58** | == @5 |
-| 100 | 5 | 9.0 | 9.0 | 117.65 | unchanged |
-| 100 | 1 | 10.0 | 10.0 | 100.00 | unchanged |
-
-INOL follows e1RM (intensity = weight/e1rm×100). The old `sets[]` row for 100×5 @ 5.5 (`intensity_pct: 100`, `inol: 5`) becomes `e1rm: 133.33`, `intensity_pct: 75`, `inol: 0.2`.
+| weight | reps | logged RPE | formula RPE | e1RM (order / v3) | obsolete v2 (capped) |
+| :--- | :--- | :--- | :--- | ---: | ---: |
+| 150 | 6 | 5.0 | 5.0 | **214.29** (UI 214) | 200.00 |
+| 150 | 6 | 6.0 | 6.0 | **205.48** (UI 205) | 200.00 |
+| 150 | 6 | 7.0 | 7.0 | **197.37** (UI 197) | 197.37 |
+| 150 | 6 | 4.0 | 5.0 | **214.29** == @5 | 200.00 |
+| 150 | 6 | 0 / null | — | **150.00** | 150.00 |
+| 100 | 5 | 5.5 | 5.5 | **134.23** | 133.33 |
+| 100 | 3 | 5.0 / 5.5 / 4.0 | 5 / 5.5 / 5 | **126.58 / 124.22 / 126.58** | same (uncapped) |
 
 ---
 
@@ -117,7 +112,8 @@ Forbidden deps: `brzycki`, `epley`, Liftosaur cores, OpenPowerlifting calculator
 
 | Behavior | Verdict |
 | :--- | :--- |
-| Linear decay + 25% drop cap + denom guard + 2-decimal round | **Keep** |
+| Linear decay + denom guard + 2-decimal round | **Keep** |
+| 25% drop cap | **Drop** — `e1rm-rpe-order.mdc` |
 | `reps > 12` → return weight | **Keep** |
 | `weight <= 0` or `reps <= 0` → 0 | **Keep** |
 | `rpe < 6.0` → return weight | **Drop** |
@@ -133,6 +129,10 @@ Forbidden deps: `brzycki`, `epley`, Liftosaur cores, OpenPowerlifting calculator
 ---
 
 ## Files to edit (implementation PR only)
+
+Floor-only edits landed on `cursor/e1rm-rpe-floor-9f4a` / PR #19. **Do not cut a new floor PR.** Cap/ranking work continues on `cursor/e1rm-rpe-order-9f4a` per `e1rm-rpe-order.mdc`.
+
+Obsolete floor-only list (kept for history):
 
 - `backend/math_utils.py` — floor + `MATH_VERSION = "linear-decay-v2"` + `E1RM_RPE_FLOOR`
 - `src/services/mathEngine.ts` — same floor, same version, `calculateWeightFromE1RM`
@@ -156,10 +156,10 @@ Do not refactor ExerciseCard layout, Sheets keyboard, add-lift search, Telegram,
 **Vectors / unit (required):**
 
 - `MATH_VERSION` matches `math_vectors.json` in Python and Vitest.
-- 150 × 6 @ **5.0** → **200.00** (≠ 150).
+- 150 × 6 @ **5.0** → **214.29** (≠ 150, ≠ 200). See order rule for @6/@7 ranking.
 - 150 × 6 @ **4.0** → **same as @ 5.0**.
 - 150 × 6 @ **0** → **150** (missing RPE).
-- 100 × 5 @ **5.5** → **133.33** (old vector `100` is now wrong).
+- 100 × 5 @ **5.5** → **134.23** (v2 capped 133.33 is wrong).
 - 100 × 3 @ **5.0** → **126.58**; @ **5.5** → **124.22** (5.5 not clamped); @ **4.0** → **126.58**.
 - Existing RPE 9 / RPE 10 / reps>12 / zero weight cases unchanged.
 - `setPreviewMetrics` INOL/intensity for the updated 5.5 set row.
@@ -167,7 +167,7 @@ Do not refactor ExerciseCard layout, Sheets keyboard, add-lift search, Telegram,
 
 **Playwright (required):** new `e2e/e1rm-rpe-floor.spec.ts` — real athlete session, add a lift, log on set 0 (use `fillEditableCell` / existing helpers; click-select + F2). `data-testid` starts with `set-e1rm-`.
 
-1. Log **150 × 6 @ 5** → e1RM text is **not** `150` (expect `200`).
+1. Log **150 × 6 @ 5** → e1RM text is **not** `150` (expect **`214`**, not `200`).
 2. Change executed RPE to **4** → e1RM **equals** the @5 value.
 3. Clear executed RPE to empty / `—` (optional) → e1RM back to load **150**, proving we do not clamp 0 to 5.
 
@@ -178,7 +178,7 @@ Do not auto-seed demo microcycles.
 ## Non-goals
 
 - New e1RM equation or Helms lookup
-- Changing the 25% metabolic cap or reps>12 guard
+- Re-introducing the 25% metabolic cap; do not change the reps>12 guard
 - Extending `RPE_CHART` to RPE 5
 - Using planned RPE for the LOG e1RM column
 - Persisting clamped RPE
@@ -190,11 +190,11 @@ Do not auto-seed demo microcycles.
 
 ## Acceptance
 
-- [ ] 150×6 @ RPE 5 e1RM is **200** (preview + canonical), not 150.
+- [ ] 150×6 @ RPE 5 e1RM is **214.29** / UI **214** (preview + canonical), not 150, not 200. Ranking vs @6/@7: `e1rm-rpe-order.mdc`.
 - [ ] 150×6 @ RPE 4 e1RM **equals** @ RPE 5.
 - [ ] RPE 5.5 is **not** forced to 5.0 (100×3 distinguishes them).
 - [ ] Empty RPE still falls back to load.
-- [ ] Python and TS stay bit-identical; vectors updated; `MATH_VERSION` is `linear-decay-v2` in py, ts, json, and sync tests.
+- [ ] Python and TS stay bit-identical; vectors updated; live `MATH_VERSION` is `linear-decay-v3` (floor PR’s v2 + cap is superseded).
 - [ ] Sync still 409s on mismatch (`test_sync_rejects_math_version_mismatch`).
 - [ ] architecture.md §6.2.1 matches this floor.
 - [ ] No new math library. Numeric RPE/weight/reps stay numeric.
@@ -204,43 +204,6 @@ Do not auto-seed demo microcycles.
 
 ## Execution prompt (implementer)
 
-```md
-Task:
-Lower the e1RM reliability floor so logged RPE 5 computes a real e1RM, and RPE < 5.0 uses the same formula input as RPE 5.0.
+**Stale.** Floor implementation already landed on PR #19 (`cursor/e1rm-rpe-floor-9f4a`). Do not keep the 25% cap or 200.00 vectors.
 
-Source of truth:
-- `.cursor/rules/e1rm-rpe-floor.mdc` (this file) — diagnosis, clamp, worked numbers, MATH_VERSION bump
-- architecture.md §6.2 (formula) — patch §6.2.1 Reliability Fallback in this PR
-- architecture.md §10.2 MATH_VERSION 409
-- knowledge.md math pin
-- `.cursor/rules/agent-file-map.mdc` (math / e1RM row)
-
-Scope:
-- Branch `cursor/e1rm-rpe-floor-9f4a` from `cursor/e1rm-rpe-floor-rule-9f4a` (sensible HEAD is sheets-cell-edit if the rule branch is not available).
-- Edit only the files listed in the rule.
-- Do **not** add Helms/Brzycki/Liftosaur libraries or a second client formula.
-- Follow AGENTS.md three-layer method + review gate.
-
-Required behavior:
-- Shared `E1RM_RPE_FLOOR = 5.0`.
-- `0 < rpe < 5.0` → formula_rpe = 5.0; rpe 5.0 and 5.5 used as entered.
-- `rpe <= 0` or `reps > 12` → return weight (missing RPE is not RPE 5).
-- Same clamp in `calculateWeightFromE1RM`.
-- LOG e1RM input remains **executed** RPE (`ExerciseCard`).
-- Bump MATH_VERSION to `linear-decay-v2` in math_utils.py, mathEngine.ts, math_vectors.json, and tests that hardcode `linear-decay-v1` against the live constant (`test_analytics.py`, `sync_engine.test.ts`).
-- Keep 25% drop cap: 150×6@5 → **200.00**.
-
-Required UI states:
-- loading/empty session unchanged
-- locked/readonly: e1RM still a readout
-- offline: client preview uses the new floor; server remains canonical after sync
-- MATH_VERSION mismatch: still 409, do not ACK
-
-Verification:
-- Vectors: 150×6@5 == 200; @4 == @5; @0 == 150; 100×5@5.5 == 133.33; 100×3@5 == 126.58; @5.5 == 124.22.
-- Playwright `e2e/e1rm-rpe-floor.spec.ts`: log 150×6@5 → not 150; @4 equals @5.
-- `pytest tests/test_math_vectors.py backend/test_math.py`, `npm test`, lint.
-- Commit and push as you go.
-
-Do not implement anything beyond that spec.
-```
+Next bot: copy the execution prompt in `.cursor/rules/e1rm-rpe-order.mdc` (continue `cursor/e1rm-rpe-order-9f4a`, drop cap, `linear-decay-v3`, 150×6 @5 > @6 > @7).

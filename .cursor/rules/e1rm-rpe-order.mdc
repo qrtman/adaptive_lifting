@@ -1,0 +1,270 @@
+---
+description: e1RM RPE order — same load×reps, lower RPE ⇒ strictly higher e1RM. Drop the 25% cap. Apply when changing math_utils, mathEngine, math_vectors, or LOG e1RM.
+alwaysApply: true
+---
+
+# e1RM RPE order (lower RPE ⇒ higher e1RM)
+
+This rule **overrides** the 25% metabolic drop-cap lock and the **200.00** worked numbers in `.cursor/rules/e1rm-rpe-floor.mdc`. The RPE **5.0 floor** from that file stays: `E1RM_RPE_FLOOR = 5.0`, `0 < rpe < 5` clamps formula input only, `rpe <= 0` still returns load.
+
+Do **not** add a second e1RM formula. Do **not** add Helms/Brzycki/Liftosaur libraries. Canonical math stays **RPE-compensated linear decay** in `backend/math_utils.py` and `src/services/mathEngine.ts`, pinned by `MATH_VERSION` + `tests/math_vectors.json`. Sync **409**s on mismatch (`architecture.md` §10.2).
+
+User report after the floor PR: *“150kg 6 reps for 5 rpe is still 150 but should be more … it should show more than when rpe is 6 but it is in opposite less.”*
+
+---
+
+## Diagnosis (this checkout — do not re-litigate)
+
+Linear decay (architecture.md §6.2):
+
+```text
+effective_drop = 0.03 * (10 - RPE + Reps - 1)
+e1RM = weight / (1 - effective_drop)
+```
+
+Lower RPE **increases** `effective_drop`, which **increases** e1RM. That ranking is the product. Two guards currently break it for 150×6.
+
+### Computed values (round 2 dp, same as code)
+
+| env | 150×6 @5 | @6 | @7 | ranking |
+| :--- | ---: | ---: | ---: | :--- |
+| **HEAD / `linear-decay-v1`** (`rpe < 6` → return weight, 25% cap) | **150.00** | **200.00** | 197.37 | **inverted** (@5 < @6) |
+| **PR #19 / `linear-decay-v2`** (floor 5.0, **keep** 25% cap) | **200.00** | **200.00** | 197.37 | **flat** (@5 == @6) |
+| **This lock** (floor 5.0, **no** 25% cap) | **214.29** | **205.48** | **197.37** | **correct** (@5 > @6 > @7) |
+
+Worked drops for 150×6 (`0.03 * (15 - RPE)`):
+
+| RPE | uncapped drop | denom | e1RM | 25% cap does |
+| :--- | ---: | ---: | ---: | :--- |
+| 5.0 | 0.30 | 0.70 | **214.29** | clamps drop to 0.25 → **200.00** |
+| 6.0 | 0.27 | 0.73 | **205.48** | clamps drop to 0.25 → **200.00** |
+| 7.0 | 0.24 | 0.76 | **197.37** | no clamp (already ≤ 0.25) |
+
+So the cap equalizes @5 and @6. Combined with the old `rpe < 6` fallback it **inverts** them (150 vs 200).
+
+### Why the UI can still show 150
+
+Not rounding (`Math.round(200) = 200`, `Math.round(214.29) = 214`). Not “server e1RM not merged” for the LOG column.
+
+1. **`main` / HEAD is still `linear-decay-v1`.** PR #19 is open, not merged. `rpe < 6.0` returns `weight` → 150. That is the screenshot-class bug.
+2. **LOG e1RM is a client preview** of `calculateE1RM(set.actual, set.reps, set.executedRpe)` in `ExerciseCard.tsx` (`data-testid="set-e1rm-${set.id}"`). It does **not** read a persisted server `set.e1rm`. Empty executed RPE (`rpe <= 0`) still returns load **150** even on v2/v3 — do not treat that as the floor bug if the @ cell is blank.
+3. **PLAN RPE is not the LOG input.** Typing 5 only on the plan `@` leaves `executedRpe` empty → 150.
+4. **Even if PR #19 is what they are looking at**, 150×6@5 and @6 both display **200**, so @5 is not *more* than @6. The user asked for more.
+
+`RPE_CHART` is still prescription-only. Do not extend it.
+
+---
+
+## Refined intent
+
+**Invariant (locked):** for the same `weight > 0` and `1 ≤ reps ≤ 12`, after the RPE floor clamp, **lower formula RPE ⇒ strictly higher e1RM**.
+
+```text
+e1RM(150, 6, 5) > e1RM(150, 6, 6) > e1RM(150, 6, 7)
+```
+
+UI `Math.round` must preserve that: **214 > 205 > 197**. Display must not be 150 for @5.
+
+The 25% cap **violates** the invariant (maps @5 and @6 to 200). A post-formula `min(e1RM, weight / 0.75)` is the same function and also equalizes. **Drop the cap.** Do not invent an RPE-dependent cap or a Helms table.
+
+`reps > 12 → weight` stays the high-rep reliability guard. Denom `<= 0.1` stays as a zero-division guard (does not fire for `reps ≤ 12` and `formula_rpe ≥ 5`).
+
+### Locked decisions
+
+| Decision | Verdict | Why |
+| :--- | :--- | :--- |
+| Formula family | **Keep** linear decay `e1RM = weight / (1 - 0.03 * (10 - formula_rpe + reps - 1))` | One canonical formula; no Helms/Brzycki |
+| RPE floor | **Keep** `E1RM_RPE_FLOOR = 5.0` from the floor rule | Logged 5 must run; `< 5` clamps input only |
+| Missing RPE / `reps > 12` | **Keep** return `weight` | Empty LOG RPE ≠ RPE 5 |
+| 25% metabolic drop cap | **Drop** in `calculate_e1rm` / `calculateE1RM` **and** `calculateWeightFromE1RM` | Cap flattens 150×6 @5 and @6 to 200; also flattens all RPE for 10-rep sets (100×10 @5/@6/@8 all 133.33 under the cap) |
+| Replacement cap constant | **None** | Any fixed drop cap equalizes every RPE whose uncapped drop exceeds it |
+| Ranking | **Strict** on formula RPE: `formula_rpe_lo < formula_rpe_hi` ⇒ `e1RM_lo > e1RM_hi` | Product: easier set at the same load ⇒ higher estimated max |
+| Floor clamp vs ranking | `@4 == @5` is required (same formula RPE). `@5 > @6` is required (different formula RPE) | Do not “fix” ranking by unclamping RPE 4 |
+| `MATH_VERSION` | **Bump** `linear-decay-v2` → **`linear-decay-v3`** | v2’s published contract is 150×6@5 → 200 (capped). New outputs. Sync 409 |
+| Persist athlete RPE | **Unchanged** | Clamp is formula-input only |
+| LOG RPE input | **Executed** (`set.executedRpe`) | Already wired in `ExerciseCard` |
+| `RPE_CHART` | **Do not extend** | Not on the e1RM path |
+
+### Formula (locked)
+
+```text
+if weight <= 0 or reps <= 0: return 0
+if reps > 12: return weight
+if rpe <= 0: return weight
+formula_rpe = rpe if rpe >= 5.0 else 5.0
+effective_drop = 0.03 * (10 - formula_rpe + reps - 1)   # NO min(..., 0.25)
+denom = 1.0 - effective_drop
+if denom <= 0.1: return weight
+return round(weight / denom, 2)
+```
+
+Delete `if effective_drop_pct > 0.25: effective_drop_pct = 0.25` in Python and TypeScript (including the inverse).
+
+### Worked numbers (contract)
+
+Uncapped: `effective_drop = 0.03 * (10 - formula_rpe + reps - 1)`. Round 2 dp.
+
+| weight | reps | logged RPE | formula RPE | e1RM | UI `Math.round` | note |
+| :--- | :--- | :--- | :--- | ---: | ---: | :--- |
+| 150 | 6 | 5.0 | 5.0 | **214.29** | **214** | user case; **not** 150, **not** 200 |
+| 150 | 6 | 6.0 | 6.0 | **205.48** | **205** | @5 > @6 |
+| 150 | 6 | 7.0 | 7.0 | **197.37** | **197** | @6 > @7 |
+| 150 | 6 | 5.5 | 5.5 | **209.79** | **210** | between @5 and @6 |
+| 150 | 6 | 4.0 | 5.0 | **214.29** | **214** | == @5 (floor) |
+| 150 | 6 | 0 / null | — | **150.00** | **150** | missing RPE |
+| 100 | 5 | 5.5 | 5.5 | **134.23** | — | v2 was 133.33 **because of the cap** (drop 0.255) |
+| 100 | 10 | 8.0 | 8.0 | **149.25** | — | v1/v2 vector 133.33 was the cap; must change |
+| 100 | 3 | 5.0 | 5.0 | **126.58** | — | unchanged (drop 0.21 < 0.25) |
+| 100 | 3 | 5.5 | 5.5 | **124.22** | — | unchanged; 5.5 not clamped |
+| 100 | 5 | 9.0 | 9.0 | 117.65 | — | unchanged |
+| 100 | 1 | 10.0 | 10.0 | 100.00 | — | unchanged |
+
+INOL follows e1RM. 150×6@5: `intensity_pct: 70`, `inol: 0.2`. 150×6@6: `73` / `0.22`. 150×6@7: `76` / `0.25`. 100×5@5.5: `e1rm: 134.23`, `intensity_pct: 74.5`, `inol: 0.2`. 100×10@8: `e1rm: 149.25`, `intensity_pct: 67`, `inol: 0.3`.
+
+---
+
+## Ideas to steal (no new deps)
+
+- **Helms / Zourdos:** 6 @ RPE 5 is a lower %1RM than 6 @ RPE 6, so e1RM is **higher**. Steal the **order**, not the table.
+- **RTS 6–10 charts:** why this repo’s `RPE_CHART` starts at 6. Not a reason to flatten backoff e1RM.
+- **This repo’s floor rule:** keep the clamp and missing-RPE guard. Steal nothing else from its cap/200 section.
+- **MATH_VERSION pin:** only cross-language contract. Client preview until sync; backend remains canonical (`architecture.md` §3.1 / §10.2).
+
+Forbidden deps: `brzycki`, `epley`, Liftosaur cores, OpenPowerlifting calculators, extra npm/pip math packages.
+
+---
+
+## Keep / drop
+
+| Behavior | Verdict |
+| :--- | :--- |
+| Linear decay + denom guard + 2-decimal round | **Keep** |
+| `E1RM_RPE_FLOOR = 5.0` clamp on formula input | **Keep** |
+| `reps > 12` → return weight | **Keep** |
+| `rpe <= 0` → return weight | **Keep** |
+| Persist athlete RPE unchanged | **Keep** |
+| Executed RPE drives LOG e1RM | **Keep** |
+| 25% drop cap | **Drop** |
+| v2 vectors 150×6@5 → 200 and 100×10@8 → 133.33 | **Drop** (replace with 214.29 / 149.25) |
+| Helms/Brzycki library | **Drop** |
+
+---
+
+## Files to edit (implementation PR only)
+
+Base: `cursor/e1rm-rpe-floor-9f4a` (already `linear-decay-v2` + floor). Branch: `cursor/e1rm-rpe-order-9f4a` (this rule branch — continue it).
+
+- `backend/math_utils.py` — remove 25% cap; `MATH_VERSION = "linear-decay-v3"`
+- `src/services/mathEngine.ts` — same cap removal in `calculateE1RM` **and** `calculateWeightFromE1RM`; same version
+- `tests/math_vectors.json` — version + 150×6 @5/@6/@7 (and @4/@0), 100×10@8 → 149.25, 100×5@5.5 → 134.23, matching `sets[]` INOL rows
+- `backend/test_math.py` — assert `@5 > @6 > @7` for 150×6; 150×6@5 == 214.29 (not 200, not 150)
+- `src/services/mathEngine.test.ts` — vectors plus a direct ranking assert
+- `tests/test_math_vectors.py` — no logic change if vectors updated
+- `architecture.md` §6.2.1 **Metabolic Drop-off Cap** — delete/replace with “no 25% cap; ranking invariant”; bump version examples (`§10.2`, §12.1, §13) v2 → v3
+- `knowledge.md` math-pin version string
+- Hardcoded `linear-decay-v2` asserts vs live constant: `backend/test_analytics.py`, `src/services/sync_engine.test.ts` (prefer imported `MATH_VERSION`)
+- `e2e/e1rm-rpe-floor.spec.ts` — 150×6@5 UI is **214** (not 150, not 200); add @6 and assert @5 text > @6 text (or equal the rounded contract 214 vs 205)
+- Optional rename leftover “floor” e2e title; do not add a second e2e file unless cleaner
+
+Do not refactor ExerciseCard layout, Sheets keyboard, add-lift, Telegram, or Insights charts. LOG display can stay `Math.round(e1RM)`.
+
+Leave `src/insights/charts/renderFromFixture.test.ts` fixture `math_version: 'linear-decay-v1'` unless a test starts comparing it to `MATH_VERSION`.
+
+---
+
+## Tests
+
+**Vectors / unit (required):**
+
+- `MATH_VERSION` is `linear-decay-v3` and matches `math_vectors.json` in Python and Vitest.
+- `calculateE1RM(150, 6, 5) == 214.29`
+- `calculateE1RM(150, 6, 6) == 205.48`
+- `calculateE1RM(150, 6, 7) == 197.37`
+- **Ranking:** `e1RM(150,6,5) > e1RM(150,6,6) > e1RM(150,6,7)` (strict).
+- `@4 == @5` (214.29); `@0 == 150`.
+- 100×10@8 == 149.25 (old cap vector 133.33 is wrong).
+- 100×5@5.5 == 134.23 (v2 cap vector 133.33 is wrong).
+- 100×3 @5 / @5.5 / @4 unchanged from the floor rule (126.58 / 124.22 / 126.58).
+- Inverse `calculateWeightFromE1RM` has **no** 0.25 cap (round-trip at 150×6@5 is consistent with 214.29).
+
+**Playwright (required):** extend `e2e/e1rm-rpe-floor.spec.ts` (or replace expectations):
+
+1. Log **150 × 6 @ 5** → e1RM text is **`214`**, and **not** `150`.
+2. Change executed RPE to **6** → e1RM text is **`205`**, and **less than** the @5 value.
+3. Change executed RPE to **7** → e1RM text is **`197`**, and **less than** the @6 value.
+4. Keep `@4 == @5` and empty RPE → `150`.
+
+Do not auto-seed demo microcycles.
+
+---
+
+## Non-goals
+
+- New e1RM equation or Helms lookup
+- Keeping the 25% cap “just for 10-rep sets” (that still flattens RPE)
+- Extending `RPE_CHART` to RPE 5
+- Using planned RPE for the LOG e1RM column
+- Persisting clamped RPE
+- Skipping the `MATH_VERSION` bump to v3
+- Re-implementing the RPE 5 floor (already on `cursor/e1rm-rpe-floor-9f4a`)
+- Insights client-side RTS math / grid keyboard / add-lift / Sheets publish
+
+---
+
+## Acceptance
+
+- [ ] 150×6 @5 e1RM is **214.29** (preview + canonical), UI **214**, not 150, not 200.
+- [ ] 150×6 @5 > @6 (205.48 / UI 205) > @7 (197.37 / UI 197).
+- [ ] 150×6 @4 equals @5; empty RPE is 150.
+- [ ] 25% cap code is gone from Python, TS e1RM, and TS inverse.
+- [ ] Vectors + INOL rows updated; `MATH_VERSION` is `linear-decay-v3`.
+- [ ] Sync still 409s on mismatch.
+- [ ] architecture.md §6.2.1 no longer documents a 25% cap that equalizes RPE.
+- [ ] No new math library. Numeric RPE/weight/reps stay numeric.
+- [ ] Playwright: LOG 150×6@5 is not 150 and is greater than @6.
+
+---
+
+## Execution prompt (implementer)
+
+```md
+Task:
+Make e1RM strictly decrease as RPE increases for the same load×reps. Remove the 25% metabolic drop cap that flattens 150×6 @5 and @6 to 200. Keep the RPE 5.0 formula floor.
+
+Source of truth:
+- `.cursor/rules/e1rm-rpe-order.mdc` (this file) — ranking invariant, drop cap, worked numbers, MATH_VERSION v3
+- `.cursor/rules/e1rm-rpe-floor.mdc` — RPE floor / missing-RPE clamp only (cap and 200.00 numbers are superseded)
+- architecture.md §6.2 formula; patch §6.2.1 Metabolic Drop-off Cap in this PR
+- architecture.md §10.2 MATH_VERSION 409
+- knowledge.md math pin
+- `.cursor/rules/agent-file-map.mdc` (math / e1RM row)
+
+Scope:
+- Continue branch `cursor/e1rm-rpe-order-9f4a` (already off `cursor/e1rm-rpe-floor-9f4a`). If missing, `git checkout -b cursor/e1rm-rpe-order-9f4a origin/cursor/e1rm-rpe-floor-9f4a`.
+- Edit only the files listed in the order rule.
+- Do **not** add Helms/Brzycki/Liftosaur libraries or a second client formula.
+- Do **not** re-introduce `if drop > 0.25: drop = 0.25`.
+- Follow AGENTS.md three-layer method + review gate.
+
+Required behavior:
+- Same linear decay, `E1RM_RPE_FLOOR = 5.0`, `rpe <= 0` / `reps > 12` → weight.
+- No 25% cap in calculate_e1rm / calculateE1RM / calculateWeightFromE1RM.
+- 150×6: @5 = 214.29, @6 = 205.48, @7 = 197.37. Strict @5 > @6 > @7.
+- Bump MATH_VERSION to `linear-decay-v3` in py, ts, math_vectors.json, and tests that hardcode v2 against the live constant.
+- LOG e1RM input remains executed RPE. UI may stay Math.round (214 / 205 / 197).
+
+Required UI states:
+- loading/empty session unchanged
+- locked/readonly: e1RM still a readout
+- offline: client preview uses v3; server canonical after sync
+- MATH_VERSION mismatch: still 409, do not ACK
+- empty executed RPE: e1RM = load (150), not the @5 projection
+
+Verification:
+- Unit/vectors: @5 > @6 > @7 for 150×6; @5 == 214.29 ≠ 150 ≠ 200; 100×10@8 == 149.25; 100×5@5.5 == 134.23.
+- Playwright: log 150×6@5 → 214 (not 150); @6 → 205; @7 → 197.
+- `pytest tests/test_math_vectors.py backend/test_math.py`, `npm test`, lint.
+- Commit and push as you go.
+
+Do not implement anything beyond that spec.
+```
