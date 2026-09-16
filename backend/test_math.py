@@ -6,6 +6,8 @@ import math
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.math_utils import (
+    E1RM_RPE_FLOOR,
+    MATH_VERSION,
     calculate_e1rm_linear_decay, 
     calculate_inol, 
     calculate_dots, 
@@ -21,8 +23,17 @@ def test_e1rm_calculations():
     assert calculate_e1rm_linear_decay(0, 5, 8.0) == 0.0, "Zero weight guard failed"
     assert calculate_e1rm_linear_decay(100, 0, 8.0) == 0.0, "Zero reps guard failed"
     
-    # 2. RPE boundaries
-    assert calculate_e1rm_linear_decay(100, 5, 5.5) == 100.0, "RPE < 6.0 fallback failed"
+    # 2. RPE floor: 5.0 runs the formula; below 5.0 clamps to 5.0; missing RPE stays load
+    assert E1RM_RPE_FLOOR == 5.0
+    assert MATH_VERSION == "linear-decay-v2"
+    assert calculate_e1rm_linear_decay(150, 6, 5.0) == 200.0, "150x6 @ RPE 5 must be 200 (25% cap)"
+    assert calculate_e1rm_linear_decay(150, 6, 4.0) == calculate_e1rm_linear_decay(150, 6, 5.0), "RPE 4 equals RPE 5"
+    assert calculate_e1rm_linear_decay(150, 6, 4.0) != 150.0, "RPE 4 must not return load"
+    assert calculate_e1rm_linear_decay(150, 6, 0.0) == 150.0, "Missing RPE still returns load"
+    assert calculate_e1rm_linear_decay(100, 5, 5.5) == 133.33, "RPE 5.5 must run the formula, not return load"
+    assert calculate_e1rm_linear_decay(100, 3, 5.0) == 126.58, "RPE 5.0 unclamped 3-rep"
+    assert calculate_e1rm_linear_decay(100, 3, 5.5) == 124.22, "RPE 5.5 is not clamped to 5.0"
+    assert calculate_e1rm_linear_decay(100, 3, 4.0) == 126.58, "RPE 4 clamps to 5.0"
     assert calculate_e1rm_linear_decay(100, 13, 8.0) == 100.0, "Reps > 12 fallback failed"
     
     # 3. Standard e1RM projection: 100kg x 1 rep @ RPE 10 -> 100.0kg

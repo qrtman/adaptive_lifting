@@ -1,13 +1,19 @@
 {
-  "math_version": "linear-decay-v1",
+  "math_version": "linear-decay-v2",
   "e1rm": [
     { "weight": 0, "reps": 5, "rpe": 8, "expected": 0 },
     { "weight": 100, "reps": 0, "rpe": 8, "expected": 0 },
-    { "weight": 100, "reps": 5, "rpe": 5.5, "expected": 100 },
+    { "weight": 100, "reps": 5, "rpe": 5.5, "expected": 133.33 },
     { "weight": 100, "reps": 13, "rpe": 8, "expected": 100 },
     { "weight": 100, "reps": 1, "rpe": 10, "expected": 100 },
     { "weight": 100, "reps": 5, "rpe": 9, "expected": 117.65 },
-    { "weight": 100, "reps": 10, "rpe": 8, "expected": 133.33 }
+    { "weight": 100, "reps": 10, "rpe": 8, "expected": 133.33 },
+    { "weight": 150, "reps": 6, "rpe": 5, "expected": 200 },
+    { "weight": 150, "reps": 6, "rpe": 4, "expected": 200 },
+    { "weight": 150, "reps": 6, "rpe": 0, "expected": 150 },
+    { "weight": 100, "reps": 3, "rpe": 5, "expected": 126.58 },
+    { "weight": 100, "reps": 3, "rpe": 5.5, "expected": 124.22 },
+    { "weight": 100, "reps": 3, "rpe": 4, "expected": 126.58 }
   ],
   "inol": [
     { "reps": 5, "intensity_pct": 85, "expected": 0.33 },
@@ -19,12 +25,18 @@
   "sets": [
     { "weight": 0, "reps": 5, "rpe": 8, "e1rm": 0, "intensity_pct": 0, "inol": 0 },
     { "weight": 100, "reps": 0, "rpe": 8, "e1rm": 0, "intensity_pct": 0, "inol": 0 },
-    { "weight": 100, "reps": 5, "rpe": 5.5, "e1rm": 100, "intensity_pct": 100, "inol": 5 },
+    { "weight": 100, "reps": 5, "rpe": 5.5, "e1rm": 133.33, "intensity_pct": 75, "inol": 0.2 },
     { "weight": 100, "reps": 13, "rpe": 8, "e1rm": 100, "intensity_pct": 100, "inol": 13 },
     { "weight": 100, "reps": 1, "rpe": 10, "e1rm": 100, "intensity_pct": 100, "inol": 1 },
     { "weight": 100, "reps": 5, "rpe": 9, "e1rm": 117.65, "intensity_pct": 85, "inol": 0.33 },
     { "weight": 100, "reps": 10, "rpe": 8, "e1rm": 133.33, "intensity_pct": 75, "inol": 0.4 },
-    { "weight": 140, "reps": 3, "rpe": 8, "e1rm": 159.09, "intensity_pct": 88, "inol": 0.25 }
+    { "weight": 140, "reps": 3, "rpe": 8, "e1rm": 159.09, "intensity_pct": 88, "inol": 0.25 },
+    { "weight": 150, "reps": 6, "rpe": 5, "e1rm": 200, "intensity_pct": 75, "inol": 0.24 },
+    { "weight": 150, "reps": 6, "rpe": 4, "e1rm": 200, "intensity_pct": 75, "inol": 0.24 },
+    { "weight": 150, "reps": 6, "rpe": 0, "e1rm": 150, "intensity_pct": 100, "inol": 6 },
+    { "weight": 100, "reps": 3, "rpe": 5, "e1rm": 126.58, "intensity_pct": 79, "inol": 0.14 },
+    { "weight": 100, "reps": 3, "rpe": 5.5, "e1rm": 124.22, "intensity_pct": 80.5, "inol": 0.15 },
+    { "weight": 100, "reps": 3, "rpe": 4, "e1rm": 126.58, "intensity_pct": 79, "inol": 0.14 }
   ],
   "plates": [
     { "weight": 101.2, "expected": 100 },

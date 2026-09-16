@@ -7,7 +7,7 @@ from backend.analytics_registry import validate_config
 from backend.analytics_schemas import CardConfig
 from backend.database import Exercise, ExerciseSet, Microcycle, SessionLocal, Workout, init_db
 from backend.main import app
-from backend.math_utils import calculate_e1rm
+from backend.math_utils import MATH_VERSION, calculate_e1rm
 
 
 def _auth_pair():
@@ -103,7 +103,7 @@ def test_metrics_match_canonical_math_and_rbac():
     }, cookies=coach_cookies)
     assert ok.status_code == 200, ok.text
     payload = ok.json()
-    assert payload["math_version"] == "linear-decay-v1"
+    assert payload["math_version"] == MATH_VERSION
     expected_all = [calculate_e1rm(100 + i * 2.5, 5, 8.0) for i in range(4)]
     points = payload["series"][0]["points"]
     assert any(
@@ -331,7 +331,7 @@ def test_insight_card_sync_uses_mutation_type_without_workout_id():
         "mutation_type": "insight_card",
         "client_device_id": "dev-cards",
         "last_updated_at": "2026-09-14T00:00:00Z",
-        "math_version": "linear-decay-v1",
+        "math_version": MATH_VERSION,
         "changes": [{
             "entity": "InsightCard",
             "id": card["id"],
@@ -343,7 +343,7 @@ def test_insight_card_sync_uses_mutation_type_without_workout_id():
     assert res.status_code == 200, res.text
     body = res.json()
     assert "mut-card-1" in body["accepted_mutation_ids"]
-    assert body["math_version"] == "linear-decay-v1"
+    assert body["math_version"] == MATH_VERSION
     names = {c["name"] for c in body["canonical"]}
     assert "Renamed card" in names
 

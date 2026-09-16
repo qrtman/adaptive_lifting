@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SyncMutation } from './db';
+import { MATH_VERSION } from './mathEngine';
 import {
   isInsightCardMutation,
   isLockSyncCode,
@@ -102,7 +103,7 @@ describe('processSyncQueue mixed payload', () => {
     const posted = JSON.parse(requestInit.body);
     expect(posted.workout_id).toBe('w-a');
     expect(posted.mutation_type).toBe('workout');
-    expect(posted.math_version).toBe('linear-decay-v1');
+    expect(posted.math_version).toBe(MATH_VERSION);
     expect(posted.changes).toHaveLength(1);
     expect(posted.changes[0].id).toBe('ex-1');
   });
@@ -137,7 +138,7 @@ describe('processSyncQueue mixed payload', () => {
     const posted = JSON.parse(requestInit.body);
     expect(posted.mutation_type).toBe('insight_card');
     expect(posted.workout_id).toBeUndefined();
-    expect(posted.math_version).toBe('linear-decay-v1');
+    expect(posted.math_version).toBe(MATH_VERSION);
     expect(posted.changes.map((c: { id: string }) => c.id)).toEqual(['card-1', 'card-2']);
   });
 
