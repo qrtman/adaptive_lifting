@@ -17,6 +17,7 @@ Product constraints stay in `AGENTS.md`. This file is a file-index only.
 | calendar / sessions nav | `src/App.tsx`, `src/components/CalendarView.tsx`, `src/components/SessionsView.tsx`, `src/navigation.ts`, `src/components/Sidebar.tsx`, `e2e/navigation.spec.ts` |
 | session create/edit (Name/Block/Week) | `src/components/NewSessionDialog.tsx`, `src/components/EditSessionDialog.tsx`, `src/components/LabelCombo.tsx`, `src/components/CenteredDialog.tsx` |
 | plan kg / set log | `src/components/EditablePerformanceCell.tsx`, `src/components/ExerciseCard.tsx`, `src/services/setPrescription.ts`, `backend/set_writes.py` |
+| PLAN/LOG cell keyboard (Sheets-parity subset) | `.cursor/rules/sheets-cell-edit.mdc`, `src/components/EditablePerformanceCell.tsx`, `src/components/PrescriptionEditor.tsx`, `src/components/ExerciseCard.tsx`, `src/services/numericTraining.ts`, `e2e/session.spec.ts`, `e2e/helpers.ts` |
 | auth / coach code | `src/components/SecurityView.tsx`, `src/components/CoachLinkPanel.tsx`, `src/contexts/AuthContext.tsx`, `src/components/LoginView.tsx`, `backend/main.py` (`/api/auth/coach-code`, link/unlink), `backend/test_auth.py`, `e2e/login.spec.ts`, `e2e/link.spec.ts` |
 | insights | `src/components/InsightsView.tsx`, `src/insights/*`, `backend/analytics_service.py`, `backend/analytics_router.py`, `backend/analytics_schemas.py`, `backend/analytics_registry.py`, `backend/test_analytics.py` |
 | math / e1RM | `src/services/mathEngine.ts`, `backend/math_utils.py`, `tests/math_vectors.json`, `src/services/mathEngine.test.ts`, `backend/test_math.py` |

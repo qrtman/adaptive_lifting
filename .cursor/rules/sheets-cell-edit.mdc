@@ -1,0 +1,388 @@
+---
+description: PLAN/LOG set-grid keyboard and in-cell string edit — Google Sheets parity subset. Apply when changing performance cells, prescription cells, or session e2e cell helpers.
+alwaysApply: true
+---
+
+# Sheets-parity cell edit (PLAN / LOG grid)
+
+Do **not** implement a spreadsheet. Do **not** add Handsontable, AG Grid, Luckysheet, Univer, FullCalendar, or any grid library. Reimplement the keyboard + in-cell string behavior on the existing `EditablePerformanceCell` instances.
+
+This rule **overrides** `design.md` §11.4 where they conflict (today §11.4 documents click-opens-edit and ArrowUp/Down commit-while-editing). Patch §11.4 in the implementation PR to match this subset. Canonical training values stay **numeric** (`architecture.md`, `numericTraining.ts`); Google Sheets remains **one-way publish**, not this grid (`architecture.md` §14).
+
+Screenshot of the surface: session table with set #, **PLAN kg × reps @ RPE**, copy-plan→log, **LOG kg × reps @ RPE**, Δ, e1RM, INOL, duplicate/delete.
+
+---
+
+## Diagnosis (this checkout — do not re-litigate)
+
+There is **no selected mode**. Desktop click immediately mounts an `<input>`. Navigation is a DOM hack, not a grid state machine. Plan cells are not in the nav graph.
+
+### Why column movement is missing (this is the user-reported gap)
+
+**There is no horizontal nav at all.** Confirm in this checkout before writing code:
+
+1. `EditablePerformanceCell.tsx` `onKeyDown` handles **only** `Enter`, `ArrowDown`, `ArrowUp`, `Escape`. There is **no** `Tab`, `Shift+Tab`, `ArrowLeft`, or `ArrowRight`. Column movement cannot happen.
+2. Vertical nav (Enter / ArrowUp / ArrowDown) uses `document.getElementById(\`cell-${fieldKey}-${rowIndex ± 1}\`).click()`. That id is **column-scoped** (`fieldKey` is the same cell type). It never steps kg→reps→rpe, never crosses PLAN→LOG, and `.click()` **re-enters edit** on the destination.
+3. `PrescriptionEditor.tsx` never passes `rowIndex` (prop is optional). PLAN kg/reps/rpe therefore have **no** `id="cell-…"`. Enter on a PLAN cell commits and stays. PLAN is off the nav graph.
+4. PLAN `fieldKey`s (`"rx-weight"`, `"reps"`, `"targetValue"`) are **not** lift- or row-unique. Even if `rowIndex` were added tomorrow, `getElementById` would collide across lifts/rows.
+5. LOG cells in `ExerciseCard.tsx:361-397` **do** pass `rowIndex={i}` and lift-scoped `fieldKey`s. Only LOG vertical “next same column” works, and only while editing.
+6. Chrome between columns (`×`, `@`, plan→log `ArrowRight` button, RPE/% toggle) are DOM siblings. Any “move to next focusable” that follows the DOM will land on the copy button or the unit toggle. The 6-col matrix must skip them **by address**, not by `nextElementSibling`.
+
+Until PLAN cells get `rowIndex` + lift identity **and** a shared 6-col neighbor function, Tab / Left / Right / Enter-to-next-row will keep failing.
+
+| Location | What it does today | vs Sheets |
+| :--- | :--- | :--- |
+| `src/components/EditablePerformanceCell.tsx:46-52` | Desktop click → `setIsEditing(true)`; mobile → bottom-sheet picker | Sheets: click = **select**; edit starts on F2 / Enter / double-click / type |
+| `EditablePerformanceCell.tsx:81-126` | Uncontrolled `<input defaultValue>` on edit. Enter / ArrowDown commit + `getElementById(...).click()` next row same `fieldKey`; ArrowUp previous; Escape closes without `onChange` | Enter-commit+down is OK **while editing**. Arrows-while-editing must move **caret**, not cells. No Tab / Shift / Left / Right / F2 / type-to-replace / Delete-on-selection. `click()` after move forces edit again |
+| `EditablePerformanceCell.tsx:97,106,115` + `:131,142` | Nav id `cell-${fieldKey}-${rowIndex}` only if `rowIndex` passed | Fragile; duplicate `fieldKey`s collide |
+| `EditablePerformanceCell.tsx:163-266` | Touch/mobile `<768` or `maxTouchPoints>0` → "Quick Adjuster" sheet | **Keep.** Sheets keyboard is **desktop only** (`design.md` §11.4 mobile guard) |
+| `src/components/PrescriptionEditor.tsx:24-52` | PLAN kg / reps / @ use the same cell component. **No `rowIndex`.** `fieldKey`s are `"rx-weight"`, `"reps"`, `"targetValue"` — not unique per row or lift | Plan cells **cannot** move vertically. Testids collide across rows (`e2e` uses `.first()`) |
+| `src/components/ExerciseCard.tsx:301-397` | LOG cells pass `rowIndex={i}` and lift-scoped `fieldKey` (`${id}-actual-weight`, `${id}-reps`, `${id}-executedRpe`). Chrome between cells: `×` `@`, plan→log button, RPE/% toggle, set #, Δ, e1RM, INOL, copy/delete | Only LOG vertical nav works, and only by re-entering edit |
+| `ExerciseCard.tsx:405-417` | e1RM / INOL / Δ are readouts | **Not editable.** Skip in the keyboard grid |
+| Commit | Parent parses with `trainingNumber` / `trainingInt` (`ExerciseCard.tsx:363-389`, `PrescriptionEditor.tsx:26,36,46`). Empty `"---"` coerced to `""` (`EditablePerformanceCell.tsx:32`). Display placeholder `"—"` | Correct storage. Draft must stay a **string** until commit |
+| Range / TSV | No cell range selection. Clipboard in this checkout is **session day/week/block copy** (`src/features/plan/copyClipboard.ts`), plus per-row duplicate-set. No cell TSV in `design.md` | Range select + TSV **out of scope** |
+| `e2e/session.spec.ts:5-11` `typeCell` | `click()` → expect editable → `fill` → `blur` | Will break once click = select. Update helpers |
+| `e2e/helpers.ts:12-17` `fillLogCell` | `#cell-…` click → `input.last()` → fill → Enter | Same |
+| `e2e/reorder.spec.ts:40-42` | click / fill / Enter on `rx-weight` | Same |
+| `design.md` §11.4 | Documents current Enter/ArrowDown commit+click-next | **Stale vs user intent.** This rule wins; update §11.4 in the impl PR |
+| `design.md` §16.2 | "cannot accept freeform text" | Means **do not store / parse prescriptions** (`5x8@8`). In-cell **string draft** of a number is required |
+
+`PrescriptionEditor.tsx` `MovementPatternSelect` is **not** a grid cell.
+
+---
+
+## Refined intent
+
+**In scope:** one lift’s set table as a **6-column keyboard grid** of numeric plan/log cells. Navigation and in-cell typing match Google Sheets for that subset.
+
+**Out of scope:** a general spreadsheet (formulas, fill handle, freeze, sheets/tabs, named ranges, multi-cell range, TSV paste of blocks, merge, format painter).
+
+### What “1:1 string input” means here
+
+Each editable cell is a **single scalar** (kg, reps, or RPE/%), not a formula bar and not a freeform prescription.
+
+While **editing**:
+
+1. Native `<input type="text" inputMode="decimal">` (never `type="number"` — that breaks caret, selection, IME, `-`, `.`).
+2. Draft is a **string**. Caret, Shift+arrows (text selection), Home/End, Ctrl/Cmd+A, Backspace/Delete, undo-in-field behave like a normal text field / Sheets in-cell editor.
+3. IME: if `event.isComposing` or `event.key === 'Process'`, do **not** treat Enter/Tab/Arrows as grid commands. Do not parse the draft to a number until commit.
+4. Empty display is an em dash `"—"`. Edit draft is `""`, never the dash, never `"---"`. Typing on an empty cell starts with the typed character.
+5. **Overwrite vs insert (Sheets):**
+   - Selected + printable → replace contents; draft starts as that character (caret after it).
+   - F2 or Enter (from selected) → insert; keep current value; caret at **end**.
+   - Double-click, or second click on the already-selected cell → insert; caret at click position (end is OK if offset is hard).
+6. **Commit** (Enter / Tab / click-away / move that commits): `trainingNumber` / `trainingInt` in `src/services/numericTraining.ts`. `""` / invalid → `null` → display `"—"`. Reps stay integers **after** commit (`trainingInt`). RPE may be `8.5`. Do **not** parse `5x8@8` in one cell.
+7. **Cancel** (Escape): discard draft; restore previous committed value; stay on the same cell in **selected** mode.
+
+Numeric storage does not change. Only the draft is a string.
+
+---
+
+## Grid model
+
+Per lift `<table>` in `ExerciseCard`, one matrix of **6 columns × N set rows**. Column index is **logical**, not DOM:
+
+| col | address | testid (keep) | skipped chrome after it |
+| :--- | :--- | :--- | :--- |
+| 0 | `plan.kg` | `rx-weight` | `×` |
+| 1 | `plan.reps` | `reps` | `@` |
+| 2 | `plan.rpe` | `targetValue` | RPE/% **toggle** (not a cell) then the plan→log copy **button** (not a cell) |
+| 3 | `log.kg` | `${liftId}-actual-weight` | `×` |
+| 4 | `log.reps` | `${liftId}-reps` | `@` |
+| 5 | `log.rpe` | `${liftId}-executedRpe` | Δ / e1RM / INOL / duplicate / delete (not cells) |
+
+Row index = set index `0..N-1` of **this lift only**. Do **not** jump into another lift’s table.
+
+```
+plan.kg → plan.reps → plan.rpe → log.kg → log.reps → log.rpe
+```
+
+Then (Tab wrap only) next set’s `plan.kg`.
+
+**Not cells** (skip): set index, `×` `@`, plan→log arrow, RPE/% **unit toggle**, Δ, e1RM, INOL, duplicate, delete, lift header, + Set, “use {suggested}”. The unit toggle still clicks as today; keyboard nav skips it.
+
+Locked / readonly rows: not in the grid; no edit; existing disabled chrome stays.
+
+Give every cell a **unique address** for focus: `data-cell-id="{liftId}:{setIndex}:{plan|log}:{kg|reps|rpe}"`. PLAN cells **must** receive `rowIndex` + `liftId` from `ExerciseCard` through `PrescriptionEditor`. Keep existing `data-testid`s so current e2e locators still resolve. Do **not** navigate with `document.getElementById(...).click()`.
+
+---
+
+## Column movement + Enter (LOCKED — do not improvise)
+
+Steal Handsontable’s **split** (`enterMoves` vs `tabMoves` vs `autoWrapRow`) and Univer/Luckysheet’s **two shortcut contexts** (grid vs editor). Do **not** add those libraries. WAI-ARIA APG “Tab exits the grid” is **dropped**: this product uses **Sheets Tab** (move cell, `preventDefault`).
+
+`neighbor()` is a **total** function: it always returns an address. Never `null`. Never creates a set. Never leaves the lift.
+
+```ts
+type Axis = 'plan' | 'log'
+type Field = 'kg' | 'reps' | 'rpe'
+type Address = { liftId: string; row: number; axis: Axis; field: Field } // row = set index
+type MoveKind = 'arrow' | 'tab' | 'enter'
+
+const COLS: ReadonlyArray<{ axis: Axis; field: Field }> = [
+  { axis: 'plan', field: 'kg' },
+  { axis: 'plan', field: 'reps' },
+  { axis: 'plan', field: 'rpe' },
+  { axis: 'log', field: 'kg' },
+  { axis: 'log', field: 'reps' },
+  { axis: 'log', field: 'rpe' },
+]
+```
+
+### Wrap vs clamp (the implementer-miss)
+
+| Key (after commit-if-editing) | Delta | At col 5 / last row | At col 0 / first row |
+| :--- | :--- | :--- | :--- |
+| **ArrowRight / ArrowLeft** (selected only) | `col ± 1`, same row | **Clamp.** ArrowRight on `log.rpe` **stays**. Does **not** wrap to next set. | **Clamp.** ArrowLeft on `plan.kg` **stays**. |
+| **Tab** | same as Right, **then wrap** | `log.rpe` of set `i` → `plan.kg` of set `i+1`. Last set `log.rpe` → **stay** (lift edge). | — |
+| **Shift+Tab** | same as Left, **then wrap** | — | `plan.kg` of set `i` → `log.rpe` of set `i-1`. First set `plan.kg` → **stay**. |
+| **Enter** (while **editing**) | `row + 1`, **same column** | Last row: **stay** on that cell, now **selected**. Do **not** add a set. Do **not** wrap to col 0. | — |
+| **Shift+Enter** (while **editing**) | `row - 1`, **same column** | — | First row: **stay**, now **selected**. |
+| **ArrowUp / ArrowDown** (selected only) | `row ± 1`, same column | Last/first row: **clamp / stay**. | Same. |
+| **Enter / F2** (while **selected**, not editing) | **no move** | Begin **insert-edit** on the same cell. | Same. |
+
+**Tab is not ArrowRight.** Tab wraps to the next set’s `plan.kg`; arrows never wrap. That is Handsontable `tabMoves: {row:0,col:1}` + wrap-within-table, vs Sheets/Handsontable arrows that stop at the edge (`autoWrapRow` applies to Tab here, **not** to arrows).
+
+**Enter is not ArrowDown while editing.** After this spec, arrows-while-editing move the **caret** only. Enter (editing) is the only “commit + down same column” key. Shift+Enter is commit + up.
+
+### Enter (Sheets, not Excel)
+
+User: “when I press enter I should move to the next row usually.”
+
+| Mode | Enter | Shift+Enter |
+| :--- | :--- | :--- |
+| **Selected** | Start insert-edit. Caret at end. **Do not move.** (Sheets / Handsontable `enterBeginsEditing`. Excel “Enter moves down from selected” is **dropped**.) | Same as Enter from selected (begin insert-edit). Do not move. |
+| **Editing** | Commit draft → `trainingNumber`/`trainingInt` → destination **selected** (not editing) **one set down, same column**. Example: editing `plan.kg` set 0 → selected `plan.kg` set 1. | Commit → selected **one set up, same column**. |
+| Last / first row, editing | Commit, **stay** selected on that cell. **Do not** `duplicateSet` / `updateSet` to invent a row. | First row: commit, stay. |
+
+Two Enters on a filled cell (selected → edit → commit+down) is correct Sheets. One Enter while already editing is enough to go down.
+
+### Left / Right across PLAN and LOG
+
+When **selected** (display cell focused, no caret):
+
+- ArrowRight: `plan.kg` → `plan.reps` → `plan.rpe` → **`log.kg`** (skip `×` `@` toggle copy-button) → `log.reps` → `log.rpe` → stay.
+- ArrowLeft: reverse, skip the same chrome.
+
+When **editing**: ArrowLeft/Right/Home/End move caret, including at string edges. They do **not** commit and do **not** change address.
+
+### Tab (commit-if-editing, then Right-with-wrap)
+
+1. If editing: commit, then move. Destination is **selected**.
+2. If selected: move only (do not enter edit).
+3. Sequence on set 0: `plan.kg` → `plan.reps` → `plan.rpe` → `log.kg` → `log.reps` → `log.rpe` → **set 1 `plan.kg`**.
+4. `preventDefault` so focus does not escape to the browser chrome / next lift / sidebar.
+
+Shift+Tab is the reverse wrap.
+
+### Destination mode
+
+After any commit+move or selected-mode move: destination is **selected**, not editing. Do not `.click()` the next cell.
+
+---
+
+## Two modes (steal this split; do not add a library)
+
+Open-source grids (Handsontable keyboard contexts, Luckysheet/Univer editor overlay, WAI-ARIA APG **grid** + roving tabindex) all split:
+
+| Mode | Look | Keys |
+| :--- | :--- | :--- |
+| **Selected** | Focus ring on the display cell (`#007AFF` / `--ok-blue`). No caret. `tabIndex=0` on the active cell, `-1` on others | Arrows move **cell** (clamp, no wrap). Tab / Shift+Tab move cell (**wrap** within the lift). Enter / F2 **begin insert-edit** (no move). Printable **begin overwrite-edit**. Delete / Backspace **clear** to `null`. Ctrl/Cmd+C copies the committed display string (not `"—"` → copy `""`). Ctrl/Cmd+V overwrite-edits then commits on the usual commit keys (or commit immediately on paste — pick one and test). |
+| **Editing** | The `<input>` is focused | Arrows / Home / End move **caret only**, including at string edges — **never** commit-and-move (Sheets-accurate; Excel “Enter mode” is **dropped**). Enter commits + **down same column**. Shift+Enter commits + **up same column**. Tab commits + **right with wrap**. Shift+Tab commits + **left with wrap**. Escape cancels. Delete/Backspace edit the string. |
+
+After commit+move, the destination is **selected**, not editing.
+
+**Click:**
+
+- Click a different editable cell: if editing, **commit** current, **select** the target (do not auto-edit the target).
+- Click already-selected: start insert-edit.
+- Double-click: insert-edit.
+- Click non-cell (sidebar, another control): commit if editing.
+
+**Edges (locked):** arrows clamp (no wrap). Tab wraps within the lift and **stays** on last-set `log.rpe` / first-set `plan.kg`. Enter stays on the last row. Do **not** create sets by navigating off the bottom. Do **not** wrap Enter to `plan.kg`.
+
+**preventDefault** on Tab / Arrows / Enter when the grid owns focus so focus does not escape to the browser chrome.
+
+---
+
+## Keep / drop
+
+| Behavior | Verdict | Rationale |
+| :--- | :--- | :--- |
+| Click = select; double-click / F2 / Enter / printable = start edit | **Keep** | Core Sheets nav. Current click-to-edit is the main mismatch |
+| Esc cancel; Enter commit + down **when editing**; Tab commit + right **with wrap**; Shift reverses | **Keep** | Sheets + Handsontable `enterMoves` / `tabMoves` |
+| Enter / F2 **from selected** = begin insert-edit (not move) | **Keep** | Sheets / Handsontable `enterBeginsEditing` (Excel Enter-from-selected = move is **dropped**) |
+| Arrows move cell when selected (**clamp, no wrap**) | **Keep** | Tab wraps; arrows do not |
+| Tab `log.rpe` → next set `plan.kg`; last-set `log.rpe` stays | **Keep** | Bounded 6-col table. Not Sheets’ infinite columns |
+| WAI-ARIA APG Tab-exits-grid | **Drop** | Product is Sheets Tab (`preventDefault`); Tab must not land on the copy button or next lift |
+| Arrows move caret when editing, **including at edges** | **Keep** | Sheets-accurate. Drop Excel edge-escape and drop current ArrowUp/Down commit |
+| Delete/Backspace clear when selected; edit string when editing | **Keep** | |
+| F2 begin edit; while editing F2 is no-op (no formula range mode) | **Keep** | No formulas in this grid |
+| Home/End in selected = first/last cell of the **row**; in edit = caret | **Keep** | Cheap; 6-col row |
+| Ctrl/Cmd+Arrow to row/col end | **Drop** | Tiny grid; Home/End enough |
+| Shift+arrows **range** select | **Drop** | This grid has no range. Shift+arrows in **edit** still select **text** |
+| Copy/paste **TSV** / fill / Ctrl+D / Ctrl+R | **Drop** | Not in this checkout. Session copy stays `copyClipboard.ts` |
+| Single-cell Ctrl/Cmd+C / V in **selected** mode | **Keep** | Sheets copies the active cell; without this, selected mode copies nothing |
+| Page Up/Down, Ctrl+Home/End sheet jump, freeze, new sheet | **Drop** | |
+| Formulas, `=`, autocomplete, data validation UI | **Drop** | Structured fields only |
+| IME composition guard | **Keep** | Required for 1:1 string input |
+| Mobile quick-adjuster sheet | **Keep** | `design.md` §11.4; do not Sheets-ify touch |
+| `50ms` `setTimeout` + `.click()` nav | **Drop** | Race; replace with focus on the address |
+| Handsontable / AG Grid / Univer / Luckysheet / FullCalendar as deps | **Drop** | Forbidden. Steal **ideas** only |
+| Auto-seed demo sets | **Drop** | Empty plans stay empty |
+
+---
+
+## Ideas to steal (no new deps)
+
+- **Handsontable (ideas only):** `grid` vs `editor` shortcut **contexts**. Map to our modes. Defaults to steal: `enterBeginsEditing: true`, `enterMoves: { row: 1, col: 0 }`, `tabMoves: { row: 0, col: 1 }`. Wrap **Tab** at col 5 → next row col 0 (their `autoWrapRow`, but **only for Tab**, not arrows). Last row + Enter does **not** insert a row. Implement as a **pure reducer**, not `beforeKeyDown`.
+- **Luckysheet:** `Keyboard.js` binds selection keys on the grid and input keys on the in-cell editor overlay. ENTER on selection = enter edit; TAB = move selection right. Steal the split, not the file.
+- **Univer:** separate shortcut modules for editor vs move-selection (`editor.shortcut.ts` vs selection). One reducer with a `mode` discriminant is enough here. Tab must not clear the cell on the way out.
+- **Google Sheets help** ([keyboard shortcuts](https://support.google.com/docs/answer/181110)): F2 edit; Delete clears selection; in-cell arrows are caret; Enter from edit moves down. Ignore formula/range/sheet-tab shortcuts. Infinite-column Tab is **not** our model — we wrap inside the 6-col lift table.
+- **WAI-ARIA APG grid** (and this repo’s `AddLiftBar` listbox): steal **roving `tabIndex`** and `preventDefault` on widget keys. Do **not** steal “Tab leaves the widget”. Do not hijack when another dialog owns focus (`CenteredDialog` already listens for Escape — while **editing a cell**, Escape must cancel the **cell**, not close a parent dialog).
+- **TypeScript skill:** `mode: 'selected' | 'editing'` as a discriminated union; `neighbor()` total (always an `Address`); exhaustive `switch` in the reducer (`const _exhaustive: never = x`).
+- **This repo `AddLiftBar.tsx` `onSearchKeyDown`:** extract keys in one function; grid reducer lives in `src/` as a `.ts` module with vitest, not inline JSX.
+
+---
+
+## Implementation sketch (for the next bot — still no library)
+
+1. Add `src/services/sheetsCellKeyboard.ts` (name OK) with `neighbor(address, dir, kind, rowCount)` **and** `reduceCellKey(state, event) → effects`. State includes `mode: 'selected' | 'editing'`, `composing`. Editing arrows never move cells, so caret-edge flags are unused. Unit-test `neighbor` **before** the React wiring — especially Tab wrap vs Arrow clamp vs Enter same-column.
+2. `EditablePerformanceCell`: selected display (focusable) vs editing input; wire reducer; `onCommit(string)` / `onCancel`; expose `data-cell-id`.
+3. Lift-level focus owner: `PrescriptionEditor` **must** take `rowIndex` + `liftId` (PLAN is currently missing both). `ExerciseCard` owns the 6-col map and `onMove`. Pass identity into every PLAN and LOG cell. One matrix, not two (PLAN-only + LOG-only) graphs.
+4. Commit still goes through existing `updateSet` / `trainingNumber` / `trainingInt`. Do not store strings.
+5. Update `design.md` §11.4 to this subset (click select; arrows in edit = caret; Enter from selected = edit).
+6. Fix e2e helpers: to type a value, **double-click** or click + `F2` / type printable, then fill, then Enter or Tab. Keep `data-testid`s.
+
+Locked / offline / rejected / sync banners stay visible. Do not hide them inside the cell.
+
+---
+
+## Files to edit (implementation PR only)
+
+- `src/services/sheetsCellKeyboard.ts` (**new**) + `src/services/sheetsCellKeyboard.test.ts`
+- `src/components/EditablePerformanceCell.tsx`
+- `src/components/PrescriptionEditor.tsx` (pass identity/`rowIndex`; still not a modal)
+- `src/components/ExerciseCard.tsx` (6-col map, focus move, skip chrome)
+- `design.md` §11.4 only (behavior copy)
+- `e2e/helpers.ts`, `e2e/session.spec.ts`, `e2e/reorder.spec.ts`, **new** `e2e/sheets-cell-edit.spec.ts`
+- Optional: `e2e/offline.spec.ts` if `fillLogCell` changes
+
+Do not refactor calendar, copy grains, add-lift search, Telegram, Sheets publish, or math.
+
+---
+
+## Tests
+
+**Unit (vitest, `src/**/*.test.ts`):** reducer + `neighbor()` at minimum:
+
+- selected + ArrowRight/Left/Up/Down → move, still selected
+- selected + ArrowRight on `plan.kg` → `plan.reps`; on `plan.rpe` → `log.kg` (chrome skipped)
+- selected + ArrowRight on `log.rpe` → **stay** (no wrap)
+- selected + ArrowLeft on `plan.kg` → **stay**
+- selected + Enter / F2 → editing, keep value (overwrite=false), **same address** (no move)
+- selected + `5` → editing, draft replace
+- selected + Backspace/Delete → clear
+- selected + Tab: `plan.kg` → `plan.reps`; `plan.rpe` → `log.kg`; `log.rpe` set0 → `plan.kg` set1
+- selected + Tab on last-set `log.rpe` → **stay**
+- selected + Shift+Tab: reverse wrap (`plan.kg` set1 → `log.rpe` set0; first `plan.kg` stays)
+- editing + Arrow* → `caret` (no move, no commit) even if caretAtStart/End
+- editing + Enter on `plan.kg` row0 → commit + **selected `plan.kg` row1**
+- editing + Enter on last row → commit + **stay** selected last row (no new set)
+- editing + Shift+Enter → up same column; first row stays
+- editing + Tab → commit + right with wrap; Shift+Tab → left with wrap
+- editing + Escape → cancel
+- composing=true + Enter/Tab/Arrow → ignore
+- editing + `a` → not a grid command
+
+**Playwright (desktop):** new `e2e/sheets-cell-edit.spec.ts` on a real session lift with **≥2 sets**. These cases are mandatory (the user-reported gap):
+
+1. Click plan kg → **not** an input; type `1` `8` `0` → editing; Enter → committed `180`, selection on **plan kg of the next set** (`data-cell-id` `…:1:plan:kg`). Not editing.
+2. **Tab kg→reps:** select plan kg set 0, press Tab → selected plan **reps** set 0 (testid `reps` on that row). No input mounted. A second Tab → plan rpe. A third Tab → **log kg** (testid `${id}-actual-weight`). Focus must **not** be the copy-plan→log button.
+3. **Enter from plan kg row1 → plan kg row2:** select plan kg set 0, F2 (or Enter to start edit), type/keep value, Enter → selected plan kg set 1. Same column, next row.
+4. **Left/Right across PLAN and LOG:** select plan rpe, ArrowRight → log kg; ArrowLeft → plan rpe. Select log kg, ArrowLeft → plan rpe (skip copy button).
+5. F2 on a committed plan kg → input shows the value; Escape → still that value, not editing.
+6. Edit log reps, ArrowLeft at start of string **stays in the input**.
+7. Selected + Backspace on a logged kg → `"—"`.
+8. Enter while **selected** (not editing) on plan kg → starts insert-edit on **that** cell; does **not** jump to row 2.
+9. Enter while editing last-set plan kg → stays on last-set plan kg, selected.
+10. Existing `session.spec.ts` / `reorder.spec.ts` / `offline.spec.ts` still pass with updated helpers.
+
+Do not add a component-library screenshot test as a substitute.
+
+---
+
+## Non-goals
+
+- Full spreadsheet, range selection, TSV, formulas
+- Changing backend canonical math, sync, RBAC, locks
+- Parsing prescriptions from one text box
+- Replacing the mobile quick adjuster with a desktop input
+- Auto-seeding sets
+- Using Google Sheets as storage
+
+---
+
+## Acceptance
+
+- [ ] Desktop: click selects; double-click / F2 / Enter / type starts edit.
+- [ ] Editing: string caret/selection/IME; Esc cancels; Enter commits **down same column**; Tab commits **right with wrap**; arrows do not leave the string.
+- [ ] Selected: ArrowLeft/Right cross PLAN↔LOG (skip chrome, **no wrap**); Tab wraps `log.rpe` → next set `plan.kg`; Delete clears.
+- [ ] Enter from **selected** starts insert-edit and **does not move**. Enter on last row stays. No set created by nav.
+- [ ] Commit path still numeric (`null` + `"—"` for empty).
+- [ ] Plan and log both participate (`rowIndex` + `liftId` + unique `data-cell-id`). PLAN cells are in the same matrix as LOG.
+- [ ] Mobile sheet unchanged.
+- [ ] No new grid library.
+- [ ] Unit: Tab kg→reps, Enter plan.kg row0→row1, ArrowRight plan.rpe→log.kg, ArrowRight log.rpe stays, last-row Enter stays.
+- [ ] Playwright: the 10 cases above, plus updated session/reorder/offline helpers.
+- [ ] `design.md` §11.4 updated.
+
+---
+
+## Execution prompt (implementer)
+
+Delta for the bot already building `cursor/sheets-cell-edit-9f4a` (or branching from `cursor/sheets-cell-edit-rule-9f4a`). Full spec is this file. Do **not** skip column movement or Enter-to-next-row.
+
+```md
+Task:
+Implement Google Sheets-parity keyboard + in-cell string edit for the session PLAN/LOG set grid.
+This delta is mandatory: **column movement is currently unimplemented**, and **Enter while editing must move down one set, same column**.
+
+Source of truth:
+- `.cursor/rules/sheets-cell-edit.mdc` (this file) — especially “Why column movement is missing” and “Column movement + Enter (LOCKED)”
+- architecture.md: numeric training values; Sheets publish is one-way (not this grid); no new grid library
+- design.md §11.4 (update it to this rule), §11 mobile guard, §16.2
+- knowledge.md: plan kg typed; structured prescription; web-first session table
+- `.cursor/rules/agent-file-map.mdc` (PLAN/LOG cell keyboard row)
+
+Scope:
+- Branch `cursor/sheets-cell-edit-9f4a` from `cursor/sheets-cell-edit-rule-9f4a` (or continue that impl branch).
+- Edit only the files listed in the rule. No Handsontable/AG Grid/Univer/Luckysheet/FullCalendar as deps.
+- Steal ideas only: Handsontable enterMoves `{row:1,col:0}` / tabMoves `{row:0,col:1}` / enterBeginsEditing; Luckysheet Keyboard.js grid vs editor; Univer editor vs selection shortcuts.
+- Follow AGENTS.md three-layer method + review gate.
+
+Required behavior (do not miss):
+- One 6-col matrix per lift: plan.kg → plan.reps → plan.rpe → log.kg → log.reps → log.rpe.
+- Pass `rowIndex` + `liftId` into `PrescriptionEditor` so PLAN cells join the graph. Unique `data-cell-id`.
+- `neighbor(address, dir, kind, rowCount)` is total. No `getElementById().click()`. Skip × @ copy-button RPE/% toggle.
+- **Tab ≠ ArrowRight.** Tab wraps to next set plan.kg; last-set log.rpe stays. Arrows clamp (no wrap).
+- **Enter while editing** = commit + down same column. Last row stays; do not create a set.
+- **Enter while selected** = insert-edit, no move.
+- Shift+Enter = commit+up. Shift+Tab = reverse wrap.
+- After commit+move, destination is **selected**, not editing.
+- Two modes, string draft, IME guard, numeric commit via trainingNumber/trainingInt.
+
+Required UI states:
+- loading/empty session unchanged
+- locked/readonly: no edit, not in grid
+- offline/sync/rejected banners still visible
+- permission denied unchanged
+
+Verification (these tests are the contract):
+- Unit `neighbor`: Tab plan.kg → plan.reps; Tab plan.rpe → log.kg; Tab log.rpe set0 → plan.kg set1; ArrowRight log.rpe stays; editing Enter plan.kg row0 → plan.kg row1; last-row Enter stays.
+- Playwright `e2e/sheets-cell-edit.spec.ts`: Tab kg→reps; Enter plan kg row1→row2; Left/Right across PLAN and LOG; Enter-from-selected does not move.
+- `npm test`, `npm run lint`, session/reorder/offline e2e with updated helpers.
+- Commit and push as you go. ManagePullRequest if available; else push and report.
+
+Do not implement anything beyond that spec.
+```
