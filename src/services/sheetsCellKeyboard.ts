@@ -3,6 +3,7 @@
 export type CellMode = 'selected' | 'editing';
 
 export type GridMove = 'left' | 'right' | 'up' | 'down' | 'rowStart' | 'rowEnd';
+export type NeighborDir = GridMove;
 
 export type Axis = 'plan' | 'log';
 export type Field = 'kg' | 'reps' | 'rpe';
@@ -86,6 +87,8 @@ export function addressAt(liftId: string, row: number, col: number): Address {
   const spec = COLS[col];
   return { liftId, row, axis: spec.axis, field: spec.field };
 }
+
+export const addressFrom = addressAt;
 
 export function makeCellId(liftId: string, row: number, col: number): string {
   const spec = COLS[col];

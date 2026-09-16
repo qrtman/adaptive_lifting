@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addressFrom,
   cellIdOf,
-  colOf,
   makeCellId,
   neighbor,
   parseCellId,
@@ -31,7 +29,14 @@ function key(partial: Partial<CellKeyEventLike> & { key: string }): CellKeyEvent
   };
 }
 
-const lift = (row: number, col: number): Address => addressFrom('e-1', row, col);
+function addr(
+  row: number,
+  axis: Address['axis'],
+  field: Address['field'],
+  liftId = 'lift-1',
+): Address {
+  return { liftId, row, axis, field };
+}
 
 describe('reduceCellKey selected', () => {
   it('moves with arrows and stays selected', () => {
@@ -94,7 +99,7 @@ describe('reduceCellKey selected', () => {
     });
   });
 
-  it('Tab / Shift+Tab move with tab kind', () => {
+  it('Tab / Shift+Tab move with tab kind (not arrow)', () => {
     expect(reduceCellKey(selected, key({ key: 'Tab' }))).toEqual({
       type: 'move',
       direction: 'right',
@@ -105,6 +110,21 @@ describe('reduceCellKey selected', () => {
       type: 'move',
       direction: 'left',
       kind: 'tab',
+      preventDefault: true,
+    });
+  });
+
+  it('Home / End move to row ends', () => {
+    expect(reduceCellKey(selected, key({ key: 'Home' }))).toEqual({
+      type: 'move',
+      direction: 'rowStart',
+      kind: 'arrow',
+      preventDefault: true,
+    });
+    expect(reduceCellKey(selected, key({ key: 'End' }))).toEqual({
+      type: 'move',
+      direction: 'rowEnd',
+      kind: 'arrow',
       preventDefault: true,
     });
   });
@@ -129,7 +149,7 @@ describe('reduceCellKey editing', () => {
     }
   });
 
-  it('Enter commits + down same column; Shift+Enter commits + up', () => {
+  it('Enter commits + down; Shift+Enter commits + up', () => {
     expect(reduceCellKey(editing, key({ key: 'Enter' }))).toEqual({
       type: 'commit',
       move: 'down',
@@ -144,7 +164,7 @@ describe('reduceCellKey editing', () => {
     });
   });
 
-  it('Tab commits + right with wrap; Shift+Tab left with wrap', () => {
+  it('Tab commits + right; Shift+Tab commits + left', () => {
     expect(reduceCellKey(editing, key({ key: 'Tab' }))).toEqual({
       type: 'commit',
       move: 'right',
@@ -192,8 +212,8 @@ describe('reduceCellKey composing', () => {
   });
 });
 
-describe('neighbor', () => {
-  it('encodes lift:row:axis:field', () => {
+describe('grid addresses', () => {
+  it('encodes lift:row:axis:field and parses back', () => {
     const id = makeCellId('e-1', 2, 3);
     expect(id).toBe('e-1:2:log:kg');
     expect(parseCellId(id)).toEqual({
@@ -203,53 +223,74 @@ describe('neighbor', () => {
       field: 'kg',
       col: 3,
     });
-    expect(cellIdOf(lift(0, 0))).toBe('e-1:0:plan:kg');
+    expect(cellIdOf({ liftId: 'e-1', row: 2, axis: 'log', field: 'kg' })).toBe(id);
+  });
+});
+
+describe('neighbor (Tab wrap vs arrow clamp vs Enter same-column)', () => {
+  it('Tab plan.kg → plan.reps', () => {
+    expect(neighbor(addr(0, 'plan', 'kg'), 'right', 'tab', 2)).toEqual(addr(0, 'plan', 'reps'));
   });
 
-  it('ArrowRight on plan.kg → plan.reps; plan.rpe → log.kg (chrome skipped)', () => {
-    expect(neighbor(lift(0, 0), 'right', 'arrow', 2)).toEqual(lift(0, 1));
-    expect(neighbor(lift(0, 2), 'right', 'arrow', 2)).toEqual(lift(0, 3));
-    expect(colOf(neighbor(lift(0, 2), 'right', 'arrow', 2))).toBe(3);
+  it('Tab plan.rpe → log.kg (skips chrome)', () => {
+    expect(neighbor(addr(0, 'plan', 'rpe'), 'right', 'tab', 2)).toEqual(addr(0, 'log', 'kg'));
   });
 
-  it('ArrowRight on log.rpe stays (no wrap)', () => {
-    expect(neighbor(lift(0, 5), 'right', 'arrow', 2)).toEqual(lift(0, 5));
-    expect(neighbor(lift(1, 5), 'right', 'arrow', 2)).toEqual(lift(1, 5));
-  });
-
-  it('ArrowLeft on plan.kg stays', () => {
-    expect(neighbor(lift(0, 0), 'left', 'arrow', 2)).toEqual(lift(0, 0));
-  });
-
-  it('Tab plan.kg → plan.reps; plan.rpe → log.kg; log.rpe set0 → plan.kg set1', () => {
-    expect(neighbor(lift(0, 0), 'right', 'tab', 2)).toEqual(lift(0, 1));
-    expect(neighbor(lift(0, 2), 'right', 'tab', 2)).toEqual(lift(0, 3));
-    expect(neighbor(lift(0, 5), 'right', 'tab', 2)).toEqual(lift(1, 0));
+  it('Tab log.rpe set0 → plan.kg set1', () => {
+    expect(neighbor(addr(0, 'log', 'rpe'), 'right', 'tab', 2)).toEqual(addr(1, 'plan', 'kg'));
   });
 
   it('Tab on last-set log.rpe stays', () => {
-    expect(neighbor(lift(1, 5), 'right', 'tab', 2)).toEqual(lift(1, 5));
+    expect(neighbor(addr(1, 'log', 'rpe'), 'right', 'tab', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 
-  it('Shift+Tab reverse wrap; first plan.kg stays', () => {
-    expect(neighbor(lift(1, 0), 'left', 'tab', 2)).toEqual(lift(0, 5));
-    expect(neighbor(lift(0, 0), 'left', 'tab', 2)).toEqual(lift(0, 0));
+  it('Shift+Tab wraps: plan.kg set1 → log.rpe set0; first plan.kg stays', () => {
+    expect(neighbor(addr(1, 'plan', 'kg'), 'left', 'tab', 2)).toEqual(addr(0, 'log', 'rpe'));
+    expect(neighbor(addr(0, 'plan', 'kg'), 'left', 'tab', 2)).toEqual(addr(0, 'plan', 'kg'));
   });
 
-  it('editing Enter plan.kg row0 → plan.kg row1; last row stays', () => {
-    expect(neighbor(lift(0, 0), 'down', 'enter', 2)).toEqual(lift(1, 0));
-    expect(neighbor(lift(1, 0), 'down', 'enter', 2)).toEqual(lift(1, 0));
-    expect(neighbor(lift(0, 3), 'down', 'enter', 2)).toEqual(lift(1, 3));
+  it('ArrowRight plan.kg → plan.reps; plan.rpe → log.kg', () => {
+    expect(neighbor(addr(0, 'plan', 'kg'), 'right', 'arrow', 2)).toEqual(addr(0, 'plan', 'reps'));
+    expect(neighbor(addr(0, 'plan', 'rpe'), 'right', 'arrow', 2)).toEqual(addr(0, 'log', 'kg'));
+  });
+
+  it('ArrowRight on log.rpe stays (no wrap)', () => {
+    expect(neighbor(addr(0, 'log', 'rpe'), 'right', 'arrow', 2)).toEqual(addr(0, 'log', 'rpe'));
+    expect(neighbor(addr(1, 'log', 'rpe'), 'right', 'arrow', 2)).toEqual(addr(1, 'log', 'rpe'));
+  });
+
+  it('ArrowLeft on plan.kg stays', () => {
+    expect(neighbor(addr(0, 'plan', 'kg'), 'left', 'arrow', 2)).toEqual(addr(0, 'plan', 'kg'));
+    expect(neighbor(addr(1, 'plan', 'kg'), 'left', 'arrow', 2)).toEqual(addr(1, 'plan', 'kg'));
+  });
+
+  it('ArrowUp / ArrowDown clamp same column', () => {
+    expect(neighbor(addr(0, 'log', 'kg'), 'down', 'arrow', 2)).toEqual(addr(1, 'log', 'kg'));
+    expect(neighbor(addr(1, 'log', 'kg'), 'down', 'arrow', 2)).toEqual(addr(1, 'log', 'kg'));
+    expect(neighbor(addr(0, 'plan', 'reps'), 'up', 'arrow', 2)).toEqual(addr(0, 'plan', 'reps'));
+    expect(neighbor(addr(1, 'plan', 'rpe'), 'up', 'arrow', 2)).toEqual(addr(0, 'plan', 'rpe'));
+  });
+
+  it('editing Enter plan.kg row0 → plan.kg row1', () => {
+    const effect = reduceCellKey(editing, key({ key: 'Enter' }));
+    expect(effect).toMatchObject({ type: 'commit', move: 'down', kind: 'enter' });
+    expect(neighbor(addr(0, 'plan', 'kg'), 'down', 'enter', 2)).toEqual(addr(1, 'plan', 'kg'));
+  });
+
+  it('last-row Enter stays (no new set)', () => {
+    expect(neighbor(addr(1, 'plan', 'kg'), 'down', 'enter', 2)).toEqual(addr(1, 'plan', 'kg'));
+    expect(neighbor(addr(1, 'log', 'rpe'), 'down', 'enter', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 
   it('Shift+Enter up same column; first row stays', () => {
-    expect(neighbor(lift(1, 2), 'up', 'enter', 2)).toEqual(lift(0, 2));
-    expect(neighbor(lift(0, 2), 'up', 'enter', 2)).toEqual(lift(0, 2));
+    const effect = reduceCellKey(editing, key({ key: 'Enter', shiftKey: true }));
+    expect(effect).toMatchObject({ type: 'commit', move: 'up', kind: 'enter' });
+    expect(neighbor(addr(1, 'plan', 'kg'), 'up', 'enter', 2)).toEqual(addr(0, 'plan', 'kg'));
+    expect(neighbor(addr(0, 'plan', 'kg'), 'up', 'enter', 2)).toEqual(addr(0, 'plan', 'kg'));
   });
 
-  it('ArrowUp/Down clamp same column', () => {
-    expect(neighbor(lift(0, 4), 'down', 'arrow', 2)).toEqual(lift(1, 4));
-    expect(neighbor(lift(1, 4), 'down', 'arrow', 2)).toEqual(lift(1, 4));
-    expect(neighbor(lift(0, 4), 'up', 'arrow', 2)).toEqual(lift(0, 4));
+  it('Home / End stay on the same row', () => {
+    expect(neighbor(addr(1, 'log', 'kg'), 'rowStart', 'arrow', 2)).toEqual(addr(1, 'plan', 'kg'));
+    expect(neighbor(addr(1, 'plan', 'reps'), 'rowEnd', 'arrow', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 });
