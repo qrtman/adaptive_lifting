@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { Page, Locator } from '@playwright/test';
 
 export async function signInCoach(page: Page, prefs: Record<string, string> = {}) {
   await page.addInitScript((extra: Record<string, string>) => {
@@ -9,11 +9,24 @@ export async function signInCoach(page: Page, prefs: Record<string, string> = {}
   }, prefs);
 }
 
+/** Click selects. Start insert-edit (F2) before fill/type. */
+export async function startCellEdit(cell: Locator) {
+  await cell.click();
+  const tag = await cell.evaluate((el) => el.tagName.toLowerCase());
+  if (tag !== 'input') {
+    await cell.press('F2');
+  }
+}
+
+export async function fillEditableCell(cell: Locator, value: string | number) {
+  await startCellEdit(cell);
+  await cell.fill(String(value));
+}
+
 export async function fillLogCell(page: Page, cellId: string, value: string | number) {
-  await page.locator(`#${cellId}`).click();
-  const input = page.locator('input').last();
-  await input.fill(String(value));
-  await input.press('Enter');
+  const cell = page.locator(`#${cellId}`);
+  await fillEditableCell(cell, value);
+  await cell.press('Enter');
 }
 
 export async function html5Drag(page: Page, sourceTestId: string, targetTestId: string) {

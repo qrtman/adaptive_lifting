@@ -1,12 +1,11 @@
 import { expect, test, type Locator } from '@playwright/test';
+import { fillEditableCell } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
 async function typeCell(cell: Locator, value: string) {
   await cell.page().keyboard.press('Escape');
-  await cell.click();
-  await expect(cell).toBeEditable();
-  await cell.fill(value);
+  await fillEditableCell(cell, value);
   await cell.blur();
 }
 
