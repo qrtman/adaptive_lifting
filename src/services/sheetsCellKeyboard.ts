@@ -188,8 +188,10 @@ export function reduceCellKey(state: CellKeyState, event: CellKeyEventLike): Cel
   const shift = !!event.shiftKey;
   const ctrl = !!event.ctrlKey || !!event.metaKey;
 
-  if (composing && (ARROWS.has(key) || key === 'Enter' || key === 'Tab' || key === 'Escape')) {
-    return { type: 'ignore' };
+  if (composing) {
+    if (event.key === 'Process' || ARROWS.has(key) || key === 'Enter' || key === 'Tab' || key === 'Escape') {
+      return { type: 'ignore' };
+    }
   }
 
   if (state.mode === 'selected') {
