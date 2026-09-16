@@ -85,7 +85,7 @@ There is no ComboBox in tree. Add a small one (new file or next to `LabelCombo.t
 
 ### New session (`NewSessionDialog`)
 
-Layout: **Name** ComboBox (full width, required) → Date only if `allowDateEdit` → **Day · Block · Week** as one compact 3-column row (same control height, tight gap). Calendar hover already puts the date in the dialog title (`New session · YYYY-MM-DD`); do not duplicate a date field on that path. Actions stay at the bottom. Compact: less space between Name and the slot row than stacked sections.
+Layout: **Name** ComboBox (full width, required) → Date only if `allowDateEdit` → **Day · Block · Week** as one compact 3-column row (same control height, tight gap). Calendar hover already puts the date in the dialog title (`New session · YYYY-MM-DD`); do not duplicate a date field on that path. Actions stay at the bottom. Compact: less space between Name and the slot row than stacked sections. At ~360px, if three columns clip labels, stack as Name → Day full width → Block|Week on one row.
 
 Prefill when the dialog opens (athlete id = linked athlete for coach, else current user — same as `setRecentBlock`):
 

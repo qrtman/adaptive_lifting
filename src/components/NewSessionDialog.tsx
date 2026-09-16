@@ -145,37 +145,39 @@ export function NewSessionDialog({
             />
           </label>
         )}
-        <div
-          data-testid="new-session-slot-row"
-          className="grid grid-cols-3 gap-1.5 items-start min-w-0"
-        >
-          <div className="min-w-0">
-            <ComboBox
-              label="Day"
-              value={dayInput}
-              onChange={setDayInput}
-              options={dayOptions}
-              placeholder="Day 1…"
-              testId="new-session-day"
-            />
-          </div>
-          <div className="min-w-0">
-            <LabelCombo
-              label="Block (optional)"
-              value={blockLabel}
-              onChange={setBlockLabel}
-              options={blockOptions}
-              testId="new-session-block"
-            />
-          </div>
-          <div className="min-w-0">
-            <LabelCombo
-              label="Week (optional)"
-              value={weekLabel}
-              onChange={setWeekLabel}
-              options={weekOptions}
-              testId="new-session-week"
-            />
+        <div className="@container min-w-0">
+          <div
+            data-testid="new-session-slot-row"
+            className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
+          >
+            <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
+              <ComboBox
+                label="Day"
+                value={dayInput}
+                onChange={setDayInput}
+                options={dayOptions}
+                placeholder="Day 1…"
+                testId="new-session-day"
+              />
+            </div>
+            <div className="min-w-0">
+              <LabelCombo
+                label="Block (optional)"
+                value={blockLabel}
+                onChange={setBlockLabel}
+                options={blockOptions}
+                testId="new-session-block"
+              />
+            </div>
+            <div className="min-w-0">
+              <LabelCombo
+                label="Week (optional)"
+                value={weekLabel}
+                onChange={setWeekLabel}
+                options={weekOptions}
+                testId="new-session-week"
+              />
+            </div>
           </div>
         </div>
         {error && <p data-testid="new-session-error" className="text-xs text-[#FF453A]">{error}</p>}

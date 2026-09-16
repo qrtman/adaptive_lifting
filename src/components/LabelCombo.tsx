@@ -84,7 +84,7 @@ export function LabelCombo({
 
   return (
     <label className="flex w-full min-w-0 flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4 truncate">{label}</span>
+      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4">{label}</span>
       <select
         data-testid={testId}
         value={selectValue}

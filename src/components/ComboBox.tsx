@@ -76,7 +76,7 @@ export function ComboBox({
 
   return (
     <label className="flex w-full min-w-0 flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4 truncate">{label}</span>
+      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4">{label}</span>
       <div className="relative min-w-0">
         <input
           data-testid={testId}
@@ -99,7 +99,7 @@ export function ComboBox({
           }}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
-          className="h-8 w-full px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+          className="h-8 w-full min-w-0 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
         />
         {open && filtered.length > 0 ? (
           <div
