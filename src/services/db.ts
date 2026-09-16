@@ -130,6 +130,20 @@ export async function getPendingMutations(workout_id?: string): Promise<SyncMuta
   });
 }
 
+export async function countMutationsByStatus(status: SyncMutation['status']): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('mutations', 'readonly');
+    const store = tx.objectStore('mutations');
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const all = req.result as SyncMutation[];
+      resolve(all.filter((m) => m.status === status).length);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function updateMutationStatus(mutation_id: string, status: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
