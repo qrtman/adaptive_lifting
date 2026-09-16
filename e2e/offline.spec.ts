@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { fillLogCell } from './helpers';
 
+test.use({ baseURL: 'http://localhost:3000' });
+
 test('queues a set offline and flushes it when the network returns', async ({ page, context, request }) => {
   const email = `offline-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
@@ -15,10 +17,13 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Sessions' }).click();
+  await expect(page.getByTestId('sessions-add')).toBeVisible();
   await page.getByTestId('sessions-add').click();
+  await expect(page.getByTestId('new-session-dialog')).toBeVisible();
   await page.getByTestId('new-session-date').fill('2026-09-12');
   await page.getByTestId('new-session-title').fill('Offline log day');
   await page.getByTestId('new-session-create').click();
+  await expect(page.getByTestId('new-session-dialog')).toHaveCount(0, { timeout: 10_000 });
   const card = page.locator('[data-testid^="sessions-card-"]');
   await expect(card).toHaveCount(1, { timeout: 10_000 });
   await card.locator('button').first().click();
