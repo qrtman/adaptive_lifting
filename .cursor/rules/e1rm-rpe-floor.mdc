@@ -1,0 +1,246 @@
+---
+description: e1RM RPE floor — RPE 5 counts; RPE < 5.0 clamps to 5.0. Apply when changing math_utils, mathEngine, math_vectors, or LOG e1RM readout.
+alwaysApply: true
+---
+
+# e1RM RPE floor (RPE 5 counts)
+
+Do **not** add a second e1RM formula on the client. Do **not** add Helms/Brzycki/Liftosaur libraries. Canonical math stays **RPE-compensated linear decay** in `backend/math_utils.py` and `src/services/mathEngine.ts`, pinned by `MATH_VERSION` + `tests/math_vectors.json`. Sync **409**s on mismatch (`architecture.md` §10.2).
+
+Source of truth for the formula family: `architecture.md` §6.2. This rule **overrides** §6.2.1 “Reliability Fallback” (`RPE < 6.0` → return load). Patch §6.2.1 (and §12.1 test list) in the implementation PR.
+
+Screenshot of the bug: LOG `150 kg × 6 reps @ RPE 5`, e1RM shows **150**.
+
+---
+
+## Diagnosis (this checkout — do not re-litigate)
+
+The e1RM is 150 because the **formula never runs**. It is not a rounding bug, not planned-vs-executed mixup, and not a display-only cap.
+
+### Why 150×6 @ RPE 5 displays 150
+
+Confirm in this checkout before writing code:
+
+1. `backend/math_utils.py` `calculate_e1rm_linear_decay`:
+   ```
+   if rpe < 6.0 or reps > 12:
+       return weight
+   ```
+2. `src/services/mathEngine.ts` `calculateE1RM` is a byte-for-byte mirror of that guard (`rpe < 6.0 || reps > 12`).
+3. `tests/math_vectors.json` pins the skip: `{ "weight": 100, "reps": 5, "rpe": 5.5, "expected": 100 }` and the matching `sets[]` row (`e1rm: 100`, `intensity_pct: 100`, `inol: 5`).
+4. `architecture.md` §6.2.1 **Reliability Fallback** documents that skip as intentional (“physiologically unreliable”).
+5. LOG readout uses **executed** RPE only:
+   ```
+   ExerciseCard.tsx: weight = set.actual; reps = set.reps; rpe = set.executedRpe;
+   e1RM = calculateE1RM(weight, reps, rpe);
+   ```
+   Display is `Math.round(e1RM)` (`data-testid="set-e1rm-${set.id}"`). So 150.00 → **150**.
+
+There is no separate “RPE 6 table lookup” on the e1RM path. `RPE_CHART` in `mathEngine.ts` starts at RPE 6 and is used by `getRpePercentage` / `calculateCapacityScaledWeight` (prescription % of e1RM), **not** by `calculateE1RM`. Do not extend that chart in this PR.
+
+`calculateWeightFromE1RM` (client inverse, plan-kg suggestion) has the **same** `rpe < 6.0` early return (`return e1RM`). It must follow the new floor so a logged RPE 5 set can suggest later plan kg.
+
+Backend persist/analytics (`backend/main.py`, `analytics_service.py`) call `calculate_e1rm(wt, rp, executedRpe or plannedRpe)`. Clamp belongs **inside** `calculate_e1rm`, so every caller is fixed at once.
+
+---
+
+## Refined intent
+
+**In scope:** change the **input RPE** the existing linear-decay formula sees. RPE 5 must produce a real e1RM **> load** for multi-rep sets. RPE below 5.0 uses the **same formula result as RPE 5.0**.
+
+**Out of scope:** new %1RM tables, Brzycki/Epley, lifting the 25% metabolic drop cap, changing `RPE_CHART`, Insights client math, Sheets publish, Telegram.
+
+### Locked decisions
+
+| Decision | Verdict | Why |
+| :--- | :--- | :--- |
+| Formula family | **Keep** linear decay `e1RM = weight / (1 - 0.03 * (10 - rpe + reps - 1))` with 25% drop cap | Canonical; do not invent a second formula |
+| Floor | **`E1RM_RPE_FLOOR = 5.0`** (not 5.5, not 6.0) | User’s logged RPE **5** must run the formula at 5.0. 5.5 is a valid 0.5 step **above** the floor |
+| 0.5 steps below 5 | **`0 < rpe < 5.0` → formula RPE = 5.0** | 4.5, 4.0, 3.5, … all equal RPE 5.0. Cleaner than “≤ 4” which would leave 4.5 as a hole |
+| RPE 5.5 | **Use 5.5** (no clamp) | Half-step above the floor; linear decay is continuous |
+| Missing RPE | **`rpe <= 0` still returns `weight`** (do **not** clamp 0 to 5) | Empty LOG RPE must not invent an e1RM as if it were RPE 5 |
+| `reps > 12` | **Unchanged** — return `weight` | Independent reliability guard |
+| Persist clamp? | **No.** Store the athlete’s 4.0. Clamp only the formula input | Numeric RPE stays the logged value |
+| Which RPE is the input? | **Executed RPE** for the LOG e1RM column | `ExerciseCard` already uses `set.executedRpe`. Planned RPE is prescription, not the log projection. Backend may fall back to `plannedRpe` when executed is null — that value still goes through the same clamp |
+| `MATH_VERSION` | **Bump** `linear-decay-v1` → **`linear-decay-v2`** | Outputs change for `0 < rpe < 6`. Sync 409 is the contract. Do **not** skip the bump because “only the floor changed” |
+| 25% drop cap | **Keep** | 150×6 @ RPE 5 hits the cap → **200.00**, not ~214. That is still ≠ 150. Do not lift the cap in this PR |
+| `RPE_CHART` / Helms table | **Do not add RPE 5 rows** | e1RM is linear decay, not a lookup. No new math libraries |
+
+### Clamp (locked)
+
+```text
+if weight <= 0 or reps <= 0: return 0
+if reps > 12: return weight
+if rpe <= 0: return weight          # missing RPE ≠ RPE 5
+formula_rpe = rpe if rpe >= 5.0 else 5.0
+# existing drop math using formula_rpe (25% cap, denom guard, round 2 dp)
+```
+
+Named constant in **both** engines: `E1RM_RPE_FLOOR = 5.0`. Do not leave a stray `6.0` on the e1RM path. Apply the same clamp in `calculateWeightFromE1RM`.
+
+### Worked numbers (contract)
+
+Existing 25% cap still applies: `effective_drop = min(0.03 * (10 - formula_rpe + reps - 1), 0.25)`.
+
+| weight | reps | logged RPE | formula RPE | e1RM | note |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 150 | 6 | 5.0 | 5.0 | **200.00** | user screenshot; drop 0.30 → cap 0.25; UI rounds to **200** |
+| 150 | 6 | 4.0 | 5.0 | **200.00** | == @5 |
+| 150 | 6 | 4.5 | 5.0 | **200.00** | 0.5 step below floor |
+| 150 | 6 | 5.5 | 5.5 | **200.00** | also capped; still ≠ 150 |
+| 150 | 6 | 6.0 | 6.0 | **200.00** | already computed today |
+| 150 | 6 | 0 / null | — | **150.00** | missing RPE: still load |
+| 100 | 5 | 5.5 | 5.5 | **133.33** | **replaces** vector `expected: 100` |
+| 100 | 3 | 5.0 | 5.0 | **126.58** | 5.0 ≠ 5.5 (uncapped) |
+| 100 | 3 | 5.5 | 5.5 | **124.22** | proves 5.5 is not clamped to 5.0 |
+| 100 | 3 | 4.0 | 5.0 | **126.58** | == @5 |
+| 100 | 5 | 9.0 | 9.0 | 117.65 | unchanged |
+| 100 | 1 | 10.0 | 10.0 | 100.00 | unchanged |
+
+INOL follows e1RM (intensity = weight/e1rm×100). The old `sets[]` row for 100×5 @ 5.5 (`intensity_pct: 100`, `inol: 5`) becomes `e1rm: 133.33`, `intensity_pct: 75`, `inol: 0.2`.
+
+---
+
+## Ideas to steal (no new deps)
+
+- **Helms / Zourdos RIR charts** (published %1RM tables): RPE 5 and 5.5 are real cells (e.g. 6 @ RPE 5 ≈ 58% 1RM → e1RM well above load). Steal the **product fact** “RPE 5 counts”. Do **not** copy the table into this repo.
+- **Tuchscherer RTS charts**: often published from RPE **6–10**. That is why this codebase’s `RPE_CHART` and the old §6.2.1 fallback start at 6. Steal the insight, then **override** it for logged backoff sets: RTS “warm-up / no stimulus” is not a reason to show e1RM = load.
+- **Helms noise below ~RPE 5**: charts that go to 4.5 get sparse. Steal **clamp to 5.0**, do not invent RPE 1–4 rows.
+- **TypeScript skill (named constant, no magic 6.0 left behind):** `E1RM_RPE_FLOOR = 5.0` in `mathEngine.ts` and `math_utils.py`. Clamp is a pure total function of `(weight, reps, rpe)` — do not persist a rewritten RPE.
+- **This repo:** keep `MATH_VERSION` + `tests/math_vectors.json` as the only cross-language pin. Client preview until server e1RM returns (`architecture.md` §3.1). Insights cards stay on backend `math_utils` — they pick up the floor automatically.
+
+Forbidden deps: `brzycki`, `epley`, Liftosaur cores, OpenPowerlifting calculators, extra npm/pip math packages.
+
+---
+
+## Keep / drop
+
+| Behavior | Verdict |
+| :--- | :--- |
+| Linear decay + 25% drop cap + denom guard + 2-decimal round | **Keep** |
+| `reps > 12` → return weight | **Keep** |
+| `weight <= 0` or `reps <= 0` → 0 | **Keep** |
+| `rpe < 6.0` → return weight | **Drop** |
+| `0 < rpe < 5.0` clamp to 5.0 | **Keep** (new) |
+| RPE 5.0 / 5.5 run as entered | **Keep** (new) |
+| `rpe <= 0` → return weight | **Keep** |
+| Persist athlete RPE unchanged | **Keep** |
+| Executed RPE drives LOG e1RM | **Keep** |
+| `RPE_CHART` RPE 6–10 for prescription % | **Keep** (do not extend) |
+| Helms/Brzycki library | **Drop** |
+| Auto-seed demo sets for the e2e | **Drop** — create a real session like other e2e |
+
+---
+
+## Files to edit (implementation PR only)
+
+- `backend/math_utils.py` — floor + `MATH_VERSION = "linear-decay-v2"` + `E1RM_RPE_FLOOR`
+- `src/services/mathEngine.ts` — same floor, same version, `calculateWeightFromE1RM`
+- `tests/math_vectors.json` — version + replace the 5.5-returns-load vector; add 150×6 @5 / @4, 100×3 @5 / @5.5 / @4
+- `backend/test_math.py` — drop “RPE < 6 fallback == weight”; assert 150×6@5 == 200 and @4 == @5
+- `src/services/mathEngine.test.ts` — still driven by vectors (add a direct 150×6@5 / @4 equality if useful)
+- `tests/test_math_vectors.py` — no logic change if vectors are updated
+- `architecture.md` §6.2.1, §12.1, any `linear-decay-v1` example (`§10.2`, §13)
+- `knowledge.md` math-pin version string
+- Hardcoded `linear-decay-v1` **asserts that must match the live constant**: `backend/test_analytics.py`, `src/services/sync_engine.test.ts`. Prefer `MATH_VERSION` / imported constant over a new hardcoded `v2` where easy.
+- **New** `e2e/e1rm-rpe-floor.spec.ts`
+
+Do not refactor ExerciseCard layout, Sheets keyboard, add-lift search, Telegram, or Insights chart components. LOG display can stay `Math.round(e1RM)`.
+
+`src/insights/charts/renderFromFixture.test.ts` uses a **fixture** `math_version: 'linear-decay-v1'` that is **not** asserted against `MATH_VERSION`. Leave it unless a test starts comparing them.
+
+---
+
+## Tests
+
+**Vectors / unit (required):**
+
+- `MATH_VERSION` matches `math_vectors.json` in Python and Vitest.
+- 150 × 6 @ **5.0** → **200.00** (≠ 150).
+- 150 × 6 @ **4.0** → **same as @ 5.0**.
+- 150 × 6 @ **0** → **150** (missing RPE).
+- 100 × 5 @ **5.5** → **133.33** (old vector `100` is now wrong).
+- 100 × 3 @ **5.0** → **126.58**; @ **5.5** → **124.22** (5.5 not clamped); @ **4.0** → **126.58**.
+- Existing RPE 9 / RPE 10 / reps>12 / zero weight cases unchanged.
+- `setPreviewMetrics` INOL/intensity for the updated 5.5 set row.
+- `calculateWeightFromE1RM` at RPE 5 does **not** return the raw e1RM (old `< 6` shortcut).
+
+**Playwright (required):** new `e2e/e1rm-rpe-floor.spec.ts` — real athlete session, add a lift, log on set 0 (use `fillEditableCell` / existing helpers; click-select + F2). `data-testid` starts with `set-e1rm-`.
+
+1. Log **150 × 6 @ 5** → e1RM text is **not** `150` (expect `200`).
+2. Change executed RPE to **4** → e1RM **equals** the @5 value.
+3. Clear executed RPE to empty / `—` (optional) → e1RM back to load **150**, proving we do not clamp 0 to 5.
+
+Do not auto-seed demo microcycles.
+
+---
+
+## Non-goals
+
+- New e1RM equation or Helms lookup
+- Changing the 25% metabolic cap or reps>12 guard
+- Extending `RPE_CHART` to RPE 5
+- Using planned RPE for the LOG e1RM column
+- Persisting clamped RPE
+- Skipping `MATH_VERSION` bump
+- Insights client-side RTS math
+- Grid keyboard / add-lift / Sheets publish
+
+---
+
+## Acceptance
+
+- [ ] 150×6 @ RPE 5 e1RM is **200** (preview + canonical), not 150.
+- [ ] 150×6 @ RPE 4 e1RM **equals** @ RPE 5.
+- [ ] RPE 5.5 is **not** forced to 5.0 (100×3 distinguishes them).
+- [ ] Empty RPE still falls back to load.
+- [ ] Python and TS stay bit-identical; vectors updated; `MATH_VERSION` is `linear-decay-v2` in py, ts, json, and sync tests.
+- [ ] Sync still 409s on mismatch (`test_sync_rejects_math_version_mismatch`).
+- [ ] architecture.md §6.2.1 matches this floor.
+- [ ] No new math library. Numeric RPE/weight/reps stay numeric.
+- [ ] Playwright covers @5 ≠ 150 and @4 == @5.
+
+---
+
+## Execution prompt (implementer)
+
+```md
+Task:
+Lower the e1RM reliability floor so logged RPE 5 computes a real e1RM, and RPE < 5.0 uses the same formula input as RPE 5.0.
+
+Source of truth:
+- `.cursor/rules/e1rm-rpe-floor.mdc` (this file) — diagnosis, clamp, worked numbers, MATH_VERSION bump
+- architecture.md §6.2 (formula) — patch §6.2.1 Reliability Fallback in this PR
+- architecture.md §10.2 MATH_VERSION 409
+- knowledge.md math pin
+- `.cursor/rules/agent-file-map.mdc` (math / e1RM row)
+
+Scope:
+- Branch `cursor/e1rm-rpe-floor-9f4a` from `cursor/e1rm-rpe-floor-rule-9f4a` (sensible HEAD is sheets-cell-edit if the rule branch is not available).
+- Edit only the files listed in the rule.
+- Do **not** add Helms/Brzycki/Liftosaur libraries or a second client formula.
+- Follow AGENTS.md three-layer method + review gate.
+
+Required behavior:
+- Shared `E1RM_RPE_FLOOR = 5.0`.
+- `0 < rpe < 5.0` → formula_rpe = 5.0; rpe 5.0 and 5.5 used as entered.
+- `rpe <= 0` or `reps > 12` → return weight (missing RPE is not RPE 5).
+- Same clamp in `calculateWeightFromE1RM`.
+- LOG e1RM input remains **executed** RPE (`ExerciseCard`).
+- Bump MATH_VERSION to `linear-decay-v2` in math_utils.py, mathEngine.ts, math_vectors.json, and tests that hardcode `linear-decay-v1` against the live constant (`test_analytics.py`, `sync_engine.test.ts`).
+- Keep 25% drop cap: 150×6@5 → **200.00**.
+
+Required UI states:
+- loading/empty session unchanged
+- locked/readonly: e1RM still a readout
+- offline: client preview uses the new floor; server remains canonical after sync
+- MATH_VERSION mismatch: still 409, do not ACK
+
+Verification:
+- Vectors: 150×6@5 == 200; @4 == @5; @0 == 150; 100×5@5.5 == 133.33; 100×3@5 == 126.58; @5.5 == 124.22.
+- Playwright `e2e/e1rm-rpe-floor.spec.ts`: log 150×6@5 → not 150; @4 equals @5.
+- `pytest tests/test_math_vectors.py backend/test_math.py`, `npm test`, lint.
+- Commit and push as you go.
+
+Do not implement anything beyond that spec.
+```
