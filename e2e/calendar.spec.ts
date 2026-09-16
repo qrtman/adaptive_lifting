@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { pickComboOption } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
@@ -19,12 +20,19 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   const unlabeledDay = page.getByTestId('calendar-day-2026-09-03');
   await unlabeledDay.click();
   await expect(page.getByTestId('new-session-dialog')).toBeVisible();
+  await expect(page.getByTestId('new-session-day')).toHaveValue('');
+  await expect(page.getByTestId('new-session-title')).toHaveValue('');
   await expect(page.getByTestId('new-session-block')).toHaveValue('');
   await expect(page.getByTestId('new-session-week')).toHaveValue('');
+  await page.getByTestId('new-session-create').click();
+  await expect(page.getByTestId('new-session-error')).toHaveText('Enter a name');
+  await expect(page.getByTestId('new-session-dialog')).toBeVisible();
   await page.getByTestId('new-session-title').fill('Unlabeled');
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
+  await expect(page.getByTestId('session-name')).toHaveText('Unlabeled');
   await expect(page.getByTestId('session-labels')).toHaveText('No block/week');
+  await expect(page.getByTestId('session-labels')).not.toContainText('Day');
   await page.getByRole('button', { name: 'Back' }).click();
 
   const day = page.getByTestId('calendar-day-2026-09-04');
@@ -39,7 +47,9 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
 
   await day.hover();
   await newSession.click();
-  await page.getByTestId('new-session-title').fill('Meet day');
+  await expect(page.getByTestId('new-session-title')).toHaveValue('Unlabeled');
+  await pickComboOption(page, 'new-session-day', 'Day 1');
+  await page.getByTestId('new-session-title').fill('Squat');
   await page.getByTestId('new-session-block').selectOption('__new__');
   await page.getByTestId('new-session-block-custom').fill('Hypertrophy');
   await page.getByTestId('new-session-week').selectOption('__new__');
@@ -47,6 +57,9 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
+  await expect(page.getByTestId('session-name')).toHaveText('Squat');
+  await expect(page.getByTestId('session-name')).not.toContainText('Day');
+  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
@@ -54,10 +67,14 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   const reuseDay = page.getByTestId('calendar-day-2026-09-05');
   await reuseDay.hover();
   await page.getByTestId('calendar-new-session-2026-09-05').click();
+  await expect(page.getByTestId('new-session-day')).toHaveValue('Day 1');
+  await expect(page.getByTestId('new-session-title')).toHaveValue('Squat');
+  await expect(page.getByTestId('new-session-block')).toHaveValue('Hypertrophy');
+  await expect(page.getByTestId('new-session-week')).toHaveValue('Week1');
   await expect(page.getByTestId('new-session-block').locator('option[value="Hypertrophy"]')).toHaveCount(1);
-  await page.getByTestId('new-session-block').selectOption('Hypertrophy');
-  await page.getByTestId('new-session-week').selectOption('Week1');
   await page.getByTestId('new-session-create').click();
+  await expect(page.getByTestId('session-name')).toHaveText('Squat');
+  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await page.getByRole('button', { name: 'Back' }).click();
@@ -72,16 +89,21 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(copiedCard).toContainText('Hypertrophy · Week1');
 
   await copiedCard.click();
+  await expect(page.getByTestId('session-name')).toHaveText('Squat');
+  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await page.getByTestId('session-edit').click();
   await expect(page.getByTestId('edit-session-dialog')).toBeVisible();
+  await expect(page.getByTestId('session-day')).toHaveValue('Day 1');
+  await expect(page.getByTestId('session-title')).toHaveValue('Squat');
   await page.getByTestId('session-block').selectOption('__new__');
   await page.getByTestId('session-block-custom').fill('Meet');
   await page.getByTestId('session-week').selectOption('__new__');
   await page.getByTestId('session-week-custom').fill('Week2');
   await page.getByTestId('edit-session-save').click();
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
   await expect(page.getByTestId('session-labels')).toContainText('Week 2');
   await expect(page.getByTestId('session-labels')).toContainText('Block Meet');
   await page.getByRole('button', { name: 'Back' }).click();

@@ -48,6 +48,7 @@ export default function App() {
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [editSessionOpen, setEditSessionOpen] = useState(false);
   const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
+  const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
   const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
   const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
 
@@ -235,6 +236,11 @@ export default function App() {
                           {activeWorkout.title}
                         </p>
                         <p data-testid="session-labels" className="flex items-baseline gap-2 min-w-0">
+                          {sessionDayLabel ? (
+                            <span className="text-sm font-semibold text-white truncate">
+                              {sessionDayLabel}
+                            </span>
+                          ) : null}
                           {sessionWeekLabel ? (
                             <span className="text-sm font-semibold text-white truncate">
                               {sessionWeekLabel}

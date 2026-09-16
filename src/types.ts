@@ -115,7 +115,7 @@ export function isMicrocycleActive(status: string): boolean {
 export interface WorkoutData {
   id: string;
   date: string; // YYYY-MM-DD
-  dayLabel: string; // e.g. "D1"
+  dayLabel: string; // slot "1"…"7" or custom; ISO date means unlabeled
   title: string;
   blockLabel?: string | null;
   weekLabel?: string | null;

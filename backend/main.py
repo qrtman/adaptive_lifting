@@ -1477,6 +1477,16 @@ def next_week_label(week: Optional[str]) -> Optional[str]:
     return f"{prefix}{int(digits) + 1}"
 
 
+_ISO_DAY_LABEL = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def clone_day_label(source_label: Optional[str], new_date: str) -> str:
+    raw = (source_label or "").strip()
+    if not raw or _ISO_DAY_LABEL.fullmatch(raw):
+        return new_date
+    return raw
+
+
 def clone_session_prescription(
     db: Session,
     source: Workout,
@@ -1488,7 +1498,7 @@ def clone_session_prescription(
     clone = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
         date=new_date,
-        dayLabel=new_date,
+        dayLabel=clone_day_label(source.dayLabel, new_date),
         title=source.title,
         tonnage=source.tonnage if include_logs else 0.0,
         delta=0.0,
