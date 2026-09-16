@@ -60,17 +60,24 @@ describe('shared math vectors', () => {
   });
 });
 
-describe('e1RM RPE floor', () => {
-  it('pins the floor at 5.0', () => {
+describe('e1RM RPE floor and ranking', () => {
+  it('pins the floor at 5.0 and MATH_VERSION to v3', () => {
     expect(E1RM_RPE_FLOOR).toBe(5.0);
-    expect(MATH_VERSION).toBe('linear-decay-v2');
+    expect(MATH_VERSION).toBe('linear-decay-v3');
   });
 
-  it('computes 150×6 @5 as 200 and equals @4', () => {
+  it('ranks 150×6 @5 > @6 > @7 and equals @4', () => {
     const atFive = calculateE1RM(150, 6, 5);
+    const atSix = calculateE1RM(150, 6, 6);
+    const atSeven = calculateE1RM(150, 6, 7);
     const atFour = calculateE1RM(150, 6, 4);
-    expect(atFive).toBe(200);
+    expect(atFive).toBe(214.29);
     expect(atFive).not.toBe(150);
+    expect(atFive).not.toBe(200);
+    expect(atSix).toBe(205.48);
+    expect(atSeven).toBe(197.37);
+    expect(atFive).toBeGreaterThan(atSix);
+    expect(atSix).toBeGreaterThan(atSeven);
     expect(atFour).toBe(atFive);
     expect(calculateE1RM(150, 6, 0)).toBe(150);
   });
@@ -81,11 +88,12 @@ describe('e1RM RPE floor', () => {
     expect(calculateE1RM(100, 3, 4)).toBe(126.58);
   });
 
-  it('calculateWeightFromE1RM at RPE 5 does not return the raw e1RM', () => {
-    const atFive = calculateWeightFromE1RM(200, 6, 5);
-    const atFour = calculateWeightFromE1RM(200, 6, 4);
-    expect(atFive).not.toBe(200);
-    expect(atFive).toBe(150);
-    expect(atFour).toBe(atFive);
+  it('calculateWeightFromE1RM has no 25% drop cap', () => {
+    const e1rm = calculateE1RM(150, 6, 5);
+    expect(e1rm).toBe(214.29);
+    const recovered = calculateWeightFromE1RM(e1rm, 6, 5);
+    expect(recovered).not.toBe(e1rm);
+    expect(Math.round(recovered * 100) / 100).toBe(150);
+    expect(calculateWeightFromE1RM(e1rm, 6, 4)).toBe(recovered);
   });
 });

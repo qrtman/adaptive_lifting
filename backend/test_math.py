@@ -25,12 +25,19 @@ def test_e1rm_calculations():
     
     # 2. RPE floor: 5.0 runs the formula; below 5.0 clamps to 5.0; missing RPE stays load
     assert E1RM_RPE_FLOOR == 5.0
-    assert MATH_VERSION == "linear-decay-v2"
-    assert calculate_e1rm_linear_decay(150, 6, 5.0) == 200.0, "150x6 @ RPE 5 must be 200 (25% cap)"
-    assert calculate_e1rm_linear_decay(150, 6, 4.0) == calculate_e1rm_linear_decay(150, 6, 5.0), "RPE 4 equals RPE 5"
+    assert MATH_VERSION == "linear-decay-v3"
+    at_five = calculate_e1rm_linear_decay(150, 6, 5.0)
+    at_six = calculate_e1rm_linear_decay(150, 6, 6.0)
+    at_seven = calculate_e1rm_linear_decay(150, 6, 7.0)
+    assert at_five == 214.29, "150x6 @ RPE 5 must be 214.29 (no 25% cap)"
+    assert at_five != 150.0 and at_five != 200.0
+    assert at_six == 205.48, "150x6 @ RPE 6 must be 205.48"
+    assert at_seven == 197.37, "150x6 @ RPE 7 must be 197.37"
+    assert at_five > at_six > at_seven, "lower RPE must yield strictly higher e1RM"
+    assert calculate_e1rm_linear_decay(150, 6, 4.0) == at_five, "RPE 4 equals RPE 5"
     assert calculate_e1rm_linear_decay(150, 6, 4.0) != 150.0, "RPE 4 must not return load"
     assert calculate_e1rm_linear_decay(150, 6, 0.0) == 150.0, "Missing RPE still returns load"
-    assert calculate_e1rm_linear_decay(100, 5, 5.5) == 133.33, "RPE 5.5 must run the formula, not return load"
+    assert calculate_e1rm_linear_decay(100, 5, 5.5) == 134.23, "RPE 5.5 must run the formula, not return load"
     assert calculate_e1rm_linear_decay(100, 3, 5.0) == 126.58, "RPE 5.0 unclamped 3-rep"
     assert calculate_e1rm_linear_decay(100, 3, 5.5) == 124.22, "RPE 5.5 is not clamped to 5.0"
     assert calculate_e1rm_linear_decay(100, 3, 4.0) == 126.58, "RPE 4 clamps to 5.0"
@@ -42,8 +49,8 @@ def test_e1rm_calculations():
     # 4. Standard e1RM projection: 100kg x 5 reps @ RPE 9 -> 117.65kg
     assert calculate_e1rm_linear_decay(100, 5, 9.0) == 117.65, "Standard RPE 9 failed"
 
-    # 5. Cap drop check: 100kg x 10 reps @ RPE 8 -> 133.33
-    assert calculate_e1rm_linear_decay(100, 10, 8.0) == 133.33, "High-rep capping constraint failed"
+    # 5. Uncapped high-rep: 100kg x 10 reps @ RPE 8 -> 149.25 (not 133.33)
+    assert calculate_e1rm_linear_decay(100, 10, 8.0) == 149.25, "100x10 @ RPE 8 must be uncapped 149.25"
     print("  [OK] e1RM tests passed.")
 
 def test_inol_calculations():
