@@ -1771,7 +1771,9 @@ Each lift’s set table is a 6-column keyboard grid, row-major:
 
 `plan kg → plan reps → plan rpe → log kg → log reps → log rpe`
 
-then the next set of the **same** lift. Chrome (set #, `×`, `@`, plan→log, RPE/% unit toggle, Δ, e1RM, INOL, duplicate, delete, lift header, + Set) is skipped. Locked / readonly rows are not in the grid.
+then the next set of the **same** lift. Chrome (set #, `×`, `@`, plan→log, RPE/% unit toggle, Δ, e1RM, INOL, duplicate, delete, lift header, + Set, `use {n}` plan-kg offer) is skipped. Locked / readonly rows are not in the grid.
+
+**Plan kg after a log:** After the last logged set on this lift with executed load + reps + RPE yielding e1RM > 0, later Plan kg cells may show `use {n}` (client-derived, not persisted). Empty Plan kg keeps that offer. If Plan kg is already typed and the plate-rounded suggestion differs, still show `use {n}` as an update offer. Tap writes that number; never auto-write. Rows with LOG kg filled get no offer. Locked/readonly: no accept. Not a new column.
 
 **Two modes**
 - **Selected:** Focus ring (`#007AFF` / `--ok-blue`) on the display cell. No caret. `tabIndex=0` on the active cell, `-1` on others. Arrows move **cells and clamp** (ArrowRight on log rpe stays; no wrap). Tab / Shift+Tab move cells and **wrap** within the lift (`log.rpe` of set `i` → `plan.kg` of set `i+1`; last-set `log.rpe` stays). Enter / F2 begin insert-edit (keep the committed value; caret at end; **do not move**). A printable character begins overwrite-edit (draft starts as that character). Delete / Backspace clear to empty (`"—"`). Home / End jump to the first / last cell of the row. Ctrl/Cmd+C copies the committed display string (empty copies `""`, not the dash). Ctrl/Cmd+V pastes into the cell and commits immediately.
@@ -1930,7 +1932,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Complete does not freeze the session; there is no Open / reopen step.
 - [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) in the Edit lift dialog, compiling a readonly name. Chips are not always-open on the session.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
-- [ ] Workout builder uses structured prescription controls, not freeform parsing. Top-set Rx kg is typed; e1RM is a derived readout.
+- [ ] Workout builder uses structured prescription controls, not freeform parsing. Top-set Rx kg is typed; e1RM is a derived readout. After a log, later Plan kg may offer `use {n}` even when kg is already typed if the suggestion differs; tap to apply, never auto-write. No offer on a row with LOG kg.
 - [ ] Coach or athlete can reorder lifts with Up/Down; order persists as `lexo_rank`.
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Export and Google Sheets publish flows are separate.

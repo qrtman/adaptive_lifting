@@ -19,7 +19,7 @@ import {
   type NeighborDir,
   type SetGridBind,
 } from '../services/sheetsCellKeyboard';
-import { refreshSetAnchors } from '../services/setPrescription';
+import { planKgOfferKg, refreshSetAnchors } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
 import type { MovementPattern } from '../services/exerciseCatalog';
 
@@ -344,6 +344,7 @@ export const ExerciseCard = ({
               const actualWt = trainingOrZero(set.actual);
               const plannedWt = trainingOrZero(set.plannedWeight);
               const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
+              const offerKg = planKgOfferKg(set.suggestedWeight, set.plannedWeight);
 
               const actualRp = trainingOrZero(set.executedRpe);
               const targetRpVal = trainingOrZero(set.plannedRpe);
@@ -373,15 +374,15 @@ export const ExerciseCard = ({
                               plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
                             })}
                           />
-                          {set.suggestedWeight && set.plannedWeight == null ? (
+                          {offerKg != null ? (
                             <button
                               type="button"
                               data-testid="plan-suggest"
-                              onClick={() => updateSet(i, { plannedWeight: set.suggestedWeight })}
+                              onClick={() => updateSet(i, { plannedWeight: offerKg, isAuto: false })}
                               className="h-6 px-1 text-[10px] text-[#AEAEB2] hover:text-white"
                               title="Use kg from the set you just logged"
                             >
-                              use {set.suggestedWeight}
+                              use {offerKg}
                             </button>
                           ) : null}
                       </div>
