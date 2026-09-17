@@ -190,6 +190,7 @@ describe('lift Adj remaining Plan kg', () => {
     executedRpe: null,
     dropPercent: -10,
     adjustment_pct: 4,
+    isAuto: true,
   });
 
   it('rewrites remaining unlogged by % −10 and plate-rounds', () => {
