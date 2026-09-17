@@ -9,7 +9,7 @@ Do **not** implement a spreadsheet. Do **not** add Handsontable, AG Grid, Luckys
 
 This rule **overrides** `design.md` §11.4 where they conflict (today §11.4 documents click-opens-edit and ArrowUp/Down commit-while-editing). Patch §11.4 in the implementation PR to match this subset. Canonical training values stay **numeric** (`architecture.md`, `numericTraining.ts`); Google Sheets remains **one-way publish**, not this grid (`architecture.md` §14).
 
-Screenshot of the surface: session table with set #, **PLAN kg × reps @ RPE**, copy-plan→log, **LOG kg × reps @ RPE**, Δ, e1RM, INOL, duplicate/delete.
+Screenshot of the surface: session table with set #, **`%` drop** (skip-chrome, not a 7th Tab cell), **PLAN kg × reps @ RPE**, copy-plan→log, **LOG kg × reps @ RPE**, Δ, e1RM, INOL, duplicate/delete.
 
 ---
 
@@ -91,7 +91,7 @@ Per lift `<table>` in `ExerciseCard`, one matrix of **6 columns × N set rows**.
 | 4 | `log.reps` | `${liftId}-reps` | `@` |
 | 5 | `log.rpe` | `${liftId}-executedRpe` | Δ / e1RM / INOL / duplicate / delete (not cells) |
 
-Row index = set index `0..N-1` of **this lift only**. Do **not** jump into another lift’s table.
+Row index = set index `0..N-1` of **this lift only**. Do **not** jump into another lift’s table. Do **not** grow `COLS` for the `%` drop column.
 
 ```
 plan.kg → plan.reps → plan.rpe → log.kg → log.reps → log.rpe
@@ -99,7 +99,7 @@ plan.kg → plan.reps → plan.rpe → log.kg → log.reps → log.rpe
 
 Then (Tab wrap only) next set’s `plan.kg`.
 
-**Not cells** (skip): set index, `×` `@`, plan→log arrow, RPE/% **unit toggle**, Δ, e1RM, INOL, duplicate, delete, lift header, + Set, “use {suggested}”. The unit toggle still clicks as today; keyboard nav skips it.
+**Not cells** (skip): set index, **`%` drop** (`dropPercent`, between `#` and Plan), `×` `@`, plan→log arrow, RPE/% **unit toggle**, Δ, e1RM, INOL, duplicate, delete, lift header, Adj, + Set, “use {suggested}”. The unit toggle still clicks as today; keyboard nav skips it. `%` is editable chrome — Tab wrap still starts at `plan.kg`.
 
 Locked / readonly rows: not in the grid; no edit; existing disabled chrome stays.
 
@@ -213,7 +213,7 @@ After commit+move, the destination is **selected**, not editing.
 | Esc cancel; Enter commit + down **when editing**; Tab commit + right **with wrap**; Shift reverses | **Keep** | Sheets + Handsontable `enterMoves` / `tabMoves` |
 | Enter / F2 **from selected** = begin insert-edit (not move) | **Keep** | Sheets / Handsontable `enterBeginsEditing` (Excel Enter-from-selected = move is **dropped**) |
 | Arrows move cell when selected (**clamp, no wrap**) | **Keep** | Tab wraps; arrows do not |
-| Tab `log.rpe` → next set `plan.kg`; last-set `log.rpe` stays | **Keep** | Bounded 6-col table. Not Sheets’ infinite columns |
+| Tab `log.rpe` → next set `plan.kg`; last-set `log.rpe` stays | **Keep** | Bounded 6-col table. Not Sheets’ infinite columns. `%` drop is skip-chrome — do not grow `COLS` |
 | WAI-ARIA APG Tab-exits-grid | **Drop** | Product is Sheets Tab (`preventDefault`); Tab must not land on the copy button or next lift |
 | Arrows move caret when editing, **including at edges** | **Keep** | Sheets-accurate. Drop Excel edge-escape and drop current ArrowUp/Down commit |
 | Delete/Backspace clear when selected; edit string when editing | **Keep** | |
@@ -263,7 +263,7 @@ Locked / offline / rejected / sync banners stay visible. Do not hide them inside
 - `src/services/sheetsCellKeyboard.ts` (**new**) + `src/services/sheetsCellKeyboard.test.ts`
 - `src/components/EditablePerformanceCell.tsx`
 - `src/components/PrescriptionEditor.tsx` (pass identity/`rowIndex`; still not a modal)
-- `src/components/ExerciseCard.tsx` (6-col map, focus move, skip chrome)
+- `src/components/ExerciseCard.tsx` (6-col map, focus move, skip chrome including `%` drop)
 - `design.md` §11.4 only (behavior copy)
 - `e2e/helpers.ts`, `e2e/session.spec.ts`, `e2e/reorder.spec.ts`, **new** `e2e/sheets-cell-edit.spec.ts`
 - Optional: `e2e/offline.spec.ts` if `fillLogCell` changes

@@ -665,6 +665,7 @@ export const apiService = {
       plannedReps?: number | null;
       plannedRpe?: number | null;
       intensityType?: string | null;
+      dropPercent?: number | null;
       isAuto?: boolean;
       isTop?: boolean;
       actual?: number | null;
@@ -684,6 +685,7 @@ export const apiService = {
           plannedReps: row.plannedReps,
           plannedRpe: row.plannedRpe,
           intensityType: row.intensityType,
+          dropPercent: row.dropPercent ?? 0,
           isAuto: row.isAuto,
           isTop: row.isTop,
           actual: row.actual,

@@ -478,6 +478,90 @@ def test_plan_sets_persist_typed_weight_and_empty_backoff():
     assert sets[1]["plannedWeight"] is None
 
 
+def test_plan_sets_persist_drop_percent():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"drop-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-16", "title": "Squat"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    eid = squat.json()["id"]
+    top_id = squat.json()["sets"][0]["id"]
+    saved = client.put(
+        f"/api/sessions/{sid}/exercises/{eid}/sets",
+        json={
+            "sets": [
+                {
+                    "id": top_id,
+                    "plannedWeight": 200,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "intensityType": "RPE",
+                    "isTop": True,
+                    "dropPercent": 0,
+                },
+                {
+                    "plannedWeight": 180,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "intensityType": "RPE",
+                    "dropPercent": -10,
+                },
+            ]
+        },
+        cookies=cookies,
+    )
+    assert saved.status_code == 200
+    rows = saved.json()["sets"]
+    assert rows[1]["dropPercent"] == -10
+    assert rows[1]["plannedWeight"] == 180.0
+    assert not rows[1]["isAuto"]
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    sets = next(ex["sets"] for w in workouts for ex in w["exercises"] if ex["id"] == eid)
+    assert sets[1]["dropPercent"] == -10
+    assert sets[1]["plannedWeight"] == 180.0
+
+    again = client.put(
+        f"/api/sessions/{sid}/exercises/{eid}/sets",
+        json={
+            "sets": [
+                {
+                    "id": rows[0]["id"],
+                    "plannedWeight": 200,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "dropPercent": 0,
+                },
+                {
+                    "id": rows[1]["id"],
+                    "plannedWeight": 180,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "dropPercent": -10,
+                },
+            ]
+        },
+        cookies=cookies,
+    )
+    assert again.status_code == 200
+    assert again.json()["sets"][1]["dropPercent"] == -10
+
+
 def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]

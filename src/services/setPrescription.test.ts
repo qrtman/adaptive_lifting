@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyLiftAdj,
+  applySetDropPercent,
   formatLiftAdjPreview,
   formatSignedDelta,
   LIFT_ADJ_COPY,
   liftAdjAnchorKg,
   liftAdjDisabledReason,
   liftAdjResultKg,
+  parseDropPercent,
   parseSignedDelta,
   planKgOfferKg,
   previewLiftAdj,
   refreshSetAnchors,
+  setDropAnchorKg,
+  setDropResultKg,
 } from './setPrescription';
 
 describe('refreshSetAnchors', () => {
@@ -276,5 +280,92 @@ describe('lift Adj remaining Plan kg', () => {
     expect(parseSignedDelta('−10')).toBe(-10);
     expect(formatSignedDelta(-10)).toBe('−10');
     expect(formatSignedDelta(2.5)).toBe('+2.5');
+  });
+});
+
+describe('per-set % drop from top/anchor kg', () => {
+  it('rewrites an unlogged later row −10% from a 200 kg top to 180', () => {
+    const sets = [
+      { plannedWeight: 200, actual: null, dropPercent: 0, isAuto: false, adjustment_pct: 4 },
+      { plannedWeight: 200, actual: null, dropPercent: 0, isAuto: false, adjustment_pct: 4 },
+    ];
+    const next = applySetDropPercent(sets, 1, -10);
+    expect(next[1].plannedWeight).toBe(180);
+    expect(next[1].dropPercent).toBe(-10);
+    expect(next[1].isAuto).toBe(false);
+    expect(next[1].adjustment_pct).toBe(4);
+    expect(next[0].plannedWeight).toBe(200);
+    expect(next[0].dropPercent).toBe(0);
+  });
+
+  it('anchors later rows on set 0 LOG kg when actual > 0', () => {
+    const next = applySetDropPercent(
+      [
+        { plannedWeight: 190, actual: 200, dropPercent: 0 },
+        { plannedWeight: 190, actual: null, dropPercent: 0 },
+      ],
+      1,
+      -10,
+    );
+    expect(next[1].plannedWeight).toBe(180);
+    expect(next[0].plannedWeight).toBe(190);
+  });
+
+  it('does not rewrite Plan kg on a logged row', () => {
+    const next = applySetDropPercent(
+      [
+        { plannedWeight: 200, actual: 200, dropPercent: 0 },
+        { plannedWeight: 185, actual: 182.5, dropPercent: 0, isAuto: false },
+      ],
+      1,
+      -10,
+    );
+    expect(next[1].plannedWeight).toBe(185);
+    expect(next[1].actual).toBe(182.5);
+    expect(next[1].dropPercent).toBe(-10);
+    expect(next[1].isAuto).toBe(false);
+  });
+
+  it('does not invent kg without an anchor and treats empty as 0', () => {
+    expect(setDropAnchorKg([{ plannedWeight: null, actual: null }])).toBeNull();
+    const next = applySetDropPercent(
+      [{ plannedWeight: null, actual: null, dropPercent: 0 }],
+      0,
+      -10,
+    );
+    expect(next[0].plannedWeight).toBeNull();
+    expect(next[0].dropPercent).toBe(-10);
+    expect(parseDropPercent('')).toBe(0);
+    expect(parseDropPercent('−10')).toBe(-10);
+    expect(setDropResultKg(200, -100)).toBeNull();
+    expect(applySetDropPercent(
+      [{ plannedWeight: 200, actual: null, dropPercent: 0 }],
+      0,
+      -100,
+    )[0].plannedWeight).toBe(200);
+  });
+
+  it('does not auto-fill extra sets from stored dropPercent on refresh', () => {
+    const next = refreshSetAnchors([
+      { plannedWeight: 200, plannedReps: 5, plannedRpe: 8 },
+      { plannedWeight: null, plannedReps: 5, plannedRpe: 8, dropPercent: -10, isAuto: false },
+    ]);
+    expect(next[1].plannedWeight).toBeNull();
+    expect(next[1].dropPercent).toBe(-10);
+    expect(next[1].isAuto).toBe(false);
+  });
+
+  it('does not fill empty later kg when committing unchanged 0%', () => {
+    const next = applySetDropPercent(
+      [
+        { plannedWeight: 200, actual: null, dropPercent: 0 },
+        { plannedWeight: null, actual: null, dropPercent: 0, isAuto: false },
+      ],
+      1,
+      0,
+    );
+    expect(next[1].plannedWeight).toBeNull();
+    expect(next[1].dropPercent).toBe(0);
+    expect(next[1].isAuto).toBe(false);
   });
 });

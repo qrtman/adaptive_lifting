@@ -21,16 +21,19 @@ import {
 } from '../services/sheetsCellKeyboard';
 import {
   applyLiftAdj,
+  applySetDropPercent,
   formatLiftAdjPreview,
   formatSignedDelta,
   LIFT_ADJ_COPY,
   LIFT_ADJ_KG_STEP,
   LIFT_ADJ_PCT_STEP,
   liftAdjDisabledReason,
+  parseDropPercent,
   parseSignedDelta,
   planKgOfferKg,
   previewLiftAdj,
   refreshSetAnchors,
+  setDropAnchorKg,
   type LiftAdjMode,
 } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
@@ -91,6 +94,7 @@ export const ExerciseCard = ({
         plannedRpe: intensity_type === "RPE" ? (target_value ?? plannedRpe) : plannedRpe,
         intensity_type,
         target_value,
+        dropPercent: trainingInt(s.dropPercent) ?? 0,
         isAuto: false,
         actual: trainingNumber(s.actual),
         reps: trainingInt(s.reps),
@@ -146,6 +150,7 @@ export const ExerciseCard = ({
       isTop: false,
       plannedWeight: null,
       suggestedWeight: null,
+      dropPercent: 0,
       actual: null,
       reps: null,
       executedRpe: null,
@@ -183,6 +188,7 @@ export const ExerciseCard = ({
       plannedRpe: previous?.plannedRpe ?? previous?.target_value ?? null,
       intensity_type: previous?.intensity_type || 'RPE',
       target_value: previous?.target_value ?? previous?.plannedRpe ?? null,
+      dropPercent: 0,
       isTop: false,
       isAuto: false,
       actual: null,
@@ -244,6 +250,13 @@ export const ExerciseCard = ({
     updateAndPropagate(applyLiftAdj(sets, adjPatches));
     setAdjOpen(false);
   };
+
+  const commitDropPercent = (index: number, pct: number) => {
+    if (locked) return;
+    updateAndPropagate(applySetDropPercent(sets, index, pct));
+  };
+
+  const dropHint = setDropAnchorKg(sets) == null ? LIFT_ADJ_COPY.noAnchor : undefined;
 
   return (
     <div className="border-b border-white/10">
@@ -351,6 +364,7 @@ export const ExerciseCard = ({
         <thead>
           <tr className="border-b border-white/5">
             <th className={`${th} w-6`}>#</th>
+            <th className={`${th} w-14`}>%</th>
             <th className={`${th} pr-3`}>
               <span className="text-[#AEAEB2]">Plan</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
@@ -369,7 +383,7 @@ export const ExerciseCard = ({
         <tbody>
             {sets.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-2 py-3 text-xs text-[#636366]">
+                <td colSpan={9} className="px-2 py-3 text-xs text-[#636366]">
                   No sets programmed.
                 </td>
               </tr>
@@ -403,6 +417,17 @@ export const ExerciseCard = ({
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
                   <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
+                  <td className={`${td} w-14`}>
+                    <DropPercentCell
+                      value={trainingInt(set.dropPercent) ?? 0}
+                      locked={locked}
+                      hint={dropHint}
+                      onCommit={(pct) => commitDropPercent(i, pct)}
+                      onTabToPlan={() => {
+                        setGrid({ row: i, col: 0, mode: 'selected', overwrite: false });
+                      }}
+                    />
+                  </td>
                   <td className={`${td} pr-3`}>
                     {!locked ? (
                       <div className="flex items-center gap-0.5 whitespace-nowrap">
@@ -686,3 +711,110 @@ export const ExerciseCard = ({
     </div>
   );
 };
+
+function DropPercentCell({
+  value,
+  locked,
+  hint,
+  onCommit,
+  onTabToPlan,
+}: {
+  value: number;
+  locked: boolean;
+  hint?: string;
+  onCommit: (pct: number) => void;
+  onTabToPlan: () => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commitDraft = (raw: string) => {
+    onCommit(parseDropPercent(raw));
+  };
+
+  if (locked) {
+    return (
+      <span
+        className="text-[11px] font-mono tabular-nums text-[#AEAEB2]"
+        title={hint}
+        data-testid="set-drop-pct"
+      >
+        {formatSignedDelta(value)}
+        <span className="text-[#636366]">%</span>
+      </span>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center" title={hint}>
+      <button
+        type="button"
+        tabIndex={-1}
+        data-testid="set-drop-pct-dec"
+        className="h-6 w-4 text-[11px] text-[#AEAEB2] hover:text-white"
+        aria-label="Decrease percent"
+        onClick={() => onCommit(value - 1)}
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        −
+      </button>
+      <input
+        data-testid="set-drop-pct"
+        type="text"
+        inputMode="decimal"
+        tabIndex={-1}
+        value={draft}
+        aria-label="Set percent"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => commitDraft(draft)}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.key === 'Process') return;
+          if (event.key === 'Tab') {
+            event.preventDefault();
+            commitDraft(draft);
+            onTabToPlan();
+            return;
+          }
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            commitDraft(draft);
+            event.currentTarget.blur();
+            return;
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            setDraft(String(value));
+            event.currentTarget.blur();
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            onCommit(value + 1);
+            return;
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            onCommit(value - 1);
+            return;
+          }
+        }}
+        className="h-6 w-8 px-0.5 text-center text-[11px] font-mono tabular-nums text-white bg-[#0A0A0A] border border-white/10 rounded-sm focus:outline-none focus:border-[#007AFF]"
+      />
+      <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
+      <button
+        type="button"
+        tabIndex={-1}
+        data-testid="set-drop-pct-inc"
+        className="h-6 w-4 text-[11px] text-[#AEAEB2] hover:text-white"
+        aria-label="Increase percent"
+        onClick={() => onCommit(value + 1)}
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        +
+      </button>
+    </div>
+  );
+}

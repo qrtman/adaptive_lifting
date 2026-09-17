@@ -205,3 +205,53 @@ export function applyLiftAdj<T extends Record<string, unknown>>(
     return { ...row, plannedWeight, isAuto: false };
   });
 }
+
+/** Set 0 LOG kg if actual > 0, else set 0 plannedWeight if > 0. Do not invent kg. */
+export function setDropAnchorKg(
+  sets: Array<{ actual?: unknown; plannedWeight?: unknown }>,
+): number | null {
+  const top = sets[0];
+  if (!top) return null;
+  const logged = trainingNumber(top.actual);
+  if (logged != null && logged > 0) return logged;
+  const planned = trainingNumber(top.plannedWeight);
+  if (planned != null && planned > 0) return planned;
+  return null;
+}
+
+export function parseDropPercent(value: unknown): number {
+  const parsed = parseSignedDelta(value);
+  return parsed == null ? 0 : Math.round(parsed);
+}
+
+/** architecture §6.7.2 bar-load drop from top/anchor kg — not e1RM scaling. */
+export function setDropResultKg(anchorKg: number, pct: number): number | null {
+  const rounded = roundToCompetitionPlates(anchorKg * (1 + pct / 100));
+  return rounded > 0 ? rounded : null;
+}
+
+/**
+ * Persist `dropPercent` on that row (`isAuto: false`). Rewrite Plan kg from the
+ * lift’s top/anchor unless the row is logged, there is no anchor, or result ≤ 0.
+ * Does not write `adjustment_pct`. Does not auto-fill extra sets.
+ */
+export function applySetDropPercent<T extends Record<string, unknown>>(
+  sets: T[],
+  index: number,
+  pct: number,
+): T[] {
+  if (index < 0 || index >= sets.length) return sets;
+  const dropPercent = parseDropPercent(pct);
+  const anchor = setDropAnchorKg(sets);
+  return sets.map((row, i) => {
+    if (i !== index) return row;
+    const previousPct = parseDropPercent(row.dropPercent);
+    const next: T = { ...row, dropPercent, isAuto: false };
+    if (!isUnloggedKg(row)) return next;
+    if (anchor == null) return next;
+    if (dropPercent === previousPct) return next;
+    const plannedWeight = setDropResultKg(anchor, dropPercent);
+    if (plannedWeight == null) return next;
+    return { ...next, plannedWeight };
+  });
+}

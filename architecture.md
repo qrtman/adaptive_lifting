@@ -427,6 +427,8 @@ $$\text{Target Backdown Weight} = \text{Top Set Weight} \times (1.0 - \text{Fati
 
 The session lift **Adj** control applies this as a one-shot rewrite of remaining unlogged **Plan kg** on that lift (`plannedWeight` only, plate-rounded). Signed UI percent maps as `−10` ⇒ `Fatigue % = 0.10` ⇒ 90% of base. Adj does **not** persist `dropPercent` / `adjustment_pct` as live Rx, does not auto-scale from e1RM, and does not change logged rows.
 
+The set table **`%` column** (between `#` and Plan) is the per-set bar-load drop from the lift’s **top/anchor kg**: set 0 LOG kg if `actual > 0`, else set 0 `plannedWeight` if `> 0`. On commit (Enter / blur / stepper), that row’s `plannedWeight = roundToCompetitionPlates(anchor × (1 + pct/100))` unless the row is logged, there is no anchor, or the plate-rounded result ≤ 0. Persist `dropPercent` (signed integer percentage points; empty = 0) on the set write path (`PlannedSetWrite` / `replace_exercise_sets`). Do not persist client-only `adjustment_pct`. Do not auto-scale from e1RM. Do not default extra sets to `−5` / `isAuto: true`. `%` is skip-chrome, not a 7th Tab cell.
+
 When the athlete holds the weight constant, the 5% fatigue threshold is hit when the execution RPE rises by exactly one full RPE unit (representing a 5% drop in e1RM due to fatigue buildup) or when the execution velocity drops by a corresponding margin.
 
 #### 6.7.3 VBT MCV Storage, Indexing, and Querying Engine Schema

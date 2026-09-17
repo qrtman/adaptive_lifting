@@ -30,6 +30,7 @@ def replace_exercise_sets(exercise: Exercise, rows: List[dict]) -> None:
             "actual": row.get("actual"),
             "reps": row.get("reps"),
             "executedRpe": row.get("executedRpe"),
+            "dropPercent": row.get("dropPercent"),
         }
         if existing:
             if existing.deleted_at is not None:
