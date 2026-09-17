@@ -149,3 +149,86 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 });
+
+test('lift Adj rewrites remaining unlogged Plan kg without a new column', async ({ page, request }) => {
+  const email = `liftadj-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
+  });
+  expect(register.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sessions' }).click();
+  await page.getByTestId('sessions-add').click();
+  await page.getByTestId('new-session-date').fill('2026-09-14');
+  await page.getByTestId('new-session-title').fill('Lift adj');
+  await page.getByTestId('new-session-create').click();
+  const card = page.locator('[data-testid^="sessions-card-"]');
+  await expect(card).toHaveCount(1, { timeout: 10_000 });
+  await card.locator('button').first().click();
+
+  await page.getByTestId('add-lift').click();
+  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-result-Squat').click();
+  await page.getByTestId('add-lift-confirm').click();
+  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+
+  const adj = page.getByRole('button', { name: 'Adj', exact: true });
+  await expect(adj).toBeVisible();
+  await expect(adj).toBeDisabled();
+  await expect(adj).toHaveAttribute('title', 'Type Plan kg or log a set first.');
+
+  await expect(page.locator('thead th')).toHaveCount(8);
+  await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: /%adj/i })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: /Fatigue/i })).toHaveCount(0);
+
+  await typeCell(page.getByTestId('rx-weight').first(), '180');
+  await page.getByRole('button', { name: '+ Set' }).click();
+  await typeCell(page.getByTestId('rx-weight').nth(1), '180');
+  await page.getByRole('button', { name: '+ Set' }).click();
+  await typeCell(page.getByTestId('rx-weight').nth(2), '180');
+  await expect(adj).toBeEnabled();
+
+  await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '180');
+  await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
+  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
+  const suggest = page.getByTestId('plan-suggest');
+  await expect(suggest).toHaveCount(2);
+  const suggested = (await suggest.first().innerText()).replace('use ', '').trim();
+  expect(Number(suggested)).toBeGreaterThan(0);
+  expect(Number(suggested)).not.toBe(180);
+
+  await adj.click();
+  await expect(page.getByTestId('lift-adj-dialog')).toBeVisible();
+  await expect(page.getByTestId('lift-adj-mode-pct')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Remaining unlogged sets this lift')).toBeVisible();
+  await page.getByTestId('lift-adj-value').fill('-10');
+  await page.getByTestId('lift-adj-value').blur();
+  await expect(page.getByTestId('lift-adj-preview')).toHaveText('2 sets 180 → 162.5');
+  await page.getByTestId('lift-adj-cancel').click();
+  await expect(page.getByTestId('lift-adj-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
+  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('180');
+
+  await adj.click();
+  await page.getByTestId('lift-adj-value').fill('-10');
+  await page.getByTestId('lift-adj-apply').click();
+  await expect(page.getByTestId('lift-adj-dialog')).toHaveCount(0);
+
+  await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('162.5');
+  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('162.5');
+  await expect(page.locator('thead th')).toHaveCount(8);
+  await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
+
+  await expect(page.getByTestId('plan-suggest')).toHaveCount(2);
+  await page.getByTestId('plan-suggest').first().click();
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(suggested);
+  await expect(page.getByTestId('plan-suggest')).toHaveCount(1);
+});
