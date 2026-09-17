@@ -20,7 +20,22 @@ function suggestKg(row: Record<string, unknown>, e1rm: number): number | null {
   return raw > 0 ? raw : null;
 }
 
-/** Typed plan kg stays. After a log, later empty rows get a suggested kg from executed e1RM. */
+/** Show `use {n}` when suggestion exists and differs from typed Plan kg (empty counts as differ). */
+export function planKgOfferKg(
+  suggestedWeight: number | null,
+  plannedWeight: unknown,
+): number | null {
+  if (suggestedWeight == null || suggestedWeight <= 0) return null;
+  const planned = trainingNumber(plannedWeight);
+  if (planned === suggestedWeight) return null;
+  return suggestedWeight;
+}
+
+/**
+ * Typed plan kg stays until the athlete accepts `use {n}`.
+ * After a log with executed e1RM > 0, later rows get a client-derived suggestedWeight
+ * even when plannedWeight is already filled. Rows with LOG kg (actual) get none.
+ */
 export function refreshSetAnchors<T extends Record<string, unknown>>(
   setArray: T[],
 ): Array<T & { suggestedWeight: number | null }> {
@@ -44,7 +59,8 @@ export function refreshSetAnchors<T extends Record<string, unknown>>(
 
   return setArray.map((row, index) => {
     const plannedWeight = trainingNumber(row.plannedWeight);
-    const suggestedWeight = lastLoggedE1RM > 0 && index > lastLoggedIndex
+    const loggedKg = trainingNumber(row.actual);
+    const suggestedWeight = lastLoggedE1RM > 0 && index > lastLoggedIndex && loggedKg == null
       ? suggestKg(row, lastLoggedE1RM)
       : null;
     return {
