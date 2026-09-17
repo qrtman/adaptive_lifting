@@ -1,0 +1,282 @@
+---
+description: Sync queue chrome is a corner overlay — never in-flow. Apply when changing AppShell sync-status, SyncContext queue UI, or offline e2e layout assertions.
+alwaysApply: true
+---
+
+# Sync queue overlay (no layout shift)
+
+The IndexedDB mutation queue must stay visible. It must **not** change document flow. Do **not** add sonner, react-hot-toast, shadcn, Radix Toast, MUI, or any toast library. Steal their **overlay geometry** only.
+
+This rule **overrides** `design.md` §10.3 (full-width 28px Global Status Strip) where they conflict. Patch §10.3 in the implementation PR. Per-set cell badges (`design.md` §10.1) stay backlog (`AGENTS.md`) — do not build them in this pass, and do not hide REJECTED / CONFLICTED / offline behind “syncing…”.
+
+Screenshot of the bug: logging a set (or going offline) inserts a full-width `h-7` bar above PLAN/LOG and the session table jumps down; when the queue drains the bar unmounts and the table jumps up.
+
+---
+
+## Diagnosis (this checkout — do not re-litigate)
+
+The shifter is **one in-flow node**. Conflicts are already overlay. Per-row pending does **not** exist.
+
+### Why PLAN/LOG jumps (this is the user-reported gap)
+
+Confirm in this checkout before writing code:
+
+1. `src/components/AppShell.tsx:46-68` mounts `{(!isOnline || pendingCount > 0) && (<div data-testid="sync-status" className="h-7 … shrink-0">…</div>)}` as the **first flex child of `<main>`**. `<main>` is `flex flex-col h-screen overflow-hidden`. The banner is **in normal flow**. 28px appear → the `flex-1` sibling (Calendar / Sessions / session PLAN/LOG) shrinks. 28px vanish → content jumps up.
+2. The banner is not reserved. Idle unmounts it (`pendingCount === 0 && isOnline`). Every flush cycle is a layout shift. `e2e/offline.spec.ts:100` asserts `getByTestId('sync-status').toHaveCount(0)` after flush — that unmount **is** the jump.
+3. `src/contexts/SyncContext.tsx:134-156` already renders lock + conflict as `fixed bottom-20 … z-50 pointer-events-none` **after** `{children}`. That stack does **not** shove the table. Copy this layer for queue status. Do not duplicate a second in-flow bar.
+4. `AthleteScopeSelector.tsx:216` already prints `Queue n` / `Live` / `Offline` in the sidebar. That text is not the shifter. **Keep it.** It is not a substitute for the overlay (sidebar can be collapsed).
+5. `getPendingMutations` (`src/services/db.ts:126`) returns only `PENDING | IN_FLIGHT`. **REJECTED is invisible** to `pendingCount` and therefore to `sync-status`. Architecture + `design.md` + `AGENTS.md`: do not hide rejected. Overlay must read rejected rows too.
+6. `ExerciseCard` has **no** per-set PENDING / IN_FLIGHT / REJECTED badge. `AGENTS.md` lists that as next-cycle backlog. Do not add cell chrome in this pass. Do not claim the overlay replaces per-row state later.
+
+| Location | What it does today | vs overlay |
+| :--- | :--- | :--- |
+| `AppShell.tsx:46-68` | Conditional full-width `h-7` bar in `<main>` flow. `data-testid="sync-status"` `data-state=offline\|syncing`. Copy: `Offline — queued locally` / `Sync queue {n}` + spinning `RefreshCw` | **This is the bug.** Delete from flow. Keep testids on the overlay root |
+| `AppShell.tsx:41-44` | `<main>` `overflow-hidden` + `h-screen` flex column | Any in-flow sibling of the workspace (including `sticky` with height) still eats 28px. **Sticky is still in flow.** Only `fixed` / portal is out of flow |
+| `SyncContext.tsx:20-24,132` | Context: `isOnline`, `pendingCount`, `triggerSync`, `conflicts`. No `rejectedCount` | Add rejected count. Overlay state is a pure function of these |
+| `SyncContext.tsx:134-156` | Fixed bottom-center lock/conflict cards, `pointer-events-none` viewport, `pointer-events-auto` on cards | **Keep.** Queue chip uses a **different corner** so it does not sit on these cards |
+| `AthleteScopeSelector.tsx:216` | Sidebar `Queue n` / `Live` / `Offline` | Keep. Secondary. Not the overlay |
+| `db.ts:126` | Pending poll ignores `REJECTED` / `CONFLICTED` | Overlay must count REJECTED. CONFLICTED still uses `ConflictReviewCard` |
+| `e2e/offline.spec.ts:64,100` | Offline → `data-state=offline`; after flush → count 0 | Keep both. **Add** a y-position assertion so a reserved spacer cannot fake “visible” |
+| `design.md` §10.3 | 100vw × 28px always-on bottom strip | **Stale vs user intent.** This rule wins; update §10.3 in the impl PR |
+| `design.md` `SyncQueueBadge` | Header badge max 120×24, states empty/pending/syncing/failed | Geometry to steal for the chip (compact), not a second header bar |
+
+`motion.div` in `App.tsx` wraps dashboard/session (often applies `transform`). `position:fixed` **inside** that tree can pin to the transformed ancestor and still interact with `overflow-hidden`. Do **not** put the overlay inside `<main>` or the session `motion.div`.
+
+---
+
+## Product verdict
+
+| Keep | Drop |
+| :--- | :--- |
+| Visible offline / syncing / rejected / conflict | In-flow or sticky full-width bar that changes `offsetTop` of PLAN/LOG |
+| `data-testid="sync-status"` + `data-state` | Hiding idle as a 28px empty spacer “to prevent shift” |
+| `ConflictReviewCard` + `WorkoutLockBanner` as they are (already overlay) | Merging conflict review into the tiny chip |
+| Sidebar `Queue n` / `Live` / `Offline` | sonner / shadcn / MUI / Radix Toast as a dependency |
+| Compact corner chip + spinner while flushing | Nested cards, hero, gradient orbs, heavy blur glass |
+| Idle = **unmounted** (count 0) | Success toast required on ACK |
+| Ink / existing hex (`#0A0A0A`, `#131313`, `#007AFF`, `#F5A623`, red) | New palette, `zinc-*` stacks, decorative shadows |
+
+Naive “make the bar `position:sticky`” is **insufficient** (sticky occupies flow). Naive “always render `h-7` with empty inner” also fails the user request (still a strip; still steals 28px). The smallest change that matches the request: **unmount from AppShell flow; mount a `fixed` corner chip on the SyncProvider overlay layer.**
+
+---
+
+## Overlay model
+
+One chip. Not a toast feed. Not a 100vw strip.
+
+```
+type SyncOverlayKind = 'hidden' | 'offline' | 'syncing' | 'error'
+
+type SyncOverlayState =
+  | { kind: 'hidden' }
+  | { kind: 'offline'; pendingCount: number }
+  | { kind: 'syncing'; pendingCount: number }
+  | { kind: 'error'; rejectedCount: number }
+```
+
+Pure function (unit-test this; do not inline the priority in JSX):
+
+```ts
+export function syncOverlayState(input: {
+  isOnline: boolean
+  pendingCount: number
+  rejectedCount: number
+}): SyncOverlayState {
+  if (!input.isOnline) return { kind: 'offline', pendingCount: input.pendingCount }
+  if (input.rejectedCount > 0) return { kind: 'error', rejectedCount: input.rejectedCount }
+  if (input.pendingCount > 0) return { kind: 'syncing', pendingCount: input.pendingCount }
+  return { kind: 'hidden' }
+}
+```
+
+**Priority (LOCKED):** offline > error > syncing > hidden.
+
+- Offline still shows when `pendingCount === 0` (user went offline with an empty queue — they must know logging will queue).
+- Error is **online + REJECTED > 0**. Do not fold rejected into the spinner.
+- CONFLICTED / lock stay on `ConflictReviewCard` / `WorkoutLockBanner`. The chip does not replace them. Both may be visible at once.
+
+### Geometry (LOCKED — sonner viewport, not sonner)
+
+Steal from [sonner](https://github.com/emilkowalski/sonner) `Toaster` viewport (and this repo’s conflict stack):
+
+| Token | Value |
+| :--- | :--- |
+| Positioning | `position: fixed` (never `static` / `relative` / `sticky`). Prefer a portal/`SyncProvider` sibling of `{children}`, same as today’s conflict stack |
+| Corner | **`right: 16px; bottom: 16px`** (`right-4 bottom-4`). Side hovering chip, not a top strip |
+| Collision | Conflict/lock stack stays `bottom-20` **center**. If both would overlap on a 360px viewport, move **only the queue chip** to `top-4 right-4` while those cards exist. Do not cover the session header’s Complete / Coach–Athlete cluster unless that collision branch is active |
+| Flow | `pointer-events: none` on the viewport wrapper; `pointer-events: auto` on the chip if it has Retry |
+| Size | Syncing: circle **32×32** (`h-8 w-8`) with spinning lucide `RefreshCw` (already used). Offline / error: compact pill, **max-width 120px** (`SyncQueueBadge` budget), height 32px, `text-[11px] font-mono`. `border-radius` ≤ `--radius-lg` (8px). No nested inner card |
+| Surface | `bg-[#131313]` / ink-900, `border border-white/10`. Syncing accent `#007AFF`. Offline `#F5A623`. Error `--ok-red` equivalent (`text-red-500` / `border-red-500/30` as today). No blur, no gradient orb, no `shadow-2xl` on the spinner |
+| z-index | `z-40` (below `CenteredDialog` / sidebar / lock cards at `z-50`) |
+| Live region | `role="status"` `aria-live="polite"` `aria-atomic="true"` on the chip |
+| Idle | **Do not render** the node. `getByTestId('sync-status')` count 0 |
+
+`data-testid="sync-status"` stays on the chip root.
+
+`data-state`:
+
+| kind | `data-state` |
+| :--- | :--- |
+| hidden | (node absent) |
+| offline | `offline` |
+| syncing | `syncing` |
+| error | `error` |
+
+Copy (keep existing strings unless noted):
+
+| kind | Visible |
+| :--- | :--- |
+| syncing | Spinner only is OK (user asked for a loading circle). Optional `aria-label="Sync queue {n}"`. Visible count `{n}` may sit in the pill if it still fits 120px |
+| offline | `CloudOff` + `Offline — queued locally` (truncate in the pill; full string stays `title` / `aria-label`) |
+| error | Exclamation + `Needs review` (or `Rejected {n}`). Optional compact Retry calling existing `triggerSync` for the active workout. **Do not** swallow the error into a spinner |
+
+Do not auto-dismiss offline or error. Syncing unmounts when `pendingCount` hits 0 (no ACK celebration toast).
+
+### What must not move
+
+When the chip mounts or unmounts, these y-positions are invariant (same integer `getBoundingClientRect().top`):
+
+- `[data-testid="app-main"]` first **in-flow** child (the workspace, not the overlay)
+- `[data-testid="session-name"]` when a session is open
+- The first PLAN/LOG table / `[data-testid="add-lift"]` on the session screen
+
+A test that only checks `sync-status` visibility can still pass with the old bar. The y-assertion is the contract.
+
+---
+
+## Ideas to steal (no new deps)
+
+- **sonner `Toaster`:** fixed viewport, `pointer-events` split, portal to `document.body` (or a provider sibling), `toast.loading` = spinner in a small pill, errors persist, success may auto-dismiss. Steal geometry. Do not install `sonner`. Do not copy their gradient / swipe / stacked feed — we have **one** chip.
+- **react-hot-toast:** same `position:fixed` container; default bottom-center. We want **side** (right), not another center stack (conflicts already own center).
+- **This repo `SyncContext` conflict layer:** already the right pattern (`fixed` + `pointer-events-none`). Add the queue chip as a **second** fixed node (`right-4 bottom-4`), not as a child of the center column (that column is `left-4 right-4 max-w-sm mx-auto` and would still be overlay, but it is a card stack — do not nest the spinner inside `ConflictReviewCard`).
+- **`design.md` `SyncQueueBadge`:** 120×24 compact badge states empty/pending/syncing/failed. Map empty→hidden, pending/syncing→spinner, failed→error.
+- **TypeScript skill:** `kind` discriminant; exhaustive `switch`; `const _exhaustive: never = x`. No optional-field bag `{ isOffline?, isSyncing?, error? }`.
+- **Subtract-before-add:** delete the AppShell in-flow block first. Do not keep it and add an overlay.
+
+---
+
+## Implementation sketch (for the next bot)
+
+1. Add `src/services/syncOverlayState.ts` + `src/services/syncOverlayState.test.ts` with the function above. Cover: offline+pending→offline; online+rejected→error even if pending>0; online+pending→syncing; all-zero→hidden.
+2. Extend IndexedDB poll in `SyncContext`: `rejectedCount` = rows with `status === 'REJECTED'`. Do not ACK/delete rejected as a side effect of counting. Keep `getPendingMutations` semantics for flush.
+3. Add `src/components/SyncQueueOverlay.tsx`. Render from `SyncProvider` next to the existing fixed stack (not inside `AppShell` `<main>`).
+4. **Delete** `AppShell.tsx:46-68` in-flow banner. AppShell may keep `useSync` only if still needed; otherwise drop the unused import.
+5. Patch `design.md` §10.3: global queue chrome is a corner overlay; strip 100vw×28px is retired. §10.1 per-row badges unchanged (still not built).
+6. `e2e/offline.spec.ts`: keep `data-state=offline` and post-flush count 0. **Add** layout-shift check (session-name or add-lift `top` before vs after overlay). Cover online flush spinner if the test already waits on queue. New `e2e/sync-overlay.spec.ts` is OK if offline.spec would get too long — still hit 360px width once.
+
+Do not refactor calendar, copy grains, sheets keyboard, Telegram, or math.
+
+---
+
+## Files to edit (implementation PR only)
+
+- `src/services/syncOverlayState.ts` (**new**) + `src/services/syncOverlayState.test.ts`
+- `src/components/SyncQueueOverlay.tsx` (**new**)
+- `src/contexts/SyncContext.tsx` (rejectedCount + mount overlay; keep conflict/lock stack)
+- `src/components/AppShell.tsx` (**remove** in-flow banner)
+- `src/services/db.ts` only if a small `countMutationsByStatus` helper is cleaner than filtering `getAll` in the poll
+- `design.md` §10.3 only (behavior copy)
+- `e2e/offline.spec.ts` and/or **new** `e2e/sync-overlay.spec.ts`
+
+Do not implement per-set cell pending. Do not change `ConflictReviewCard` / `WorkoutLockBanner` layout except to avoid occupying the same corner.
+
+---
+
+## Tests
+
+**Unit (vitest):** `syncOverlayState`
+
+- `{ isOnline:false, pendingCount:0, rejectedCount:0 }` → `{ kind:'offline', pendingCount:0 }`
+- `{ isOnline:false, pendingCount:3, rejectedCount:1 }` → `{ kind:'offline', pendingCount:3 }` (offline wins)
+- `{ isOnline:true, pendingCount:2, rejectedCount:0 }` → `{ kind:'syncing', pendingCount:2 }`
+- `{ isOnline:true, pendingCount:2, rejectedCount:1 }` → `{ kind:'error', rejectedCount:1 }` (error beats spinner)
+- `{ isOnline:true, pendingCount:0, rejectedCount:0 }` → `{ kind:'hidden' }`
+
+**Playwright (mandatory):**
+
+1. Online, empty queue: `sync-status` count 0. Session (or calendar) `getBoundingClientRect().top` recorded.
+2. Go offline: `sync-status` `data-state=offline` **and** the recorded `top` is unchanged (±0px). Chip is `position:fixed` (computed style).
+3. Log a set offline: still no y-shift; queue still overlay.
+4. Back online: spinner `data-state=syncing` may appear; `top` still unchanged. After flush: `sync-status` count 0; `top` still unchanged.
+5. Existing `e2e/offline.spec.ts` still passes (testid + flush).
+6. Optional but wanted: a REJECTED mutation shows `data-state=error` (not hidden, not only spinner).
+
+Do not add a screenshot-only test as a substitute.
+
+---
+
+## Non-goals
+
+- Per-set saved/syncing/failed on Log cells (`AGENTS.md` backlog)
+- Replacing `ConflictReviewCard` / lock banners
+- Toast libraries, shadcn, MUI
+- Always-visible 28px spacer
+- Hiding offline when `pendingCount === 0`
+- Hiding REJECTED
+- Telegram Mini App / Sheets publish / math / coach-code
+- Auto-seed demo queues
+
+---
+
+## Acceptance
+
+- [ ] No in-flow sync bar in `AppShell`. Workspace y-position does not change when the chip appears or hides.
+- [ ] Idle: overlay unmounted (`sync-status` count 0).
+- [ ] Syncing: corner spinner, `data-state=syncing`.
+- [ ] Offline: corner chip, `data-state=offline`, copy still explains local queue.
+- [ ] Error: `data-state=error` when REJECTED > 0 and online; not a spinner-only state.
+- [ ] Conflict/lock cards still overlay and still reviewable.
+- [ ] Sidebar Queue/Live/Offline unchanged.
+- [ ] No new toast/UI library. Ink tokens / existing hex only. No nested cards.
+- [ ] Unit + Playwright contracts above. `npm test`, `npm run lint`.
+- [ ] `design.md` §10.3 updated.
+
+---
+
+## Execution prompt (implementer)
+
+Branch `cursor/sync-queue-overlay-9f4a` from `cursor/sync-queue-overlay-rule-9f4a`. Full spec is this file. Do **not** leave a full-width bar. Do **not** implement a toast library.
+
+```md
+Task:
+Stop the sync queue chrome from shifting PLAN/LOG / session content.
+Replace the in-flow AppShell banner with a corner overlay (spinner while flushing).
+Do not hide offline, rejected, or conflict.
+
+Source of truth:
+- `.cursor/rules/sync-queue-overlay.mdc` (this file) — especially “Why PLAN/LOG jumps” and “Geometry (LOCKED)”
+- architecture.md §7.1 SyncContext / IndexedDB mutation states; do not hide rejected
+- design.md §10.1 (per-row backlog — do not build), §10.3 (patch to overlay), §3 ink tokens, no nested cards
+- knowledge.md: sync queue chrome line
+- `.cursor/rules/agent-file-map.mdc` (sync queue overlay row)
+- AGENTS.md: do not hide offline/sync/conflict; no decorative hero
+
+Scope:
+- Branch `cursor/sync-queue-overlay-9f4a` from `cursor/sync-queue-overlay-rule-9f4a`.
+- Edit only the files listed in the rule. No sonner/shadcn/MUI/Radix Toast.
+- Steal ideas only: sonner fixed viewport + pointer-events split + loading pill; this repo’s SyncContext conflict `fixed` stack (different corner).
+- Follow AGENTS.md three-layer method + review gate.
+
+Required behavior (do not miss):
+- Delete AppShell in-flow `h-7` banner. Overlay is `position:fixed` on the SyncProvider layer, not inside `<main>`.
+- `syncOverlayState` priority: offline > error > syncing > hidden.
+- Keep `data-testid="sync-status"`. `data-state` = offline | syncing | error. Hidden = unmounted.
+- REJECTED count is visible (error chip). Conflicts stay ConflictReviewCard.
+- Layout shift contract: session-name / add-lift / app-main in-flow child `top` unchanged when overlay mounts/unmounts.
+
+Required UI states:
+- idle hidden
+- syncing spinner
+- error
+- offline
+- conflict/lock still overlay (existing)
+- locked/readonly session chrome unchanged
+
+Verification (these tests are the contract):
+- Unit `syncOverlayState` cases in the rule.
+- Playwright: offline chip does not change `session-name` (or add-lift) `getBoundingClientRect().top`; after flush count 0 and top still equal; computed `position:fixed`.
+- `npm test`, `npm run lint`, existing `e2e/offline.spec.ts`.
+- Commit and push as you go. ManagePullRequest if available; else push and report.
+
+Do not implement anything beyond that spec.
+```

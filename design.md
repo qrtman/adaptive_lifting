@@ -1694,20 +1694,31 @@ The application UI handles API errors with prescriptive user feedback and struct
 +==================================================================================================+
 ```
 
-### 10.3 Global Status Strip
+### 10.3 Global Sync Queue Overlay
+
+Global queue chrome is a **corner overlay**. It is not an in-flow or sticky bar. Mounting or unmounting the chip must not change `offsetTop` of PLAN/LOG, `[data-testid="session-name"]`, or `[data-testid="add-lift"]`. The retired `100vw × 28px` Global Status Strip is not used.
+
+Per-set PENDING / IN_FLIGHT / REJECTED cell badges remain **§10.1 backlog** — this overlay does not replace them.
 
 ##### Dimensional Constraints
-* **Width**: Full horizontal viewport width (`100vw`).
-* **Height**: Fixed static height of `28px` to maintain tight page budget.
-* **Padding & Margins**: Horizontal padding set to `--space-3` (12px).
+* **Positioning**: `position: fixed`. Default `right: 16px; bottom: 16px`. While lock or conflict cards occupy the center stack (`bottom-20`), move **only this chip** to `top: 16px; right: 16px`.
+* **Idle**: unmounted. Do not reserve a 28px spacer.
+* **Syncing**: 32×32 circle (`h-8 w-8`) with spinning `RefreshCw`. Accent `#007AFF`.
+* **Offline / error**: compact pill, max-width `120px`, height `32px`, `text-[11px] font-mono`, `border-radius` ≤ `--radius-lg` (`8px`).
+* **z-index**: `z-40` (below `CenteredDialog` / sidebar / lock and conflict cards at `z-50`).
 
 ##### Spatial Allocation
-* **Layout Model**: Flex horizontal row (`display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: var(--space-2);`).
-* **Borders**: Border top bounds set to `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+* **Layout Model**: Overlay, out of document flow, rendered on the `SyncProvider` layer (sibling of `{children}`), never inside `<main>` or a `transform` session wrapper.
+* **Pointer events**: `pointer-events: none` on the chip unless it exposes Retry (`pointer-events: auto` on that control).
+* **Surface**: `bg-[#131313]` / ink-900, `border border-white/10`. Offline `#F5A623`. Error `--ok-red` (`text-red-500` / `border-red-500/30`). No blur, nested card, gradient orb, or `shadow-2xl` on the spinner.
 
-##### State Transitions (Default vs. Maximized)
-* **Default State**: Sticky bottom edge navigation helper always visible.
-* **Maximized State**: N/A (Always persistent to maintain offline sync confidence).
+##### State Transitions
+* **Priority (locked)**: offline > error > syncing > hidden.
+* **Idle**: hidden (unmounted). `data-testid="sync-status"` count 0.
+* **Offline**: visible even when `pendingCount === 0`. Copy: `Offline — queued locally`. `data-state=offline`.
+* **Error**: online and REJECTED > 0. Copy: `Needs review`. `data-state=error`. Not a spinner. Do not auto-dismiss.
+* **Syncing**: online, pending > 0, no rejected rows. Spinner. `data-state=syncing`. Unmounts when the queue drains (no ACK toast).
+* Conflict review and workout lock stay as their existing overlay cards (`ConflictReviewCard`, `WorkoutLockBanner`). Sidebar `Queue n` / `Live` / `Offline` is secondary and stays.
 
 All authenticated app surfaces include compact status:
 
@@ -1719,12 +1730,17 @@ All authenticated app surfaces include compact status:
 | Locked | Current workout has an active writer lock |
 | Staging | Environment label when not production |
 
-#### 10.3.1 Global Status Strip Layout Detail
+#### 10.3.1 Global Sync Queue Overlay Layout Detail
 
 ```
-+--------------------------------------------------------------------------------------------------+
-| [Offline Mode] [Sync: 3 Pending] [● Live SSE Stream] [Workout Locked] [Env: STAGING] [User: Coach] |
-+--------------------------------------------------------------------------------------------------+
++----------------------------------------------------------------------+
+|  session PLAN/LOG (document flow — y-position does not change)       |
+|                                                                      |
+|                                              [ ⟳ ]  syncing 32×32   |
+|                                         or   [ Offline — queued… ]   |
+|                                         or   [ ! Needs review ]      |
+|                                              fixed right/bottom 16px |
++----------------------------------------------------------------------+
 ```
 
 ---
