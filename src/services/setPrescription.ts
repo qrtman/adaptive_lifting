@@ -57,7 +57,9 @@ export function planKgOfferKg(
 /**
  * Typed plan kg stays until the athlete accepts `use {n}`.
  * After a log with executed e1RM > 0, later rows get a client-derived suggestedWeight
- * even when plannedWeight is already filled. Rows with LOG kg (actual) get none.
+ * even when plannedWeight is already filled. `dropPercent` on later sets scales that
+ * offer: roundToCompetitionPlates(suggestKg * (1 + pct/100)). Set 0 has no % (treat as 0).
+ * Rows with LOG kg (actual) get none. Never auto-writes plannedWeight.
  */
 export function refreshSetAnchors<T extends Record<string, unknown>>(
   setArray: T[],
@@ -83,9 +85,11 @@ export function refreshSetAnchors<T extends Record<string, unknown>>(
   return setArray.map((row, index) => {
     const plannedWeight = trainingNumber(row.plannedWeight);
     const loggedKg = trainingNumber(row.actual);
-    const suggestedWeight = lastLoggedE1RM > 0 && index > lastLoggedIndex && loggedKg == null
+    const baseSuggest = lastLoggedE1RM > 0 && index > lastLoggedIndex && loggedKg == null
       ? suggestKg(row, lastLoggedE1RM)
       : null;
+    const pct = index === 0 ? 0 : parseDropPercent(row.dropPercent);
+    const suggestedWeight = baseSuggest == null ? null : setDropResultKg(baseSuggest, pct);
     return {
       ...row,
       plannedWeight,
@@ -224,34 +228,26 @@ export function parseDropPercent(value: unknown): number {
   return parsed == null ? 0 : Math.round(parsed);
 }
 
-/** architecture §6.7.2 bar-load drop from top/anchor kg — not e1RM scaling. */
-export function setDropResultKg(anchorKg: number, pct: number): number | null {
-  const rounded = roundToCompetitionPlates(anchorKg * (1 + pct / 100));
+/** Plate-round `kg * (1 + pct/100)`. Used to scale the e1RM `use {n}` offer. Skip if ≤ 0. */
+export function setDropResultKg(kg: number, pct: number): number | null {
+  const rounded = roundToCompetitionPlates(kg * (1 + pct / 100));
   return rounded > 0 ? rounded : null;
 }
 
 /**
- * Persist `dropPercent` on that row (`isAuto: false`). Rewrite Plan kg from the
- * lift’s top/anchor unless the row is logged, there is no anchor, or result ≤ 0.
- * Does not write `adjustment_pct`. Does not auto-fill extra sets.
+ * Persist `dropPercent` on a later set (`isAuto: false`). Does not write Plan kg.
+ * Set 0 has no `%` — treat as 0 and leave the row unchanged. Does not write
+ * `adjustment_pct`. Does not auto-fill extra sets. Committing 0 does not invent kg.
  */
 export function applySetDropPercent<T extends Record<string, unknown>>(
   sets: T[],
   index: number,
   pct: number,
 ): T[] {
-  if (index < 0 || index >= sets.length) return sets;
+  if (index <= 0 || index >= sets.length) return sets;
   const dropPercent = parseDropPercent(pct);
-  const anchor = setDropAnchorKg(sets);
   return sets.map((row, i) => {
     if (i !== index) return row;
-    const previousPct = parseDropPercent(row.dropPercent);
-    const next: T = { ...row, dropPercent, isAuto: false };
-    if (!isUnloggedKg(row)) return next;
-    if (anchor == null) return next;
-    if (dropPercent === previousPct) return next;
-    const plannedWeight = setDropResultKg(anchor, dropPercent);
-    if (plannedWeight == null) return next;
-    return { ...next, plannedWeight };
+    return { ...row, dropPercent, isAuto: false };
   });
 }

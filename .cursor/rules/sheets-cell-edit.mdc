@@ -99,7 +99,7 @@ plan.kg → plan.reps → plan.rpe → log.kg → log.reps → log.rpe
 
 Then (Tab wrap only) next set’s `plan.kg`.
 
-**Not cells** (skip): set index, **`%` drop** (`dropPercent`, between `#` and Plan), `×` `@`, plan→log arrow, RPE/% **unit toggle**, Δ, e1RM, INOL, duplicate, delete, lift header, Adj, + Set, “use {suggested}”. The unit toggle still clicks as today; keyboard nav skips it. `%` is editable chrome — Tab wrap still starts at `plan.kg`.
+**Not cells** (skip): set index, **`%` drop** (`dropPercent`, between `#` and Plan; set 0 has no editor), `×` `@`, plan→log arrow, RPE/% **unit toggle**, Δ, e1RM, INOL, duplicate, delete, lift header, Adj, + Set, “use {suggested}”. The unit toggle still clicks as today; keyboard nav skips it. `%` is editable chrome on later sets — Tab wrap still starts at `plan.kg`.
 
 Locked / readonly rows: not in the grid; no edit; existing disabled chrome stays.
 

@@ -283,35 +283,80 @@ describe('lift Adj remaining Plan kg', () => {
   });
 });
 
-describe('per-set % drop from top/anchor kg', () => {
-  it('rewrites an unlogged later row −10% from a 200 kg top to 180', () => {
-    const sets = [
-      { plannedWeight: 200, actual: null, dropPercent: 0, isAuto: false, adjustment_pct: 4 },
-      { plannedWeight: 200, actual: null, dropPercent: 0, isAuto: false, adjustment_pct: 4 },
-    ];
-    const next = applySetDropPercent(sets, 1, -10);
-    expect(next[1].plannedWeight).toBe(180);
-    expect(next[1].dropPercent).toBe(-10);
-    expect(next[1].isAuto).toBe(false);
-    expect(next[1].adjustment_pct).toBe(4);
-    expect(next[0].plannedWeight).toBe(200);
-    expect(next[0].dropPercent).toBe(0);
+describe('per-set % scales the use {n} offer, not Plan kg', () => {
+  const loggedTop = {
+    plannedWeight: 155.5,
+    plannedReps: 5,
+    plannedRpe: 8,
+    actual: 155.5,
+    reps: 5,
+    executedRpe: 9,
+    dropPercent: 0,
+    intensity_type: 'RPE',
+    isAuto: false,
+    adjustment_pct: 4,
+  };
+  const later = {
+    plannedWeight: 160,
+    plannedReps: 5,
+    plannedRpe: 8,
+    actual: null,
+    intensity_type: 'RPE',
+    dropPercent: 0,
+    isAuto: false,
+    adjustment_pct: 4,
+  };
+
+  it('scales suggest 150 by −5% to offer 142.5 without writing Plan kg', () => {
+    expect(setDropResultKg(150, -5)).toBe(142.5);
+    const unscaled = refreshSetAnchors([loggedTop, later]);
+    expect(unscaled[1].plannedWeight).toBe(160);
+    expect(unscaled[1].suggestedWeight).toBe(150);
+    expect(planKgOfferKg(unscaled[1].suggestedWeight, unscaled[1].plannedWeight)).toBe(150);
+
+    const stored = applySetDropPercent(unscaled, 1, -5);
+    expect(stored[1].plannedWeight).toBe(160);
+    expect(stored[1].dropPercent).toBe(-5);
+    expect(stored[1].isAuto).toBe(false);
+    expect(stored[1].adjustment_pct).toBe(4);
+    expect(stored[0].plannedWeight).toBe(155.5);
+    expect(stored[0].dropPercent).toBe(0);
+
+    const next = refreshSetAnchors(stored);
+    expect(next[1].plannedWeight).toBe(160);
+    expect(next[1].suggestedWeight).toBe(142.5);
+    expect(planKgOfferKg(next[1].suggestedWeight, next[1].plannedWeight)).toBe(142.5);
   });
 
-  it('anchors later rows on set 0 LOG kg when actual > 0', () => {
+  it('leaves Plan kg unchanged on % commit even when later kg is empty', () => {
     const next = applySetDropPercent(
       [
-        { plannedWeight: 190, actual: 200, dropPercent: 0 },
-        { plannedWeight: 190, actual: null, dropPercent: 0 },
+        { plannedWeight: 200, actual: null, dropPercent: 0 },
+        { plannedWeight: null, actual: null, dropPercent: 0, isAuto: false },
       ],
       1,
       -10,
     );
-    expect(next[1].plannedWeight).toBe(180);
-    expect(next[0].plannedWeight).toBe(190);
+    expect(next[1].plannedWeight).toBeNull();
+    expect(next[1].dropPercent).toBe(-10);
+    expect(next[1].isAuto).toBe(false);
   });
 
-  it('does not rewrite Plan kg on a logged row', () => {
+  it('does not persist % on set 0', () => {
+    const next = applySetDropPercent(
+      [
+        { plannedWeight: 200, actual: null, dropPercent: 0 },
+        { plannedWeight: 200, actual: null, dropPercent: 0 },
+      ],
+      0,
+      -10,
+    );
+    expect(next[0].dropPercent).toBe(0);
+    expect(next[0].plannedWeight).toBe(200);
+    expect(next[1].dropPercent).toBe(0);
+  });
+
+  it('does not rewrite Plan kg on a logged later row and still stores %', () => {
     const next = applySetDropPercent(
       [
         { plannedWeight: 200, actual: 200, dropPercent: 0 },
@@ -326,15 +371,8 @@ describe('per-set % drop from top/anchor kg', () => {
     expect(next[1].isAuto).toBe(false);
   });
 
-  it('does not invent kg without an anchor and treats empty as 0', () => {
+  it('does not invent kg and treats empty as 0', () => {
     expect(setDropAnchorKg([{ plannedWeight: null, actual: null }])).toBeNull();
-    const next = applySetDropPercent(
-      [{ plannedWeight: null, actual: null, dropPercent: 0 }],
-      0,
-      -10,
-    );
-    expect(next[0].plannedWeight).toBeNull();
-    expect(next[0].dropPercent).toBe(-10);
     expect(parseDropPercent('')).toBe(0);
     expect(parseDropPercent('−10')).toBe(-10);
     expect(setDropResultKg(200, -100)).toBeNull();
@@ -351,11 +389,12 @@ describe('per-set % drop from top/anchor kg', () => {
       { plannedWeight: null, plannedReps: 5, plannedRpe: 8, dropPercent: -10, isAuto: false },
     ]);
     expect(next[1].plannedWeight).toBeNull();
+    expect(next[1].suggestedWeight).toBeNull();
     expect(next[1].dropPercent).toBe(-10);
     expect(next[1].isAuto).toBe(false);
   });
 
-  it('does not fill empty later kg when committing unchanged 0%', () => {
+  it('does not invent kg when committing 0%', () => {
     const next = applySetDropPercent(
       [
         { plannedWeight: 200, actual: null, dropPercent: 0 },
@@ -367,5 +406,19 @@ describe('per-set % drop from top/anchor kg', () => {
     expect(next[1].plannedWeight).toBeNull();
     expect(next[1].dropPercent).toBe(0);
     expect(next[1].isAuto).toBe(false);
+  });
+
+  it('hides the offer on a logged later row even when % is set', () => {
+    const next = refreshSetAnchors([
+      loggedTop,
+      {
+        ...later,
+        plannedWeight: 150,
+        actual: 147.5,
+        dropPercent: -5,
+      },
+    ]);
+    expect(next[1].suggestedWeight).toBeNull();
+    expect(planKgOfferKg(next[1].suggestedWeight, next[1].plannedWeight)).toBeNull();
   });
 });

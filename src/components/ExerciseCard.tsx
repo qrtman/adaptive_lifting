@@ -33,7 +33,6 @@ import {
   planKgOfferKg,
   previewLiftAdj,
   refreshSetAnchors,
-  setDropAnchorKg,
   type LiftAdjMode,
 } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
@@ -252,11 +251,9 @@ export const ExerciseCard = ({
   };
 
   const commitDropPercent = (index: number, pct: number) => {
-    if (locked) return;
+    if (locked || index <= 0) return;
     updateAndPropagate(applySetDropPercent(sets, index, pct));
   };
-
-  const dropHint = setDropAnchorKg(sets) == null ? LIFT_ADJ_COPY.noAnchor : undefined;
 
   return (
     <div className="border-b border-white/10">
@@ -418,15 +415,18 @@ export const ExerciseCard = ({
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
                   <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
                   <td className={`${td} w-14`}>
-                    <DropPercentCell
-                      value={trainingInt(set.dropPercent) ?? 0}
-                      locked={locked}
-                      hint={dropHint}
-                      onCommit={(pct) => commitDropPercent(i, pct)}
-                      onTabToPlan={() => {
-                        setGrid({ row: i, col: 0, mode: 'selected', overwrite: false });
-                      }}
-                    />
+                    {i === 0 ? (
+                      <span className="text-[11px] font-mono tabular-nums text-[#636366]" aria-hidden="true">—</span>
+                    ) : (
+                      <DropPercentCell
+                        value={trainingInt(set.dropPercent) ?? 0}
+                        locked={locked}
+                        onCommit={(pct) => commitDropPercent(i, pct)}
+                        onTabToPlan={() => {
+                          setGrid({ row: i, col: 0, mode: 'selected', overwrite: false });
+                        }}
+                      />
+                    )}
                   </td>
                   <td className={`${td} pr-3`}>
                     {!locked ? (
@@ -712,23 +712,25 @@ export const ExerciseCard = ({
   );
 };
 
+function dropPercentDisplay(value: number): string {
+  return value === 0 ? '' : String(value);
+}
+
 function DropPercentCell({
   value,
   locked,
-  hint,
   onCommit,
   onTabToPlan,
 }: {
   value: number;
   locked: boolean;
-  hint?: string;
   onCommit: (pct: number) => void;
   onTabToPlan: () => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(dropPercentDisplay(value));
 
   useEffect(() => {
-    setDraft(String(value));
+    setDraft(dropPercentDisplay(value));
   }, [value]);
 
   const commitDraft = (raw: string) => {
@@ -739,82 +741,45 @@ function DropPercentCell({
     return (
       <span
         className="text-[11px] font-mono tabular-nums text-[#AEAEB2]"
-        title={hint}
         data-testid="set-drop-pct"
       >
-        {formatSignedDelta(value)}
-        <span className="text-[#636366]">%</span>
+        {dropPercentDisplay(value) || '—'}
       </span>
     );
   }
 
   return (
-    <div className="inline-flex items-center" title={hint}>
-      <button
-        type="button"
-        tabIndex={-1}
-        data-testid="set-drop-pct-dec"
-        className="h-6 w-4 text-[11px] text-[#AEAEB2] hover:text-white"
-        aria-label="Decrease percent"
-        onClick={() => onCommit(value - 1)}
-        onMouseDown={(event) => event.preventDefault()}
-      >
-        −
-      </button>
-      <input
-        data-testid="set-drop-pct"
-        type="text"
-        inputMode="decimal"
-        tabIndex={-1}
-        value={draft}
-        aria-label="Set percent"
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => commitDraft(draft)}
-        onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing || event.key === 'Process') return;
-          if (event.key === 'Tab') {
-            event.preventDefault();
-            commitDraft(draft);
-            onTabToPlan();
-            return;
-          }
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            commitDraft(draft);
-            event.currentTarget.blur();
-            return;
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            setDraft(String(value));
-            event.currentTarget.blur();
-            return;
-          }
-          if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            onCommit(value + 1);
-            return;
-          }
-          if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            onCommit(value - 1);
-            return;
-          }
-        }}
-        className="h-6 w-8 px-0.5 text-center text-[11px] font-mono tabular-nums text-white bg-[#0A0A0A] border border-white/10 rounded-sm focus:outline-none focus:border-[#007AFF]"
-      />
-      <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">%</span>
-      <button
-        type="button"
-        tabIndex={-1}
-        data-testid="set-drop-pct-inc"
-        className="h-6 w-4 text-[11px] text-[#AEAEB2] hover:text-white"
-        aria-label="Increase percent"
-        onClick={() => onCommit(value + 1)}
-        onMouseDown={(event) => event.preventDefault()}
-      >
-        +
-      </button>
-    </div>
+    <input
+      data-testid="set-drop-pct"
+      type="text"
+      inputMode="decimal"
+      tabIndex={-1}
+      value={draft}
+      placeholder="—"
+      aria-label="Set percent"
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => commitDraft(draft)}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.key === 'Process') return;
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          commitDraft(draft);
+          onTabToPlan();
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commitDraft(draft);
+          event.currentTarget.blur();
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setDraft(dropPercentDisplay(value));
+          event.currentTarget.blur();
+        }
+      }}
+      className="h-6 w-10 px-0.5 text-center text-[11px] font-mono tabular-nums text-white bg-[#0A0A0A] border border-white/10 rounded-sm focus:outline-none focus:border-[#007AFF] placeholder:text-[#636366]"
+    />
   );
 }

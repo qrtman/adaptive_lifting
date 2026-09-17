@@ -35,7 +35,10 @@ test('Sheets-parity: click selects; Tab kgâ†’reps; Enter down same column; PLANâ
   await expect(page.getByTestId('rx-weight')).toHaveCount(2);
 
   await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
+  await expect(page.locator('tbody tr').nth(0).locator('[data-testid="set-drop-pct"]')).toHaveCount(0);
   await expect(page.getByTestId('set-drop-pct').first()).toHaveAttribute('tabindex', '-1');
+  await expect(page.getByTestId('set-drop-pct-dec')).toHaveCount(0);
+  await expect(page.getByTestId('set-drop-pct-inc')).toHaveCount(0);
 
   const planKg0 = page.locator('[data-cell-id$=":0:plan:kg"]');
   const planKg1 = page.locator('[data-cell-id$=":1:plan:kg"]');
