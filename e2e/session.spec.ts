@@ -151,7 +151,7 @@ test('offers plan kg update after a log when later plan kg is already filled', a
 });
 
 test('lift Adj rewrites remaining unlogged Plan kg without a new column', async ({ page, request }) => {
-  const email = `lift-adj-${Date.now()}@example.com`;
+  const email = `liftadj-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
@@ -178,7 +178,7 @@ test('lift Adj rewrites remaining unlogged Plan kg without a new column', async 
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
 
-  const adj = page.getByRole('button', { name: 'Adj' });
+  const adj = page.getByRole('button', { name: 'Adj', exact: true });
   await expect(adj).toBeVisible();
   await expect(adj).toBeDisabled();
   await expect(adj).toHaveAttribute('title', 'Type Plan kg or log a set first.');
