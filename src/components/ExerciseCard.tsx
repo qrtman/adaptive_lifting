@@ -19,7 +19,20 @@ import {
   type NeighborDir,
   type SetGridBind,
 } from '../services/sheetsCellKeyboard';
-import { planKgOfferKg, refreshSetAnchors } from '../services/setPrescription';
+import {
+  applyLiftAdj,
+  formatLiftAdjPreview,
+  formatSignedDelta,
+  LIFT_ADJ_COPY,
+  LIFT_ADJ_KG_STEP,
+  LIFT_ADJ_PCT_STEP,
+  liftAdjDisabledReason,
+  parseSignedDelta,
+  planKgOfferKg,
+  previewLiftAdj,
+  refreshSetAnchors,
+  type LiftAdjMode,
+} from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
 import type { MovementPattern } from '../services/exerciseCatalog';
 
@@ -91,6 +104,9 @@ export const ExerciseCard = ({
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
   const [removing, setRemoving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [adjOpen, setAdjOpen] = useState(false);
+  const [adjMode, setAdjMode] = useState<LiftAdjMode>('pct');
+  const [adjDraft, setAdjDraft] = useState('0');
   const [grid, setGrid] = useState<{
     row: number;
     col: number;
@@ -212,6 +228,22 @@ export const ExerciseCard = ({
   const sep = (ch: string) => (
     <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">{ch}</span>
   );
+  const adjDisabled = locked ? null : liftAdjDisabledReason(sets);
+  const adjDelta = parseSignedDelta(adjDraft) ?? 0;
+  const { preview: adjPreview, patches: adjPatches } = previewLiftAdj(sets, adjMode, adjDelta);
+  const nudgeAdj = (dir: 1 | -1) => {
+    const step = adjMode === 'kg' ? LIFT_ADJ_KG_STEP : LIFT_ADJ_PCT_STEP;
+    const current = parseSignedDelta(adjDraft) ?? 0;
+    const next = adjMode === 'kg'
+      ? Math.round((current + dir * step) * 10) / 10
+      : Math.round(current + dir * step);
+    setAdjDraft(formatSignedDelta(next));
+  };
+  const applyAdj = () => {
+    if (locked || adjPatches.length === 0) return;
+    updateAndPropagate(applyLiftAdj(sets, adjPatches));
+    setAdjOpen(false);
+  };
 
   return (
     <div className="border-b border-white/10">
@@ -252,9 +284,27 @@ export const ExerciseCard = ({
             <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
           </div>
           {!locked ? (
+          <>
+          <button
+            type="button"
+            data-testid={`lift-adj-${id}`}
+            disabled={adjDisabled != null}
+            title={adjDisabled ?? 'Adj remaining unlogged Plan kg'}
+            aria-label="Adj"
+            onClick={() => {
+              if (adjDisabled) return;
+              setAdjMode('pct');
+              setAdjDraft('0');
+              setAdjOpen(true);
+            }}
+            className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+          >
+            Adj
+          </button>
           <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
             + Set
           </button>
+          </>
           ) : null}
           {onMoveUp && (
             <button
@@ -506,6 +556,99 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      {adjOpen && !locked ? (
+        <CenteredDialog
+          title="Adj"
+          subtitle={LIFT_ADJ_COPY.scope}
+          onClose={() => setAdjOpen(false)}
+          onSubmit={applyAdj}
+          testId="lift-adj-dialog"
+          footer={(
+            <>
+              <button
+                type="button"
+                data-testid="lift-adj-cancel"
+                onClick={() => setAdjOpen(false)}
+                className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                data-testid="lift-adj-apply"
+                className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded"
+              >
+                Apply
+              </button>
+            </>
+          )}
+        >
+          <div className="flex flex-col gap-3">
+            <div className="inline-flex self-start border border-white/10 rounded" role="group" aria-label="Adj mode">
+              <button
+                type="button"
+                data-testid="lift-adj-mode-kg"
+                aria-pressed={adjMode === 'kg'}
+                onClick={() => { setAdjMode('kg'); setAdjDraft('0'); }}
+                className={`h-7 px-2 text-[11px] ${adjMode === 'kg' ? 'text-white' : 'text-[#AEAEB2]'}`}
+              >
+                kg
+              </button>
+              <button
+                type="button"
+                data-testid="lift-adj-mode-pct"
+                aria-pressed={adjMode === 'pct'}
+                onClick={() => { setAdjMode('pct'); setAdjDraft('0'); }}
+                className={`h-7 px-2 text-[11px] ${adjMode === 'pct' ? 'text-white' : 'text-[#AEAEB2]'}`}
+              >
+                %
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="lift-adj-dec"
+                onClick={() => nudgeAdj(-1)}
+                className="h-8 w-8 text-sm text-[#AEAEB2] hover:text-white"
+                aria-label="Decrease"
+              >
+                −
+              </button>
+              <input
+                data-testid="lift-adj-value"
+                type="text"
+                inputMode="decimal"
+                value={adjDraft}
+                onChange={(event) => setAdjDraft(event.target.value)}
+                onBlur={() => {
+                  const parsed = parseSignedDelta(adjDraft);
+                  setAdjDraft(formatSignedDelta(parsed ?? 0));
+                }}
+                className="h-8 w-20 px-2 text-center text-xs font-mono tabular-nums text-white bg-[#0A0A0A] border border-white/10 rounded"
+                aria-label="Adj amount"
+              />
+              <button
+                type="button"
+                data-testid="lift-adj-inc"
+                onClick={() => nudgeAdj(1)}
+                className="h-8 w-8 text-sm text-[#AEAEB2] hover:text-white"
+                aria-label="Increase"
+              >
+                +
+              </button>
+            </div>
+            {adjPreview ? (
+              <p data-testid="lift-adj-preview" className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+                {formatLiftAdjPreview(adjPreview)}
+              </p>
+            ) : (
+              <p data-testid="lift-adj-preview" className="text-xs text-[#636366]">
+                Nothing to apply at this value.
+              </p>
+            )}
+          </div>
+        </CenteredDialog>
+      ) : null}
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}
