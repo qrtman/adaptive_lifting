@@ -44,9 +44,11 @@ import hashlib
 import secrets
 
 from .set_writes import replace_exercise_sets
-from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series
+from .math_utils import calculate_e1rm, calculate_inol, calculate_dots, calculate_attempt_jumps, calculate_acwr_series, MATH_VERSION
 from .exercise_patterns import PATTERNS, pattern_for
 from .accessory_migration import coerce_float, coerce_int
+from .session_metrics import format_set_metrics, summary_for_workout
+from .domain_events import emit_workout_synced
 
 from sqlalchemy import text
 # Make sure SQLite tables exist on launch
@@ -91,21 +93,8 @@ def migrate_db():
     except Exception:
         db.rollback()
     try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN movement_pattern VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        from .exercise_patterns import pattern_for
-        rows = db.execute(text("SELECT id, title, lift_category, movement_pattern FROM exercises")).fetchall()
-        for row in rows:
-            if row[3]:
-                continue
-            db.execute(
-                text("UPDATE exercises SET movement_pattern = :pattern WHERE id = :id"),
-                {"pattern": pattern_for(row[1], row[2]), "id": row[0]},
-            )
-        db.commit()
+        from .schema_migrations import apply_schema_migrations
+        apply_schema_migrations(db)
     except Exception:
         db.rollback()
     try:
@@ -483,6 +472,7 @@ def format_exercise(e: Exercise) -> dict:
             set_dict["dropPercent"] = s.dropPercent
         if s.note is not None:
             set_dict["note"] = s.note
+        set_dict.update(format_set_metrics(s))
         sets_list.append(set_dict)
 
     return {
@@ -499,6 +489,31 @@ def format_exercise(e: Exercise) -> dict:
     }
 
 
+def format_workout(w: Workout, exercises_list: Optional[List[dict]] = None) -> dict:
+    if exercises_list is None:
+        exercises_list = [
+            format_exercise(e)
+            for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
+            if is_live(e)
+        ]
+    return {
+        "id": w.id,
+        "date": w.date,
+        "dayLabel": w.dayLabel,
+        "title": w.title,
+        "tonnage": w.tonnage,
+        "delta": w.delta,
+        "color": w.color,
+        "status": w.status,
+        "blockLabel": getattr(w, "block_label", None),
+        "weekLabel": getattr(w, "week_label", None),
+        "notes": getattr(w, "notes", None),
+        "summary": summary_for_workout(w),
+        "mathVersion": MATH_VERSION,
+        "exercises": exercises_list,
+    }
+
+
 def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
@@ -508,19 +523,7 @@ def format_microcycle(mc: Microcycle) -> dict:
             if is_live(e)
         ]
 
-        workouts_list.append({
-            "id": w.id,
-            "date": w.date,
-            "dayLabel": w.dayLabel,
-            "title": w.title,
-            "tonnage": w.tonnage,
-            "delta": w.delta,
-            "color": w.color,
-            "status": w.status,
-            "blockLabel": getattr(w, "block_label", None),
-            "weekLabel": getattr(w, "week_label", None),
-            "exercises": exercises_list,
-        })
+        workouts_list.append(format_workout(w, exercises_list))
 
     return {
         "id": mc.id,
@@ -1360,6 +1363,7 @@ class UpdateSessionRequest(BaseModel):
     blockLabel: Optional[str] = None
     weekLabel: Optional[str] = None
     status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class BulkLabelsRequest(BaseModel):
@@ -1627,6 +1631,8 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
     db.add(workout)
     db.commit()
     db.refresh(workout)
+    emit_workout_synced(db, workout.id, {"reason": "created"}, actor_user_id=current_user.id)
+    db.commit()
     return {
         "id": workout.id,
         "date": workout.date,
@@ -1700,6 +1706,7 @@ def add_session_exercise(
         executedRpe=None,
         exercise_id=exercise.id,
     ))
+    emit_workout_synced(db, workout.id, {"reason": "exercise_added"}, actor_user_id=current_user.id)
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
@@ -1722,6 +1729,8 @@ def replace_session_exercise_sets(
     db.commit()
     db.refresh(exercise)
     recalculate_metrics(db, workout.id, workout.dayLabel)
+    emit_workout_synced(db, workout.id, {"reason": "sets_replaced"}, actor_user_id=current_user.id)
+    db.commit()
     return format_exercise(exercise)
 
 
@@ -1742,6 +1751,7 @@ def remove_session_exercise(
         if is_live(exercise_set):
             exercise_set.deleted_at = now
     reindex_exercises(live_exercises(workout))
+    emit_workout_synced(db, workout.id, {"reason": "exercise_removed"}, actor_user_id=current_user.id)
     db.commit()
     return {"status": "success", "id": exercise_id}
 
@@ -1788,6 +1798,7 @@ def update_session_exercise(
         if 0 <= swap_with < len(ordered):
             ordered[index], ordered[swap_with] = ordered[swap_with], ordered[index]
             reindex_exercises(ordered)
+    emit_workout_synced(db, workout.id, {"reason": "exercise_updated"}, actor_user_id=current_user.id)
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
@@ -1826,8 +1837,12 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
             workout.color = "gray"
         else:
             workout.color = "mac-blue"
+    if req.notes is not None:
+        workout.notes = req.notes
     db.commit()
     db.refresh(workout)
+    emit_workout_synced(db, workout.id, {"reason": "session_patched"}, actor_user_id=current_user.id)
+    db.commit()
     return {
         "id": workout.id,
         "date": workout.date,
@@ -1836,9 +1851,29 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
         "status": workout.status,
         "blockLabel": workout.block_label,
         "weekLabel": workout.week_label,
+        "notes": workout.notes,
+        "summary": summary_for_workout(workout),
         "microcycleId": workout.microcycle_id,
         "ownerId": workout.owner_id,
+        "mathVersion": MATH_VERSION,
     }
+
+
+@app.get("/api/sessions/{session_id}/summary")
+def get_session_summary(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    workout = db.query(Workout).filter(Workout.id == session_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Session not found")
+    owner_id = workout.owner_id
+    if not owner_id and workout.microcycle_id:
+        mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
+        owner_id = mc.owner_id if mc else None
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Session has no owner")
+    assert_plan_access(db, current_user, owner_id)
+    body = format_workout(workout)
+    body["mathVersion"] = MATH_VERSION
+    return body
 
 
 @app.delete("/api/sessions/{session_id}")

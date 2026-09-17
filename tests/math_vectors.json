@@ -1,5 +1,6 @@
 {
   "math_version": "linear-decay-v1",
+  "metrics": ["e1rm", "inol", "intensity_pct", "dots"],
   "e1rm": [
     { "weight": 0, "reps": 5, "rpe": 8, "expected": 0 },
     { "weight": 100, "reps": 0, "rpe": 8, "expected": 0 },

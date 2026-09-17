@@ -16,6 +16,7 @@ VECTORS = json.loads((Path(__file__).parent / "math_vectors.json").read_text(enc
 
 def test_shared_math_version():
     assert MATH_VERSION == VECTORS["math_version"]
+    assert set(VECTORS["metrics"]) == {"e1rm", "inol", "intensity_pct", "dots"}
 
 
 def test_shared_e1rm_vectors():

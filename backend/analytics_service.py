@@ -23,7 +23,7 @@ from .analytics_schemas import (
     Visualization,
 )
 from .database import CoachingRelationship, Exercise, ExerciseSet, Microcycle, User, Workout
-from .exercise_patterns import PATTERNS
+from .exercise_patterns import LIFT_CATEGORY_PATTERN, PATTERNS
 from .math_utils import calculate_acwr_series, calculate_e1rm
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -131,7 +131,7 @@ def fetch_set_rows(
             "title": title,
             "lift_category": lift_category or "Other",
             "tier": tier,
-            "pattern": movement_pattern or "Misc",
+            "pattern": movement_pattern or LIFT_CATEGORY_PATTERN.get(lift_category or "Other", "Misc"),
             "actual": float(actual or 0),
             "reps": int(reps or 0),
             "rpe": float(executed_rpe or 0),

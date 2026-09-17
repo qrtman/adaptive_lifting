@@ -960,7 +960,8 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
-| `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
+| `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events. Cookie auth is not required today (EventSource cookie gap); treat as a discrepancy vs §9.2. | Coach / athlete |
+| `GET` | `/api/athletes/{id}/live` | Plan-level SSE of `WORKOUT_SYNCED` for an athlete plan space. RBAC via `assert_plan_access`. Calendar chips and the open inspector subscribe here. | Linked coach / owning athlete |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
 | `POST` | `/api/integrations/telegram/link-token` | Generate short-lived Telegram Mini App deep-link token | Coach / Athlete |
 | `POST` | `/api/integrations/telegram/miniapp/session` | Verify Telegram Mini App `initData` and issue app session | Coach / Athlete |
@@ -1253,6 +1254,8 @@ adaptive_lifting/
 |   |   +-- AuthContext.tsx         # Login status, role, session revocation
 |   |   +-- SyncContext.tsx         # Online/offline, mutation queue, conflicts
 |   |   \-- PeriodizationContext.tsx # Mesocycle/microcycle/workout tree + IndexedDB hydrate
+|   +-- surface/                    # Calendar, set grid, inspector primitives (context-free)
+|   +-- features/calendar|sessions  # Periodization/Sync/Auth wrappers
 |   +-- insights/                   # Composable insight cards (types, builder, SVG charts)
 |   +-- services/
 |   |   +-- api.ts                  # HTTP client (fetch wrapper)
@@ -1261,8 +1264,7 @@ adaptive_lifting/
 |   |   \-- sync_engine.ts          # Workout + insight-card mutation flush
 |   \-- components/
 |       +-- AppShell.tsx / Sidebar.tsx / AthleteScopeSelector.tsx
-|       +-- CalendarView.tsx / SessionsView.tsx / InsightsView.tsx
-|       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
+|       +-- InsightsView.tsx
 |       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |
 \-- backend/                        # FastAPI Server
@@ -1285,7 +1287,9 @@ Code layout is flat `src/components/*` (not `layout/` / `calendar/` / `sessions/
 The PWA has no react-router. Workspaces are hash routes written by `src/navigation.ts`:
 
 - `#/calendar`, `#/sessions`, `#/insights`, `#/integrations`, `#/security`
-- Optional query: `athlete=<id>`, `panel=athlete-scope`
+- Optional query: `athlete=<id>`, `panel=athlete-scope`, `session=<id>`, `grid=1`
+- Wide-screen sheet: `#/sessions/:id/grid`
+- Deep link `#/calendar?session=<id>` opens the right inspector without leaving the month grid
 - Legacy `#/roster`, `#/athletes`, `?view=roster` redirect to calendar and open the sidebar athlete-plan selector
 - Legacy `#/analytics` redirects to Insights
 - Telegram Mini App still enters at `/?tg_auth=true`; if `view=` is present it is resolved through the same redirect table
@@ -1296,7 +1300,7 @@ Insights cards are saved per user (`InsightCard`) and executed against the curre
 
 **Query plan (weekday_matrix / heatmap over a block):** one SQL join of `workouts × exercises × sets × microcycles` filtered by owner and date window, then in-memory group-by. Avoids N+1. If a window regularly exceeds ~50,000 set rows, add a materialized `daily_set_facts` table keyed by `(owner_id, date, pattern)` — extension point documented on `fetch_set_rows`. ISO week is an analytics grain only, not a Mon–Sun scheduling container.
 
-Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview. `MATH_VERSION` (`linear-decay-v1`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build.
+Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for SetGrid live preview until sync returns per-set e1RM. `MATH_VERSION` (`linear-decay-v1`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build. Session payloads include `summary` (tonnage, setCount, inol, avgIntensity) and per-set `e1rm` / `e1rmSource: server`. `GET /api/sessions/{id}/summary` returns the same body. `workouts.notes` is free text (never parsed). Ink tokens live in `src/index.css` `@theme` and `design/tokens.md`. Calendar/grid/inspector interactions: `design/surface-spec.md`.
 
 Pattern-scoped cards (`weekday_matrix`, spacing vs e1RM) read `exercises.movement_pattern`. New lifts store the catalog field; existing rows are backfilled once via `pattern_for(title, lift_category)`. Query time does not re-run the title heuristic.
 

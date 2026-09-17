@@ -14,6 +14,8 @@ export type AppLocation = {
   mode: DashboardMode;
   athleteId: string | null;
   panel: NavPanel | null;
+  sessionId: string | null;
+  grid: boolean;
 };
 
 const MODE_SET = new Set<string>(DASHBOARD_MODES);
@@ -54,14 +56,22 @@ export function parseAppLocation(href: string = typeof window !== 'undefined' ? 
   try {
     url = new URL(href, 'http://local.invalid');
   } catch {
-    return { mode: 'sessions', athleteId: null, panel: null };
+    return { mode: 'sessions', athleteId: null, panel: null, sessionId: null, grid: false };
   }
 
   const hash = url.hash.replace(/^#\/?/, '');
   const [hashPath, hashQuery] = hash.split('?');
-  const hashMode = (hashPath || '').split('/')[0];
+  const parts = (hashPath || '').split('/').filter(Boolean);
+  const hashMode = parts[0];
   const hashParams = new URLSearchParams(hashQuery || '');
   const searchParams = url.searchParams;
+
+  let sessionFromPath: string | null = null;
+  let gridFromPath = false;
+  if (parts[0] === 'sessions' && parts[1] && parts[2] === 'grid') {
+    sessionFromPath = parts[1];
+    gridFromPath = true;
+  }
 
   const rawMode = hashMode || firstParam(searchParams, 'view') || getUiPref(UI_KEYS.dashboardMode) || 'sessions';
   const resolved = resolveDashboardMode(rawMode);
@@ -73,14 +83,28 @@ export function parseAppLocation(href: string = typeof window !== 'undefined' ? 
   const panel: NavPanel | null =
     resolved.panel ||
     (panelToken === 'athlete-scope' ? 'athlete-scope' : null);
+  const sessionId =
+    sessionFromPath ||
+    firstParam(hashParams, 'session') ||
+    firstParam(searchParams, 'session');
+  const grid = gridFromPath || firstParam(hashParams, 'grid') === '1' || firstParam(searchParams, 'grid') === '1';
 
-  return { mode: resolved.mode, athleteId, panel };
+  return { mode: resolved.mode, athleteId, panel, sessionId, grid };
 }
 
 export function formatAppHash(location: AppLocation): string {
+  if (location.grid && location.sessionId && location.mode === 'sessions') {
+    const params = new URLSearchParams();
+    if (location.athleteId) params.set('athlete', location.athleteId);
+    if (location.panel) params.set('panel', location.panel);
+    const query = params.toString();
+    return query ? `#/sessions/${location.sessionId}/grid?${query}` : `#/sessions/${location.sessionId}/grid`;
+  }
   const params = new URLSearchParams();
   if (location.athleteId) params.set('athlete', location.athleteId);
   if (location.panel) params.set('panel', location.panel);
+  if (location.sessionId) params.set('session', location.sessionId);
+  if (location.grid) params.set('grid', '1');
   const query = params.toString();
   return query ? `#/${location.mode}?${query}` : `#/${location.mode}`;
 }

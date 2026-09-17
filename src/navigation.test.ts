@@ -27,6 +27,8 @@ describe('parseAppLocation', () => {
       mode: 'calendar',
       athleteId: null,
       panel: null,
+      sessionId: null,
+      grid: false,
     });
   });
 
@@ -35,6 +37,8 @@ describe('parseAppLocation', () => {
       mode: 'calendar',
       athleteId: 'ath-1',
       panel: 'athlete-scope',
+      sessionId: null,
+      grid: false,
     });
   });
 
@@ -43,18 +47,40 @@ describe('parseAppLocation', () => {
       mode: 'calendar',
       athleteId: null,
       panel: 'athlete-scope',
+      sessionId: null,
+      grid: false,
+    });
+  });
+
+  it('reads session deep links', () => {
+    expect(parseAppLocation('http://app.local/#/calendar?session=w-1')).toEqual({
+      mode: 'calendar',
+      athleteId: null,
+      panel: null,
+      sessionId: 'w-1',
+      grid: false,
+    });
+    expect(parseAppLocation('http://app.local/#/sessions/w-1/grid')).toEqual({
+      mode: 'sessions',
+      athleteId: null,
+      panel: null,
+      sessionId: 'w-1',
+      grid: true,
     });
   });
 });
 
 describe('formatAppHash', () => {
   it('omits empty query', () => {
-    expect(formatAppHash({ mode: 'sessions', athleteId: null, panel: null })).toBe('#/sessions');
+    expect(formatAppHash({ mode: 'sessions', athleteId: null, panel: null, sessionId: null, grid: false })).toBe('#/sessions');
   });
 
   it('includes athlete and panel', () => {
-    expect(formatAppHash({ mode: 'calendar', athleteId: 'a1', panel: 'athlete-scope' })).toBe(
+    expect(formatAppHash({ mode: 'calendar', athleteId: 'a1', panel: 'athlete-scope', sessionId: null, grid: false })).toBe(
       '#/calendar?athlete=a1&panel=athlete-scope',
+    );
+    expect(formatAppHash({ mode: 'calendar', athleteId: null, panel: null, sessionId: 'w-1', grid: false })).toBe(
+      '#/calendar?session=w-1',
     );
   });
 });

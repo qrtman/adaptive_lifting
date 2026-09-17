@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export async function signInCoach(page: Page, prefs: Record<string, string> = {}) {
   await page.addInitScript((extra: Record<string, string>) => {
@@ -9,10 +9,42 @@ export async function signInCoach(page: Page, prefs: Record<string, string> = {}
   }, prefs);
 }
 
+export async function typeCell(cell: Locator, value: string) {
+  await expect(async () => {
+    await expect(cell).toHaveCount(1);
+    await cell.evaluate((el, next) => {
+      const node = el as HTMLElement;
+      const input = (node.tagName === 'INPUT' ? node : node.querySelector('input')) as HTMLInputElement | null;
+      if (!input) throw new Error('cell has no input');
+      input.focus();
+      input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(input, next);
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, data: next, inputType: 'insertText' }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.blur();
+    }, value);
+  }).toPass({ timeout: 10_000 });
+}
+
+export async function expectCellValue(cell: Locator, value: string) {
+  if (value === '—') {
+    await expect(cell).toHaveValue('');
+    return;
+  }
+  await expect(cell).toHaveValue(value);
+}
+
 export async function fillLogCell(page: Page, cellId: string, value: string | number) {
-  await page.locator(`#${cellId}`).click();
-  const input = page.locator('input').last();
-  await input.fill(String(value));
+  const byId = page.locator(`#${cellId}`);
+  const cell = (await byId.count()) ? byId : page.getByTestId(cellId).first();
+  await typeCell(cell, String(value));
+}
+
+export async function fillCombo(page: Page, testId: string, value: string) {
+  const input = page.getByTestId(testId);
+  await input.click();
+  await input.fill(value);
   await input.press('Enter');
 }
 

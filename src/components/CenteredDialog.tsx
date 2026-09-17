@@ -14,7 +14,7 @@ export function CenteredDialog({
   onClose: () => void;
   onSubmit?: () => void;
   children: ReactNode;
-  footer: ReactNode;
+  footer?: ReactNode;
   testId?: string;
 }) {
   useEffect(() => {
@@ -64,16 +64,12 @@ export function CenteredDialog({
             }}
           >
             {children}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              {footer}
-            </div>
+            {footer ? <div className="mt-4 flex items-center justify-end gap-2">{footer}</div> : null}
           </form>
         ) : (
           <>
             {children}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              {footer}
-            </div>
+            {footer ? <div className="mt-4 flex items-center justify-end gap-2">{footer}</div> : null}
           </>
         )}
       </div>

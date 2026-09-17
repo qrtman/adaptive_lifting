@@ -16,7 +16,7 @@ export function LiftFilter({
           <Tab
             key={lift}
             id={lift}
-            className="px-2 h-7 text-xs rounded"
+            className="px-2 h-7 text-caption rounded"
           >
             {lift}
           </Tab>

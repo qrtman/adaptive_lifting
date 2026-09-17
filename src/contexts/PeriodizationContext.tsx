@@ -164,14 +164,16 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (activeMicrocycleId) setUiPref(UI_KEYS.activeMicrocycleId, activeMicrocycleId);
   }, [activeMicrocycleId]);
 
-  const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
-  const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
+  const activeMicro = microcycles.find(m => m.id === activeMicrocycleId)
+    || microcycles.find(m => m.workouts.some(w => w.id === activeWorkoutId));
+  const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId)
+    || microcycles.flatMap(m => m.workouts).find(w => w.id === activeWorkoutId);
 
   const saveTimers = useRef<Record<string, number>>({});
   const pendingSetWrites = useRef<Record<string, Parameters<typeof apiService.replaceExerciseSets>[2]>>({});
 
-  const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
-    if (!activeWorkoutId) return;
+  const persistExerciseSets = useCallback((workoutId: string, exerciseId: string, updatedSets: any[]) => {
+    if (!workoutId) return;
     const payload = updatedSets.map((row, index) => ({
       id: row.id,
       label: row.label || `Set ${index + 1}`,
@@ -184,30 +186,41 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       actual: row.actual ?? null,
       reps: row.reps ?? null,
       executedRpe: row.executedRpe ?? null,
+      note: row.note ?? null,
     }));
     pendingSetWrites.current[exerciseId] = payload;
-    void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload });
+    void queueMutation(workoutId, 'Exercise', exerciseId, { sets: payload });
     window.clearTimeout(saveTimers.current[exerciseId]);
     saveTimers.current[exerciseId] = window.setTimeout(() => {
       const next = pendingSetWrites.current[exerciseId];
       delete pendingSetWrites.current[exerciseId];
       delete saveTimers.current[exerciseId];
       if (!next) return;
-      void apiService.replaceExerciseSets(activeWorkoutId, exerciseId, next).catch((err) => {
+      void apiService.replaceExerciseSets(workoutId, exerciseId, next).catch((err) => {
         console.error('Failed to save sets', err);
       });
     }, 400);
-  }, [activeWorkoutId]);
+  }, []);
 
   const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
-    if (!activeMicrocycleId || !activeWorkoutId) return;
+    let microId = activeMicrocycleId;
+    let workoutId = activeWorkoutId;
+    for (const micro of microcycles) {
+      const workout = micro.workouts.find((item) => item.exercises.some((ex) => ex.id === exerciseId));
+      if (workout) {
+        microId = micro.id;
+        workoutId = workout.id;
+        break;
+      }
+    }
+    if (!microId || !workoutId) return;
 
     setMicrocycles(prev => prev.map(m => {
-      if (m.id !== activeMicrocycleId) return m;
+      if (m.id !== microId) return m;
       return {
         ...m,
         workouts: m.workouts.map(w => {
-          if (w.id !== activeWorkoutId) return w;
+          if (w.id !== workoutId) return w;
 
           const updatedExercises = w.exercises.map(ex => {
             if (ex.id !== exerciseId) return ex;
@@ -245,7 +258,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       };
     }));
 
-    persistExerciseSets(exerciseId, updatedSets);
+    persistExerciseSets(workoutId, exerciseId, updatedSets);
   };
 
   const finishSession = async (status: WorkoutStatus) => {
