@@ -45,7 +45,27 @@ async function expectNoCover(overlay: Locator, cards: Locator) {
   }
 }
 
-async function addCatalogLift(page: Page, category: string, exercise: string) {
+async function expectSessionHeaderHierarchy(page: Page) {
+  const name = page.getByTestId('session-name');
+  const labels = page.getByTestId('session-labels');
+  const tonnage = page.getByTestId('workout-tonnage');
+  const nameStyle = await name.evaluate((el) => {
+    const computed = getComputedStyle(el);
+    return { size: parseFloat(computed.fontSize), weight: parseInt(computed.fontWeight, 10) };
+  });
+  const labelStyle = await labels.evaluate((el) => {
+    const computed = getComputedStyle(el);
+    return { size: parseFloat(computed.fontSize), weight: parseInt(computed.fontWeight, 10) || 400 };
+  });
+  expect(nameStyle.size).toBeGreaterThan(labelStyle.size);
+  expect(nameStyle.weight).toBeGreaterThan(labelStyle.weight);
+  const nameBox = await name.boundingBox();
+  const tonnageBox = await tonnage.boundingBox();
+  const editBox = await page.getByTestId('session-edit').boundingBox();
+  expect(nameBox && tonnageBox && editBox).toBeTruthy();
+  expect(tonnageBox!.y).toBeGreaterThan(nameBox!.y);
+  expect(editBox!.y).toBeGreaterThan(nameBox!.y);
+}
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption(category);
   await page.getByTestId(`add-lift-result-${exercise}`).click();
@@ -145,6 +165,13 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('session-labels')).toContainText('Day 1');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
+  await expectSessionHeaderHierarchy(page);
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(page.getByTestId('session-complete')).toBeVisible();
+  const completeBox = await page.getByTestId('session-complete').boundingBox();
+  expect(completeBox).toBeTruthy();
+  expect(completeBox!.y + completeBox!.height).toBeLessThanOrEqual(740);
+  await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Back' }).click();
   const reuseDay = page.getByTestId('calendar-day-2026-09-05');

@@ -236,53 +236,42 @@ export default function App() {
             >
               {activeWorkout ? (
                 <>
-                  <div id="training-focus" className="min-h-8 flex flex-wrap items-center justify-between gap-2 px-1">
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <div id="training-focus" className="min-h-8 flex flex-wrap items-start justify-between gap-2 px-1">
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
                         <button 
                           onClick={() => {
                             setEditSessionOpen(false);
                             setCurrentView('dashboard');
                           }}
-                          className="text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0"
+                          className="text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0 mt-1"
                         >
                           Back
                         </button>
-                        <p data-testid="session-name" className="text-base font-semibold tracking-tight text-[var(--cal-ink)] truncate max-w-[220px]">
-                          {activeWorkout.title}
-                        </p>
-                        <p data-testid="session-labels" className="flex items-baseline gap-2 min-w-0">
-                          {sessionDayLabel ? (
-                            <span className="text-sm font-semibold text-[var(--cal-ink)] truncate">
-                              {sessionDayLabel}
-                            </span>
-                          ) : null}
-                          {sessionWeekLabel ? (
-                            <span className="text-sm font-semibold text-[var(--cal-ink)] truncate">
-                              {sessionWeekLabel}
-                            </span>
-                          ) : null}
-                          {sessionBlockLabel ? (
-                            <span className="text-[11px] text-[var(--cal-body)] truncate">
-                              {sessionBlockLabel}
-                            </span>
-                          ) : null}
-                          {!sessionWeekLabel && !sessionBlockLabel ? (
-                            <span className="text-[11px] text-[var(--cal-muted)]">No block/week</span>
-                          ) : null}
-                        </p>
-                        <p data-testid="workout-tonnage" className="text-[11px] text-[var(--cal-muted)] tnum shrink-0">
-                          {activeWorkout.tonnage}kg
-                        </p>
-                        <button
-                          type="button"
-                          data-testid="session-edit"
-                          onClick={() => setEditSessionOpen(true)}
-                          className="h-7 px-2 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-                        >
-                          Edit
-                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p data-testid="session-name" className="text-lg font-semibold tracking-tight text-[var(--cal-ink)] break-words">
+                            {activeWorkout.title}
+                          </p>
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+                            <p data-testid="session-labels" className="text-xs text-[var(--cal-muted)] min-w-0">
+                              {[sessionDayLabel, sessionWeekLabel, sessionBlockLabel].filter(Boolean).join(' · ')}
+                              {sessionDayLabel && !sessionWeekLabel && !sessionBlockLabel ? ' · ' : null}
+                              {!sessionWeekLabel && !sessionBlockLabel ? 'No block/week' : null}
+                            </p>
+                            <p data-testid="workout-tonnage" className="text-[11px] text-[var(--cal-muted)] tnum shrink-0">
+                              {activeWorkout.tonnage} kg
+                            </p>
+                            <button
+                              type="button"
+                              data-testid="session-edit"
+                              onClick={() => setEditSessionOpen(true)}
+                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 ml-auto">
                       <button
                         onClick={() => setRoleMode('coach')}
                         className={`h-7 px-2 text-[11px] ${
