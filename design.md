@@ -54,7 +54,7 @@ Do not build:
 
 - **No marketing landing page** as the first screen.
 - **No decorative hero section** or generic SaaS filler banners.
-- **No nested cards inside cards** (causes optical fatigue).
+- **Nested cards allowed** along the product tree (Block → Week → Session; day → session → lifts). No dummy extra wraps. See `.cursor/scopes/cal-theme/10-nested-cards.md`. Still no decorative hero or gradient orbs.
 - **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark aesthetic).
 - **No freeform text parsing** for prescriptions, set logging, or Sheets import.
 - **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).
@@ -83,7 +83,7 @@ If implementation context is missing, assume:
 | Decision | Default |
 | :--- | :--- |
 | Units | kg canonical, kg display unless user preference says otherwise |
-| Theme | Dark only for initial release |
+| Theme | Light default + Dark toggle (`al_theme`). Cal.com token language — `.cursor/rules/cal-theme.mdc` |
 | Mobile first screen | Today's active workout |
 | Coach first screen | Dashboard with athlete switcher that drives Calendar and Sessions |
 | Empty athlete plan | Show empty Calendar/Sessions states — never inject demo weeks |
@@ -194,8 +194,8 @@ Typography is optimized strictly to prevent visual reading skew during heavy phy
 
 | Role | CSS Font Stack | Primary Design Constraint |
 | :--- | :--- | :--- |
-| **UI sans** | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif` | Clean, geometric geometry for labels, subheads, menus |
-| **Data mono** | `JetBrains Mono`, `ui-monospace`, `SFMono-Regular`, `monospace` | Monospaced numeric characters to ensure strict column visual alignment |
+| **UI sans** | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif` | Labels, subheads, menus, display titles (600, negative tracking) |
+| **Training numbers** | `Inter` + `tabular-nums` | kg/reps/RPE/e1RM. Not JetBrains Mono. Trial 2: IBM Plex Sans if columns drift — `.cursor/scopes/cal-theme/11-typography.md` |
 
 ### 4.2 Type Scale
 
@@ -212,7 +212,7 @@ Font sizes are strictly locked to standard responsive tokens. Avoid fluid text r
 
 ### 4.3 Numeric Formatting Specs
 
-Monospaced numbers must maintain a **9:1 contrast ratio** using JetBrains Mono against deep background slots (`--ok-bg`).
+Training numbers must keep **tabular figures** and WCAG AA contrast against the active theme canvas (`--cal-*`), not a required coding font.
 
 | Metric | Storage Type | Canonical Precision | Export Display Format |
 | :--- | :--- | :--- | :--- |
