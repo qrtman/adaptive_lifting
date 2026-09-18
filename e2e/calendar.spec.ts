@@ -5,15 +5,16 @@ test.use({ baseURL: 'http://localhost:3000' });
 
 async function expectOverlayParked(overlay: Locator, day?: Locator) {
   await expect(overlay).toBeVisible();
-  await expect(overlay).toHaveCSS('position', 'absolute');
   const style = await overlay.evaluate((el) => {
     const computed = getComputedStyle(el);
     return {
+      position: computed.position,
       filter: computed.filter,
       transform: computed.transform,
       backdropFilter: computed.backdropFilter,
     };
   });
+  expect(['static', 'relative'].includes(style.position)).toBeTruthy();
   expect(style.filter === 'none' || style.filter === '').toBeTruthy();
   expect(style.transform === 'none' || style.transform === '').toBeTruthy();
   expect(style.backdropFilter === 'none' || style.backdropFilter === '').toBeTruthy();
@@ -144,7 +145,11 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
   const copiedCard = page.getByTestId('calendar-day-2026-09-11').locator('[data-testid^="workout-card-"]');
   await expect(copiedCard).toHaveCount(1);
-  await expect(copiedCard).toContainText('Hypertrophy · Week1');
+  await expect(copiedCard).toContainText('Squat');
+  await expect(copiedCard).toContainText('Day 1');
+  await expect(copiedCard).toContainText('Week 1');
+  await expect(copiedCard).toContainText('Block Hypertrophy');
+  await expect(copiedCard).not.toContainText('×');
 
   await copiedCard.click();
   await expect(page.getByTestId('session-name')).toHaveText('Squat');
@@ -165,7 +170,10 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('session-labels')).toContainText('Week 2');
   await expect(page.getByTestId('session-labels')).toContainText('Block Meet');
   await page.getByRole('button', { name: 'Back' }).click();
-  await expect(copiedCard).toContainText('Meet · Week2');
+  await expect(copiedCard).toContainText('Day 1');
+  await expect(copiedCard).toContainText('Week 2');
+  await expect(copiedCard).toContainText('Block Meet');
+  await expect(copiedCard).not.toContainText('×');
 });
 
 test('coach without an athlete cannot create; linked coach can', async ({ page, playwright }) => {
@@ -363,8 +371,15 @@ test('lift filter dialog matches stored category × pattern × tier', async ({ p
   const benchCard = page.getByTestId('calendar-day-2026-09-05').locator('[data-testid^="workout-card-"]');
   const rdlCard = page.getByTestId('calendar-day-2026-09-06').locator('[data-testid^="workout-card-"]');
   await expect(squatCard).toBeVisible();
+  await expect(squatCard).toContainText('Lower');
+  await expect(squatCard).toContainText('SQ');
+  await expect(squatCard).not.toContainText('×');
   await expect(benchCard).toBeVisible();
+  await expect(benchCard).toContainText('BP');
+  await expect(benchCard).not.toContainText('×');
   await expect(rdlCard).toBeVisible();
+  await expect(rdlCard).toContainText('RDL');
+  await expect(rdlCard).not.toContainText('×');
 
   await page.getByTestId('lift-filter-open').click();
   await expect(page.getByTestId('lift-filter-dialog')).toBeVisible();

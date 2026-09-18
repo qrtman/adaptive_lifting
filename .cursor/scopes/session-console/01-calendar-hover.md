@@ -4,19 +4,19 @@ Load this for Sep-1 hover chrome. Depends on `.cursor/rules/calendar-day-notes.m
 
 ## Task
 
-Do **not** cover session or note cards. Park New session / Copy to / Notes in empty space. Elevate **the card under the pointer**, not the whole day.
+Do **not** cover session or note cards. Keep calendar chips to **name + Day/Week/Block + one short-lift line**. Reserve hover-action space **at rest** so filling New session / Copy to / Notes never grows the day. Elevate **the card under the pointer**, not the whole day.
 
 ## Diagnosis (do not re-litigate)
 
-The bottom-left stacked overlay sat on SQ + note. Covering was the old lock; it is **void**. Expanding the day or shrinking cards to make room is also void — both change the week row or the data chips.
-
-The date row (`01` left, nothing right) is unused chrome. Session/note cards already use `surface-card` but `shadow-sm` at rest, so they never get DESIGN-cal’s rest-flat → hover-lift.
+Absolute leftover overlays sat **behind** session/note chips (z-index) or spilled into the next day. Covering, shrinking chips, and growing **on hover** are void. Deep set lines (`SQ 150×5@6`) on the calendar made chips too tall for a reserved dock.
 
 ## Locked
 
 - **Do not cover** this day’s session chips or note card.
-- **Do not** grow the day cell on hover. **Do not** shrink session/note cards to make room.
-- Overlay stays `position: absolute` (out of flow). Sit it in leftover space **inside this cell** — a `flex-1` pocket under the chips, typically the unused bottom of `min-h-[128px]`. Bound the cluster to that pocket (`inset-0`, wrap). Do **not** paint out to the right onto a neighbor.
+- **Do not** grow the day cell **on hover**. **Do not** shrink session/note chips to make room.
+- Week / day row **may grow at rest** when chips + a reserved action dock exceed `min-h-[128px]`. That reserved dock is always in flow (`mt-auto`, stacked compact buttons). Hover only fills it.
+- Overlay is **in-flow**, not `position: absolute`. Bound to this cell (`w-full`). Do **not** paint out to the right onto a neighbor.
+- Calendar chips drop kg×reps@RPE. Show **Name**, then Day · Week · Block when labeled, then one truncated line of unique short lift codes (`SQ · BP · DL`). Empty fields omit their line.
 - **No** `backdrop-blur`, **no** dim scrim, **no** wrapper card around the actions (buttons only).
 - **No** `translate` / `scale` / `cal-elevate-in` on the **day** or the **action buttons**. Honor `prefers-reduced-motion`.
 - Actions unchanged: New session (black primary) → Copy to (iff session) → Notes. Same testids. Copy-to still uses unfiltered `dayWorkouts[0]`.
@@ -33,18 +33,19 @@ Do not lift every card when the day is hovered — only the chip the pointer is 
 
 ## Files
 
-- `src/components/CalendarView.tsx` (hover node + session/note chip classes)
+- `src/components/CalendarView.tsx` (compact chips + reserved in-flow dock)
 - `src/index.css` (`.cal-day-chip` hover lift; reduced motion)
-- `e2e/calendar.spec.ts` (height vs neighbor; overlay does not intersect session/note rects; chip hover shadow)
+- `e2e/calendar.spec.ts` (height vs neighbor **on hover**; overlay inside cell, no cover; chip lift; no deep set line)
 
 ## States
 
-hover empty · hover with session · hover with note · hover a session chip · hover a note chip · copy-to armed (overlay hidden)
+hover empty · hover with session · hover with note · hover a session chip · hover a note chip · copy-to armed (overlay hidden) · rest with many chips (row may be taller)
 
 ## Acceptance
 
-- [ ] Hovered day in-flow height equals unhovered neighbor.
-- [ ] Overlay computed `position` is `absolute`; it does not overlap this day’s session or note cards.
+- [ ] Hovered day in-flow height equals that same day at rest (neighbor may already be taller from rest content).
+- [ ] Overlay sits in the reserved dock; it does not overlap this day’s session or note cards; it does not overflow the cell.
+- [ ] Session chips show name / Day·Week·Block / short lift codes — not `kg×reps@RPE`.
 - [ ] No blur filter on the day cell.
 - [ ] Session/note chips rest with no drop shadow; the hovered chip uses `--cal-shadow-lift`.
 - [ ] New session / Copy to / Notes still work.

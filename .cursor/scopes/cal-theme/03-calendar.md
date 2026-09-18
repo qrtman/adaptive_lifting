@@ -9,13 +9,13 @@ Cal-like **scheduling widget**: 7-col month, hairline grid, nested session/note 
 ## Locked
 
 - Date-first. Mon–Sun columns stay. No forced week containers for unlabeled sessions.
-- Day cell = **outer card** (radius 12px or shared hairline grid — pick one: Cal booking widgets use hairline cells; we allow **card-per-day**). Session + day note = **inner cards**. A session may contain lift lines as a further nest. No extra wrapper that is not a day/session/note/lift.
-- Hover overlay: `position: absolute`, `w-max` cap ~160px, does **not** change in-flow cell height. Actions: New session (primary **black**), Copy to (if session), Notes (secondary).
+- Day cell = **outer card** (radius 12px or shared hairline grid — pick one: Cal booking widgets use hairline cells; we allow **card-per-day**). Session + day note = **inner cards**. A session may contain a short lift-code line as a further nest. No extra wrapper that is not a day/session/note/lift.
+- Hover overlay: reserved in-flow dock at rest (stacked compact buttons, `w-full`). Does **not** grow the cell on hover. Actions: New session (primary **black**), Copy to (if session), Notes (secondary).
 - Empty day click still opens New session. Copy-to mode: overlay hidden; dest click = D1 date offset.
 - Meso strip: Cal pill / caption, not a glowing green orb.
 - Lift filter: **nav-pill-group** (All · Squat · Bench · Deadlift) using DESIGN-cal `nav-pill-group` + `category-tab`.
 - Density: keep `min-h-[128px]`-class budget unless inner cards clip; then grow **content**, not marketing padding.
-- SQ/BP/DL labels stay; color from `--cal-*` badge tokens.
+- SQ/BP/DL short codes stay; color from `--cal-*` badge tokens. No kg×reps@RPE on the calendar chip.
 
 ## Files
 
