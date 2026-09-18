@@ -229,9 +229,9 @@ export const ExerciseCard = ({
   });
 
   const td = "px-2 py-0.5 align-middle whitespace-nowrap";
-  const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[#636366] whitespace-nowrap";
+  const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
   const sep = (ch: string) => (
-    <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">{ch}</span>
+    <span className="text-[10px] text-[var(--cal-muted-soft)] select-none" aria-hidden="true">{ch}</span>
   );
   const adjDisabled = locked ? null : liftAdjDisabledReason(sets);
   const adjDelta = parseSignedDelta(adjDraft) ?? 0;
@@ -256,16 +256,16 @@ export const ExerciseCard = ({
   };
 
   return (
-    <div className="border-b border-white/10">
+    <div className="border-b border-[var(--cal-hairline)]">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-start gap-2 min-w-0">
-          <h4 className="text-lg leading-7 text-white truncate">{title}</h4>
-          <span className="text-xs text-[#AEAEB2] truncate">
+          <h4 className="text-lg leading-7 font-semibold tracking-tight text-[var(--cal-ink)] truncate">{title}</h4>
+          <span className="text-xs text-[var(--cal-muted)] truncate">
             {tier ? `${tier} · ${variation}` : variation}
           </span>
           {movementPattern ? (
             <span
-              className="text-xs text-[#AEAEB2] truncate"
+              className="text-xs text-[var(--cal-muted)] truncate"
               data-testid={`movement-pattern-label-${id}`}
             >
               {movementPattern}
@@ -276,7 +276,7 @@ export const ExerciseCard = ({
               type="button"
               data-testid={`edit-lift-${id}`}
               onClick={() => setEditOpen(true)}
-              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white shrink-0"
+              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0"
             >
               Edit
             </button>
@@ -284,14 +284,14 @@ export const ExerciseCard = ({
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">e1RM</span>
-            <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">e1RM</span>
+            <span className="text-xs tnum text-[var(--cal-muted)]">
               {sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—'}
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Vol</span>
-            <span className="text-xs font-mono tabular-nums text-[#AEAEB2]">{totalVolume.toLocaleString()} kg</span>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Vol</span>
+            <span className="text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
           </div>
           {!locked ? (
           <>
@@ -307,11 +307,11 @@ export const ExerciseCard = ({
               setAdjDraft('0');
               setAdjOpen(true);
             }}
-            className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+            className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
           >
             Adj
           </button>
-          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white">
+          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]">
             + Set
           </button>
           </>
@@ -322,7 +322,7 @@ export const ExerciseCard = ({
               data-testid={`move-lift-up-${id}`}
               disabled={locked}
               onClick={() => void onMoveUp()}
-              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
             >
               Up
             </button>
@@ -333,7 +333,7 @@ export const ExerciseCard = ({
               data-testid={`move-lift-down-${id}`}
               disabled={locked}
               onClick={() => void onMoveDown()}
-              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
             >
               Down
             </button>
@@ -349,7 +349,7 @@ export const ExerciseCard = ({
                 setRemoving(true);
                 void Promise.resolve(onRemove()).finally(() => setRemoving(false));
               }}
-              className="h-6 px-1.5 text-xs text-[#AEAEB2] hover:text-white disabled:opacity-40"
+              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
             >
               {removing ? 'Removing…' : 'Remove'}
             </button>
@@ -359,17 +359,17 @@ export const ExerciseCard = ({
       <div className="overflow-x-auto">
       <table role="grid" aria-label="Plan and log sets" className="text-left border-collapse w-max max-w-full">
         <thead>
-          <tr className="border-b border-white/5">
+          <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th className={`${th} w-6`}>#</th>
             <th className={`${th} w-14`}>%</th>
             <th className={`${th} pr-3`}>
-              <span className="text-[#AEAEB2]">Plan</span>
-              <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @</span>
+              <span className="text-[var(--cal-muted)]">Plan</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">kg × reps @</span>
             </th>
             <th className={`${th} w-6 px-1`} aria-label="Copy plan to log" />
-            <th className={`${th} pl-3 border-l border-white/5`}>
-              <span className="text-[#AEAEB2]">Log</span>
-              <span className="ml-1.5 font-normal normal-case tracking-normal text-[#636366]">kg × reps @ RPE</span>
+            <th className={`${th} pl-3 border-l border-[var(--cal-hairline-soft)]`}>
+              <span className="text-[var(--cal-muted)]">Log</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">kg × reps @ RPE</span>
             </th>
             <th className={th}>Δ</th>
             <th className={th}>e1RM</th>
@@ -380,7 +380,7 @@ export const ExerciseCard = ({
         <tbody>
             {sets.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-2 py-3 text-xs text-[#636366]">
+                <td colSpan={9} className="px-2 py-3 text-xs text-[var(--cal-muted-soft)]">
                   No sets programmed.
                 </td>
               </tr>
@@ -400,7 +400,7 @@ export const ExerciseCard = ({
                 ? 'bg-orange-500/10' 
                 : isUndershoot 
                   ? 'bg-mac-green/10' 
-                  : set.isTop ? 'bg-mac-blue/5' : 'hover:bg-white/[0.01]';
+                  : set.isTop ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]' : 'hover:bg-[var(--cal-surface-soft)]';
 
               const actualWt = trainingOrZero(set.actual);
               const plannedWt = trainingOrZero(set.plannedWeight);
@@ -413,10 +413,10 @@ export const ExerciseCard = ({
 
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
-                  <td className={`${td} w-6 font-mono text-[10px] text-[#AEAEB2]`}>{i + 1}</td>
+                  <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{i + 1}</td>
                   <td className={`${td} w-14`}>
                     {i === 0 ? (
-                      <span className="text-[11px] font-mono tabular-nums text-[#636366]" aria-hidden="true">—</span>
+                      <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true">—</span>
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
@@ -454,7 +454,7 @@ export const ExerciseCard = ({
                               type="button"
                               data-testid="plan-suggest"
                               onClick={() => updateSet(i, { plannedWeight: offerKg, isAuto: false })}
-                              className="h-6 px-1 text-[10px] text-[#AEAEB2] hover:text-white"
+                              className="h-6 px-1 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
                               title="Use kg from the set you just logged"
                             >
                               use {offerKg}
@@ -462,8 +462,8 @@ export const ExerciseCard = ({
                           ) : null}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
-                          <span className="text-white">{set.plannedWeight != null ? `${set.plannedWeight} kg` : '—'}</span>
+                      <div className="flex items-center gap-1 text-[11px] tnum whitespace-nowrap">
+                          <span className="text-[var(--cal-ink)]">{set.plannedWeight != null ? `${set.plannedWeight} kg` : '—'}</span>
                           {sep('×')}
                           <span>{set.plannedReps}</span>
                           {sep('@')}
@@ -476,16 +476,16 @@ export const ExerciseCard = ({
                       type="button"
                       disabled={locked}
                       onClick={() => syncTarget(i)}
-                      className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white disabled:opacity-40"
+                      className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
                     >
                       <ArrowRight size={12} />
                     </button>
                   </td>
-                  <td className={`${td} pl-3 border-l border-white/5`}>
+                  <td className={`${td} pl-3 border-l border-[var(--cal-hairline-soft)]`}>
                     {locked ? (
-                      <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums whitespace-nowrap">
-                        <span className="text-white">{set.actual ?? '—'}</span>
+                      <div className="flex items-center gap-1 text-[11px] tnum whitespace-nowrap">
+                        <span className="text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
                         {sep('×')}
                         <span>{set.reps ?? '—'}</span>
                         {sep('@')}
@@ -536,19 +536,19 @@ export const ExerciseCard = ({
                     </div>
                     )}
                   </td>
-                  <td className={`${td} font-mono tabular-nums text-[10px] text-[#AEAEB2]`}>
+                  <td className={`${td} tnum text-[10px] text-[var(--cal-muted)]`}>
                     {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
                     {rpeDelta !== null ? ` ${rpeDelta > 0 ? '+' : ''}${rpeDelta}r` : ''}
                   </td>
-                  <td className={`${td} font-mono tabular-nums text-[11px]`} data-testid={`set-metrics-${set.id}`}>
-                    <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-white' : 'text-[#636366]'}>
+                  <td className={`${td} tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
+                    <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
                   </td>
-                  <td className={`${td} font-mono tabular-nums text-[11px]`}>
+                  <td className={`${td} tnum text-[11px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
-                      className={inol > 0 ? 'text-[#AEAEB2]' : 'text-[#636366]'}
+                      className={inol > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}
                     >
                       {inol > 0 ? inol.toFixed(2) : '—'}
                     </span>
@@ -559,7 +559,7 @@ export const ExerciseCard = ({
                         type="button"
                         disabled={locked}
                         onClick={() => duplicateSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-white disabled:opacity-40"
+                        className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                         title="Duplicate set"
                       >
                         <Copy size={11} />
@@ -568,7 +568,7 @@ export const ExerciseCard = ({
                         type="button"
                         disabled={locked}
                         onClick={() => deleteSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[#AEAEB2] hover:text-red-400 disabled:opacity-40"
+                        className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-error)] disabled:opacity-40"
                         title="Delete set"
                       >
                         <Trash2 size={11} />
@@ -594,14 +594,14 @@ export const ExerciseCard = ({
                 type="button"
                 data-testid="lift-adj-cancel"
                 onClick={() => setAdjOpen(false)}
-                className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+                className="h-8 px-3 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 data-testid="lift-adj-apply"
-                className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded"
+                className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)]"
               >
                 Apply
               </button>
@@ -609,13 +609,13 @@ export const ExerciseCard = ({
           )}
         >
           <div className="flex flex-col gap-3">
-            <div className="inline-flex self-start border border-white/10 rounded" role="group" aria-label="Adj mode">
+            <div className="inline-flex self-start border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)]" role="group" aria-label="Adj mode">
               <button
                 type="button"
                 data-testid="lift-adj-mode-kg"
                 aria-pressed={adjMode === 'kg'}
                 onClick={() => { setAdjMode('kg'); setAdjDraft('0'); }}
-                className={`h-7 px-2 text-[11px] ${adjMode === 'kg' ? 'text-white' : 'text-[#AEAEB2]'}`}
+                className={`h-7 px-2 text-[11px] ${adjMode === 'kg' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}
               >
                 kg
               </button>
@@ -624,7 +624,7 @@ export const ExerciseCard = ({
                 data-testid="lift-adj-mode-pct"
                 aria-pressed={adjMode === 'pct'}
                 onClick={() => { setAdjMode('pct'); setAdjDraft('0'); }}
-                className={`h-7 px-2 text-[11px] ${adjMode === 'pct' ? 'text-white' : 'text-[#AEAEB2]'}`}
+                className={`h-7 px-2 text-[11px] ${adjMode === 'pct' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}
               >
                 %
               </button>
@@ -634,7 +634,7 @@ export const ExerciseCard = ({
                 type="button"
                 data-testid="lift-adj-dec"
                 onClick={() => nudgeAdj(-1)}
-                className="h-8 w-8 text-sm text-[#AEAEB2] hover:text-white"
+                className="h-8 w-8 text-sm text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
                 aria-label="Decrease"
               >
                 −
@@ -649,25 +649,25 @@ export const ExerciseCard = ({
                   const parsed = parseSignedDelta(adjDraft);
                   setAdjDraft(formatSignedDelta(parsed ?? 0));
                 }}
-                className="h-8 w-20 px-2 text-center text-xs font-mono tabular-nums text-white bg-[#0A0A0A] border border-white/10 rounded"
+                className="h-8 w-20 px-2 text-center text-xs tnum text-[var(--cal-ink)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)]"
                 aria-label="Adj amount"
               />
               <button
                 type="button"
                 data-testid="lift-adj-inc"
                 onClick={() => nudgeAdj(1)}
-                className="h-8 w-8 text-sm text-[#AEAEB2] hover:text-white"
+                className="h-8 w-8 text-sm text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
                 aria-label="Increase"
               >
                 +
               </button>
             </div>
             {adjPreview ? (
-              <p data-testid="lift-adj-preview" className="text-xs font-mono tabular-nums text-[#AEAEB2]">
+              <p data-testid="lift-adj-preview" className="text-xs tnum text-[var(--cal-muted)]">
                 {formatLiftAdjPreview(adjPreview)}
               </p>
             ) : (
-              <p data-testid="lift-adj-preview" className="text-xs text-[#636366]">
+              <p data-testid="lift-adj-preview" className="text-xs text-[var(--cal-muted-soft)]">
                 Nothing to apply at this value.
               </p>
             )}
@@ -685,7 +685,7 @@ export const ExerciseCard = ({
               type="button"
               data-testid="edit-lift-done"
               onClick={() => setEditOpen(false)}
-              className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded"
+              className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)]"
             >
               Done
             </button>
@@ -740,7 +740,7 @@ function DropPercentCell({
   if (locked) {
     return (
       <span
-        className="text-[11px] font-mono tabular-nums text-[#AEAEB2]"
+        className="text-[11px] tnum text-[var(--cal-muted)]"
         data-testid="set-drop-pct"
       >
         {dropPercentDisplay(value) || '—'}
@@ -779,7 +779,7 @@ function DropPercentCell({
           event.currentTarget.blur();
         }
       }}
-      className="h-6 w-10 px-0.5 text-center text-[11px] font-mono tabular-nums text-white bg-[#0A0A0A] border border-white/10 rounded-sm focus:outline-none focus:border-[#007AFF] placeholder:text-[#636366]"
+      className="h-6 w-10 px-0.5 text-center text-[11px] tnum text-[var(--cal-ink)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-sm focus:outline-none focus:border-[var(--cal-accent)] placeholder:text-[var(--cal-muted-soft)]"
     />
   );
 }

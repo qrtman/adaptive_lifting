@@ -134,3 +134,9 @@
     display: none;
   }
 }
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-family: Inter, sans-serif;
+}

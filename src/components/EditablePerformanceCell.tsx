@@ -209,7 +209,7 @@ export const EditablePerformanceCell = ({
       ? suggestedValue
       : placeholder;
 
-  const selectedRing = isSelected ? 'border-[#007AFF] ring-1 ring-[#007AFF]' : '';
+  const selectedRing = isSelected ? 'border-[var(--cal-accent)] ring-1 ring-[var(--cal-accent)]' : '';
 
   const sharedAttrs = {
     id: domId,
@@ -248,9 +248,9 @@ export const EditablePerformanceCell = ({
             grid.onCommit(grid.row, grid.col, e.target.value);
           }}
           onKeyDown={handleInputKeyDown}
-          className={`${variant === "transparent" ? "w-12 py-0 text-center text-xs" : `${widthClass} py-0 h-6 text-center text-xs`} bg-[#161616] border ${
-            isLogged ? 'border-[#34C759] text-[#34C759]' : 'border-[#007AFF] text-white'
-          } rounded-sm font-mono tabular-nums focus:outline-none`}
+          className={`${variant === "transparent" ? "w-12 py-0 text-center text-xs" : `${widthClass} py-0 h-6 text-center text-xs`} bg-[var(--cal-surface-card)] border ${
+            isLogged ? 'border-[var(--cal-success)] text-[var(--cal-success)]' : 'border-[var(--cal-accent)] text-[var(--cal-ink)]'
+          } rounded-sm tnum focus:outline-none`}
         />
       ) : variant === "transparent" ? (
         <div
@@ -273,7 +273,7 @@ export const EditablePerformanceCell = ({
           }}
           className={`${widthClass} h-6 flex items-center justify-center cursor-pointer select-none ${selectedRing}`}
         >
-          <span className={`text-xs font-mono tabular-nums ${value ? 'text-white' : 'text-[#636366]'}`}>
+          <span className={`text-xs tnum ${value ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}`}>
             {value ? value : placeholder}
           </span>
         </div>
@@ -296,18 +296,18 @@ export const EditablePerformanceCell = ({
             const text = (e.clipboardData.getData('text/plain').split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
             onChange(text);
           }}
-          className={`${widthClass} h-6 rounded-sm text-center text-xs font-mono tabular-nums cursor-pointer border flex items-center justify-center ${
+          className={`${widthClass} h-6 rounded-sm text-center text-xs tnum cursor-pointer border flex items-center justify-center ${
             isSelected
-              ? `border-[#007AFF] ring-1 ring-[#007AFF] ${isLogged && value ? 'text-[#34C759]' : value ? 'text-white' : 'text-[#636366]'}`
+              ? `border-[var(--cal-accent)] ring-1 ring-[var(--cal-accent)] ${isLogged && value ? 'text-[var(--cal-success)]' : value ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}`
               : isLogged
                 ? value
-                  ? 'border-[#34C759]/40 text-[#34C759]'
-                  : 'border-white/10 text-[#636366]'
+                  ? 'border-[color-mix(in_srgb,var(--cal-success)_40%,transparent)] text-[var(--cal-success)]'
+                  : 'border-[var(--cal-hairline)] text-[var(--cal-muted-soft)]'
                 : value
-                  ? 'border-white/10 text-white'
+                  ? 'border-[var(--cal-hairline)] text-[var(--cal-ink)]'
                   : isAuto && suggestedValue
-                    ? 'border-dashed border-[#007AFF]/40 text-[#007AFF]/70'
-                    : 'border-white/10 text-[#636366]'
+                    ? 'border-dashed border-[color-mix(in_srgb,var(--cal-accent)_40%,transparent)] text-[color-mix(in_srgb,var(--cal-accent)_70%,transparent)]'
+                    : 'border-[var(--cal-hairline)] text-[var(--cal-muted-soft)]'
           }`}
         >
           {displayValue}
@@ -352,13 +352,13 @@ export const EditablePerformanceCell = ({
               </div>
 
               <div className="flex flex-col items-center justify-center py-4 relative bg-white/[0.02] rounded-2xl border border-white/5 mx-2">
-                <span className={`text-6xl font-black tracking-widest font-mono select-none tabular-nums ${
-                  isLogged ? 'text-mac-green' : 'text-mac-blue'
+                <span className={`text-6xl font-black tracking-widest tnum select-none ${
+                  isLogged ? 'text-[var(--cal-success)]' : 'text-[var(--cal-accent)]'
                 }`}>
                   {value || suggestedValue || "—"}
                 </span>
                 {fieldKey.toLowerCase().includes('weight') && (
-                  <span className="text-[12px] font-black text-mac-blue/80 uppercase tracking-widest mt-2">
+                  <span className="text-[12px] font-black text-[color-mix(in_srgb,var(--cal-accent)_80%,transparent)] uppercase tracking-widest mt-2">
                     KILOGRAMS (kg)
                   </span>
                 )}
@@ -396,9 +396,9 @@ export const EditablePerformanceCell = ({
                         className={`py-3 rounded-xl text-center text-lg font-black transition-all cursor-pointer border ${
                           value === preset.toString()
                             ? isLogged
-                              ? 'bg-mac-green border-mac-green text-black shadow-[0_0_15px_rgba(52,199,89,0.3)]'
-                              : 'bg-mac-blue border-mac-blue text-white shadow-[0_0_15px_rgba(0,122,255,0.3)]'
-                            : 'bg-white/5 border-white/5 text-gray-300 hover:bg-white/10 hover:border-white/10'
+                              ? 'bg-[var(--cal-success)] border-[var(--cal-success)] text-[var(--cal-on-primary)] shadow-[0_0_15px_color-mix(in_srgb,var(--cal-success)_30%,transparent)]'
+                              : 'bg-[var(--cal-accent)] border-[var(--cal-accent)] text-[var(--cal-on-primary)] shadow-[0_0_15px_color-mix(in_srgb,var(--cal-accent)_30%,transparent)]'
+                            : 'bg-[var(--cal-surface-soft)] border-[var(--cal-hairline-soft)] text-[var(--cal-body)] hover:bg-[var(--cal-surface-card)] hover:border-[var(--cal-hairline)]'
                         }`}
                       >
                         {preset}
