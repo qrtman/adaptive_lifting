@@ -12,7 +12,7 @@ The 4-pill is too simple. Open a **CenteredDialog** of click-select facets, like
 
 ## Locked
 
-Facets (AND, each “All” if unset):
+Facets (AND across rows, **OR within a row**; empty row = All). Chips are **multiple choice** — click to toggle; All clears that row.
 
 | Facet | Chips |
 | :--- | :--- |

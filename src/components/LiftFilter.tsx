@@ -3,11 +3,11 @@ import { MOVEMENT_PATTERNS } from '../services/exerciseCatalog';
 import {
   LIFT_FILTER_LIFTS,
   LIFT_FILTER_TIERS,
+  facetHasValue,
   summarizeLiftFilter,
-  type LiftFilterLift,
-  type LiftFilterPattern,
+  toggleLiftFilterChip,
+  type LiftFilterFacet,
   type LiftFilterState,
-  type LiftFilterTier,
 } from '../services/liftFilter';
 import { CenteredDialog } from './CenteredDialog';
 
@@ -19,7 +19,7 @@ function Chip({
   active,
   onClick,
 }: {
-  facet: 'lift' | 'pattern' | 'tier';
+  facet: LiftFilterFacet;
   value: string;
   active: boolean;
   onClick: () => void;
@@ -50,7 +50,7 @@ function FacetRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" role="group" aria-label={label}>
       <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">{label}</span>
       <div className="flex flex-wrap gap-1">{children}</div>
     </div>
@@ -66,6 +66,10 @@ export function LiftFilter({
 }) {
   const [open, setOpen] = useState(false);
   const summary = summarizeLiftFilter(value);
+
+  const toggle = (facet: LiftFilterFacet, chip: string) => {
+    onChange(toggleLiftFilterChip(value, facet, chip));
+  };
 
   return (
     <>
@@ -83,7 +87,7 @@ export function LiftFilter({
       {open ? (
         <CenteredDialog
           title="Filter lifts"
-          subtitle="Category, pattern, and tier. Applied as you click."
+          subtitle="Multiple per row. Rows combine. Applied as you click."
           onClose={() => setOpen(false)}
           testId="lift-filter-dialog"
           footer={(
@@ -104,8 +108,8 @@ export function LiftFilter({
                   key={lift}
                   facet="lift"
                   value={lift}
-                  active={value.lift === lift}
-                  onClick={() => onChange({ ...value, lift: lift as LiftFilterLift })}
+                  active={facetHasValue(value, 'lift', lift)}
+                  onClick={() => toggle('lift', lift)}
                 />
               ))}
             </FacetRow>
@@ -113,16 +117,16 @@ export function LiftFilter({
               <Chip
                 facet="pattern"
                 value="All"
-                active={value.pattern === 'All'}
-                onClick={() => onChange({ ...value, pattern: 'All' })}
+                active={facetHasValue(value, 'pattern', 'All')}
+                onClick={() => toggle('pattern', 'All')}
               />
               {MOVEMENT_PATTERNS.map((pattern) => (
                 <Chip
                   key={pattern}
                   facet="pattern"
                   value={pattern}
-                  active={value.pattern === pattern}
-                  onClick={() => onChange({ ...value, pattern: pattern as LiftFilterPattern })}
+                  active={facetHasValue(value, 'pattern', pattern)}
+                  onClick={() => toggle('pattern', pattern)}
                 />
               ))}
             </FacetRow>
@@ -132,8 +136,8 @@ export function LiftFilter({
                   key={tier}
                   facet="tier"
                   value={tier}
-                  active={value.tier === tier}
-                  onClick={() => onChange({ ...value, tier: tier as LiftFilterTier })}
+                  active={facetHasValue(value, 'tier', tier)}
+                  onClick={() => toggle('tier', tier)}
                 />
               ))}
             </FacetRow>

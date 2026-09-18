@@ -19,7 +19,7 @@ This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RP
 | Hover cover | **OK** that New session / Copy to / Notes paint over chips. Height vs neighbor unchanged. |
 | Blur / scrim | **No.** No `backdrop-blur`, no dim wash. |
 | Overlay elevation | Opaque elevated stack + `--cal-shadow-lift`. **No** translate/scale on the day or the buttons. |
-| Lift filter | **Dialog constructor**, not All/SQ/BP/DL pills. AND of lift category × pattern × tier. Match stored fields, not title substrings. No bar/tempo/ROM/gear. |
+| Lift filter | **Dialog constructor**, not All/SQ/BP/DL pills. Multiple choice per row (OR); AND across lift category × pattern × tier. Match stored fields, not title substrings. No bar/tempo/ROM/gear. |
 | Name list | Never day-slot strings. Name/Day/Block/Week = same ComboBox. Opaque `z-30` list. |
 | Adj | **Gone** from the lift header. `%` column stays. No ± on `%`. |
 | Δ | **e1RM %** `(log − plan) / plan`, column **right of logged e1RM**. No kg Δ, no RPE Δ. |

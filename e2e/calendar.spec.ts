@@ -348,6 +348,18 @@ test('lift filter dialog matches stored category × pattern × tier', async ({ p
   await expect(benchCard).toBeVisible();
   await expect(rdlCard).toHaveCount(0);
 
+  await page.getByTestId('lift-filter-open').click();
+  await expect(page.getByTestId('lift-filter-lift-Bench')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('lift-filter-lift-All')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('lift-filter-lift-Squat').click();
+  await expect(page.getByTestId('lift-filter-lift-Squat')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('lift-filter-lift-Bench')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('Squat, Bench');
+  await page.getByTestId('lift-filter-done').click();
+  await expect(squatCard).toBeVisible();
+  await expect(benchCard).toBeVisible();
+  await expect(rdlCard).toHaveCount(0);
+
   await page.getByTestId('calendar-day-2026-09-04').hover();
   await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
 
@@ -371,6 +383,7 @@ test('lift filter dialog matches stored category × pattern × tier', async ({ p
   await expect(rdlCard).toHaveCount(0);
 
   await page.getByTestId('lift-filter-open').click();
+  await page.getByTestId('lift-filter-tier-Comp').click();
   await page.getByTestId('lift-filter-tier-Variation').click();
   await page.getByTestId('lift-filter-done').click();
   await expect(page.getByTestId('lift-filter-open')).toHaveText('Deadlift · Variation');
