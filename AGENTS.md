@@ -6,7 +6,7 @@ This file is the first instruction layer for AI coding tools working in this rep
 - `design.md` for UI/UX, component contracts, layout rules, copy, states, and acceptance checks.
 - `knowledge.md` for compressed current product focus.
 
-If this file conflicts with `architecture.md` or `design.md`, prefer the more specific instruction from the relevant source-of-truth document. Visual Cal theme work **overrides** `design.md` dark-only / no-nested-cards / JetBrains-required lines — see `.cursor/rules/cal-theme.mdc` and `.cursor/scopes/cal-theme/SCOPE.md`.
+If this file conflicts with `architecture.md` or `design.md`, prefer the more specific instruction from the relevant source-of-truth document. Visual Cal theme work **overrides** `design.md` dark-only / no-nested-cards / JetBrains-required lines — see `.cursor/rules/cal-theme.mdc` (program 1, closed). Session console (hover, filter dialog, set grid, header) **overrides** calendar 4-pill / header Adj / Δ-as-RPE — `.cursor/rules/session-console.mdc` and `.cursor/scopes/session-console/SCOPE.md`.
 
 ---
 

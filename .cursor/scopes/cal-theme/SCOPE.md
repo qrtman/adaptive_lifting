@@ -1,5 +1,7 @@
 # Cal theme — master scope map
 
+**Program 1 — closed.** Tokens, light/dark, nested cards, Inter `tnum`, Phase A+B chrome. Do not extend this map. Next product slices: `.cursor/scopes/session-console/SCOPE.md`.
+
 Visual program: restyle Adaptive Lifting with Cal.com language (`design/sources/DESIGN-cal.md`) while keeping training behavior.
 
 **How to use this as an agent:** read `.cursor/rules/cal-theme.mdc`, this index, then **exactly one** child file listed under the phase you are on. Child files already contain the files, tokens, states, and acceptance for that slice.
