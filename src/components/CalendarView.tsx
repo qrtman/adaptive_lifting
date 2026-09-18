@@ -78,6 +78,11 @@ export function CalendarView({
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
       setCurrentMonth(11);
@@ -372,15 +377,19 @@ export function CalendarView({
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-[#0A0A0A]">
+    <div className="flex-1 flex overflow-hidden bg-[var(--cal-canvas)]">
       {/* Left Pane: Scrollable Calendar Grid */}
       <div className="flex-1 flex flex-col p-2 gap-2 overflow-y-auto">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm text-white">
+            <h3 className="text-sm font-semibold tracking-tight text-[var(--cal-ink)] tabular-nums">
               {months[currentMonth]} {currentYear}
             </h3>
-            <button type="button" onClick={handlePrevMonth} className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="h-7 w-7 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
+            >
               <ChevronLeft size={16} />
             </button>
             <button
@@ -389,11 +398,15 @@ export function CalendarView({
                 setCurrentYear(2026);
                 setCurrentMonth(8);
               }}
-              className="h-7 px-2 text-xs text-[#AEAEB2] hover:text-white"
+              className="h-7 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
             >
               Today
             </button>
-            <button type="button" onClick={handleNextMonth} className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white">
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="h-7 w-7 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
+            >
               <ChevronRight size={16} />
             </button>
           </div>
@@ -403,31 +416,31 @@ export function CalendarView({
         {showCoachSelectAthlete ? (
           <div
             data-testid="calendar-empty"
-            className="border border-white/10 rounded p-6 text-center"
+            className="border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-6 text-center bg-[var(--cal-surface-soft)]"
           >
-            <p className="text-sm text-white mb-1">Select an athlete</p>
-            <p className="text-xs text-[#AEAEB2]">Use the athlete switcher in the sidebar to load a plan.</p>
+            <p className="text-sm text-[var(--cal-ink)] mb-1">Select an athlete</p>
+            <p className="text-xs text-[var(--cal-muted)]">Use the athlete switcher in the sidebar to load a plan.</p>
           </div>
         ) : (
         <>
 
         {workoutList.length === 0 && Object.keys(dayNotes).length === 0 && !copyClipboard && (
-          <p className="text-xs text-[#AEAEB2] px-1">No sessions yet. Hover a day — New session or Notes.</p>
+          <p className="text-xs text-[var(--cal-muted)] px-1">No sessions yet. Hover a day — New session or Notes.</p>
         )}
 
         {notesError ? (
-          <p data-testid="calendar-notes-error" className="text-xs text-[#FF453A] px-1">{notesError}</p>
+          <p data-testid="calendar-notes-error" className="text-xs text-[var(--cal-error)] px-1">{notesError}</p>
         ) : null}
 
         {!isOnline ? (
-          <p data-testid="copy-offline" className="text-xs text-[#F5A623] px-1">Connect to copy sessions.</p>
+          <p data-testid="copy-offline" className="text-xs text-[var(--cal-warning)] px-1">Connect to copy sessions.</p>
         ) : null}
 
         {copyClipboard && (
           <div
             data-testid="copy-to-banner"
             data-copy-grain={copyClipboard.grain}
-            className="min-h-8 px-2 py-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-white bg-[#007AFF]/15 border border-[#007AFF]/40 rounded"
+            className="min-h-8 px-2 py-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--cal-ink)] bg-[color-mix(in_srgb,var(--cal-accent)_12%,transparent)] border border-[color-mix(in_srgb,var(--cal-accent)_35%,transparent)] rounded-[var(--cal-radius-md)]"
           >
             <span className="truncate">
               {copyBannerText(copyClipboard)}
@@ -440,7 +453,11 @@ export function CalendarView({
                 type="button"
                 data-testid="copy-to-lifts"
                 onClick={() => setCopyWithLogs(false)}
-                className={`h-6 px-2 rounded ${!copyWithLogs ? 'bg-white/20' : 'text-[#AEAEB2]'}`}
+                className={`h-6 px-2 rounded-[var(--cal-radius-md)] text-[11px] ${
+                  !copyWithLogs
+                    ? 'bg-[var(--cal-surface-elevated)] text-[var(--cal-ink)]'
+                    : 'text-[var(--cal-muted)]'
+                }`}
               >
                 Lifts only
               </button>
@@ -448,7 +465,11 @@ export function CalendarView({
                 type="button"
                 data-testid="copy-to-logs"
                 onClick={() => setCopyWithLogs(true)}
-                className={`h-6 px-2 rounded ${copyWithLogs ? 'bg-white/20' : 'text-[#AEAEB2]'}`}
+                className={`h-6 px-2 rounded-[var(--cal-radius-md)] text-[11px] ${
+                  copyWithLogs
+                    ? 'bg-[var(--cal-surface-elevated)] text-[var(--cal-ink)]'
+                    : 'text-[var(--cal-muted)]'
+                }`}
               >
                 With logs
               </button>
@@ -456,7 +477,7 @@ export function CalendarView({
                 type="button"
                 data-testid="copy-to-cancel"
                 onClick={cancelCopyTo}
-                className="h-6 px-2 text-[#AEAEB2] hover:text-white"
+                className="h-6 px-2 text-[var(--cal-muted)] hover:text-[var(--cal-ink)] text-[11px]"
               >
                 Cancel
               </button>
@@ -523,37 +544,46 @@ export function CalendarView({
                   {meso ? (
                     <div className="h-8 px-1 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-1 h-4 rounded bg-[#54e083] shrink-0" />
-                        <h4 className="text-xs text-white truncate">{meso.name}</h4>
-                        <span className="text-[10px] font-mono text-[#AEAEB2] shrink-0">mesocycle</span>
+                        <span className="inline-flex items-center h-6 px-2 rounded-[var(--cal-radius-pill)] bg-[var(--cal-surface-soft)] text-[11px] font-medium text-[var(--cal-ink)] truncate max-w-[200px]">
+                          {meso.name}
+                        </span>
+                        <span className="text-[10px] text-[var(--cal-muted-soft)] shrink-0">mesocycle</span>
                       </div>
-                      <span className="font-mono text-[10px] text-[#AEAEB2] shrink-0">
+                      <span className="text-[10px] tabular-nums text-[var(--cal-muted)] shrink-0">
                         {meso.startDate} – {meso.endDate}
                       </span>
                     </div>
                   ) : null}
 
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-7 gap-0">
+                  <div className="rounded-[var(--cal-radius-lg)] border border-[var(--cal-hairline)] overflow-hidden bg-[var(--cal-canvas)]">
+                    <div className="grid grid-cols-7 border-b border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)]">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                        <div key={day} className="pb-1 pl-1.5">
-                          <span className="font-mono text-[10px] text-[#AEAEB2]">{day}</span>
+                        <div
+                          key={day}
+                          className="px-1.5 py-1 border-r border-[var(--cal-hairline)] last:border-r-0"
+                        >
+                          <span className="text-[10px] font-medium text-[var(--cal-muted)]">{day}</span>
                         </div>
                       ))}
                     </div>
 
                     {group.weeks.map((week, weekIdx) => {
                       const firstDay = week[0].dateString;
+                      const isLastWeek = weekIdx === group.weeks.length - 1;
 
                       return (
-                        <div 
+                        <div
                           key={`${firstDay}-${weekIdx}`}
-                          className="grid grid-cols-7 gap-0"
+                          className="grid grid-cols-7"
                         >
-                          {week.map((cell) => {
+                          {week.map((cell, cellIdx) => {
                             const dateStr = cell.dateString;
                             const dayWorkouts = workoutList.filter(item => item.workout.date === dateStr);
                             const dayNote = dayNotes[dateStr];
+                            const isToday = dateStr === todayStr && cell.isCurrentMonth;
+                            const isHovered = hoveredDate === dateStr && cell.isCurrentMonth;
+                            const isActive =
+                              newSessionDate === dateStr || notesDate === dateStr || isHovered;
 
                             return (
                               <div
@@ -579,18 +609,36 @@ export function CalendarView({
                                     openNewSession(dateStr);
                                   }
                                 }}
-                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors bg-[#131313] border border-white/10 ${
-                                  !cell.isCurrentMonth ? 'opacity-20 select-none !border-transparent bg-transparent' : 'hover:border-white/25 hover:bg-[#161616]'
+                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors border-r border-b border-[var(--cal-hairline)] ${
+                                  cellIdx === 6 ? 'border-r-0' : ''
                                 } ${
-                                  copyClipboard && cell.isCurrentMonth && dateStr !== copyOriginDate ? 'ring-1 ring-[#007AFF]/50' : ''
+                                  isLastWeek ? 'border-b-0' : ''
                                 } ${
-                                  copyClipboard && dateStr === copyOriginDate ? 'ring-1 ring-white/30' : ''
+                                  !cell.isCurrentMonth
+                                    ? 'opacity-40 select-none bg-[var(--cal-surface-soft)]'
+                                    : 'bg-[var(--cal-canvas)] hover:bg-[var(--cal-surface-soft)]'
                                 } ${
-                                  !copyClipboard && (newSessionDate === dateStr || hoveredDate === dateStr || notesDate === dateStr) ? 'ring-1 ring-[#007AFF] border-[#007AFF]/40' : ''
+                                  copyClipboard && cell.isCurrentMonth && dateStr !== copyOriginDate
+                                    ? 'ring-1 ring-inset ring-[color-mix(in_srgb,var(--cal-accent)_50%,transparent)]'
+                                    : ''
+                                } ${
+                                  copyClipboard && dateStr === copyOriginDate
+                                    ? 'ring-1 ring-inset ring-[var(--cal-hairline)]'
+                                    : ''
+                                } ${
+                                  !copyClipboard && (isActive || isToday)
+                                    ? 'ring-1 ring-inset ring-[var(--cal-accent)]'
+                                    : ''
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
-                                  <span className="font-mono text-[11px] text-[#AEAEB2]">
+                                  <span
+                                    className={`text-[11px] tabular-nums ${
+                                      isToday
+                                        ? 'font-semibold text-[var(--cal-accent)]'
+                                        : 'text-[var(--cal-muted)]'
+                                    }`}
+                                  >
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
                                 </div>
@@ -621,36 +669,38 @@ export function CalendarView({
                                           }
                                           onViewSession(workout, microId);
                                         }}
-                                        className="mt-1 flex flex-col gap-0.5 cursor-pointer relative z-10"
+                                        className="mt-1 p-1 flex flex-col gap-0.5 cursor-pointer relative z-10 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] border border-[var(--cal-hairline)] shadow-sm"
                                       >
                                         {(workout.blockLabel || workout.weekLabel) ? (
-                                          <span className="font-mono text-[9px] text-[#AEAEB2] truncate">
+                                          <span className="text-[9px] tabular-nums text-[var(--cal-muted)] truncate px-0.5">
                                             {[workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ')}
                                           </span>
                                         ) : null}
                                         <div className="flex flex-col gap-0.5">
                                           {workout.exercises.length === 0 && (
-                                            <span className="text-[10px] text-[#AEAEB2] truncate">{workout.title || 'Session'}</span>
+                                            <span className="text-[10px] text-[var(--cal-muted)] truncate px-0.5">
+                                              {workout.title || 'Session'}
+                                            </span>
                                           )}
                                           {workout.exercises.map((ex) => {
                                             const isSquat = ex.title.toLowerCase().includes('squat');
                                             const isBench = ex.title.toLowerCase().includes('bench');
                                             const isDead = ex.title.toLowerCase().includes('deadlift') || ex.title.toLowerCase().includes('dead');
                                             const movementName = isSquat ? 'SQ' : (isBench ? 'BP' : (isDead ? 'DL' : ex.title.slice(0, 3).toUpperCase()));
-                                            
-                                            const movementColorClass = isSquat 
-                                              ? 'text-[#007aff]'
-                                              : (isBench 
-                                                ? 'text-[#54e083]'
+
+                                            const movementColorStyle = isSquat
+                                              ? { color: 'var(--cal-badge-sq)' }
+                                              : isBench
+                                                ? { color: 'var(--cal-badge-bp)' }
                                                 : isDead
-                                                ? 'text-[#F5A623]'
-                                                : 'text-[#AEAEB2]');
-                                            
+                                                  ? { color: 'var(--cal-badge-dl)' }
+                                                  : undefined;
+
                                             const targetSet = ex.sets[0];
                                             const plannedW = targetSet?.plannedWeight || '—';
                                             const plannedR = targetSet?.plannedReps || '—';
                                             const plannedRp = targetSet?.plannedRpe || '—';
-                                            
+
                                             const actualW = targetSet?.actual || '';
                                             const actualR = targetSet?.reps || '';
                                             const actualRp = targetSet?.executedRpe || '';
@@ -659,13 +709,22 @@ export function CalendarView({
                                               : `${plannedW}×${plannedR}@${plannedRp}`;
 
                                             return (
-                                              <div key={ex.id} className="flex items-center justify-between gap-1 font-mono text-[10px] leading-tight">
-                                                <span className={`${movementColorClass} shrink-0`}>{movementName}</span>
-                                                <span className={`truncate ${actualW ? 'text-white' : 'text-[#AEAEB2]'}`}>
+                                              <div
+                                                key={ex.id}
+                                                className="flex items-center justify-between gap-1 text-[10px] leading-tight tabular-nums px-0.5"
+                                              >
+                                                <span className="shrink-0 font-medium" style={movementColorStyle}>
+                                                  {movementName}
+                                                </span>
+                                                <span
+                                                  className={`truncate ${
+                                                    actualW ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
+                                                  }`}
+                                                >
                                                   {logged}
                                                 </span>
                                                 {isWorkoutCompleted(workout.status) && (
-                                                  <span className="text-[#54e083] shrink-0">✓</span>
+                                                  <span className="text-[var(--cal-success)] shrink-0">✓</span>
                                                 )}
                                               </div>
                                             );
@@ -686,16 +745,20 @@ export function CalendarView({
                                       }
                                       setNotesDate(dateStr);
                                     }}
-                                    className="mt-1 px-1 py-0.5 text-left border border-dashed border-white/20 rounded bg-[#0A0A0A] relative z-10"
+                                    className="mt-1 px-1.5 py-1 text-left border border-dashed border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] relative z-10"
                                   >
-                                    <span className="block text-[9px] uppercase tracking-wider text-[#636366]">Note</span>
-                                    <span className="block text-[10px] text-[#AEAEB2] line-clamp-2 leading-tight">{dayNote}</span>
+                                    <span className="block text-[9px] uppercase tracking-wider text-[var(--cal-muted-soft)]">
+                                      Note
+                                    </span>
+                                    <span className="block text-[10px] text-[var(--cal-body)] line-clamp-2 leading-tight">
+                                      {dayNote}
+                                    </span>
                                   </button>
                                 ) : null}
                                 {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard && (
                                   <div
                                     data-testid={`calendar-day-hover-${dateStr}`}
-                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded bg-[#0A0A0A]/95 border border-white/15"
+                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] shadow-sm"
                                   >
                                     <button
                                       type="button"
@@ -704,7 +767,7 @@ export function CalendarView({
                                         event.stopPropagation();
                                         openNewSession(dateStr);
                                       }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-white bg-[#007AFF] rounded whitespace-nowrap"
+                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] whitespace-nowrap hover:bg-[var(--cal-primary-active)]"
                                     >
                                       New session
                                     </button>
@@ -717,7 +780,7 @@ export function CalendarView({
                                           event.stopPropagation();
                                           startDayCopy(dayWorkouts[0].workout);
                                         }}
-                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-white bg-white/15 rounded whitespace-nowrap disabled:opacity-40"
+                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap disabled:opacity-40"
                                       >
                                         Copy to
                                       </button>
@@ -729,7 +792,7 @@ export function CalendarView({
                                         event.stopPropagation();
                                         setNotesDate(dateStr);
                                       }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-white bg-white/15 rounded whitespace-nowrap"
+                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap"
                                     >
                                       Notes
                                     </button>
@@ -748,12 +811,18 @@ export function CalendarView({
           })()}
         </div>
 
-        <div className="h-8 px-2 flex items-center justify-between gap-3 text-[10px] text-[#AEAEB2] border border-white/10 rounded">
+        <div className="h-8 px-2 flex items-center justify-between gap-3 text-[10px] text-[var(--cal-muted)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)]">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#54e083]" /> Done</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Planned</span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--cal-success)]" /> Done
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--cal-muted-soft)]" /> Planned
+            </span>
           </div>
-          <span className="truncate">{copyClipboard ? 'Click a day to drop the copy' : 'Hover a day · New session, Copy to, Notes'}</span>
+          <span className="truncate">
+            {copyClipboard ? 'Click a day to drop the copy' : 'Hover a day · New session, Copy to, Notes'}
+          </span>
         </div>
         </>
         )}
@@ -796,20 +865,20 @@ export function CalendarView({
       {/* Conflict Decision Modal */}
       <AnimatePresence>
         {conflictModal && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.98, opacity: 0 }}
-              className="bg-[#131313] border border-white/10 rounded max-w-md w-full p-4"
+              className="bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] max-w-md w-full p-4 shadow-sm"
             >
-              <div className="flex items-center gap-2 text-orange-500 mb-3">
+              <div className="flex items-center gap-2 text-[var(--cal-warning)] mb-3">
                 <AlertTriangle size={16} />
-                <h4 className="text-sm text-white">Periodization conflict</h4>
+                <h4 className="text-sm text-[var(--cal-ink)]">Periodization conflict</h4>
               </div>
 
-              <p className="text-xs text-[#AEAEB2] leading-relaxed mb-4">
-                Rescheduling <strong className="text-white">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-white">{conflictModal.newDate}</strong>.
+              <p className="text-xs text-[var(--cal-muted)] leading-relaxed mb-4">
+                Rescheduling <strong className="text-[var(--cal-ink)]">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-[var(--cal-ink)]">{conflictModal.newDate}</strong>.
               </p>
 
               <div className="space-y-2 mb-4">
@@ -823,15 +892,15 @@ export function CalendarView({
                     conflictModal.daysDiff
                   )}
                   onMouseDown={triggerHaptic}
-                  className="w-full flex items-center justify-between p-3 bg-[#007AFF]/10 hover:bg-[#007AFF]/15 border border-[#007AFF]/30 rounded text-left"
+                  className="w-full flex items-center justify-between p-3 bg-[color-mix(in_srgb,var(--cal-accent)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--cal-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--cal-accent)_30%,transparent)] rounded-[var(--cal-radius-md)] text-left"
                 >
                   <div>
-                    <span className="text-xs text-white block mb-0.5">Cascading shift</span>
-                    <span className="text-[10px] text-[#AEAEB2] block">
+                    <span className="text-xs text-[var(--cal-ink)] block mb-0.5">Cascading shift</span>
+                    <span className="text-[10px] text-[var(--cal-muted)] block">
                       Move later workouts in this microcycle by {conflictModal.daysDiff} days.
                     </span>
                   </div>
-                  <ChevronRight size={14} className="text-[#007AFF]" />
+                  <ChevronRight size={14} className="text-[var(--cal-accent)]" />
                 </button>
 
                 <button
@@ -844,24 +913,24 @@ export function CalendarView({
                     0
                   )}
                   onMouseDown={triggerHaptic}
-                  className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-left"
+                  className="w-full flex items-center justify-between p-3 bg-[var(--cal-surface-soft)] hover:bg-[var(--cal-surface-card)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] text-left"
                 >
                   <div>
-                    <span className="text-xs text-white block mb-0.5">This session only</span>
-                    <span className="text-[10px] text-[#AEAEB2] block">
+                    <span className="text-xs text-[var(--cal-ink)] block mb-0.5">This session only</span>
+                    <span className="text-[10px] text-[var(--cal-muted)] block">
                       Leave other workouts where they are.
                     </span>
                   </div>
-                  <ChevronRight size={14} className="text-[#AEAEB2]" />
+                  <ChevronRight size={14} className="text-[var(--cal-muted)]" />
                 </button>
               </div>
 
-              <div className="flex justify-end border-t border-white/10 pt-3">
+              <div className="flex justify-end border-t border-[var(--cal-hairline)] pt-3">
                 <button
                   type="button"
                   onClick={cancelMove}
                   onMouseDown={triggerHaptic}
-                  className="h-7 px-2 text-xs text-[#AEAEB2] hover:text-white"
+                  className="h-7 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
                 >
                   Cancel
                 </button>
