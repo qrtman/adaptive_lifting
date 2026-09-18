@@ -1,32 +1,65 @@
 # Scope 10 — Nested cards
 
-Load this whenever a slice nests a card in a card. **Overrides** `design.md` §0.2 and `AGENTS.md` “Do not create nested cards”.
+Load this whenever a slice nests a card in a card. **Overrides** `design.md` §0.2 and the old `AGENTS.md` ban. There is **no numeric max depth**.
+
+## Why not “max 2”
+
+That cap was leftover caution from the old optical-fatigue ban. It is **wrong** for this product:
+
+- **Sessions** grouping is already three nouns: Block → Week → Session.
+- **Calendar** can be day → session → lift lines (SQ 150×5@5) when a day holds a real session card, not a one-line chip.
+- Cal.com’s own language is **product UI inside cards** — that is nesting by content, not a depth quota.
 
 ## Locked
 
-- **Max depth 2:** Outer card (day, lift, week group, insight) → inner card (session chip, note, set-table is **not** a card per row).
-- Inner card: `rounded.md` or `lg`, hairline or `surface-card`, **no extra drop shadow stack** (Cal: one faint shadow max).
-- No card around a card around a card. ComboBox/popover/overlay is **not** a card level.
-- Still forbidden: decorative hero, gradient orbs, generic SaaS marketing filler, 96px empty bands.
+Nest **along the product tree**. Each card is a real object (day, session, note, block, week, lift, insight). Do **not** add a wrapper card that does not name an object.
 
-## Calendar application
+Overlays, popovers, ComboBox listboxes, hover menus, Adj/Notes/New-session dialogs are **not** card levels.
 
-```
-Day cell (level 1)
-  ├── Session chip (level 2)
-  └── Note card (level 2)
-Hover actions = overlay, not a card level
-```
+Same object must not be wrapped twice (“card of a card of Session”).
 
-## Session editor application
+Shadow: at most one faint drop per **leaf** card. Do not stack `shadow-2xl` down the tree. Inner cards: hairline or `surface-card`; outer: `rounded.lg`.
+
+Still forbidden: decorative hero, gradient orbs, marketing filler, 96px empty bands, hiding sync/lock/conflict inside a nested shell.
+
+## Trees (allowed)
+
+**Calendar**
 
 ```
-Lift (level 1)
-  └── PLAN/LOG table (not a card)
-Adj dialog = overlay
+Day
+  ├── Session
+  │     └── Lift lines (optional inner cards or compact rows)
+  └── Note
+Hover overlay — not a card
 ```
 
-## Do not
+**Sessions list**
 
-- Nest inspector inside session card inside day card.
-- Use nested cards to hide sync/lock state.
+```
+Block
+  └── Week
+        └── Session
+Unlabeled bucket is a group, not a fake Block card
+```
+
+**Session editor**
+
+```
+Lift
+  └── PLAN/LOG table (set rows are cells, not cards)
+Adj / constructors — dialogs
+```
+
+**Insights**
+
+```
+Insight card
+  └── Config / chart body
+```
+
+## Fail these
+
+- Session editor mounted *inside* a calendar session card (that is a route: open the session).
+- Card around the whole month *and* around each week *and* around each day *and* a duplicate chrome wrap on the session (decorative extra shells).
+- Using nesting to hide REJECTED / offline / lock.

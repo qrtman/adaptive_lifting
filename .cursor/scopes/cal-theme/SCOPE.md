@@ -20,7 +20,7 @@ Copied here so a child-only read still has them. Canonical lock: `.cursor/rules/
 2. **Light/dark toggle** — `al_theme`, device-scoped, default `light`.
 3. **Black primary CTAs; blue focus/sync.**
 4. **Inter + tabular-nums** for kg/reps/RPE (not JetBrains Mono). Inter 600 −tracking for month/session titles.
-5. **Nested cards max 2** — day card → session/note card. Lift card → set table is one nest. Stop.
+5. **Nested cards follow the product tree** — no depth quota. Block → Week → Session is valid. Do not add wrapper cards that are not objects. Overlays are not cards. See `10-nested-cards.md`.
 6. **Density:** keep current calendar cell budget in A; Cal spacing tokens on chrome (8/12/16), not 96px sections.
 7. **No marketing surface.**
 

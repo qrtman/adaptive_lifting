@@ -8,7 +8,7 @@ PLAN/LOG grid on Cal surfaces. **Dense.** Do not apply marketing 16px body to ev
 
 ## Locked
 
-- Lift block may be **one card** containing the table (nest level 1). Do not wrap each set row in a card.
+- Lift block may be **one card** containing the table. Do not wrap each set row in a card (rows are cells).
 - 6-col keyboard unchanged. `%` skip-chrome, set 0 has no `%` editor. `use {n}` scales by `%`. Adj header stays.
 - Numbers: Inter tabular-nums (11). Cells stay compact (`h-6`/`h-8` class of control).
 - Primary actions in this surface (Finish, Adj Apply): black. Grid focus ring: blue.

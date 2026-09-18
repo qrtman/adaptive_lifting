@@ -54,7 +54,7 @@ Do not build:
 
 - **No marketing landing page** as the first screen.
 - **No decorative hero section** or generic SaaS filler banners.
-- **Nested cards allowed (max 2 levels)** — day/lift/week outer card → session/note/table inner card. See `.cursor/scopes/cal-theme/10-nested-cards.md`. Still no decorative hero or gradient orbs.
+- **Nested cards allowed** along the product tree (Block → Week → Session; day → session → lifts). No dummy extra wraps. See `.cursor/scopes/cal-theme/10-nested-cards.md`. Still no decorative hero or gradient orbs.
 - **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark aesthetic).
 - **No freeform text parsing** for prescriptions, set logging, or Sheets import.
 - **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).

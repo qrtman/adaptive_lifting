@@ -4,7 +4,7 @@ Load this for Sessions workspace chrome. Depends on 01, 02, 10.
 
 ## Task
 
-Block/Week grouping with Cal cards. Session rows can nest inside a Week/Block **outer** card (level 1 → 2).
+Block/Week grouping with Cal cards. **Block → Week → Session** is the intended nest (three product objects). Unlabeled sessions sit in a bucket, not a fake Block.
 
 ## Locked
 
