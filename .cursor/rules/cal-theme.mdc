@@ -1,0 +1,36 @@
+---
+description: Cal.com visual language for Adaptive Lifting — light/dark switch, nested cards allowed, DESIGN-cal tokens. Apply when changing theme, tokens, CalendarView, AppShell, or set-editor chrome.
+alwaysApply: true
+---
+
+# Cal theme (overrides `design.md` where they conflict)
+
+Source: `design/sources/DESIGN-cal.md` (Cal.com **marketing** analysis). Use it as **product visual language**, not as a landing page.
+
+Master map: `.cursor/scopes/cal-theme/SCOPE.md`  
+Load **one child scope** for the slice you are implementing. Do not ingest every child file on every task.
+
+This rule **overrides** `design.md` §0.2 nested-card ban, §0.4 “Dark only”, §3 dark-only ink, §4 JetBrains Mono as required data face, and “no nested cards” in `AGENTS.md`. Architecture (sessions, RBAC, math, sync) is **not** overridden.
+
+## Locked (do not re-litigate)
+
+| Topic | Verdict |
+| :--- | :--- |
+| Sequence | **Phase A then Phase B.** A = Calendar + AppShell + dialogs. B = rest of app (session editor, Sessions, Insights, Security). Same tokens from day one. |
+| Theme | **Light and dark**, user toggle. Persist `al_theme` (`light` \| `dark`) device-scoped in LocalStorage UI prefs — **not** athlete-scoped, not IndexedDB. Default **`light`**. No `system` third state in Phase A. |
+| Primary | **Black** `#111111` (dark theme: invert to near-white fill on dark). Focus rings, links, in-progress, sync pulse stay **blue** (`brand-accent` / existing `#007AFF`). |
+| Type | **No JetBrains Mono as the training-number face.** UI + numbers = **Inter** with `font-variant-numeric: tabular-nums`. Titles = Inter 600 + negative tracking (Cal Sans substitute). Trial 2 only if columns drift: IBM Plex Sans. Keep JetBrains as unused fallback, not the grid. |
+| Nested cards | **Allowed, max 2 levels** (surface → inner). Calendar day = outer card; session chip + note = inner cards. No third wrap. No decorative hero, no gradient orbs, no marketing landing. |
+| Density (was “dunno”) | Phase A: **keep current day `min-h` / 7-col grid**; Cal skin + nested inner cards. Do not jump to 96px marketing section padding. Revisit after A ships. |
+| Marketing | **No.** No hero, pricing, dark-footer-as-app-chrome, testimonials. |
+| Product behavior | Hover overlay, copy D1, day notes, Day vs Name, `use {n}`, `%`, Adj, 6-col keyboard, sync overlay — **unchanged** unless a child scope says otherwise. |
+
+## Agent load order
+
+1. This rule + `SCOPE.md` (index only).
+2. The **one** child scope for the slice (`01-tokens.md` …).
+3. Mapped implementation files from that child. Stop.
+
+## Non-goals (whole program)
+
+- Cal Sans webfont (unlicensed). Telegram as theme driver. Sheets as store. Demo seed. Growing `COLS`. Auto-write Plan kg.
