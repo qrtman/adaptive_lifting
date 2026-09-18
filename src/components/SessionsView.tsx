@@ -4,7 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useSync } from '../contexts/SyncContext';
 import { getRecentBlock, getUiPref, UI_KEYS } from '../storage/uiPrefs';
-import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { LiftFilter } from './LiftFilter';
+import {
+  exercisePassesFilter,
+  isEmptyLiftFilter,
+  workoutPassesFilter,
+  type LiftFilterState,
+} from '../services/liftFilter';
 import { NewSessionDialog } from './NewSessionDialog';
 import { EditSessionDialog } from './EditSessionDialog';
 import {
@@ -17,8 +23,8 @@ import {
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
-  filter: LiftFilterValue;
-  onFilterChange: (value: LiftFilterValue) => void;
+  filter: LiftFilterState;
+  onFilterChange: (value: LiftFilterState) => void;
   onStartCopy: (clip: CopyClipboard) => void;
 }
 
@@ -52,17 +58,6 @@ function setLine(ex: ExerciseData): { planned: string; logged: string | null } {
   return { planned, logged: null };
 }
 
-function workoutPassesFilter(w: WorkoutData, filter: LiftFilterValue): boolean {
-  if (filter === 'All') return true;
-  const hasSquat = w.exercises.some(e => e.title.toLowerCase().includes('squat'));
-  const hasBench = w.exercises.some(e => e.title.toLowerCase().includes('bench'));
-  const hasDeadlift = w.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
-  if (filter === 'Squat') return hasSquat;
-  if (filter === 'Bench') return hasBench;
-  if (filter === 'Deadlift') return hasDeadlift;
-  return false;
-}
-
 function weekRowKey(blockLabel: string, weekLabel: string): string {
   return `${blockLabel || '_'}::${weekLabel}`;
 }
@@ -82,6 +77,7 @@ function SessionCard({
   active,
   canCopy,
   selected,
+  filter,
   onOpen,
   onToggleSelected,
   onCopyTo,
@@ -92,6 +88,7 @@ function SessionCard({
   active: boolean;
   canCopy: boolean;
   selected: boolean;
+  filter: LiftFilterState;
   onOpen: () => void;
   onToggleSelected: (checked: boolean) => void;
   onCopyTo: () => void;
@@ -99,6 +96,9 @@ function SessionCard({
   key?: string;
 }) {
   const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
+  const visibleExercises = isEmptyLiftFilter(filter)
+    ? workout.exercises
+    : workout.exercises.filter((ex) => exercisePassesFilter(ex, filter));
   return (
     <div
       data-testid={`sessions-card-${workout.id}`}
@@ -117,7 +117,7 @@ function SessionCard({
         <p className="text-xs font-medium text-[var(--cal-ink)] truncate">{workout.title || 'Session'}</p>
         <p className="text-[10px] text-[var(--cal-muted)] truncate">{labels || 'No block/week'}</p>
         <div className="flex flex-col gap-0.5">
-          {workout.exercises.map((ex) => {
+          {visibleExercises.map((ex) => {
             const { planned, logged } = setLine(ex);
             return (
               <div key={ex.id} className="flex items-center gap-2 tnum text-[11px] leading-tight min-h-5">
@@ -319,6 +319,7 @@ export function SessionsView({
       active={activeWorkoutId === workout.id}
       canCopy={canCopy}
       selected={selectedIds.has(workout.id)}
+      filter={filter}
       onOpen={() => onViewSession(workout, microId)}
       onToggleSelected={(checked) => toggleSelected(workout.id, checked)}
       onCopyTo={() => startDayCopy([workout])}
@@ -376,6 +377,10 @@ export function SessionsView({
               <p className="text-sm text-[var(--cal-ink)] mb-1">Select an athlete</p>
               <p className="text-xs text-[var(--cal-muted)]">Use the athlete switcher in the sidebar to load a plan.</p>
             </div>
+          ) : allSessions.length === 0 && !isEmptyLiftFilter(filter) ? (
+            <p data-testid="sessions-filter-empty" className="text-xs text-[var(--cal-muted)] px-[var(--cal-space-xxs)]">
+              No matching sessions.
+            </p>
           ) : allSessions.length === 0 ? (
             <div
               data-testid="sessions-empty"

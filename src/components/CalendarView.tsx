@@ -12,7 +12,13 @@ import { useSync } from '../contexts/SyncContext';
 import { getRecentBlock, getUiPref, setRecentBlock, UI_KEYS } from '../storage/uiPrefs';
 import { NewSessionDialog } from './NewSessionDialog';
 import { DayNoteDialog } from './DayNoteDialog';
-import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { LiftFilter } from './LiftFilter';
+import {
+  exercisePassesFilter,
+  isEmptyLiftFilter,
+  workoutPassesFilter,
+  type LiftFilterState,
+} from '../services/liftFilter';
 import { apiService } from '../services/api';
 import {
   buildCopyWeekRequest,
@@ -24,8 +30,8 @@ import {
 
 interface CalendarViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
-  filter: LiftFilterValue;
-  onFilterChange: (value: LiftFilterValue) => void;
+  filter: LiftFilterState;
+  onFilterChange: (value: LiftFilterState) => void;
   copyClipboard: CopyClipboard | null;
   onStartCopy: (clip: CopyClipboard) => void;
   onClearCopy: () => void;
@@ -643,16 +649,7 @@ export function CalendarView({
                                   </span>
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
-                                  .filter(item => {
-                                    if (filter === 'All') return true;
-                                    const hasSquat = item.workout.exercises.some(e => e.title.toLowerCase().includes('squat'));
-                                    const hasBench = item.workout.exercises.some(e => e.title.toLowerCase().includes('bench'));
-                                    const hasDeadlift = item.workout.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
-                                    if (filter === 'Squat') return hasSquat;
-                                    if (filter === 'Bench') return hasBench;
-                                    if (filter === 'Deadlift') return hasDeadlift;
-                                    return false;
-                                  })
+                                  .filter(({ workout }) => workoutPassesFilter(workout, filter))
                                   .map(({ workout, microId }) => {
                                     return (
                                       <div
@@ -682,7 +679,10 @@ export function CalendarView({
                                               {workout.title || 'Session'}
                                             </span>
                                           )}
-                                          {workout.exercises.map((ex) => {
+                                          {(isEmptyLiftFilter(filter)
+                                            ? workout.exercises
+                                            : workout.exercises.filter((ex) => exercisePassesFilter(ex, filter))
+                                          ).map((ex) => {
                                             const isSquat = ex.title.toLowerCase().includes('squat');
                                             const isBench = ex.title.toLowerCase().includes('bench');
                                             const isDead = ex.title.toLowerCase().includes('deadlift') || ex.title.toLowerCase().includes('dead');
@@ -758,7 +758,7 @@ export function CalendarView({
                                 {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard && (
                                   <div
                                     data-testid={`calendar-day-hover-${dateStr}`}
-                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] shadow-sm"
+                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] shadow-[var(--cal-shadow-lift)] transform-none"
                                   >
                                     <button
                                       type="button"
@@ -767,7 +767,7 @@ export function CalendarView({
                                         event.stopPropagation();
                                         openNewSession(dateStr);
                                       }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] whitespace-nowrap hover:bg-[var(--cal-primary-active)]"
+                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] whitespace-nowrap hover:bg-[var(--cal-primary-active)] transform-none"
                                     >
                                       New session
                                     </button>
@@ -780,7 +780,7 @@ export function CalendarView({
                                           event.stopPropagation();
                                           startDayCopy(dayWorkouts[0].workout);
                                         }}
-                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap disabled:opacity-40"
+                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap disabled:opacity-40 transform-none"
                                       >
                                         Copy to
                                       </button>
@@ -792,7 +792,7 @@ export function CalendarView({
                                         event.stopPropagation();
                                         setNotesDate(dateStr);
                                       }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap"
+                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap transform-none"
                                     >
                                       Notes
                                     </button>

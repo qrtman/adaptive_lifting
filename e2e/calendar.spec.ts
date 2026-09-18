@@ -1,7 +1,42 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { pickComboOption } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
+
+async function expectOverlayLift(overlay: Locator) {
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toHaveCSS('position', 'absolute');
+  const style = await overlay.evaluate((el) => {
+    const computed = getComputedStyle(el);
+    return {
+      boxShadow: computed.boxShadow,
+      filter: computed.filter,
+      transform: computed.transform,
+      backdropFilter: computed.backdropFilter,
+    };
+  });
+  expect(style.boxShadow).not.toBe('none');
+  expect(style.filter === 'none' || style.filter === '').toBeTruthy();
+  expect(style.transform === 'none' || style.transform === '').toBeTruthy();
+  expect(style.backdropFilter === 'none' || style.backdropFilter === '').toBeTruthy();
+}
+
+async function addCatalogLift(page: Page, category: string, exercise: string) {
+  await page.getByTestId('add-lift').click();
+  await page.getByTestId('add-lift-category').selectOption(category);
+  await page.getByTestId(`add-lift-result-${exercise}`).click();
+  await page.getByTestId('add-lift-confirm').click();
+  await expect(page.getByTestId('add-lift-dialog')).toHaveCount(0);
+}
+
+async function createDatedSession(page: Page, date: string, title: string) {
+  const day = page.getByTestId(`calendar-day-${date}`);
+  await day.hover();
+  await page.getByTestId(`calendar-new-session-${date}`).click();
+  await page.getByTestId('new-session-title').fill(title);
+  await page.getByTestId('new-session-create').click();
+  await expect(page.getByTestId('add-lift')).toBeVisible();
+}
 
 test('hover New session opens a dialog; cancel creates nothing', async ({ page, request }) => {
   const email = `cal-${Date.now()}@example.com`;
@@ -181,8 +216,9 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
 
   await day01.hover();
   const overlay = page.getByTestId('calendar-day-hover-2026-09-01');
-  await expect(overlay).toBeVisible();
-  await expect(overlay).toHaveCSS('position', 'absolute');
+  await expectOverlayLift(overlay);
+  const dayFilter = await day01.evaluate((el) => getComputedStyle(el).filter);
+  expect(dayFilter === 'none' || dayFilter === '').toBeTruthy();
   await expect(page.getByTestId('calendar-new-session-2026-09-01')).toBeVisible();
   await expect(page.getByTestId('calendar-day-notes-2026-09-01')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Copy to' })).toHaveCount(0);
@@ -245,7 +281,7 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
 
   const restWithNote = await page.getByTestId('calendar-day-2026-09-02').evaluate((el) => el.getBoundingClientRect().height);
   await page.getByTestId('calendar-day-2026-09-02').hover();
-  await expect(page.getByTestId('calendar-day-hover-2026-09-02')).toBeVisible();
+  await expectOverlayLift(page.getByTestId('calendar-day-hover-2026-09-02'));
   const hoverWithNote = await page.getByTestId('calendar-day-2026-09-02').evaluate((el) => el.getBoundingClientRect().height);
   expect(Math.round(hoverWithNote)).toBe(Math.round(restWithNote));
 
@@ -257,10 +293,107 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
   await day03.scrollIntoViewIfNeeded();
   const emptyRest = await day03.evaluate((el) => el.getBoundingClientRect().height);
   await day03.hover({ position: { x: 6, y: 8 }, force: true });
-  await expect(page.getByTestId('calendar-day-hover-2026-09-03')).toBeVisible();
-  await expect(page.getByTestId('calendar-day-hover-2026-09-03')).toHaveCSS('position', 'absolute');
+  await expectOverlayLift(page.getByTestId('calendar-day-hover-2026-09-03'));
   const emptyHover = await day03.evaluate((el) => el.getBoundingClientRect().height);
   const emptyNeighbor = await day04.evaluate((el) => el.getBoundingClientRect().height);
   expect(Math.round(emptyHover)).toBe(Math.round(emptyRest));
   expect(Math.round(emptyHover)).toBe(Math.round(emptyNeighbor));
+});
+
+test('lift filter dialog matches stored category × pattern × tier', async ({ page, request }) => {
+  const email = `filter-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
+  });
+  expect(register.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
+  await page.getByRole('button', { name: 'Calendar' }).click();
+
+  await expect(page.getByTestId('lift-filter-open')).toBeVisible();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('All');
+  await expect(page.getByTestId('lift-filter-dialog')).toHaveCount(0);
+
+  await createDatedSession(page, '2026-09-04', 'Lower');
+  await addCatalogLift(page, 'Knee Dominant', 'Squat');
+  await page.getByRole('button', { name: 'Back' }).click();
+
+  await createDatedSession(page, '2026-09-05', 'Press');
+  await addCatalogLift(page, 'Horizontal Push', 'Bench');
+  await page.getByRole('button', { name: 'Back' }).click();
+
+  await createDatedSession(page, '2026-09-06', 'Pull');
+  await addCatalogLift(page, 'Hip Dominant', 'RDL');
+  await page.getByRole('button', { name: 'Back' }).click();
+
+  const squatCard = page.getByTestId('calendar-day-2026-09-04').locator('[data-testid^="workout-card-"]');
+  const benchCard = page.getByTestId('calendar-day-2026-09-05').locator('[data-testid^="workout-card-"]');
+  const rdlCard = page.getByTestId('calendar-day-2026-09-06').locator('[data-testid^="workout-card-"]');
+  await expect(squatCard).toBeVisible();
+  await expect(benchCard).toBeVisible();
+  await expect(rdlCard).toBeVisible();
+
+  await page.getByTestId('lift-filter-open').click();
+  await expect(page.getByTestId('lift-filter-dialog')).toBeVisible();
+  await page.getByTestId('lift-filter-lift-Bench').click();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('Bench');
+  await page.getByTestId('lift-filter-done').click();
+  await expect(page.getByTestId('lift-filter-dialog')).toHaveCount(0);
+
+  await expect(squatCard).toHaveCount(0);
+  await expect(benchCard).toBeVisible();
+  await expect(rdlCard).toHaveCount(0);
+
+  await page.getByTestId('calendar-day-2026-09-04').hover();
+  await expect(page.getByRole('button', { name: 'Copy to' })).toBeVisible();
+
+  await page.getByTestId('lift-filter-open').click();
+  await page.getByTestId('lift-filter-lift-All').click();
+  await page.getByTestId('lift-filter-pattern-Knee Dominant').click();
+  await page.getByTestId('lift-filter-done').click();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('Knee Dominant');
+  await expect(squatCard).toBeVisible();
+  await expect(benchCard).toHaveCount(0);
+  await expect(rdlCard).toHaveCount(0);
+
+  await page.getByTestId('lift-filter-open').click();
+  await page.getByTestId('lift-filter-pattern-All').click();
+  await page.getByTestId('lift-filter-lift-Deadlift').click();
+  await page.getByTestId('lift-filter-tier-Comp').click();
+  await page.getByTestId('lift-filter-done').click();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('Deadlift · Comp');
+  await expect(squatCard).toHaveCount(0);
+  await expect(benchCard).toHaveCount(0);
+  await expect(rdlCard).toHaveCount(0);
+
+  await page.getByTestId('lift-filter-open').click();
+  await page.getByTestId('lift-filter-tier-Variation').click();
+  await page.getByTestId('lift-filter-done').click();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('Deadlift · Variation');
+  await expect(rdlCard).toBeVisible();
+  await expect(squatCard).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Sessions' }).click();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('Deadlift · Variation');
+  await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Pull' })).toBeVisible();
+  await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Lower' })).toHaveCount(0);
+  await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Press' })).toHaveCount(0);
+
+  await page.getByTestId('lift-filter-open').click();
+  await page.getByTestId('lift-filter-lift-All').click();
+  await page.getByTestId('lift-filter-tier-All').click();
+  await page.getByTestId('lift-filter-done').click();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('All');
+  await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Lower' })).toBeVisible();
+  await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Press' })).toBeVisible();
+  await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Pull' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Calendar' }).click();
+  await expect(squatCard).toBeVisible();
+  await expect(benchCard).toBeVisible();
+  await expect(rdlCard).toBeVisible();
 });
