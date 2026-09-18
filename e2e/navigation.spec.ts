@@ -26,4 +26,14 @@ test.describe('navigation consolidation', () => {
     await page.reload();
     await expect(page.getByTestId('app-sidebar')).toHaveAttribute('data-collapsed', 'true');
   });
+
+  test('persists theme preference', async ({ page }) => {
+    await signInCoach(page, { al_app_view: 'dashboard', al_dashboard_mode: 'calendar', al_theme: 'light' });
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.getByTestId('theme-toggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  });
 });

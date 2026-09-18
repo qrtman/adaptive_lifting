@@ -1,6 +1,7 @@
-import { Calendar, BarChart3, Link2, Settings, List, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Calendar, BarChart3, Link2, Settings, List, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import type { ThemePreference } from '../theme/themePref';
 import type { DashboardMode } from '../navigation';
 import { AthleteScopeSelector } from './AthleteScopeSelector';
 
@@ -66,6 +67,8 @@ export const Sidebar = ({
   onToggleCollapse,
   focusAthleteScope = false,
   onAthleteScopeFocused,
+  theme,
+  onToggleTheme,
 }: {
   dashboardMode: DashboardMode;
   onNavigate: (mode: DashboardMode) => void;
@@ -74,6 +77,8 @@ export const Sidebar = ({
   onToggleCollapse: () => void;
   focusAthleteScope?: boolean;
   onAthleteScopeFocused?: () => void;
+  theme: ThemePreference;
+  onToggleTheme: () => void;
 }) => {
   const { user, roleMode, signOut } = useAuth();
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
@@ -83,7 +88,7 @@ export const Sidebar = ({
     <aside
       data-testid="app-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
-      className={`fixed left-0 top-0 h-screen ${widthClass} bg-[#131313] border-r border-white/10 flex flex-col py-4 z-50`}
+      className={`fixed left-0 top-0 h-screen ${widthClass} bg-[var(--cal-surface)] border-r border-[var(--cal-hairline)] flex flex-col py-4 z-50`}
     >
       <div className={`mb-4 flex items-center ${collapsed ? 'justify-center' : 'px-2 justify-between gap-2'}`}>
         {!collapsed && (
@@ -136,14 +141,27 @@ export const Sidebar = ({
         </div>
       </nav>
 
-      <div className={`pt-3 border-t border-white/10 flex flex-col gap-1 ${collapsed ? 'items-center px-1' : 'px-2'}`}>
+      <div className={`pt-3 border-t border-[var(--cal-hairline)] flex flex-col gap-1 ${collapsed ? 'items-center px-1' : 'px-2'}`}>
         {!collapsed && (
           <>
-            <p className="text-xs text-white truncate">{email}</p>
-            <p className="text-[11px] text-[#AEAEB2] capitalize">{roleMode}</p>
+            <p className="text-xs text-[var(--cal-ink)] truncate">{email}</p>
+            <p className="text-[11px] text-[var(--cal-muted)] capitalize">{roleMode}</p>
           </>
         )}
-        <button type="button" onClick={signOut} className="text-left text-[12px] text-[#AEAEB2] hover:text-white h-7">
+        <button
+          type="button"
+          data-testid="theme-toggle"
+          aria-label={theme === 'light' ? 'Dark' : 'Light'}
+          title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
+          onClick={onToggleTheme}
+          className={`flex items-center gap-2 text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] h-7 ${
+            collapsed ? 'justify-center w-full' : 'text-left'
+          }`}
+        >
+          {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+          {!collapsed && (theme === 'light' ? 'Dark' : 'Light')}
+        </button>
+        <button type="button" onClick={signOut} className="text-left text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] h-7">
           {collapsed ? 'Out' : 'Sign out'}
         </button>
         {onResetPlan && (

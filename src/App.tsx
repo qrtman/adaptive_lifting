@@ -15,6 +15,8 @@ import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
+import { readThemePref, applyThemeToDocument, setThemePref, toggleTheme } from './theme/themePref';
+import type { ThemePreference } from './theme/themePref';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel } from './features/plan/sessionLabels';
@@ -44,6 +46,7 @@ export default function App() {
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => initialLocation.mode);
   const [focusAthleteScope, setFocusAthleteScope] = useState(() => initialLocation.panel === 'athlete-scope');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
+  const [theme, setTheme] = useState<ThemePreference>(() => readThemePref());
 
   const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
   const [editSessionOpen, setEditSessionOpen] = useState(false);
@@ -72,6 +75,11 @@ export default function App() {
   useEffect(() => {
     setUiPref(UI_KEYS.sidebarCollapsed, sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    applyThemeToDocument(theme);
+    setThemePref(theme);
+  }, [theme]);
 
   useEffect(() => {
     if (focusAthleteScope && sidebarCollapsed) setSidebarCollapsed(false);
@@ -170,6 +178,8 @@ export default function App() {
           window.location.reload();
         }
       }}
+      theme={theme}
+      onToggleTheme={() => setTheme((current) => toggleTheme(current))}
     >
         <AnimatePresence mode="wait">
           {currentView === 'dashboard' ? (
