@@ -748,7 +748,7 @@ export function CalendarView({
                                 ) : null}
                                 {cell.isCurrentMonth && !showCoachSelectAthlete ? (
                                   <div
-                                    className={`mt-auto shrink-0 pt-0.5 w-full min-w-0 flex flex-col justify-end ${copyClipboard ? 'invisible' : ''}`}
+                                    className={`mt-auto shrink-0 w-full min-w-0 flex flex-col justify-end ${copyClipboard ? 'invisible' : ''}`}
                                     style={{ minHeight: hoverDockMinHeight(dayWorkouts[0] ? 3 : 2) }}
                                   >
                                     {hoveredDate === dateStr && !copyClipboard ? (
