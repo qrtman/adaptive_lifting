@@ -1,10 +1,26 @@
-import { seriesColor } from '../chartGeometry';
-import type { QueryResult } from '../types';
+import type { QueryResult, QuerySeries } from '../types';
+
+const PALETTE = [
+  'var(--cal-accent)',
+  'var(--cal-success)',
+  'var(--cal-warning)',
+  'var(--cal-error)',
+  'var(--cal-badge-dl)',
+  'var(--cal-badge-bp)',
+];
+
+function seriesFill(series: QuerySeries, index: number): string {
+  const label = series.label.toLowerCase();
+  if (label.includes('squat')) return 'var(--cal-badge-sq)';
+  if (label.includes('bench')) return 'var(--cal-badge-bp)';
+  if (label.includes('dead')) return 'var(--cal-badge-dl)';
+  return PALETTE[index % PALETTE.length];
+}
 
 export function BarChart({ result }: { result: QueryResult }) {
   const width = 640;
   const height = 220;
-  if (result.series.length === 0) return <p className="text-[11px] text-[#AEAEB2]">No series</p>;
+  if (result.series.length === 0) return <p className="text-[11px] text-[var(--cal-muted)]">No series</p>;
   const nums = result.series.flatMap((s) => s.points.filter((p): p is number => p != null));
   const max = Math.max(...nums, 1);
   const n = Math.max(result.labels.length, result.series[0].points.length, 1);
@@ -22,7 +38,7 @@ export function BarChart({ result }: { result: QueryResult }) {
               y={height - 24 - h}
               width={barW}
               height={h}
-              fill={seriesColor(sIdx)}
+              fill={seriesFill(series, sIdx)}
               fillOpacity={0.85}
             />
           );

@@ -7,18 +7,18 @@ export function TableChart({ result }: { result: QueryResult }) {
       <table className="w-full text-[11px] font-mono">
         <thead>
           <tr>
-            <th className="text-left text-[#AEAEB2] font-normal">Label</th>
+            <th className="text-left text-[var(--cal-muted)] font-normal">Label</th>
             {result.series.map((s) => (
-              <th key={s.id} className="text-right text-[#AEAEB2] font-normal">{s.label}</th>
+              <th key={s.id} className="text-right text-[var(--cal-muted)] font-normal">{s.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {result.labels.map((label, i) => (
-            <tr key={label} className="border-t border-white/10">
-              <td className="py-1 text-white">{label}</td>
+            <tr key={label} className="border-t border-[var(--cal-hairline)]">
+              <td className="py-1 text-[var(--cal-ink)]">{label}</td>
               {result.series.map((s) => (
-                <td key={s.id} className="py-1 text-right text-[#AEAEB2]">{s.points[i] ?? '—'}</td>
+                <td key={s.id} className="py-1 text-right text-[var(--cal-muted)]">{s.points[i] ?? '—'}</td>
               ))}
             </tr>
           ))}
@@ -32,15 +32,15 @@ export function TableChart({ result }: { result: QueryResult }) {
       <thead>
         <tr>
           {keys.map((key) => (
-            <th key={key} className="text-left text-[#AEAEB2] font-normal">{key}</th>
+            <th key={key} className="text-left text-[var(--cal-muted)] font-normal">{key}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {rows.map((row, i) => (
-          <tr key={i} className="border-t border-white/10">
+          <tr key={i} className="border-t border-[var(--cal-hairline)]">
             {keys.map((key) => (
-              <td key={key} className="py-1 text-white">{row[key] ?? '—'}</td>
+              <td key={key} className="py-1 text-[var(--cal-ink)]">{row[key] ?? '—'}</td>
             ))}
           </tr>
         ))}
