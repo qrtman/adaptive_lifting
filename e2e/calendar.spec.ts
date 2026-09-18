@@ -3,7 +3,7 @@ import { pickComboOption } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
-async function expectOverlayParked(overlay: Locator) {
+async function expectOverlayParked(overlay: Locator, day?: Locator) {
   await expect(overlay).toBeVisible();
   await expect(overlay).toHaveCSS('position', 'absolute');
   const style = await overlay.evaluate((el) => {
@@ -17,6 +17,15 @@ async function expectOverlayParked(overlay: Locator) {
   expect(style.filter === 'none' || style.filter === '').toBeTruthy();
   expect(style.transform === 'none' || style.transform === '').toBeTruthy();
   expect(style.backdropFilter === 'none' || style.backdropFilter === '').toBeTruthy();
+  if (!day) return;
+  const overlayBox = await overlay.boundingBox();
+  const cellBox = await day.boundingBox();
+  expect(overlayBox).toBeTruthy();
+  expect(cellBox).toBeTruthy();
+  expect(overlayBox!.x).toBeGreaterThanOrEqual(cellBox!.x - 1);
+  expect(overlayBox!.x + overlayBox!.width).toBeLessThanOrEqual(cellBox!.x + cellBox!.width + 1);
+  expect(overlayBox!.y).toBeGreaterThanOrEqual(cellBox!.y - 1);
+  expect(overlayBox!.y + overlayBox!.height).toBeLessThanOrEqual(cellBox!.y + cellBox!.height + 1);
 }
 
 function rectsOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
@@ -230,7 +239,7 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
 
   await day01.hover();
   const overlay = page.getByTestId('calendar-day-hover-2026-09-01');
-  await expectOverlayParked(overlay);
+  await expectOverlayParked(overlay, day01);
   const dayFilter = await day01.evaluate((el) => getComputedStyle(el).filter);
   expect(dayFilter === 'none' || dayFilter === '').toBeTruthy();
   await expect(page.getByTestId('calendar-new-session-2026-09-01')).toBeVisible();
@@ -291,7 +300,7 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
   const restWithNote = await page.getByTestId('calendar-day-2026-09-02').evaluate((el) => el.getBoundingClientRect().height);
   await page.getByTestId('calendar-day-2026-09-02').hover({ position: { x: 8, y: 8 } });
   const overlay02 = page.getByTestId('calendar-day-hover-2026-09-02');
-  await expectOverlayParked(overlay02);
+  await expectOverlayParked(overlay02, page.getByTestId('calendar-day-2026-09-02'));
   const sessionCard = page.getByTestId('calendar-day-2026-09-02').locator('[data-testid^="workout-card-"]');
   const note02 = page.getByTestId('calendar-day-note-card-2026-09-02');
   await expectNoCover(overlay02, sessionCard);
@@ -313,7 +322,7 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
   await day03.scrollIntoViewIfNeeded();
   const emptyRest = await day03.evaluate((el) => el.getBoundingClientRect().height);
   await day03.hover({ position: { x: 6, y: 8 }, force: true });
-  await expectOverlayParked(page.getByTestId('calendar-day-hover-2026-09-03'));
+  await expectOverlayParked(page.getByTestId('calendar-day-hover-2026-09-03'), day03);
   const emptyHover = await day03.evaluate((el) => el.getBoundingClientRect().height);
   const emptyNeighbor = await day04.evaluate((el) => el.getBoundingClientRect().height);
   expect(Math.round(emptyHover)).toBe(Math.round(emptyRest));

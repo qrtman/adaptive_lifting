@@ -16,7 +16,7 @@ The date row (`01` left, nothing right) is unused chrome. Session/note cards alr
 
 - **Do not cover** this day’s session chips or note card.
 - **Do not** grow the day cell on hover. **Do not** shrink session/note cards to make room.
-- Overlay stays `position: absolute` (out of flow). Sit it in the **date-row empty space** (right of `01`, one horizontal row). If the cluster is wider than the cell, it may paint over the **neighbor day**, not down over this day’s cards. Hovered day `z-index` above siblings so overflow wins hit-testing.
+- Overlay stays `position: absolute` (out of flow). Sit it in leftover space **inside this cell** — a `flex-1` pocket under the chips, typically the unused bottom of `min-h-[128px]`. Bound the cluster to that pocket (`inset-0`, wrap). Do **not** paint out to the right onto a neighbor.
 - **No** `backdrop-blur`, **no** dim scrim, **no** wrapper card around the actions (buttons only).
 - **No** `translate` / `scale` / `cal-elevate-in` on the **day** or the **action buttons**. Honor `prefers-reduced-motion`.
 - Actions unchanged: New session (black primary) → Copy to (iff session) → Notes. Same testids. Copy-to still uses unfiltered `dayWorkouts[0]`.
