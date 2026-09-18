@@ -189,7 +189,7 @@ export function InsightsView() {
                     {stale && cached && (
                       <span
                         data-testid={`insight-stale-${card.id}`}
-                        className="text-[10px] font-mono text-[var(--cal-warning)] mr-1"
+                        className="text-[10px] text-[var(--cal-warning)] mr-1"
                       >
                         Stale
                       </span>

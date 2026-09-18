@@ -153,6 +153,11 @@
   transition: box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1), transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Lift / table cards keep hairline nesting without chrome padding. */
+.cal-nested-card.cal-nested-flush {
+  padding: 0;
+}
+
 .cal-nested-card:focus-within,
 .cal-nested-card[data-elevated="true"] {
   box-shadow: var(--cal-shadow-lift);

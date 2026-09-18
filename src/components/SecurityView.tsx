@@ -137,43 +137,42 @@ export const SecurityView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 w-full bg-black text-white p-6 overflow-y-auto font-sans pb-32">
-      {/* Header section */}
-      <div className="mb-8 mt-2 flex items-center justify-between">
+    <div className="flex-1 w-full bg-[var(--cal-canvas)] text-[var(--cal-ink)] p-[var(--cal-space-md)] overflow-y-auto pb-32">
+      <div className="mb-6 mt-2 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-            <Shield size={28} className="text-mac-blue" />
-            Security & Audit Control
+          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-3">
+            <Shield size={22} className="text-[var(--cal-accent)]" />
+            Security
           </h1>
-          <p className="text-zinc-400 text-sm mt-1">
-            Manage coach link, logged-in devices, active browser sessions, and inspect system audit events.
+          <p className="text-[var(--cal-muted)] text-sm mt-1">
+            Coach link, devices, browser sessions, and audit events.
           </p>
         </div>
-        <button 
+        <button
           onClick={() => fetchSecurityData()}
           disabled={loading}
-          className="h-10 w-10 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50"
+          className="h-10 w-10 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] hover:bg-[var(--cal-surface-card)] flex items-center justify-center cursor-pointer disabled:opacity-50"
           title="Refresh Audit Logs"
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin text-mac-blue' : 'text-zinc-300'} />
+          <RefreshCw size={16} className={loading ? 'animate-spin text-[var(--cal-accent)]' : 'text-[var(--cal-muted)]'} />
         </button>
       </div>
 
       <CoachLinkPanel />
 
       {successAlert && (
-        <div className="mb-6 bg-mac-green/10 border border-mac-green/20 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-          <CheckCircle2 size={18} className="text-mac-green shrink-0" />
-          <span className="text-sm font-semibold text-mac-green">{successAlert}</span>
+        <div className="mb-4 bg-[color-mix(in_srgb,var(--cal-success)_10%,transparent)] border border-[color-mix(in_srgb,var(--cal-success)_20%,transparent)] p-3 rounded-[var(--cal-radius-lg)] flex items-center gap-3">
+          <CheckCircle2 size={18} className="text-[var(--cal-success)] shrink-0" />
+          <span className="text-sm font-medium text-[var(--cal-success)]">{successAlert}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
-          <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
+        <div className="mb-4 bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] border border-[color-mix(in_srgb,var(--cal-error)_20%,transparent)] p-3 rounded-[var(--cal-radius-lg)] flex items-start gap-3">
+          <AlertTriangle size={18} className="text-[var(--cal-error)] shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-red-200 font-medium">{errorMsg}</p>
-            <button onClick={() => fetchSecurityData()} className="text-xs text-red-400 font-bold underline mt-1 cursor-pointer">
+            <p className="text-sm text-[var(--cal-error)] font-medium">{errorMsg}</p>
+            <button onClick={() => fetchSecurityData()} className="text-xs text-[var(--cal-error)] underline mt-1 cursor-pointer">
               Retry Load
             </button>
           </div>
@@ -181,43 +180,39 @@ export const SecurityView: React.FC = () => {
       )}
 
       {loading && devices.length === 0 ? (
-        <div className="flex flex-col justify-center items-center py-20 text-gray-500 gap-3">
-          <RefreshCw size={24} className="animate-spin text-mac-blue" />
-          <p className="text-xs font-semibold tracking-wider uppercase">Loading security vault...</p>
+        <div className="flex flex-col justify-center items-center py-20 text-[var(--cal-muted)] gap-3">
+          <RefreshCw size={24} className="animate-spin text-[var(--cal-accent)]" />
+          <p className="text-xs font-medium tracking-wider uppercase">Loading security…</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Secured Overview Info Banner */}
-          <div className="bg-[#131313] p-5 rounded-2xl border border-white/10">
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              🔐 <b>Active Encryption Shield:</b> All active sessions are bound via <b>secure, HTTP-Only session cookies</b>. Remotely terminating a browser token or device invalidates the backend signature key immediately, rejecting subsequent synchronization mutations or read queries.
+        <div className="flex flex-col gap-[var(--cal-space-sm)]">
+          <div className="cal-nested-card">
+            <p className="text-xs text-[var(--cal-muted)] leading-relaxed">
+              Sessions use HTTP-only cookies. Revoking a device or browser token invalidates later sync mutations.
             </p>
           </div>
 
-          {/* Quadrant: Devices and Sessions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Devices Card */}
-            <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
-              <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4 flex items-center gap-2">
-                <Laptop size={14} className="text-mac-blue" />
-                Linked Devices & Terminals
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--cal-space-sm)]">
+            <section className="cal-nested-card flex flex-col gap-[var(--cal-space-xs)]">
+              <h2 className="text-[10px] uppercase font-medium text-[var(--cal-muted)] tracking-wider flex items-center gap-2">
+                <Laptop size={14} className="text-[var(--cal-accent)]" />
+                Devices
               </h2>
 
-              <div className="space-y-3">
+              <div className="flex flex-col gap-[var(--cal-space-xs)]">
                 {devices.map(d => (
-                  <div key={d.id} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between gap-4">
+                  <div key={d.id} className="cal-nested-card p-[var(--cal-space-xs)] flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="font-bold text-sm text-white">{d.device_label}</h3>
-                      <p className="text-[10px] text-zinc-500 mt-1 font-mono">
+                      <h3 className="font-medium text-sm text-[var(--cal-ink)]">{d.device_label}</h3>
+                      <p className="text-[10px] text-[var(--cal-muted)] mt-1 tnum">
                         ID: {d.id} | Last Seen: {formatTimestamp(d.last_seen_at)}
                       </p>
                       {d.revoked_at ? (
-                        <span className="mt-2 inline-block px-2 py-0.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                        <span className="mt-2 inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] text-[var(--cal-error)] border border-[color-mix(in_srgb,var(--cal-error)_20%,transparent)] rounded-[var(--cal-radius-pill)] text-[9px] uppercase tracking-wider">
                           Revoked
                         </span>
                       ) : (
-                        <span className="mt-2 inline-block px-2 py-0.5 bg-mac-green/10 text-mac-green border border-mac-green/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                        <span className="mt-2 inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--cal-success)_10%,transparent)] text-[var(--cal-success)] border border-[color-mix(in_srgb,var(--cal-success)_20%,transparent)] rounded-[var(--cal-radius-pill)] text-[9px] uppercase tracking-wider">
                           Active
                         </span>
                       )}
@@ -227,7 +222,7 @@ export const SecurityView: React.FC = () => {
                       <button
                         onClick={() => handleRevokeDevice(d.id)}
                         disabled={revokingId !== null}
-                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded-lg border border-red-500/10 hover:border-red-500/20 transition-all cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--cal-error)_20%,transparent)] text-[var(--cal-error)] text-xs font-medium rounded-[var(--cal-radius-md)] border border-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] cursor-pointer disabled:opacity-50"
                       >
                         Revoke
                       </button>
@@ -235,31 +230,30 @@ export const SecurityView: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
-            {/* Browser Sessions Card */}
-            <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
-              <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4 flex items-center gap-2">
-                <KeyRound size={14} className="text-mac-blue" />
-                Active Browser Logins
+            <section className="cal-nested-card flex flex-col gap-[var(--cal-space-xs)]">
+              <h2 className="text-[10px] uppercase font-medium text-[var(--cal-muted)] tracking-wider flex items-center gap-2">
+                <KeyRound size={14} className="text-[var(--cal-accent)]" />
+                Browser sessions
               </h2>
 
-              <div className="space-y-3">
+              <div className="flex flex-col gap-[var(--cal-space-xs)]">
                 {sessions.map(s => (
-                  <div key={s.id} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between gap-4">
+                  <div key={s.id} className="cal-nested-card p-[var(--cal-space-xs)] flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <h3 className="font-bold text-sm text-white truncate font-mono text-xs" title={s.id}>
+                      <h3 className="font-medium text-xs text-[var(--cal-ink)] truncate tnum" title={s.id}>
                         Session Token: {s.id.slice(0, 12)}...
                       </h3>
-                      <p className="text-[10px] text-zinc-500 mt-1 font-mono">
+                      <p className="text-[10px] text-[var(--cal-muted)] mt-1 tnum">
                         Expires: {formatTimestamp(s.expires_at)}
                       </p>
                       {s.revoked_at ? (
-                        <span className="mt-2 inline-block px-2 py-0.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                        <span className="mt-2 inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] text-[var(--cal-error)] border border-[color-mix(in_srgb,var(--cal-error)_20%,transparent)] rounded-[var(--cal-radius-pill)] text-[9px] uppercase tracking-wider">
                           Terminated
                         </span>
                       ) : (
-                        <span className="mt-2 inline-block px-2 py-0.5 bg-mac-green/10 text-mac-green border border-mac-green/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                        <span className="mt-2 inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--cal-success)_10%,transparent)] text-[var(--cal-success)] border border-[color-mix(in_srgb,var(--cal-success)_20%,transparent)] rounded-[var(--cal-radius-pill)] text-[9px] uppercase tracking-wider">
                           Active Session
                         </span>
                       )}
@@ -269,7 +263,7 @@ export const SecurityView: React.FC = () => {
                       <button
                         onClick={() => handleRevokeSession(s.id)}
                         disabled={revokingId !== null}
-                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded-lg border border-red-500/10 hover:border-red-500/20 transition-all cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--cal-error)_20%,transparent)] text-[var(--cal-error)] text-xs font-medium rounded-[var(--cal-radius-md)] border border-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] cursor-pointer disabled:opacity-50"
                       >
                         Terminate
                       </button>
@@ -277,21 +271,19 @@ export const SecurityView: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </div>
-
+            </section>
           </div>
 
-          {/* Audit Logs Trail Card */}
-          <div className="bg-zinc-950/50 border border-zinc-900 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
-            <h2 className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-4 flex items-center gap-2">
-              <History size={14} className="text-mac-blue" />
-              Chronological Audit Trail Logs
+          <section className="cal-nested-card">
+            <h2 className="text-[10px] uppercase font-medium text-[var(--cal-muted)] tracking-wider mb-3 flex items-center gap-2">
+              <History size={14} className="text-[var(--cal-accent)]" />
+              Audit trail
             </h2>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-white/5 text-zinc-500 uppercase tracking-widest font-black h-10">
+                  <tr className="border-b border-[var(--cal-hairline)] text-[var(--cal-muted)] uppercase tracking-wider font-medium h-10">
                     <th className="py-2 px-3">Timestamp</th>
                     <th className="py-2 px-3">Actor Profile</th>
                     <th className="py-2 px-3">Event Action</th>
@@ -299,36 +291,36 @@ export const SecurityView: React.FC = () => {
                     <th className="py-2 px-3 text-right">Details</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[var(--cal-hairline-soft)]">
                   {auditEvents.map(evt => {
                     const isExpanded = expandedEventId === evt.id;
                     return (
                       <React.Fragment key={evt.id}>
-                        <tr className="hover:bg-white/2 bg-transparent transition-colors h-12">
-                          <td className="py-3 px-3 font-mono text-[11px] text-zinc-400">
+                        <tr className="hover:bg-[var(--cal-surface-soft)] bg-transparent h-12">
+                          <td className="py-3 px-3 tnum text-[11px] text-[var(--cal-muted)]">
                             {formatTimestamp(evt.created_at)}
                           </td>
-                          <td className="py-3 px-3 font-bold text-white">
+                          <td className="py-3 px-3 font-medium text-[var(--cal-ink)]">
                             {evt.actor_email}
                           </td>
                           <td className="py-3 px-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold border ${
+                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${
                               evt.event_type.includes('FAIL') || evt.event_type.includes('CONFLICT')
-                                ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                                ? 'bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] border-[color-mix(in_srgb,var(--cal-error)_20%,transparent)] text-[var(--cal-error)]'
                                 : evt.event_type.includes('INIT') || evt.event_type.includes('SYNC')
-                                ? 'bg-mac-blue/10 border-mac-blue/20 text-mac-blue'
-                                : 'bg-zinc-800 border-zinc-700 text-zinc-300'
+                                ? 'bg-[color-mix(in_srgb,var(--cal-accent)_10%,transparent)] border-[color-mix(in_srgb,var(--cal-accent)_20%,transparent)] text-[var(--cal-accent)]'
+                                : 'bg-[var(--cal-surface-soft)] border-[var(--cal-hairline)] text-[var(--cal-body)]'
                             }`}>
                               {evt.event_type}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-zinc-400">
+                          <td className="py-3 px-3 text-[var(--cal-muted)] tnum">
                             <code>{evt.resource_type}</code> ({evt.resource_id.slice(0, 8)})
                           </td>
                           <td className="py-3 px-3 text-right">
                             <button
                               onClick={() => setExpandedEventId(isExpanded ? null : evt.id)}
-                              className="px-2 py-1 bg-zinc-900 border border-white/5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer inline-flex items-center gap-1 font-bold text-[10px]"
+                              className="px-2 py-1 bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-surface-card)] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] cursor-pointer inline-flex items-center gap-1 text-[10px]"
                             >
                               <FileJson size={11} />
                               {isExpanded ? 'Hide' : 'Expand'}
@@ -338,12 +330,12 @@ export const SecurityView: React.FC = () => {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={5} className="py-4 px-6 bg-black/40 border-b border-white/5">
-                              <div className="bg-[#050505] border border-white/10 rounded-xl p-4 font-mono text-[11px] text-zinc-300 leading-relaxed overflow-x-auto relative">
-                                <span className="absolute top-3 right-3 text-[9px] uppercase tracking-widest font-black text-zinc-600 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-900">
+                            <td colSpan={5} className="py-3 px-4">
+                              <div className="cal-nested-card p-[var(--cal-space-xs)] text-[11px] text-[var(--cal-body)] leading-relaxed overflow-x-auto relative">
+                                <span className="absolute top-3 right-3 text-[9px] uppercase tracking-wider text-[var(--cal-muted-soft)] bg-[var(--cal-surface-elevated)] px-2 py-0.5 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)]">
                                   Raw Event Metadata
                                 </span>
-                                <pre className="whitespace-pre-wrap">{JSON.stringify(JSON.parse(evt.metadata_json), null, 2)}</pre>
+                                <pre className="whitespace-pre-wrap tnum">{JSON.stringify(JSON.parse(evt.metadata_json), null, 2)}</pre>
                               </div>
                             </td>
                           </tr>
@@ -354,8 +346,7 @@ export const SecurityView: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
-
+          </section>
         </div>
       )}
     </div>

@@ -182,7 +182,7 @@ Adaptive Lifting enforces sharp, high-density structural grids. Page cards and s
 | `--space-4` | `16px` | Inner boundaries of dashboard grids and mobile sheets |
 | `--space-6` | `24px` | Section gaps, calendar grid columns |
 
-Page layouts must use full-width operational workspaces, never rounded floating cards inside panels.
+Page layouts use full-width operational workspaces. Nested cards follow the product tree (Block → Week → Session; day → session; lift → PLAN/LOG table). Dummy chrome wraps that do not name an object are still forbidden. See `.cursor/scopes/cal-theme/10-nested-cards.md`.
 
 ---
 
@@ -416,7 +416,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * **Unified Sub-Header Navigation Panel:** Renders current active Month, Microcycle sequence progression metrics (`[ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]` matching rolling CNS fatigue schedules), responsive View Mode toggle keys (`[ MONTH ]` and `[ MICRO ]`), and a prominent manual `[ SYNC LOGS ]` trigger button.
   * **Expand All Sets (All Days) Global Toggle:** A visual checkbox option `[x] Expand All Sets` located in the header. Checking this toggle transitions **every** daily card and exercise block across the entire microcycle into their expanded planned-vs-executed set stack at once, allowing complete high-density session review without clicking individual tabs.
   * **Day hover overlay:** Hovering a day shows a compact action overlay (`New session`, `Copy to` when that day has a session, `Notes`). The overlay is absolutely positioned inside the cell (or portaled); it must not change the in-flow height of the day container. A hovered day stays the same height as its unhovered neighbor. Do not stack two full-width primary buttons in flow.
-  * **Day notes:** Notes are keyed by calendar date + athlete plan, not weekday. A saved note appears as a distinct card on that day at rest (including empty days with no session). Distinct from session cards — no nested cards. Coach Calendar notes follow the athlete switcher.
+  * **Day notes:** Notes are keyed by calendar date + athlete plan, not weekday. A saved note appears as a distinct card on that day at rest (including empty days with no session). Sibling of session cards under the Day — not nested inside a session chip. Coach Calendar notes follow the athlete switcher.
   * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
 * **Workout Cards Sizing & Functional States:**
   * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
@@ -1704,13 +1704,13 @@ Per-set PENDING / IN_FLIGHT / REJECTED cell badges remain **§10.1 backlog** —
 * **Positioning**: `position: fixed`. Default `right: 16px; bottom: 16px`. While lock or conflict cards occupy the center stack (`bottom-20`), move **only this chip** to `top: 16px; right: 16px`.
 * **Idle**: unmounted. Do not reserve a 28px spacer.
 * **Syncing**: 32×32 circle (`h-8 w-8`) with spinning `RefreshCw`. Accent `#007AFF`.
-* **Offline / error**: compact pill, max-width `120px`, height `32px`, `text-[11px] font-mono`, `border-radius` ≤ `--radius-lg` (`8px`).
+* **Offline / error**: compact pill, max-width `120px`, height `32px`, `text-[11px]` Inter + `tnum`, `border-radius` ≤ `--radius-lg` (`8px`).
 * **z-index**: `z-40` (below `CenteredDialog` / sidebar / lock and conflict cards at `z-50`).
 
 ##### Spatial Allocation
 * **Layout Model**: Overlay, out of document flow, rendered on the `SyncProvider` layer (sibling of `{children}`), never inside `<main>` or a `transform` session wrapper.
 * **Pointer events**: `pointer-events: none` on the chip unless it exposes Retry (`pointer-events: auto` on that control).
-* **Surface**: `bg-[#131313]` / ink-900, `border border-white/10`. Offline `#F5A623`. Error `--ok-red` (`text-red-500` / `border-red-500/30`). No blur, nested card, gradient orb, or `shadow-2xl` on the spinner.
+* **Surface**: `--cal-surface-elevated`, `border` `--cal-hairline`. Offline `--cal-warning`. Error `--cal-error`. No blur, dummy nested wrap, gradient orb, or `shadow-2xl` on the spinner.
 
 ##### State Transitions
 * **Priority (locked)**: offline > error > syncing > hidden.
@@ -1900,11 +1900,11 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 ### 16.1 Global Acceptance
 
 - [ ] Screen matches the correct role: coach, athlete, integration, or operator.
-- [ ] No marketing hero, decorative background, or nested card layout was introduced.
+- [ ] No marketing hero or decorative background. Nested cards follow the product tree only (`.cursor/scopes/cal-theme/10-nested-cards.md`).
 - [ ] All primary actions are visible without reading explanatory paragraphs.
 - [ ] Online/offline and sync queue state are visible on authenticated PWA screens.
 - [ ] Loading, empty, error, and permission-denied states are implemented.
-- [ ] Numeric training values use tabular/mono styling and include units where needed.
+- [ ] Numeric training values use Inter tabular-nums and include units where needed.
 - [ ] Color is not the only indicator of risk or status.
 - [ ] Mobile layout works at 360px width without horizontal overflow.
 - [ ] Desktop layout works at 1440px width without clipped tables or charts.

@@ -17,6 +17,7 @@ Load this when touching titles or numeric cells. Source: DESIGN-cal type roles, 
 
 - `src/index.css` font import (Inter already loaded; drop Mono from **usage**, import can stay until trial 2)
 - `ExerciseCard`, `EditablePerformanceCell`, `CalendarView` — replace `font-mono` on numbers with a `tnum` class
+- Sessions list, Insights charts, sync chip, tempo cells — same `tnum` swap if `font-mono` leaked from 01–09
 - `design.md` §4.1 — patch Data mono row
 
 ## Acceptance

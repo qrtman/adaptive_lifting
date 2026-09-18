@@ -109,8 +109,8 @@ function SessionCard({
     >
       <button type="button" onClick={onOpen} className="text-left flex flex-col gap-1 hover:opacity-90">
         <div className="flex items-center justify-between gap-2 min-h-6">
-          <span className="text-xs tabular-nums text-[var(--cal-ink)] truncate">{workout.date}</span>
-          <span className="text-[10px] font-mono text-[var(--cal-muted)] shrink-0 tabular-nums">
+          <span className="text-xs tnum text-[var(--cal-ink)] truncate">{workout.date}</span>
+          <span className="text-[10px] tnum text-[var(--cal-muted)] shrink-0">
             {workout.status} · {workout.tonnage}kg
           </span>
         </div>
@@ -120,7 +120,7 @@ function SessionCard({
           {workout.exercises.map((ex) => {
             const { planned, logged } = setLine(ex);
             return (
-              <div key={ex.id} className="flex items-center gap-2 font-mono text-[11px] leading-tight min-h-5 tabular-nums">
+              <div key={ex.id} className="flex items-center gap-2 tnum text-[11px] leading-tight min-h-5">
                 <span className="w-6 shrink-0 font-medium" style={liftColorStyle(ex.title)}>
                   {liftAbbrev(ex.title)}
                 </span>
@@ -201,7 +201,7 @@ function WeekRow({
         >
           Copy week
         </button>
-        <span className="text-[10px] font-mono text-[var(--cal-muted)] tabular-nums">
+        <span className="text-[10px] tnum text-[var(--cal-muted)]">
           {count} session{count !== 1 ? 's' : ''}
         </span>
       </div>
@@ -236,7 +236,7 @@ function BlockHeader({
         >
           Copy block
         </button>
-        <span className="text-[10px] font-mono text-[var(--cal-muted)] tabular-nums">
+        <span className="text-[10px] tnum text-[var(--cal-muted)]">
           {count} session{count !== 1 ? 's' : ''}
         </span>
       </div>
@@ -443,7 +443,7 @@ export function SessionsView({
                 <section className="flex flex-col gap-[var(--cal-space-xs)]">
                   <div className="min-h-8 px-[var(--cal-space-xxs)] flex items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold tracking-tight text-[var(--cal-ink)]">Ungrouped</h3>
-                    <span className="text-[10px] font-mono text-[var(--cal-muted)] tabular-nums">
+                    <span className="text-[10px] tnum text-[var(--cal-muted)]">
                       {groupedSessions.unlabeled.length} session{groupedSessions.unlabeled.length !== 1 ? 's' : ''}
                     </span>
                   </div>

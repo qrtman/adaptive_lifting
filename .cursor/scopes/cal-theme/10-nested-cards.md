@@ -51,6 +51,26 @@ Lift
 Adj / constructors — dialogs
 ```
 
+**Add lift dialog**
+
+```
+Dialog shell
+  ├── Exercise (category, search, catalog list)
+  └── Modifiers (bar / tempo / ROM / gear)
+```
+
+**Security**
+
+```
+Coach link
+Devices
+  └── Device
+Browser sessions
+  └── Session
+Audit trail
+  └── Event metadata (expanded)
+```
+
 **Dialogs (New / Edit / Notes)**
 
 ```

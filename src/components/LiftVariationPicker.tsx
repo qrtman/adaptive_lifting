@@ -32,8 +32,10 @@ function Chip({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`h-6 px-1.5 text-[11px] rounded disabled:opacity-40 ${
-        active ? 'text-white bg-white/15' : 'text-[#AEAEB2] hover:text-white'
+      className={`h-6 px-1.5 text-[11px] rounded-[var(--cal-radius-md)] disabled:opacity-40 ${
+        active
+          ? 'text-[var(--cal-ink)] bg-[var(--cal-surface-strong)]'
+          : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]'
       }`}
     >
       {label}
@@ -50,7 +52,7 @@ function Row({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366] w-10 shrink-0">{label}</span>
+      <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)] w-10 shrink-0">{label}</span>
       {children}
     </div>
   );
@@ -78,7 +80,7 @@ function TempoPart({
       disabled={disabled}
       value={value}
       onChange={(event) => onChange(Number(event.target.value))}
-      className="h-6 w-8 px-1 text-center text-xs font-mono bg-black border border-white/10 rounded text-white disabled:opacity-40"
+      className="h-6 w-8 px-1 text-center text-xs tnum text-[var(--cal-ink)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
     />
   );
 }
@@ -116,7 +118,7 @@ export function LiftVariationPicker({
 
   return (
     <div className="flex flex-col gap-1 min-w-0" data-testid="lift-constructor">
-      <p className="text-xs text-[#AEAEB2] truncate" data-testid={`lift-name-${title}`}>
+      <p className="text-xs text-[var(--cal-muted)] truncate" data-testid={`lift-name-${title}`}>
         {compileVariation(title, mods)}
       </p>
       <Row label="Bar">
@@ -132,9 +134,9 @@ export function LiftVariationPicker({
       </Row>
       <Row label="Tempo">
         <TempoPart label="Eccentric" value={eccentric} disabled={locked} onChange={(value) => setTempoPart(0, value)} />
-        <span className="text-[10px] text-[#636366]">-</span>
+        <span className="text-[10px] text-[var(--cal-muted-soft)]">-</span>
         <TempoPart label="Pause" value={pause} disabled={locked} onChange={(value) => setTempoPart(1, value)} />
-        <span className="text-[10px] text-[#636366]">-</span>
+        <span className="text-[10px] text-[var(--cal-muted-soft)]">-</span>
         <TempoPart label="Concentric" value={concentric} disabled={locked} onChange={(value) => setTempoPart(2, value)} />
       </Row>
       <Row label="ROM">

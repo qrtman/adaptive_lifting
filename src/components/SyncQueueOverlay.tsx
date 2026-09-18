@@ -6,7 +6,7 @@ type VisibleOverlay = Exclude<SyncOverlayState, { kind: 'hidden' }>;
 
 function chipClass(kind: VisibleOverlay['kind']): string {
   const base =
-    'fixed z-40 pointer-events-none bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] text-[11px] font-mono shadow-[var(--cal-shadow-soft)]';
+    'fixed z-40 pointer-events-none bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] text-[11px] tnum shadow-[var(--cal-shadow-soft)]';
   if (kind === 'syncing') {
     return `${base} h-8 w-8 rounded-full text-[var(--cal-accent)] flex items-center justify-center`;
   }

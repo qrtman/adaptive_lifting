@@ -4,7 +4,7 @@ export function TableChart({ result }: { result: QueryResult }) {
   const rows = result.table;
   if (!rows || rows.length === 0) {
     return (
-      <table className="w-full text-[11px] font-mono">
+      <table className="w-full text-[11px] tnum">
         <thead>
           <tr>
             <th className="text-left text-[var(--cal-muted)] font-normal">Label</th>
@@ -28,7 +28,7 @@ export function TableChart({ result }: { result: QueryResult }) {
   }
   const keys = Object.keys(rows[0]);
   return (
-    <table className="w-full text-[11px] font-mono">
+    <table className="w-full text-[11px] tnum">
       <thead>
         <tr>
           {keys.map((key) => (

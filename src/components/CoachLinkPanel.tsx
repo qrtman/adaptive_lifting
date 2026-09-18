@@ -9,6 +9,17 @@ function accountRole(user: { role?: string } | null): 'COACH' | 'ATHLETE' | null
   return null;
 }
 
+const PANEL = 'mb-6 cal-nested-card';
+const MUTED = 'text-xs text-[var(--cal-muted)]';
+const ERROR = 'text-xs text-[var(--cal-error)]';
+const SUCCESS = 'text-xs text-[var(--cal-success)]';
+const PRIMARY =
+  'h-9 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-primary)] text-[var(--cal-on-primary)] text-xs font-medium inline-flex items-center gap-1 hover:bg-[var(--cal-primary-active)] disabled:opacity-50';
+const SECONDARY =
+  'h-9 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-strong)] text-[var(--cal-ink)] text-xs font-medium disabled:opacity-50';
+const FIELD =
+  'flex-1 min-w-[160px] h-9 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] tracking-widest tnum focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
+
 export const CoachLinkPanel: React.FC = () => {
   const { user } = useAuth();
   const role = accountRole(user);
@@ -128,10 +139,10 @@ export const CoachLinkPanel: React.FC = () => {
       <section
         data-testid="coach-link-panel"
         data-state="denied"
-        className="mb-6 border border-white/10 rounded-[8px] bg-[#131313] p-4"
+        className={PANEL}
       >
-        <h2 className="text-sm font-semibold text-white mb-1">Coach link</h2>
-        <p data-testid="coach-link-denied" className="text-xs text-[#AEAEB2]">
+        <h2 className="text-sm font-semibold text-[var(--cal-ink)] mb-1">Coach link</h2>
+        <p data-testid="coach-link-denied" className={MUTED}>
           You do not have permission to link coach and athlete accounts.
         </p>
       </section>
@@ -155,24 +166,24 @@ export const CoachLinkPanel: React.FC = () => {
       <section
         data-testid="coach-link-panel"
         data-state={panelState}
-        className="mb-6 border border-white/10 rounded-[8px] bg-[#131313] p-4"
+        className={PANEL}
       >
-        <h2 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
-          <Link2 size={14} className="text-[#007AFF]" />
+        <h2 className="text-sm font-semibold text-[var(--cal-ink)] mb-1 flex items-center gap-2">
+          <Link2 size={14} className="text-[var(--cal-accent)]" />
           Coach code
         </h2>
-        <p className="text-xs text-[#AEAEB2] mb-3">
+        <p className={`${MUTED} mb-3`}>
           Generate a coach code and share it with an athlete. They enter it in Security to link. Unlink keeps the athlete plan.
         </p>
 
         {codeLoading && (
-          <p data-testid="coach-code-loading" className="text-xs text-[#AEAEB2]">
+          <p data-testid="coach-code-loading" className={MUTED}>
             Loading coach code…
           </p>
         )}
 
         {coachDenied && (
-          <p data-testid="coach-link-denied" className="text-xs text-[#FF453A]">
+          <p data-testid="coach-link-denied" className={ERROR}>
             You do not have permission to generate a coach code.
           </p>
         )}
@@ -183,7 +194,7 @@ export const CoachLinkPanel: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <code
                   data-testid="coach-code-value"
-                  className="flex-1 min-w-[120px] h-9 px-3 rounded bg-[#161616] border border-white/10 text-sm text-white tracking-widest flex items-center"
+                  className="flex-1 min-w-[120px] h-9 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] tracking-widest tnum flex items-center"
                 >
                   {coachCode}
                 </code>
@@ -191,18 +202,18 @@ export const CoachLinkPanel: React.FC = () => {
                   type="button"
                   data-testid="coach-code-copy"
                   onClick={() => void copyCoachCode()}
-                  className="h-9 px-3 rounded bg-[#007AFF] text-white text-xs font-semibold inline-flex items-center gap-1"
+                  className={PRIMARY}
                 >
                   <Copy size={12} />
                   Copy
                 </button>
               </div>
             ) : codeActive ? (
-              <p data-testid="coach-code-active-hint" className="text-xs text-[#AEAEB2] mb-2">
+              <p data-testid="coach-code-active-hint" className={`${MUTED} mb-2`}>
                 An active coach code exists. Rotate to reveal a new code.
               </p>
             ) : (
-              <p data-testid="coach-code-empty" className="text-xs text-[#AEAEB2] mb-2">
+              <p data-testid="coach-code-empty" className={`${MUTED} mb-2`}>
                 No active coach code yet.
               </p>
             )}
@@ -212,7 +223,7 @@ export const CoachLinkPanel: React.FC = () => {
               data-testid="coach-code-generate"
               onClick={() => void generateCoachCode()}
               disabled={generatingCode}
-              className="h-9 px-3 rounded bg-white/10 hover:bg-white/15 text-white text-xs font-semibold disabled:opacity-50"
+              className={SECONDARY}
             >
               {generatingCode ? 'Generating…' : coachCode || codeActive ? 'Rotate code' : 'Generate code'}
             </button>
@@ -220,12 +231,12 @@ export const CoachLinkPanel: React.FC = () => {
         )}
 
         {coachError && (
-          <p data-testid="coach-code-error" className="text-xs text-[#FF453A] mt-2">
+          <p data-testid="coach-code-error" className={`${ERROR} mt-2`}>
             {coachError}
           </p>
         )}
         {coachSuccess && (
-          <p data-testid="coach-code-success" className="text-xs text-[#34C759] mt-2">
+          <p data-testid="coach-code-success" className={`${SUCCESS} mt-2`}>
             {coachSuccess}
           </p>
         )}
@@ -237,13 +248,13 @@ export const CoachLinkPanel: React.FC = () => {
     <section
       data-testid="coach-link-panel"
       data-state={linkError ? 'error' : linkSuccess ? 'success' : 'empty'}
-      className="mb-6 border border-white/10 rounded-[8px] bg-[#131313] p-4"
+      className={PANEL}
     >
-      <h2 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
-        <Link2 size={14} className="text-[#007AFF]" />
+      <h2 className="text-sm font-semibold text-[var(--cal-ink)] mb-1 flex items-center gap-2">
+        <Link2 size={14} className="text-[var(--cal-accent)]" />
         Coach link
       </h2>
-      <p className="text-xs text-[#AEAEB2] mb-3">
+      <p className={`${MUTED} mb-3`}>
         Enter the coach code (not an email) to link. Unlink keeps your plan.
       </p>
       <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -254,14 +265,14 @@ export const CoachLinkPanel: React.FC = () => {
           onChange={(e) => setCoachCodeInput(e.target.value.toUpperCase())}
           placeholder="Coach code"
           autoCapitalize="characters"
-          className="flex-1 min-w-[160px] h-9 px-3 rounded bg-[#161616] border border-white/10 text-sm text-white uppercase tracking-widest"
+          className={`${FIELD} uppercase`}
         />
         <button
           type="button"
           data-testid="athlete-link-submit"
           onClick={() => void handleLinkCoach()}
           disabled={linkLoading || !coachCodeInput.trim()}
-          className="h-9 px-4 rounded bg-[#007AFF] text-white text-xs font-semibold disabled:opacity-50"
+          className={PRIMARY}
         >
           {linkLoading ? 'Linking…' : 'Link coach'}
         </button>
@@ -270,23 +281,23 @@ export const CoachLinkPanel: React.FC = () => {
           data-testid="athlete-unlink"
           onClick={() => void handleUnlinkCoach()}
           disabled={unlinkLoading}
-          className="h-9 px-4 rounded border border-[#FF453A]/30 text-[#FF453A] text-xs font-semibold disabled:opacity-50"
+          className="h-9 px-4 rounded-[var(--cal-radius-md)] border border-[color-mix(in_srgb,var(--cal-error)_30%,transparent)] text-[var(--cal-error)] text-xs font-medium disabled:opacity-50"
         >
           {unlinkLoading ? 'Unlinking…' : 'Unlink coach'}
         </button>
       </div>
       {!coachCodeInput && !linkSuccess && !linkError && (
-        <p data-testid="athlete-link-empty" className="text-xs text-[#636366]">
+        <p data-testid="athlete-link-empty" className="text-xs text-[var(--cal-muted-soft)]">
           No coach linked from this screen yet. Enter a coach code to link.
         </p>
       )}
       {linkError && (
-        <p data-testid="athlete-link-error" className="text-xs text-[#FF453A]">
+        <p data-testid="athlete-link-error" className={ERROR}>
           {linkError}
         </p>
       )}
       {linkSuccess && (
-        <p data-testid="athlete-link-success" className="text-xs text-[#34C759]">
+        <p data-testid="athlete-link-success" className={SUCCESS}>
           {linkSuccess}
         </p>
       )}

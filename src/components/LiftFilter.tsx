@@ -21,7 +21,7 @@ export function LiftFilter({
           <Tab
             key={lift}
             id={lift}
-            className="px-2.5 h-7 text-xs rounded-[var(--cal-radius-md)] tabular-nums font-medium transition-colors"
+            className="px-2.5 h-7 text-xs rounded-[var(--cal-radius-md)] tnum font-medium transition-colors"
             activeClassName="bg-[var(--cal-surface-elevated)] text-[var(--cal-ink)] shadow-sm"
             inactiveClassName="text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
           >

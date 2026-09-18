@@ -214,12 +214,12 @@ export function AthleteScopeSelector({
       >
         {selected?.label || (isCoach ? 'Select athlete…' : selfEmail)}
       </button>
-      <p className="mt-1 text-[10px] text-[var(--cal-muted)] font-mono">
+      <p className="mt-1 text-[10px] tnum text-[var(--cal-muted)]">
         {isOnline ? (pendingCount > 0 ? `Queue ${pendingCount}` : 'Live') : 'Offline'}
         {selected?.hint ? ` · ${selected.hint}` : ''}
       </p>
       {open && (
-        <div className="mt-1 border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] shadow-sm">
+        <div className="mt-1 cal-nested-card p-0 shadow-[var(--cal-shadow-lift)]" data-elevated="true">
           {searchable && (
             <input
               id="athlete-scope-input"

@@ -3,7 +3,7 @@ import { ArrowRight, Trash2, Copy } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor, MovementPatternSelect } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
-import { CenteredDialog } from './CenteredDialog';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { 
   calculateE1RM, 
   calculateINOL,
@@ -256,7 +256,7 @@ export const ExerciseCard = ({
   };
 
   return (
-    <div className="border-b border-[var(--cal-hairline)]">
+    <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-start gap-2 min-w-0">
           <h4 className="text-lg leading-7 font-semibold tracking-tight text-[var(--cal-ink)] truncate">{title}</h4>
@@ -608,6 +608,7 @@ export const ExerciseCard = ({
             </>
           )}
         >
+          <NestedCard testId="lift-adj-card">
           <div className="flex flex-col gap-3">
             <div className="inline-flex self-start border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)]" role="group" aria-label="Adj mode">
               <button
@@ -672,6 +673,7 @@ export const ExerciseCard = ({
               </p>
             )}
           </div>
+          </NestedCard>
         </CenteredDialog>
       ) : null}
       {editOpen && onUpdateMeta && (
@@ -691,20 +693,24 @@ export const ExerciseCard = ({
             </button>
           )}
         >
-          <LiftVariationPicker
-            title={title}
-            variation={variation}
-            liftCategory={liftCategory}
-            locked={locked}
-            onChange={(next) => onUpdateMeta(next)}
-          />
-          <div className="pt-2">
-            <MovementPatternSelect
-              id={`edit-${id}`}
-              value={movementPattern}
-              locked={locked}
-              onChange={(next) => onUpdateMeta({ movementPattern: next })}
-            />
+          <div className="flex flex-col gap-2">
+            <NestedCard testId={`edit-lift-constructor-${id}`}>
+              <LiftVariationPicker
+                title={title}
+                variation={variation}
+                liftCategory={liftCategory}
+                locked={locked}
+                onChange={(next) => onUpdateMeta(next)}
+              />
+            </NestedCard>
+            <NestedCard testId={`edit-lift-pattern-${id}`}>
+              <MovementPatternSelect
+                id={`edit-${id}`}
+                value={movementPattern}
+                locked={locked}
+                onChange={(next) => onUpdateMeta({ movementPattern: next })}
+              />
+            </NestedCard>
           </div>
         </CenteredDialog>
       )}

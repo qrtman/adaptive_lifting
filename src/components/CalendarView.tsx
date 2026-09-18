@@ -382,7 +382,7 @@ export function CalendarView({
       <div className="flex-1 flex flex-col p-2 gap-2 overflow-y-auto">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold tracking-tight text-[var(--cal-ink)] tabular-nums">
+            <h3 className="text-sm font-semibold tracking-tight text-[var(--cal-ink)] tnum">
               {months[currentMonth]} {currentYear}
             </h3>
             <button
@@ -549,7 +549,7 @@ export function CalendarView({
                         </span>
                         <span className="text-[10px] text-[var(--cal-muted-soft)] shrink-0">mesocycle</span>
                       </div>
-                      <span className="text-[10px] tabular-nums text-[var(--cal-muted)] shrink-0">
+                      <span className="text-[10px] tnum text-[var(--cal-muted)] shrink-0">
                         {meso.startDate} – {meso.endDate}
                       </span>
                     </div>
@@ -633,7 +633,7 @@ export function CalendarView({
                               >
                                 <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
                                   <span
-                                    className={`text-[11px] tabular-nums ${
+                                    className={`text-[11px] tnum ${
                                       isToday
                                         ? 'font-semibold text-[var(--cal-accent)]'
                                         : 'text-[var(--cal-muted)]'
@@ -672,7 +672,7 @@ export function CalendarView({
                                         className="mt-1 p-1 flex flex-col gap-0.5 cursor-pointer relative z-10 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] border border-[var(--cal-hairline)] shadow-sm"
                                       >
                                         {(workout.blockLabel || workout.weekLabel) ? (
-                                          <span className="text-[9px] tabular-nums text-[var(--cal-muted)] truncate px-0.5">
+                                          <span className="text-[9px] tnum text-[var(--cal-muted)] truncate px-0.5">
                                             {[workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ')}
                                           </span>
                                         ) : null}
@@ -711,7 +711,7 @@ export function CalendarView({
                                             return (
                                               <div
                                                 key={ex.id}
-                                                className="flex items-center justify-between gap-1 text-[10px] leading-tight tabular-nums px-0.5"
+                                                className="flex items-center justify-between gap-1 text-[10px] leading-tight tnum px-0.5"
                                               >
                                                 <span className="shrink-0 font-medium" style={movementColorStyle}>
                                                   {movementName}

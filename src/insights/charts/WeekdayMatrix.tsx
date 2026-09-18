@@ -20,7 +20,7 @@ export function WeekdayMatrix({ result }: { result: QueryResult }) {
   const max = Math.max(1, ...matrix.rows.flatMap((row) => matrix.cols.map((col) => matrix.cells[row]?.[col] || 0)));
   return (
     <div className="overflow-x-auto" role="img" aria-label="Weekday matrix">
-      <table className="w-full text-[10px] font-mono">
+      <table className="w-full text-[10px] tnum">
         <thead>
           <tr>
             <th className="text-left text-[var(--cal-muted)] font-normal pr-2">Pattern</th>

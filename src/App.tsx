@@ -361,11 +361,11 @@ export default function App() {
                 </>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20 px-4">
-                    <p className="text-sm text-white">No session open</p>
-                    <p className="text-xs text-[#AEAEB2] mt-2">Pick a day on the calendar or a session in the list.</p>
+                    <p className="text-sm text-[var(--cal-ink)]">No session open</p>
+                    <p className="text-xs text-[var(--cal-muted)] mt-2">Pick a day on the calendar or a session in the list.</p>
                     <button 
                       onClick={() => setCurrentView('dashboard')}
-                      className="mt-6 h-8 px-3 bg-[#007AFF] text-white rounded text-sm"
+                      className="mt-6 h-8 px-3 bg-[var(--cal-primary)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] text-sm"
                     >
                       Back
                     </button>
