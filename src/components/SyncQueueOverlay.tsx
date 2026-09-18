@@ -5,14 +5,15 @@ import { syncOverlayState, type SyncOverlayState } from '../services/syncOverlay
 type VisibleOverlay = Exclude<SyncOverlayState, { kind: 'hidden' }>;
 
 function chipClass(kind: VisibleOverlay['kind']): string {
-  const base = 'fixed z-40 pointer-events-none bg-[#131313] text-[11px] font-mono';
+  const base =
+    'fixed z-40 pointer-events-none bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] text-[11px] font-mono shadow-[var(--cal-shadow-soft)]';
   if (kind === 'syncing') {
-    return `${base} h-8 w-8 rounded-full border border-white/10 text-[#007AFF] flex items-center justify-center`;
+    return `${base} h-8 w-8 rounded-full text-[var(--cal-accent)] flex items-center justify-center`;
   }
   if (kind === 'offline') {
-    return `${base} h-8 max-w-[120px] rounded-lg border border-white/10 px-2 text-[#F5A623] flex items-center gap-1`;
+    return `${base} h-8 max-w-[120px] rounded-[var(--cal-radius-md)] px-2 text-[var(--cal-warning)] flex items-center gap-1`;
   }
-  return `${base} h-8 max-w-[120px] rounded-lg border border-red-500/30 px-2 text-red-500 flex items-center gap-1`;
+  return `${base} h-8 max-w-[120px] rounded-[var(--cal-radius-md)] border-[color-mix(in_srgb,var(--cal-error)_30%,transparent)] px-2 text-[var(--cal-error)] flex items-center gap-1`;
 }
 
 function chipCorner(collide: boolean): string {
