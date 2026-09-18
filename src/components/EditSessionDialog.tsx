@@ -92,7 +92,7 @@ export function EditSessionDialog({
               data-testid="edit-session-delete"
               disabled={busy}
               onClick={() => void remove()}
-              className="mr-auto h-8 px-3 text-xs text-[#FF453A] hover:text-white disabled:opacity-40"
+              className="mr-auto h-10 px-4 text-sm text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
             >
               Delete
             </button>
@@ -101,7 +101,7 @@ export function EditSessionDialog({
             type="button"
             data-testid="edit-session-cancel"
             onClick={onClose}
-            className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+            className="h-10 px-4 text-sm text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
           >
             Cancel
           </button>
@@ -110,7 +110,7 @@ export function EditSessionDialog({
             data-testid="edit-session-save"
             disabled={busy}
             onClick={() => void save()}
-            className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+            className="h-10 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)] disabled:opacity-40 disabled:hover:bg-[var(--cal-primary)]"
           >
             {busy ? 'Saving…' : 'Save'}
           </button>
@@ -161,7 +161,7 @@ export function EditSessionDialog({
             </div>
           </div>
         </div>
-        {error && <p data-testid="edit-session-error" className="text-xs text-[#FF453A]">{error}</p>}
+        {error && <p data-testid="edit-session-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>
   );

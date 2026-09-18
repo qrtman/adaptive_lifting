@@ -30,7 +30,7 @@ export function CenteredDialog({
       <button
         type="button"
         aria-label="Close dialog"
-        className="absolute inset-0 bg-black/70"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
       <div
@@ -38,20 +38,20 @@ export function CenteredDialog({
         aria-modal="true"
         aria-labelledby="centered-dialog-title"
         data-testid={testId}
-        className="relative z-10 w-full max-w-lg max-h-[85dvh] overflow-y-auto bg-[#131313] border border-white/10 rounded-lg p-4"
+        className="relative z-10 w-full max-w-lg max-h-[85dvh] overflow-y-auto bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-[var(--cal-space-md)] shadow-sm"
       >
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
-            <h2 id="centered-dialog-title" className="text-sm text-white">
+            <h2 id="centered-dialog-title" className="text-sm font-medium text-[var(--cal-ink)]">
               {title}
             </h2>
-            {subtitle ? <p className="text-xs text-[#AEAEB2] mt-1">{subtitle}</p> : null}
+            {subtitle ? <p className="text-xs text-[var(--cal-muted)] mt-1">{subtitle}</p> : null}
           </div>
           <button
             type="button"
             data-testid="dialog-close"
             onClick={onClose}
-            className="h-7 w-7 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+            className="h-8 w-8 flex items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]"
           >
             ×
           </button>

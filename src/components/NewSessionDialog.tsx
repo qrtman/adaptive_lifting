@@ -104,7 +104,7 @@ export function NewSessionDialog({
             type="button"
             data-testid="new-session-cancel"
             onClick={onClose}
-            className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+            className="h-10 px-4 text-sm text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
           >
             Cancel
           </button>
@@ -112,7 +112,7 @@ export function NewSessionDialog({
             type="submit"
             data-testid="new-session-create"
             disabled={busy || needsAthlete || !ISO_DATE.test(targetDate)}
-            className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+            className="h-10 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)] disabled:opacity-40 disabled:hover:bg-[var(--cal-primary)]"
           >
             {busy ? 'Creating…' : 'Create'}
           </button>
@@ -121,7 +121,7 @@ export function NewSessionDialog({
     >
       <div className="flex flex-col gap-2">
         {needsAthlete && (
-          <p data-testid="new-session-need-athlete" className="text-xs text-[#AEAEB2]">
+          <p data-testid="new-session-need-athlete" className="text-xs text-[var(--cal-muted)]">
             Select an athlete in the sidebar, then create a session on that plan.
           </p>
         )}
@@ -135,13 +135,13 @@ export function NewSessionDialog({
         />
         {allowDateEdit && (
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[#636366]">Date</span>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Date</span>
             <input
               type="date"
               data-testid="new-session-date"
               value={targetDate}
               onChange={(event) => setTargetDate(event.target.value)}
-              className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+              className="h-10 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
             />
           </label>
         )}
@@ -180,7 +180,7 @@ export function NewSessionDialog({
             </div>
           </div>
         </div>
-        {error && <p data-testid="new-session-error" className="text-xs text-[#FF453A]">{error}</p>}
+        {error && <p data-testid="new-session-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>
   );
