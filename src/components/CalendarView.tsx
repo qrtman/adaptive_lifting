@@ -616,6 +616,8 @@ export function CalendarView({
                                   }
                                 }}
                                 className={`h-auto min-h-[128px] p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors border-r border-b border-[var(--cal-hairline)] ${
+                                  isHovered ? 'z-20' : ''
+                                } ${
                                   cellIdx === 6 ? 'border-r-0' : ''
                                 } ${
                                   isLastWeek ? 'border-b-0' : ''
@@ -637,9 +639,9 @@ export function CalendarView({
                                     : ''
                                 }`}
                               >
-                                <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
+                                <div className="flex items-center gap-1 relative z-10 mb-1 min-h-6">
                                   <span
-                                    className={`text-[11px] tnum ${
+                                    className={`text-[11px] tnum shrink-0 ${
                                       isToday
                                         ? 'font-semibold text-[var(--cal-accent)]'
                                         : 'text-[var(--cal-muted)]'
@@ -647,6 +649,49 @@ export function CalendarView({
                                   >
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
+                                  {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard ? (
+                                    <div
+                                      data-testid={`calendar-day-hover-${dateStr}`}
+                                      className="absolute top-0 left-6 z-20 flex flex-row flex-nowrap items-center gap-0.5 w-max"
+                                    >
+                                      <button
+                                        type="button"
+                                        data-testid={`calendar-new-session-${dateStr}`}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          openNewSession(dateStr);
+                                        }}
+                                        className="h-6 px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] whitespace-nowrap hover:bg-[var(--cal-primary-active)] transform-none"
+                                      >
+                                        New session
+                                      </button>
+                                      {dayWorkouts[0] ? (
+                                        <button
+                                          type="button"
+                                          data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
+                                          disabled={!isOnline}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            startDayCopy(dayWorkouts[0].workout);
+                                          }}
+                                          className="h-6 px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap disabled:opacity-40 transform-none"
+                                        >
+                                          Copy to
+                                        </button>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        data-testid={`calendar-day-notes-${dateStr}`}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setNotesDate(dateStr);
+                                        }}
+                                        className="h-6 px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap transform-none"
+                                      >
+                                        Notes
+                                      </button>
+                                    </div>
+                                  ) : null}
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
                                   .filter(({ workout }) => workoutPassesFilter(workout, filter))
@@ -666,7 +711,7 @@ export function CalendarView({
                                           }
                                           onViewSession(workout, microId);
                                         }}
-                                        className="mt-1 p-1 flex flex-col gap-0.5 cursor-pointer relative z-10 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] border border-[var(--cal-hairline)] shadow-sm"
+                                        className="cal-day-chip mt-1 p-1 flex flex-col gap-0.5 cursor-pointer"
                                       >
                                         {(workout.blockLabel || workout.weekLabel) ? (
                                           <span className="text-[9px] tnum text-[var(--cal-muted)] truncate px-0.5">
@@ -745,7 +790,7 @@ export function CalendarView({
                                       }
                                       setNotesDate(dateStr);
                                     }}
-                                    className="mt-1 px-1.5 py-1 text-left border border-dashed border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] relative z-10"
+                                    className="cal-day-chip cal-day-chip--note mt-1 px-1.5 py-1 text-left"
                                   >
                                     <span className="block text-[9px] uppercase tracking-wider text-[var(--cal-muted-soft)]">
                                       Note
@@ -755,49 +800,6 @@ export function CalendarView({
                                     </span>
                                   </button>
                                 ) : null}
-                                {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard && (
-                                  <div
-                                    data-testid={`calendar-day-hover-${dateStr}`}
-                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] shadow-[var(--cal-shadow-lift)] transform-none"
-                                  >
-                                    <button
-                                      type="button"
-                                      data-testid={`calendar-new-session-${dateStr}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        openNewSession(dateStr);
-                                      }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] whitespace-nowrap hover:bg-[var(--cal-primary-active)] transform-none"
-                                    >
-                                      New session
-                                    </button>
-                                    {dayWorkouts[0] && (
-                                      <button
-                                        type="button"
-                                        data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
-                                        disabled={!isOnline}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          startDayCopy(dayWorkouts[0].workout);
-                                        }}
-                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap disabled:opacity-40 transform-none"
-                                      >
-                                        Copy to
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      data-testid={`calendar-day-notes-${dateStr}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        setNotesDate(dateStr);
-                                      }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap transform-none"
-                                    >
-                                      Notes
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                             );
                           })}

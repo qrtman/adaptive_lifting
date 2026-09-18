@@ -164,6 +164,29 @@
   transform: translateY(-1px);
 }
 
+/* Calendar session / note chips — DESIGN-cal rest-flat, hover-lift. */
+.cal-day-chip {
+  background: var(--cal-surface-card);
+  border: 1px solid var(--cal-hairline);
+  border-radius: var(--cal-radius-md);
+  box-shadow: none;
+  position: relative;
+  z-index: 10;
+  transition: box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1), transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cal-day-chip--note {
+  background: var(--cal-surface-soft);
+  border-style: dashed;
+}
+
+.cal-day-chip:hover,
+.cal-day-chip:focus-visible {
+  box-shadow: var(--cal-shadow-lift);
+  transform: translateY(-1px);
+  z-index: 11;
+}
+
 @keyframes cal-elevate-in {
   from {
     opacity: 0;
@@ -182,11 +205,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cal-nested-card {
+  .cal-nested-card,
+  .cal-day-chip {
     transition: none;
   }
   .cal-nested-card:focus-within,
-  .cal-nested-card[data-elevated="true"] {
+  .cal-nested-card[data-elevated="true"],
+  .cal-day-chip:hover,
+  .cal-day-chip:focus-visible {
     transform: none;
   }
   .cal-elevate-in {

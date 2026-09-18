@@ -1,38 +1,52 @@
 # Scope 01 — Calendar hover overlay
 
-Load this for Sep-1 hover chrome. Depends on `.cursor/rules/calendar-day-notes.mdc`. Overlay is **not** a nested card (`.cursor/scopes/cal-theme/10-nested-cards.md`).
+Load this for Sep-1 hover chrome. Depends on `.cursor/rules/calendar-day-notes.mdc`. Overlay is **not** a nested card (`.cursor/scopes/cal-theme/10-nested-cards.md`). Elevation tokens: `design/sources/DESIGN-cal.md` **Elevation & Depth**.
 
 ## Task
 
-The action stack may cover session/note chips. Give it real elevation. Stop the twitchy motion. Do **not** blur the day.
+Do **not** cover session or note cards. Park New session / Copy to / Notes in empty space. Elevate **the card under the pointer**, not the whole day.
 
 ## Diagnosis (do not re-litigate)
 
-Sep 1 hover sits on SQ 150×5@6 + note with `shadow-sm` and no lift — the stack looks pasted on, not above. Day cell uses `transition-colors` + accent ring; ComboBox/dialog `translateY`/`scale` does **not** belong here. `backdrop-blur` would frost the chips the user already accepted covering.
+The bottom-left stacked overlay sat on SQ + note. Covering was the old lock; it is **void**. Expanding the day or shrinking cards to make room is also void — both change the week row or the data chips.
+
+The date row (`01` left, nothing right) is unused chrome. Session/note cards already use `surface-card` but `shadow-sm` at rest, so they never get DESIGN-cal’s rest-flat → hover-lift.
 
 ## Locked
 
-- Covering chips: **OK**. Height vs neighbor still unchanged.
-- **No** `backdrop-blur`, **no** dim scrim over the day.
-- Stack: `position: absolute` (already), opaque `bg-[var(--cal-surface-elevated)]`, `border-[var(--cal-hairline)]`, `shadow-[var(--cal-shadow-lift)]` (not `shadow-sm`).
-- **No** `translate` / `scale` / `cal-elevate-in` on the day or the buttons. Opacity-only ≤ 80ms is optional; zero motion is better. Honor `prefers-reduced-motion`.
-- Actions unchanged: New session (black primary) → Copy to (iff session) → Notes. Same testids.
-- Do not restyle session chips into the overlay.
+- **Do not cover** this day’s session chips or note card.
+- **Do not** grow the day cell on hover. **Do not** shrink session/note cards to make room.
+- Overlay stays `position: absolute` (out of flow). Sit it in the **date-row empty space** (right of `01`, one horizontal row). If the cluster is wider than the cell, it may paint over the **neighbor day**, not down over this day’s cards. Hovered day `z-index` above siblings so overflow wins hit-testing.
+- **No** `backdrop-blur`, **no** dim scrim, **no** wrapper card around the actions (buttons only).
+- **No** `translate` / `scale` / `cal-elevate-in` on the **day** or the **action buttons**. Honor `prefers-reduced-motion`.
+- Actions unchanged: New session (black primary) → Copy to (iff session) → Notes. Same testids. Copy-to still uses unfiltered `dayWorkouts[0]`.
+
+### Cards inside the day (DESIGN-cal elevation)
+
+| Rest | Hover (the card under the pointer) |
+| :--- | :--- |
+| Card surface: `bg-[var(--cal-surface-card)]`, hairline border, **no shadow** | Subtle drop: `box-shadow: var(--cal-shadow-lift)` (`0 4px 12px` / dark token). Optional `translateY(-1px)`. 180ms ease. |
+
+Note card keeps dashed / muted rest so it is not a session. It still lifts on its own hover.
+
+Do not lift every card when the day is hovered — only the chip the pointer is on.
 
 ## Files
 
-- `src/components/CalendarView.tsx` (hover node only)
-- `e2e/calendar.spec.ts` (height vs neighbor still equal; overlay visible on a day with a session)
+- `src/components/CalendarView.tsx` (hover node + session/note chip classes)
+- `src/index.css` (`.cal-day-chip` hover lift; reduced motion)
+- `e2e/calendar.spec.ts` (height vs neighbor; overlay does not intersect session/note rects; chip hover shadow)
 
 ## States
 
-hover empty · hover with session · hover with note · copy-to armed (overlay hidden)
+hover empty · hover with session · hover with note · hover a session chip · hover a note chip · copy-to armed (overlay hidden)
 
 ## Acceptance
 
 - [ ] Hovered day in-flow height equals unhovered neighbor.
-- [ ] Overlay computed `position` is `absolute`; box-shadow is the lift token.
+- [ ] Overlay computed `position` is `absolute`; it does not overlap this day’s session or note cards.
 - [ ] No blur filter on the day cell.
+- [ ] Session/note chips rest with no drop shadow; the hovered chip uses `--cal-shadow-lift`.
 - [ ] New session / Copy to / Notes still work.
 
 ## Out of scope

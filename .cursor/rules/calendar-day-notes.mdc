@@ -64,7 +64,7 @@ Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cel
 ### Hover overlay (layout)
 
 - Mount only when `hoveredDate === dateStr` && current month && athlete selected && `!copyClipboard`.
-- **Out of flow:** `absolute` (e.g. bottom-center of the cell). Must not participate in the cell’s in-flow height. Week row height with overlay open **equals** the same week with overlay closed (e2e: `boundingBox` of hovered day vs neighbor, and/or hovered day height before vs after hover).
+- **Out of flow:** `position: absolute` child of the day cell, parked in the **date-row empty space** (right of the date number, one horizontal row). Must not participate in the cell’s in-flow height. Must **not** overlap this day’s session or note cards. If the cluster is wider than the cell, it may paint over an adjacent day. Week row height with overlay open **equals** the same week with overlay closed.
 - **Smaller** than today’s full-width `h-7` stack (see grill).
 - Actions, top to bottom: **New session** (always) → **Copy to** (iff a session exists) → **Notes** (always).
 - `data-testid`: keep `calendar-new-session-{date}` and `calendar-copy-to-{workoutId}`; add `calendar-notes-{date}`.
