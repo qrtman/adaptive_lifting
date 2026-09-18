@@ -66,6 +66,8 @@ async function expectSessionHeaderHierarchy(page: Page) {
   expect(tonnageBox!.y).toBeGreaterThan(nameBox!.y);
   expect(editBox!.y).toBeGreaterThan(nameBox!.y);
 }
+
+async function addCatalogLift(page: Page, category: string, exercise: string) {
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption(category);
   await page.getByTestId(`add-lift-result-${exercise}`).click();
