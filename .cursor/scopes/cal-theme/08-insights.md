@@ -4,7 +4,7 @@ Load this for Insights cards. Depends on 01, 02, 10.
 
 ## Task
 
-Insight cards on Cal `feature-card` / `surface-card`. Nested config inside a card is allowed (level 2). Empty/loading/error required.
+Insight cards on Cal `feature-card` / `surface-card`. Config / chart body may nest inside the insight card. Empty/loading/error required.
 
 ## Locked
 
