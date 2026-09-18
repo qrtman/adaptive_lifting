@@ -1,5 +1,4 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
-import { motion } from 'motion/react';
 
 const inputClass =
   'h-10 w-full min-w-0 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
@@ -31,6 +30,8 @@ export function ComboBox({
     if (!query || exact) return options;
     return options.filter((option) => option.toLowerCase().includes(query));
   }, [options, value]);
+
+  const listOpen = open && filtered.length > 0;
 
   const moveHighlight = (delta: number) => {
     if (filtered.length === 0) return;
@@ -83,11 +84,11 @@ export function ComboBox({
   return (
     <label className="flex w-full min-w-0 flex-col gap-1">
       <span className={labelClass}>{label}</span>
-      <div className="relative min-w-0">
+      <div className={`relative min-w-0 ${listOpen ? 'z-30' : ''}`}>
         <input
           data-testid={testId}
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={listOpen}
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="off"
@@ -107,16 +108,12 @@ export function ComboBox({
           onKeyDown={onKeyDown}
           className={inputClass}
         />
-        {open && filtered.length > 0 ? (
-          <motion.div
+        {listOpen ? (
+          <div
             id={listId}
             role="listbox"
             data-testid={listId}
-            data-elevated="true"
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.16, ease: [0.4, 0, 0.2, 1] }}
-            className="cal-nested-card absolute z-20 mt-1 w-full max-h-40 overflow-y-auto p-1 shadow-[var(--cal-shadow-lift)]"
+            className="absolute z-30 mt-1 w-full max-h-40 overflow-y-auto p-1 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] shadow-[var(--cal-shadow-lift)]"
           >
             {filtered.map((option, index) => {
               const active = index === highlightIndex;
@@ -128,8 +125,8 @@ export function ComboBox({
                   aria-selected={active}
                   data-testid={`${testId}-option-${option}`}
                   onMouseDown={(event) => event.preventDefault()}
-                  onMouseEnter={() => setHighlightIndex(index)}
                   onClick={() => pick(option)}
+                  onMouseEnter={() => setHighlightIndex(index)}
                   className={`w-full px-3 py-2 text-left text-sm ${
                     active
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
@@ -140,7 +137,7 @@ export function ComboBox({
                 </button>
               );
             })}
-          </motion.div>
+          </div>
         ) : null}
       </div>
     </label>

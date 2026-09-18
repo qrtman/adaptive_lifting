@@ -5,7 +5,7 @@ import { displayDayField, normalizeDayLabel } from '../features/plan/sessionLabe
 import { setRecentBlock, setRecentDay, setRecentName, setRecentWeek } from '../storage/uiPrefs';
 import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { ComboBox } from './ComboBox';
-import { LabelCombo, dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
+import { dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
 export function EditSessionDialog({
   session,
@@ -118,7 +118,7 @@ export function EditSessionDialog({
       )}
     >
       <div className="flex flex-col gap-2">
-        <NestedCard testId="edit-session-name-card">
+        <NestedCard testId="edit-session-name-card" className="relative z-20 overflow-visible focus-within:!transform-none">
           <ComboBox
             label="Name"
             value={title}
@@ -128,7 +128,7 @@ export function EditSessionDialog({
             testId="session-title"
           />
         </NestedCard>
-        <NestedCard testId="edit-session-slot-card">
+        <NestedCard testId="edit-session-slot-card" className="overflow-visible">
           <div className="@container min-w-0">
             <div
               data-testid="edit-session-slot-row"
@@ -145,20 +145,22 @@ export function EditSessionDialog({
                 />
               </div>
               <div className="min-w-0">
-                <LabelCombo
+                <ComboBox
                   label="Block (optional)"
                   value={blockLabel}
                   onChange={setBlockLabel}
                   options={blockOptions}
+                  placeholder="Block…"
                   testId="session-block"
                 />
               </div>
               <div className="min-w-0">
-                <LabelCombo
+                <ComboBox
                   label="Week (optional)"
                   value={weekLabel}
                   onChange={setWeekLabel}
                   options={weekOptions}
+                  placeholder="Week…"
                   testId="session-week"
                 />
               </div>

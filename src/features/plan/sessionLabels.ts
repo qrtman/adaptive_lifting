@@ -37,3 +37,9 @@ export function formatPlanLabel(kind: PlanLabelKind, raw: string | null | undefi
 export function displayDayField(raw: string | null | undefined): string {
   return formatPlanLabel('Day', raw) ?? '';
 }
+
+/** Name suggestions must not include Day-slot strings (`Day 1`, `D1`, `day 1`). Keep `AM` / `Meet`. */
+export function isDayLikeTitle(raw: string | null | undefined): boolean {
+  const canonical = normalizeDayLabel(raw);
+  return canonical != null && /^\d+$/.test(canonical);
+}

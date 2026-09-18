@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   displayDayField,
   formatPlanLabel,
+  isDayLikeTitle,
   isUnlabeledDay,
   normalizeDayLabel,
 } from './sessionLabels';
@@ -74,5 +75,20 @@ describe('isUnlabeledDay / displayDayField', () => {
     expect(displayDayField('D2')).toBe('Day 2');
     expect(displayDayField('2026-09-04')).toBe('');
     expect(displayDayField('')).toBe('');
+  });
+});
+
+describe('isDayLikeTitle', () => {
+  it('treats Day-slot aliases as day-like and keeps real names', () => {
+    expect(isDayLikeTitle('Day 1')).toBe(true);
+    expect(isDayLikeTitle('day 1')).toBe(true);
+    expect(isDayLikeTitle('D1')).toBe(true);
+    expect(isDayLikeTitle('1')).toBe(true);
+    expect(isDayLikeTitle('Day8')).toBe(true);
+    expect(isDayLikeTitle('Squat')).toBe(false);
+    expect(isDayLikeTitle('Meet')).toBe(false);
+    expect(isDayLikeTitle('AM')).toBe(false);
+    expect(isDayLikeTitle('Session')).toBe(false);
+    expect(isDayLikeTitle('')).toBe(false);
   });
 });
