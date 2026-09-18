@@ -15,7 +15,7 @@ import {
   setRecentName,
   setRecentWeek,
 } from '../storage/uiPrefs';
-import { CenteredDialog } from './CenteredDialog';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { ComboBox } from './ComboBox';
 import { LabelCombo, dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
@@ -125,61 +125,67 @@ export function NewSessionDialog({
             Select an athlete in the sidebar, then create a session on that plan.
           </p>
         )}
-        <ComboBox
-          label="Name"
-          value={title}
-          onChange={setTitle}
-          options={nameOptions}
-          placeholder="Squat, Meet…"
-          testId="new-session-title"
-        />
+        <NestedCard testId="new-session-name-card">
+          <ComboBox
+            label="Name"
+            value={title}
+            onChange={setTitle}
+            options={nameOptions}
+            placeholder="Squat, Meet…"
+            testId="new-session-title"
+          />
+        </NestedCard>
         {allowDateEdit && (
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Date</span>
-            <input
-              type="date"
-              data-testid="new-session-date"
-              value={targetDate}
-              onChange={(event) => setTargetDate(event.target.value)}
-              className="h-10 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
-            />
-          </label>
+          <NestedCard testId="new-session-date-card">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Date</span>
+              <input
+                type="date"
+                data-testid="new-session-date"
+                value={targetDate}
+                onChange={(event) => setTargetDate(event.target.value)}
+                className="h-10 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+              />
+            </label>
+          </NestedCard>
         )}
-        <div className="@container min-w-0">
-          <div
-            data-testid="new-session-slot-row"
-            className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
-          >
-            <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
-              <ComboBox
-                label="Day"
-                value={dayInput}
-                onChange={setDayInput}
-                options={dayOptions}
-                placeholder="Day 1…"
-                testId="new-session-day"
-              />
-            </div>
-            <div className="min-w-0">
-              <LabelCombo
-                label="Block (optional)"
-                value={blockLabel}
-                onChange={setBlockLabel}
-                options={blockOptions}
-                testId="new-session-block"
-              />
-            </div>
-            <div className="min-w-0">
-              <LabelCombo
-                label="Week (optional)"
-                value={weekLabel}
-                onChange={setWeekLabel}
-                options={weekOptions}
-                testId="new-session-week"
-              />
+        <NestedCard testId="new-session-slot-card">
+          <div className="@container min-w-0">
+            <div
+              data-testid="new-session-slot-row"
+              className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
+            >
+              <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
+                <ComboBox
+                  label="Day"
+                  value={dayInput}
+                  onChange={setDayInput}
+                  options={dayOptions}
+                  placeholder="Day 1…"
+                  testId="new-session-day"
+                />
+              </div>
+              <div className="min-w-0">
+                <LabelCombo
+                  label="Block (optional)"
+                  value={blockLabel}
+                  onChange={setBlockLabel}
+                  options={blockOptions}
+                  testId="new-session-block"
+                />
+              </div>
+              <div className="min-w-0">
+                <LabelCombo
+                  label="Week (optional)"
+                  value={weekLabel}
+                  onChange={setWeekLabel}
+                  options={weekOptions}
+                  testId="new-session-week"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </NestedCard>
         {error && <p data-testid="new-session-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>

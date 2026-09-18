@@ -14,7 +14,7 @@ That cap was leftover caution from the old optical-fatigue ban. It is **wrong** 
 
 Nest **along the product tree**. Each card is a real object (day, session, note, block, week, lift, insight). Do **not** add a wrapper card that does not name an object.
 
-Overlays, popovers, ComboBox listboxes, hover menus, Adj/Notes/New-session dialogs are **not** card levels.
+Overlays, popovers, and dialogs **may** nest real objects as cards (Name, Day/Block/Week, note body, ComboBox results). Dummy chrome wraps that do not name an object still fail.
 
 Same object must not be wrapped twice (“card of a card of Session”).
 
@@ -51,7 +51,16 @@ Lift
 Adj / constructors — dialogs
 ```
 
-**Insights**
+**Dialogs (New / Edit / Notes)**
+
+```
+Dialog shell (elevates in)
+  ├── Name
+  ├── Date (if shown)
+  ├── Day · Block · Week
+  │     └── ComboBox results (elevated card)
+  └── Note body
+```
 
 ```
 Insight card

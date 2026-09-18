@@ -1,4 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
+import { motion } from 'motion/react';
 
 const inputClass =
   'h-10 w-full min-w-0 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
@@ -107,11 +108,15 @@ export function ComboBox({
           className={inputClass}
         />
         {open && filtered.length > 0 ? (
-          <div
+          <motion.div
             id={listId}
             role="listbox"
             data-testid={listId}
-            className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] shadow-sm"
+            data-elevated="true"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.16, ease: [0.4, 0, 0.2, 1] }}
+            className="cal-nested-card absolute z-20 mt-1 w-full max-h-40 overflow-y-auto p-1 shadow-[var(--cal-shadow-lift)]"
           >
             {filtered.map((option, index) => {
               const active = index === highlightIndex;
@@ -135,7 +140,7 @@ export function ComboBox({
                 </button>
               );
             })}
-          </div>
+          </motion.div>
         ) : null}
       </div>
     </label>

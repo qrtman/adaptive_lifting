@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_KEYS, getUiPref } from '../storage/uiPrefs';
-import { CenteredDialog } from './CenteredDialog';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
 
 export function DayNoteDialog({
   date,
@@ -109,18 +109,20 @@ export function DayNoteDialog({
         {!isOnline && (
           <p data-testid="day-note-offline" className="text-xs text-[var(--cal-warning)]">Connect to save notes.</p>
         )}
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Note</span>
-          <textarea
-            data-testid="day-note-body"
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            rows={5}
-            maxLength={2000}
-            placeholder="Rest, travel, meet week…"
-            className="min-h-[96px] px-3 py-2 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] resize-y focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
-          />
-        </label>
+        <NestedCard testId="day-note-body-card">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Note</span>
+            <textarea
+              data-testid="day-note-body"
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              rows={5}
+              maxLength={2000}
+              placeholder="Rest, travel, meet week…"
+              className="min-h-[96px] px-3 py-2 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] resize-y focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+            />
+          </label>
+        </NestedCard>
         {error && <p data-testid="day-note-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>

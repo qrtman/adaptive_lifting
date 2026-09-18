@@ -10,7 +10,8 @@ Load this for New/Edit session and Notes chrome. Depends on 01, 02. Behavior: `.
 
 - Do not change field order, prefills (`al_recent_*` athlete-scoped), or `dayLabel` canonical `"1"`…`"7"`.
 - Primary Create/Save = black CTA. Cancel = secondary / text-link.
-- ComboBox listbox: canvas + hairline, not a third nested card inside the dialog card (dialog is level 1; listbox is overlay, not a card nest).
+- ComboBox listbox is a **nested elevated card** (lift shadow + short enter motion). Dialog outer card → Name card → slot card (Day/Block/Week). Overlays still skip dummy extra wraps that are not objects.
+- Respect `prefers-reduced-motion` (no translate/scale).
 - Notes dialog title `Notes · YYYY-MM-DD` stays.
 
 ## Files
