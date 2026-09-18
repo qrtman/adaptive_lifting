@@ -36,7 +36,7 @@ test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN�
 
   await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
   await expect(page.getByTestId('set-grid-h-plan')).toBeVisible();
-  await expect(page.getByTestId('set-grid-h-plan-kg')).toBeVisible();
+  await expect(page.getByTestId('set-grid-h-planKg')).toBeVisible();
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
   await expect(page.getByTestId('set-grid').getByText('×', { exact: true })).toHaveCount(0);
   await expect(page.getByTestId('set-grid').locator('tbody').getByText('@', { exact: true })).toHaveCount(0);

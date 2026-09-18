@@ -330,12 +330,12 @@ export const ExerciseCard = ({
             <th rowSpan={2} className={`${th} w-10`} aria-label="Set actions" />
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={thField} data-testid="set-grid-h-plan-kg">kg</th>
-            <th className={thField} data-testid="set-grid-h-plan-reps">reps</th>
-            <th className={thField} data-testid="set-grid-h-plan-rpe">RPE</th>
-            <th className={`${thField} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-log-kg">kg</th>
-            <th className={thField} data-testid="set-grid-h-log-reps">reps</th>
-            <th className={thField} data-testid="set-grid-h-log-rpe">RPE</th>
+            <th className={thField} data-testid="set-grid-h-planKg">kg</th>
+            <th className={thField} data-testid="set-grid-h-planReps">reps</th>
+            <th className={thField} data-testid="set-grid-h-planRpe">RPE</th>
+            <th className={`${thField} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-logKg">kg</th>
+            <th className={thField} data-testid="set-grid-h-logReps">reps</th>
+            <th className={thField} data-testid="set-grid-h-logRpe">RPE</th>
           </tr>
         </thead>
         <tbody>

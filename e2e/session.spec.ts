@@ -186,15 +186,15 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await expect(headers).toHaveCount(15);
   await expect(page.getByTestId('set-grid-h-plan')).toHaveText('Plan');
   await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
-  await expect(page.getByTestId('set-grid-h-plan-kg')).toHaveText('kg');
-  await expect(page.getByTestId('set-grid-h-plan-reps')).toHaveText('reps');
-  await expect(page.getByTestId('set-grid-h-plan-rpe')).toHaveText('RPE');
-  await expect(page.getByTestId('set-grid-h-log-kg')).toHaveText('kg');
+  await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
+  await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('reps');
+  await expect(page.getByTestId('set-grid-h-planRpe')).toHaveText('RPE');
+  await expect(page.getByTestId('set-grid-h-logKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
   await expect(page.getByTestId('set-grid-h-e1rm')).toHaveText('e1RM');
   await expect(page.getByTestId('set-grid-h-inol')).toHaveText('INOL');
 
-  const kgHeaderBox = await page.getByTestId('set-grid-h-plan-kg').boundingBox();
+  const kgHeaderBox = await page.getByTestId('set-grid-h-planKg').boundingBox();
   const kgCellBox = await page.getByTestId('rx-weight').first().boundingBox();
   expect(kgHeaderBox && kgCellBox).toBeTruthy();
   expect(Math.abs(kgHeaderBox!.x - kgCellBox!.x)).toBeLessThan(24);
