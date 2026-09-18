@@ -29,7 +29,7 @@ export const AppShell = ({
   onToggleTheme: () => void;
 }) => {
   return (
-    <div className="flex min-h-screen overflow-hidden bg-[var(--cal-canvas)] text-[var(--cal-ink)] font-sans">
+    <div className="flex min-h-screen overflow-hidden bg-[var(--cal-canvas)] text-[var(--cal-ink)] font-sans antialiased">
       <Sidebar
         dashboardMode={dashboardMode}
         onNavigate={onNavigate}

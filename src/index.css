@@ -27,12 +27,6 @@
   }
 }
 
-.glass-sidebar {
-  background: rgba(28, 27, 27, 0.7);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-}
-
 .glass-card {
   background: #161616;
   border: 1px solid rgba(255, 255, 255, 0.1);
