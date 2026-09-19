@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { useSync } from '../contexts/SyncContext';
 import { apiService } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import type { DashboardMode } from '../navigation';
@@ -16,7 +15,6 @@ export type RosterAthlete = {
 type ScopeItem = {
   id: string;
   label: string;
-  hint: string;
 };
 
 export function AthleteScopeSelector({
@@ -32,10 +30,7 @@ export function AthleteScopeSelector({
 }) {
   const { user } = useAuth();
   const { activeAthleteId, setActiveAthleteId } = usePeriodization();
-  const { isOnline, pendingCount } = useSync();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
-  const selfId = String(user?.id || getUiPref(UI_KEYS.userId) || 'self');
-  const selfEmail = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'You';
 
   const [roster, setRoster] = useState<RosterAthlete[]>([]);
   const [query, setQuery] = useState('');
@@ -84,32 +79,30 @@ export function AthleteScopeSelector({
     }
   }, [forceOpen, onOpened]);
 
-  const items: ScopeItem[] = useMemo(() => {
-    if (!isCoach) {
-      return [{ id: selfId, label: selfEmail, hint: 'Your plan' }];
-    }
-    return roster.map((athlete) => ({
-      id: athlete.id,
-      label: athlete.email,
-      hint: athlete.activeMicrocycles
-        ? `${athlete.activeMicrocycles} active block${athlete.activeMicrocycles === 1 ? '' : 's'}`
-        : 'Linked',
-    }));
-  }, [isCoach, roster, selfEmail, selfId]);
+  const items: ScopeItem[] = useMemo(
+    () => roster.map((athlete) => ({ id: athlete.id, label: athlete.email })),
+    [roster],
+  );
 
-  const searchable = isCoach && items.length > ATHLETE_SEARCH_THRESHOLD;
+  const searchable = items.length > ATHLETE_SEARCH_THRESHOLD;
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((item) => item.label.toLowerCase().includes(q));
   }, [items, query]);
 
-  const selected = items.find((item) => item.id === activeAthleteId) || (!isCoach ? items[0] : undefined);
+  const selected = items.find((item) => item.id === activeAthleteId);
+  const triggerLabel = selected?.label || 'Select athlete…';
 
   const selectItem = (id: string) => {
-    if (isCoach) setActiveAthleteId(id);
+    setActiveAthleteId(id);
     setOpen(false);
     setQuery('');
+  };
+
+  const openSecurity = () => {
+    setOpen(false);
+    onNavigate?.('security');
   };
 
   const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -147,50 +140,75 @@ export function AthleteScopeSelector({
     }
   };
 
+  if (!isCoach) return null;
+
+  const emptyList = (
+    <div className="px-2 py-2">
+      <p className="text-[11px] text-[var(--cal-muted)]">No linked athletes.</p>
+      <button
+        type="button"
+        data-testid="athlete-scope-security"
+        onClick={openSecurity}
+        className="mt-1 text-left text-[11px] text-[var(--cal-accent)] hover:text-[var(--cal-ink)]"
+      >
+        Generate a coach code in Security
+      </button>
+    </div>
+  );
+
+  const optionList = (
+    <div
+      ref={listRef}
+      id="athlete-scope-list"
+      role="listbox"
+      tabIndex={0}
+      aria-label="Linked athletes"
+      data-testid="athlete-scope-list"
+      onKeyDown={onListKeyDown}
+      className="max-h-48 overflow-y-auto outline-none"
+    >
+      {filtered.length === 0
+        ? (items.length === 0 ? emptyList : (
+          <p className="px-2 py-2 text-[11px] text-[var(--cal-muted)]">No matches.</p>
+        ))
+        : filtered.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              role="option"
+              aria-selected={item.id === activeAthleteId}
+              data-testid={`athlete-option-${item.id}`}
+              onClick={() => selectItem(item.id)}
+              className={`w-full px-2 py-1.5 text-left text-[12px] truncate ${
+                index === highlight
+                  ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                  : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+    </div>
+  );
+
   if (collapsed) {
     return (
       <div className="relative mb-2">
         <button
           type="button"
           data-testid="athlete-scope-selector"
-          title={selected?.label || 'Athlete plan'}
+          title={triggerLabel}
+          aria-label="Select athlete"
           aria-haspopup="listbox"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
           className="w-full h-8 flex items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] border border-transparent"
         >
-          {(selected?.label || 'A').slice(0, 1).toUpperCase()}
+          {(selected?.label || '·').slice(0, 1).toUpperCase()}
         </button>
         {open && (
           <div className="absolute left-full top-0 ml-1 z-50 w-56 border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] shadow-sm">
-            <div
-              ref={listRef}
-              id="athlete-scope-list"
-              role="listbox"
-              tabIndex={0}
-              aria-label="Athlete plan space"
-              data-testid="athlete-scope-list"
-              onKeyDown={onListKeyDown}
-              className="max-h-48 overflow-y-auto outline-none"
-            >
-              {filtered.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="option"
-                  aria-selected={item.id === (activeAthleteId || selfId)}
-                  data-testid={`athlete-option-${item.id}`}
-                  onClick={() => selectItem(item.id)}
-                  className={`w-full px-2 py-1.5 text-left text-[12px] ${
-                    index === highlight
-                      ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
-                      : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            {optionList}
           </div>
         )}
       </div>
@@ -199,25 +217,19 @@ export function AthleteScopeSelector({
 
   return (
     <div ref={rootRef} className="px-2 pb-3 border-b border-[var(--cal-hairline)] mb-3">
-      <label htmlFor="athlete-scope-input" className="text-[10px] text-[var(--cal-muted)] uppercase tracking-wider block mb-1">
-        Athlete plan
-      </label>
       <button
         type="button"
         id="athlete-scope-selector"
         data-testid="athlete-scope-selector"
+        aria-label="Select athlete"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls="athlete-scope-list"
         onClick={() => setOpen((v) => !v)}
         className="w-full h-8 px-2 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] text-[12px] text-[var(--cal-ink)] text-left truncate hover:bg-[var(--cal-surface-card)]"
       >
-        {selected?.label || (isCoach ? 'Select athlete…' : selfEmail)}
+        {triggerLabel}
       </button>
-      <p className="mt-1 text-[10px] tnum text-[var(--cal-muted)]">
-        {isOnline ? (pendingCount > 0 ? `Queue ${pendingCount}` : 'Live') : 'Offline'}
-        {selected?.hint ? ` · ${selected.hint}` : ''}
-      </p>
       {open && (
         <div className="mt-1 cal-nested-card p-0 shadow-[var(--cal-shadow-lift)]" data-elevated="true">
           {searchable && (
@@ -233,44 +245,10 @@ export function AthleteScopeSelector({
               className="w-full h-8 px-2 text-[12px] bg-transparent text-[var(--cal-ink)] border-b border-[var(--cal-hairline)] placeholder:text-[var(--cal-muted)]"
             />
           )}
-          <div
-            ref={listRef}
-            id="athlete-scope-list"
-            role="listbox"
-            tabIndex={0}
-            aria-label="Athlete plan space"
-            data-testid="athlete-scope-list"
-            onKeyDown={onListKeyDown}
-            className="max-h-48 overflow-y-auto outline-none"
-          >
-            {filtered.length === 0 ? (
-              <p className="px-2 py-2 text-[11px] text-[var(--cal-muted)]">
-                {isCoach ? 'No linked athletes.' : 'No plan.'}
-              </p>
-            ) : (
-              filtered.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="option"
-                  aria-selected={item.id === (activeAthleteId || selfId)}
-                  data-testid={`athlete-option-${item.id}`}
-                  onClick={() => selectItem(item.id)}
-                  className={`w-full px-2 py-1.5 text-left text-[12px] ${
-                    index === highlight
-                      ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
-                      : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]'
-                  }`}
-                >
-                  <span className="block truncate">{item.label}</span>
-                  <span className="block text-[10px] text-[var(--cal-muted)]">{item.hint}</span>
-                </button>
-              ))
-            )}
-          </div>
+          {optionList}
         </div>
       )}
-      {isCoach && selected && (
+      {selected && (
         <div className="mt-1">
           <button
             type="button"

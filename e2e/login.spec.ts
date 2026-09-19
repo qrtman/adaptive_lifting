@@ -20,4 +20,7 @@ test('sidebar has Sign out and no Reset plan', async ({ page, request }) => {
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reset plan' })).toHaveCount(0);
   await expect(page.getByText('Reset plan')).toHaveCount(0);
+  await expect(page.getByTestId('athlete-scope-selector')).toHaveCount(0);
+  await expect(page.getByTestId('app-sidebar').getByText('Athlete plan')).toHaveCount(0);
+  await expect(page.getByTestId('app-sidebar').getByText('Your plan')).toHaveCount(0);
 });

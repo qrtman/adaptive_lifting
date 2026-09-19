@@ -10,6 +10,9 @@ test.describe('navigation consolidation', () => {
     await page.goto('/#/roster');
     await expect(page.getByTestId('nav-calendar')).toBeVisible();
     await expect(page.getByTestId('athlete-scope-selector')).toBeVisible();
+    await expect(page.getByTestId('app-sidebar').getByText('Athlete plan')).toHaveCount(0);
+    await expect(page.getByTestId('app-sidebar').getByText('Your plan')).toHaveCount(0);
+    await expect(page.getByTestId('app-sidebar').getByText(/^Live$/)).toHaveCount(0);
     await expect(page).toHaveURL(/#\/calendar/);
     await expect(page.getByTestId('nav-roster')).toHaveCount(0);
     await expect(page.getByTestId('nav-insights')).toBeVisible();
