@@ -17,7 +17,7 @@ import {
 } from '../storage/uiPrefs';
 import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { ComboBox } from './ComboBox';
-import { LabelCombo, dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
+import { dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -125,7 +125,7 @@ export function NewSessionDialog({
             Select an athlete in the sidebar, then create a session on that plan.
           </p>
         )}
-        <NestedCard testId="new-session-name-card">
+        <NestedCard testId="new-session-name-card" className="relative z-20 overflow-visible focus-within:!transform-none">
           <ComboBox
             label="Name"
             value={title}
@@ -149,7 +149,7 @@ export function NewSessionDialog({
             </label>
           </NestedCard>
         )}
-        <NestedCard testId="new-session-slot-card">
+        <NestedCard testId="new-session-slot-card" className="overflow-visible">
           <div className="@container min-w-0">
             <div
               data-testid="new-session-slot-row"
@@ -166,20 +166,22 @@ export function NewSessionDialog({
                 />
               </div>
               <div className="min-w-0">
-                <LabelCombo
+                <ComboBox
                   label="Block (optional)"
                   value={blockLabel}
                   onChange={setBlockLabel}
                   options={blockOptions}
+                  placeholder="Block…"
                   testId="new-session-block"
                 />
               </div>
               <div className="min-w-0">
-                <LabelCombo
+                <ComboBox
                   label="Week (optional)"
                   value={weekLabel}
                   onChange={setWeekLabel}
                   options={weekOptions}
+                  placeholder="Week…"
                   testId="new-session-week"
                 />
               </div>

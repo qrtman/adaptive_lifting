@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { formatPlanLabel, normalizeDayLabel } from '../features/plan/sessionLabels';
+import { formatPlanLabel, isDayLikeTitle, normalizeDayLabel } from '../features/plan/sessionLabels';
 import type { MicrocycleData } from '../types';
 
 const DAY_PRESETS = ['1', '2', '3', '4', '5', '6', '7'];
@@ -30,7 +30,7 @@ export function uniquePlanTitles(microcycles: MicrocycleData[]): string[] {
   for (const micro of microcycles) {
     for (const workout of micro.workouts) {
       const title = workout.title?.trim();
-      if (!title || title === 'Session') continue;
+      if (!title || title === 'Session' || isDayLikeTitle(title)) continue;
       seen.add(title);
     }
   }
