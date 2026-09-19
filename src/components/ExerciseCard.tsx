@@ -330,21 +330,22 @@ export const ExerciseCard = ({
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${th} w-6`} data-testid="set-grid-h-num">#</th>
             <th rowSpan={2} className={`${th} w-14`} data-testid="set-grid-h-pct">%</th>
-            <th colSpan={3} className={th} data-testid="set-grid-h-plan">Plan</th>
+            <th colSpan={4} className={th} data-testid="set-grid-h-plan">Plan</th>
             <th rowSpan={2} className={`${th} w-6 px-1`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
-            <th colSpan={3} className={`${th} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-log">Log</th>
+            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-log">Log</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-e1rm">e1RM</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-delta">Δ%</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-inol">INOL</th>
-            <th rowSpan={2} className={`${th} w-10`} aria-label="Set actions" />
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th className={thField} data-testid="set-grid-h-planKg">kg</th>
             <th className={thField} data-testid="set-grid-h-planReps">reps</th>
             <th className={thField} data-testid="set-grid-h-planRpe">RPE</th>
+            <th className={thField} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
             <th className={`${thField} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-logKg">kg</th>
             <th className={thField} data-testid="set-grid-h-logReps">reps</th>
             <th className={thField} data-testid="set-grid-h-logRpe">RPE</th>
+            <th className={thField} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
           </tr>
         </thead>
         <tbody>
@@ -439,6 +440,18 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked}
+                      onClick={() => duplicateSet(i)}
+                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-blue-400/40 bg-blue-500/10 px-2 text-[10px] font-semibold text-blue-100 shadow-sm transition-all hover:-translate-y-px hover:border-blue-300/70 hover:bg-blue-500 hover:text-white hover:shadow-blue-500/20 active:translate-y-0 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
+                      title="Copy this set"
+                    >
+                      <Copy size={11} strokeWidth={2.5} aria-hidden="true" />
+                      <span>Copy</span>
+                    </button>
+                  </td>
+                  <td className={`${td} px-1`}>
+                    <button
+                      type="button"
+                      disabled={locked}
                       onClick={() => syncTarget(i)}
                       className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
@@ -502,6 +515,18 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
+                  <td className={`${td} px-1`}>
+                    <button
+                      type="button"
+                      disabled={locked}
+                      onClick={() => deleteSet(i)}
+                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-red-400/40 bg-red-500/10 px-2 text-[10px] font-semibold text-red-100 shadow-sm transition-all hover:-translate-y-px hover:border-red-300/70 hover:bg-red-500 hover:text-white hover:shadow-red-500/20 active:translate-y-0 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 disabled:opacity-40"
+                      title="Delete this set"
+                    >
+                      <Trash2 size={11} strokeWidth={2.5} aria-hidden="true" />
+                      <span>Delete</span>
+                    </button>
+                  </td>
                   <td className={`${td} tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
@@ -518,28 +543,6 @@ export const ExerciseCard = ({
                       {inol > 0 ? inol.toFixed(2) : '—'}
                     </span>
                   </td>
-                  <td className={td}>
-                    <div className="flex items-center justify-end">
-                      <button 
-                        type="button"
-                        disabled={locked}
-                        onClick={() => duplicateSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
-                        title="Duplicate set"
-                      >
-                        <Copy size={11} />
-                      </button>
-                      <button 
-                        type="button"
-                        disabled={locked}
-                        onClick={() => deleteSet(i)}
-                        className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-error)] disabled:opacity-40"
-                        title="Delete set"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               );
             })}
@@ -548,7 +551,7 @@ export const ExerciseCard = ({
           <tfoot>
             <tr className="border-t border-[var(--cal-hairline-soft)]">
               <td colSpan={2} />
-              <td colSpan={3} className="px-2 py-1 text-center">
+              <td colSpan={4} className="px-2 py-1 text-center">
                 <button
                   type="button"
                   data-testid={`add-plan-set-${id}`}
@@ -561,7 +564,7 @@ export const ExerciseCard = ({
                 </button>
               </td>
               <td />
-              <td colSpan={3} className="px-2 py-1 text-center">
+              <td colSpan={4} className="px-2 py-1 text-center">
                 <button
                   type="button"
                   data-testid={`add-log-set-${id}`}
@@ -573,7 +576,7 @@ export const ExerciseCard = ({
                   <span>Log set</span>
                 </button>
               </td>
-              <td colSpan={4} />
+              <td colSpan={3} />
             </tr>
           </tfoot>
         ) : null}
