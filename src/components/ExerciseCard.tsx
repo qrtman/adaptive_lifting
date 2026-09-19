@@ -246,11 +246,11 @@ export const ExerciseCard = ({
     },
   });
 
-  const td = "px-1.5 py-0.5 align-middle whitespace-nowrap";
-  const th = "px-1.5 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
+  const td = "px-0.5 py-0.5 align-middle whitespace-nowrap";
+  const th = "px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
   const thField = `${th} normal-case tracking-normal`;
-  const actionCell = `${td} w-[58px] px-1`;
-  const actionButton = "inline-flex h-6 w-6 items-center justify-center rounded-[3px] border border-[var(--cal-hairline)] bg-transparent text-[var(--cal-muted)] opacity-65 transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-30 group-hover:opacity-100";
+  const actionCell = `${td} w-[44px]`;
+  const actionButton = "inline-flex h-5 w-5 items-center justify-center rounded-[3px] border border-[var(--cal-hairline)] bg-transparent text-[var(--cal-muted)] opacity-65 transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-30 group-hover:opacity-100";
   const addSetButton = "inline-flex h-7 items-center justify-center gap-1 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-2 text-[11px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]";
 
   const commitDropPercent = (index: number, pct: number) => {
@@ -385,7 +385,7 @@ export const ExerciseCard = ({
                 ) : null}
               </div>
             </th>
-            <th rowSpan={2} className={`${th} w-6 px-1`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
+            <th rowSpan={2} className={`${th} w-4`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
             <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-log">Log</th>
             <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)]`} data-testid="set-grid-h-e1rm">e1RM</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-delta">Δ%</th>
@@ -395,11 +395,11 @@ export const ExerciseCard = ({
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planRpe">RPE</th>
-            <th className={`${thField} w-[58px] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
+            <th className={`${thField} w-[44px] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
             <th className={`${thField} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logRpe">RPE</th>
-            <th className={`${thField} w-[58px] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
+            <th className={`${thField} w-[44px] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
           </tr>
         </thead>
         <tbody>
@@ -531,13 +531,13 @@ export const ExerciseCard = ({
                     </button>
                     </>) : null}
                   </td>
-                  <td className={`${td} px-1`}>
+                  <td className={td}>
                     {hasPlan ? (
                     <button
                       type="button"
                       disabled={locked}
                       onClick={() => syncTarget(planIndex)}
-                      className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
+                      className="h-5 w-4 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
                     >
                       <ArrowRight size={12} />
@@ -548,7 +548,7 @@ export const ExerciseCard = ({
                     <td colSpan={7} className="p-0" aria-label="No plan set" />
                   )}
                   {hasLog ? (<>
-                  <td className={`${td} pl-3 border-l border-[var(--cal-hairline)]`}>
+                  <td className={`${td} pl-1 border-l border-[var(--cal-hairline)]`}>
                     {locked ? (
                       <span className="text-[11px] tnum text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
                     ) : (
