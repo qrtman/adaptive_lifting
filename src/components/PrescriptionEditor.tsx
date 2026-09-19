@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -92,7 +93,14 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
             <button
               type="button"
               onClick={() => setModeMenuOpen((open) => !open)}
-              className="flex h-5 w-4 items-center justify-center rounded-[2px] text-[11px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setModeMenuOpen(false);
+              }}
+              className={`flex h-5 w-4 items-center justify-center rounded-[2px] border text-[11px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
+                modeMenuOpen
+                  ? 'border-[var(--cal-muted)] bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                  : 'border-[var(--cal-hairline)] text-[var(--cal-muted)] hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
+              }`}
               data-testid="rx-intensity"
               aria-label={intensityType === 'PERCENT' ? 'Percentage target mode' : 'RPE target mode'}
               aria-haspopup="menu"
@@ -101,40 +109,48 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
             >
               {intensityType === "PERCENT" ? "%" : "@"}
             </button>
-            {modeMenuOpen ? (
-              <div
+            <AnimatePresence>
+              {modeMenuOpen ? (
+              <motion.div
                 role="menu"
                 aria-label="Target mode"
-                className="absolute right-0 top-6 z-20 w-24 rounded-[3px] border border-[var(--cal-hairline)] bg-[var(--cal-surface-card)] p-0.5 shadow-lg"
+                initial={{ opacity: 0, x: -4, scale: 0.96 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -3, scale: 0.98 }}
+                transition={{ duration: 0.14, ease: 'easeOut' }}
+                className="absolute left-full top-1/2 z-20 flex w-[84px] -translate-y-1/2 origin-left items-center gap-0.5 rounded-[3px] border border-[var(--cal-hairline)] bg-[var(--cal-surface-card)] p-0.5 shadow-lg"
               >
                 <button
                   type="button"
                   role="menuitem"
                   data-testid="rx-intensity-rpe"
                   onClick={() => selectIntensityType('RPE')}
-                  className={`flex h-6 w-full items-center gap-1.5 rounded-[2px] px-1.5 text-left text-[10px] ${
+                  className={`flex h-5 min-w-0 flex-1 items-center justify-center gap-1 rounded-[2px] px-1 text-[10px] ${
                     intensityType === 'RPE'
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
                   }`}
                 >
-                  <span className="w-2 text-center">@</span> RPE
+                  <span>@</span> RPE
                 </button>
                 <button
                   type="button"
                   role="menuitem"
                   data-testid="rx-intensity-percent"
                   onClick={() => selectIntensityType('PERCENT')}
-                  className={`flex h-6 w-full items-center gap-1.5 rounded-[2px] px-1.5 text-left text-[10px] ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px] text-[10px] ${
                     intensityType === 'PERCENT'
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
                   }`}
+                  aria-label="Percentage"
+                  title="Percentage"
                 >
-                  <span className="w-2 text-center">%</span> Percentage
+                  %
                 </button>
-              </div>
-            ) : null}
+              </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
         </div>
       </td>
