@@ -249,7 +249,7 @@ export const ExerciseCard = ({
   const td = "px-0.5 py-0.5 align-middle whitespace-nowrap";
   const th = "px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
   const thField = `${th} normal-case tracking-normal`;
-  const actionCell = `${td} w-10 px-0`;
+  const actionCell = "w-10 px-0 py-0.5 align-middle whitespace-nowrap";
   const actionButton = "inline-flex h-5 w-5 items-center justify-center rounded-[3px] border border-[var(--cal-hairline)] bg-transparent text-[var(--cal-muted)] opacity-65 transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-30 group-hover:opacity-100";
   const addSetButton = "inline-flex h-7 items-center justify-center gap-1 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-2 text-[11px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]";
 
