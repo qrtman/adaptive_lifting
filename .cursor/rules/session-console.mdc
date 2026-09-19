@@ -1,5 +1,5 @@
 ---
-description: Session console after Cal theme — hover elevation, lift-filter dialog, Name≠Day lists, set-grid headers/Δ%, session header hierarchy. Apply when changing those surfaces.
+description: Session console after Cal theme — hover elevation, lift-filter dialog, Name≠Day lists, set-grid headers/Δ%, session header hierarchy, Sessions list scan. Apply when changing those surfaces.
 alwaysApply: true
 ---
 
@@ -10,7 +10,7 @@ Program **2**. Tokens stay Cal (`cal-theme`). This rule is constructor/layout be
 Master map: `.cursor/scopes/session-console/SCOPE.md`  
 Load **one** child scope for the slice. Do not extend `.cursor/scopes/cal-theme/`.
 
-This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RPE, and session identity as one equal-weight row.
+This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RPE, session identity as one equal-weight row, and Sessions cards that lead with ISO date / set-0 mash.
 
 ## Locked (do not re-litigate)
 
@@ -26,11 +26,12 @@ This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RP
 | Δ | **e1RM %** `(log − plan) / plan`, column **right of logged e1RM**. No kg Δ, no RPE Δ. |
 | Grid headers | Plan / Log on the row above. kg · reps · RPE as real columns. No `×` `@` between inputs. 6-col keyboard unchanged. |
 | Session header | **Name** is the only large line. Day · Week · Block + tonnage + Edit are muted meta. |
+| Sessions list | **Name** leads. Day · date are meta. Every set is Plan vs Log. No Block/Week inside grouped cards. No `—×5@8`. No `COMPLETED · 0kg`. |
 
 ## Agent load order
 
 1. This rule + `SCOPE.md` (index only).
-2. The **one** child (`01-calendar-hover.md` … `05-session-header.md`).
+2. The **one** child (`01-calendar-hover.md` … `06-sessions-list.md`).
 3. Mapped files from that child. Stop.
 
 ## Non-goals

@@ -115,7 +115,7 @@ The design system follows three product principles:
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
 | Calendar workspace | Coach / Athlete | Date-first session timeline | Cal light/dark skin: hairline 7-col month grid, nested session/note cards, lift-filter dialog (multiple chips per category / pattern / tier; OR within a row, AND across rows; stored fields). Session chips show name, Day/Week/Block, and a short lift-code line (no kg×reps@RPE). Hover actions fill a reserved in-flow dock (do not grow the day on hover; do not cover session/note cards; do not overflow to a neighbor). No accent inset ring around the day cell — quiet fill + dock, 180ms; today is the date numeral only. Week row may grow at rest when chips plus that dock need room. Session/note chips rest flat (surface-card + hairline); the chip under the pointer uses `--cal-shadow-lift`. Saved notes render as a distinct day card at rest. Copy to then click the destination day on the same calendar. |
 | Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Name is the large session title; Day · Week · Block + tonnage + Edit are muted meta. Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
-| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for Name, then Day/Block/Week as ComboBoxes (Name list never includes Day slots) |
+| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions. Each card leads with **Name**, then Day · date (Block/Week live on the group headers). Every set is a Plan vs Log row — not set 0 only, not `150×5@6 150×5@6` unlabeled. Edit opens a dialog for Name, then Day/Block/Week as ComboBoxes (Name list never includes Day slots) |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
 | Telegram Mini App + bot | Athlete / Coach | Later: Telegram-native logging and alerts | Deferred until the web constructor is done. Do not gate current session UI on Mini App. |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
@@ -355,7 +355,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * Active name and real-time SSE stream status: Mapped in `--ok-green` if connection is streaming, or pulsing `--ok-amber` if syncing offline mutations queue.
 * **Workspace Links Navigation Group:** Navigation items highlighted in `--ok-blue` border tags when active:
   * **Calendar:** Date-first month grid for the scoped athlete plan.
-  * **Sessions:** List grouped by Block/Week labels when present.
+  * **Sessions:** List grouped by Block/Week labels when present. Cards lead with Name and show every set as Plan vs Log.
   * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace; linked athletes are chosen in the Athlete plan selector above this list.
 * **Operations & Integrations Navigation Group:**
   * **Sheets Publisher:** Controls one-way spreadsheet target mappings.
@@ -1931,7 +1931,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Coach can switch active athlete; Calendar and Sessions reload for that athlete.
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
-- [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
+- [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise. Sessions cards lead with Name (not ISO date); Day · date are meta; every lift set shows Plan vs Log.
 - [ ] Hovering a calendar day shows a compact overlay: New session; Copy to when a session exists; Notes. The overlay fills a reserved in-flow dock and must not grow the day cell on hover. No accent inset ring on the hovered or today cell. Calendar session chips are name + Day/Week/Block + short lift codes, not kg×reps@RPE. Saved notes show as a distinct day card at rest (empty days included). New session dialog is Name, then a compact Day / Block / Week row (Block/Week optional); cancel does not create. Date is in the dialog title on calendar hover — do not duplicate a date field. At 360px, Name then Day full width then Block|Week is allowed if three columns clip.
 - [ ] Block/Week labels can be set or changed anytime, including after Copy to. Day/Name/Block/Week use the same ComboBox listbox (no native select); Name suggestions never include Day-slot strings (`Day 1` / `D1`). Edit through a centered dialog (not always-open fields). Empty clears the label. Day is a training-slot label (`dayLabel`), not the calendar date.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.

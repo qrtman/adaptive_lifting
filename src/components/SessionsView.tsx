@@ -1,5 +1,5 @@
-import { useMemo, useState, type CSSProperties } from 'react';
-import { ExerciseData, WorkoutData } from '../types';
+import { Fragment, useMemo, useState, type CSSProperties } from 'react';
+import { WorkoutData } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useSync } from '../contexts/SyncContext';
@@ -20,6 +20,8 @@ import {
   groupLabeledSessions,
   type CopyClipboard,
 } from '../features/plan/copyClipboard';
+import { formatPlanLabel } from '../features/plan/sessionLabels';
+import { formatSessionStatusMeta, formatSetReadout } from '../features/plan/sessionSetReadout';
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
@@ -46,18 +48,6 @@ function liftColorStyle(title: string): CSSProperties | undefined {
   return undefined;
 }
 
-function setLine(ex: ExerciseData): { planned: string; logged: string | null } {
-  const set = ex.sets[0];
-  const planned = `${set?.plannedWeight ?? '—'}×${set?.plannedReps ?? '—'}@${set?.plannedRpe ?? '—'}`;
-  if (set?.actual != null && Number(set.actual) > 0) {
-    return {
-      planned,
-      logged: `${set.actual}×${set.reps ?? '—'}@${set.executedRpe ?? '—'}`,
-    };
-  }
-  return { planned, logged: null };
-}
-
 function weekRowKey(blockLabel: string, weekLabel: string): string {
   return `${blockLabel || '_'}::${weekLabel}`;
 }
@@ -73,7 +63,6 @@ const copyBtnClass =
 
 function SessionCard({
   workout,
-  microId,
   active,
   canCopy,
   selected,
@@ -84,7 +73,6 @@ function SessionCard({
   onEdit,
 }: {
   workout: WorkoutData;
-  microId: string;
   active: boolean;
   canCopy: boolean;
   selected: boolean;
@@ -95,10 +83,12 @@ function SessionCard({
   onEdit: () => void;
   key?: string;
 }) {
-  const labels = [workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ');
+  const dayLabel = formatPlanLabel('Day', workout.dayLabel);
+  const statusMeta = formatSessionStatusMeta(workout.status, workout.tonnage);
   const visibleExercises = isEmptyLiftFilter(filter)
     ? workout.exercises
     : workout.exercises.filter((ex) => exercisePassesFilter(ex, filter));
+  const metaBits = [dayLabel, workout.date].filter(Boolean);
   return (
     <div
       data-testid={`sessions-card-${workout.id}`}
@@ -107,34 +97,83 @@ function SessionCard({
         active ? 'ring-1 ring-[color-mix(in_srgb,var(--cal-accent)_45%,transparent)]' : ''
       }`}
     >
-      <button type="button" onClick={onOpen} className="text-left flex flex-col gap-1 hover:opacity-90">
-        <div className="flex items-center justify-between gap-2 min-h-6">
-          <span className="text-xs tnum text-[var(--cal-ink)] truncate">{workout.date}</span>
-          <span className="text-[10px] tnum text-[var(--cal-muted)] shrink-0">
-            {workout.status} · {workout.tonnage}kg
-          </span>
+      <button
+        type="button"
+        data-testid={`sessions-open-${workout.id}`}
+        onClick={onOpen}
+        className="text-left flex flex-col gap-1.5 hover:opacity-90 min-w-0"
+      >
+        <div className="flex items-start justify-between gap-2 min-h-6">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold tracking-tight text-[var(--cal-ink)] truncate">
+              {workout.title || 'Session'}
+            </p>
+            {metaBits.length > 0 ? (
+              <p className="text-[11px] tnum text-[var(--cal-muted)] truncate">{metaBits.join(' · ')}</p>
+            ) : null}
+          </div>
+          {statusMeta ? (
+            <span className="text-[10px] tnum text-[var(--cal-muted)] shrink-0 pt-0.5">{statusMeta}</span>
+          ) : null}
         </div>
-        <p className="text-xs font-medium text-[var(--cal-ink)] truncate">{workout.title || 'Session'}</p>
-        <p className="text-[10px] text-[var(--cal-muted)] truncate">{labels || 'No block/week'}</p>
-        <div className="flex flex-col gap-0.5">
-          {visibleExercises.map((ex) => {
-            const { planned, logged } = setLine(ex);
-            return (
-              <div key={ex.id} className="flex items-center gap-2 tnum text-[11px] leading-tight min-h-5">
-                <span className="w-6 shrink-0 font-medium" style={liftColorStyle(ex.title)}>
-                  {liftAbbrev(ex.title)}
-                </span>
-                <span className="text-[var(--cal-ink)] truncate flex-1 min-w-0" title={ex.title}>{ex.title}</span>
-                <span className="text-[var(--cal-muted)] shrink-0">{planned}</span>
-                <span className={`shrink-0 ${logged ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}`}>
-                  {logged ?? '—'}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        {visibleExercises.length > 0 ? (
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 gap-y-0.5 min-w-0">
+            <span className="text-[10px] text-[var(--cal-muted)]">#</span>
+            <span
+              data-testid={`sessions-plan-h-${workout.id}`}
+              className="text-[10px] text-[var(--cal-muted)] text-right"
+            >
+              Plan
+            </span>
+            <span
+              data-testid={`sessions-log-h-${workout.id}`}
+              className="text-[10px] text-[var(--cal-muted)] text-right"
+            >
+              Log
+            </span>
+            {visibleExercises.map((ex) => {
+              const sets = ex.sets;
+              return (
+                <Fragment key={ex.id}>
+                  <div className="col-span-3 flex items-center gap-2 min-w-0 pt-1">
+                    <span className="w-6 shrink-0 text-[11px] font-medium" style={liftColorStyle(ex.title)}>
+                      {liftAbbrev(ex.title)}
+                    </span>
+                    <span className="text-[11px] font-medium text-[var(--cal-ink)] truncate" title={ex.title}>
+                      {ex.title}
+                    </span>
+                  </div>
+                  {(sets.length > 0 ? sets : [null]).map((set, index) => {
+                    const planned = formatSetReadout(set?.plannedWeight, set?.plannedReps, set?.plannedRpe);
+                    const logged = formatSetReadout(set?.actual, set?.reps, set?.executedRpe);
+                    const rowKey = set?.id ?? `${ex.id}-empty`;
+                    return (
+                      <Fragment key={rowKey}>
+                        <span className="tnum text-[11px] text-[var(--cal-muted)]">{index + 1}</span>
+                        <span
+                          data-testid={set ? `sessions-set-plan-${set.id}` : undefined}
+                          className="tnum text-[11px] text-[var(--cal-muted)] text-right whitespace-nowrap"
+                        >
+                          {planned}
+                        </span>
+                        <span
+                          data-testid={set ? `sessions-set-log-${set.id}` : undefined}
+                          className={`tnum text-[11px] text-right whitespace-nowrap ${
+                            logged === '—' ? 'text-[var(--cal-muted-soft)]' : 'text-[var(--cal-ink)]'
+                          }`}
+                        >
+                          {logged}
+                        </span>
+                      </Fragment>
+                    );
+                  })}
+                </Fragment>
+              );
+            })}
+          </div>
+        ) : null}
       </button>
-      <div className="flex items-center gap-2 pt-[var(--cal-space-xxs)] border-t border-[var(--cal-hairline-soft)]">
+      <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 text-[11px] text-[var(--cal-muted)]">
           <input
             type="checkbox"
@@ -315,7 +354,6 @@ export function SessionsView({
     <SessionCard
       key={workout.id}
       workout={workout}
-      microId={microId}
       active={activeWorkoutId === workout.id}
       canCopy={canCopy}
       selected={selectedIds.has(workout.id)}
