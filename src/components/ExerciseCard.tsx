@@ -246,9 +246,12 @@ export const ExerciseCard = ({
     },
   });
 
-  const td = "px-2 py-0.5 align-middle whitespace-nowrap";
-  const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
+  const td = "px-1.5 py-0.5 align-middle whitespace-nowrap";
+  const th = "px-1.5 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
   const thField = `${th} normal-case tracking-normal`;
+  const actionCell = `${td} w-[58px] px-1`;
+  const actionButton = "inline-flex h-6 w-6 items-center justify-center rounded-[3px] border border-[var(--cal-hairline)] bg-transparent text-[var(--cal-muted)] opacity-65 transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-30 group-hover:opacity-100";
+  const addSetButton = "inline-flex h-7 items-center justify-center gap-1 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-2 text-[11px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]";
 
   const commitDropPercent = (index: number, pct: number) => {
     if (locked || index <= 0 || sets[index]?.scope === 'log') return;
@@ -354,22 +357,22 @@ export const ExerciseCard = ({
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${th} w-6`} data-testid="set-grid-h-num">#</th>
             <th rowSpan={2} className={`${th} w-14`} data-testid="set-grid-h-pct">%</th>
-            <th colSpan={4} className={th} data-testid="set-grid-h-plan">Plan</th>
+            <th colSpan={4} className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">Plan</th>
             <th rowSpan={2} className={`${th} w-6 px-1`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
-            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-log">Log</th>
-            <th rowSpan={2} className={th} data-testid="set-grid-h-e1rm">e1RM</th>
+            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-log">Log</th>
+            <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)]`} data-testid="set-grid-h-e1rm">e1RM</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-delta">Δ%</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-inol">INOL</th>
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={thField} data-testid="set-grid-h-planKg">kg</th>
-            <th className={thField} data-testid="set-grid-h-planReps">reps</th>
-            <th className={thField} data-testid="set-grid-h-planRpe">RPE</th>
-            <th className={thField} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
-            <th className={`${thField} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-logKg">kg</th>
-            <th className={thField} data-testid="set-grid-h-logReps">reps</th>
-            <th className={thField} data-testid="set-grid-h-logRpe">RPE</th>
-            <th className={thField} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planRpe">RPE</th>
+            <th className={`${thField} w-[58px] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
+            <th className={`${thField} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logKg">kg</th>
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logReps">reps</th>
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logRpe">RPE</th>
+            <th className={`${thField} w-[58px] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
           </tr>
         </thead>
         <tbody>
@@ -487,27 +490,29 @@ export const ExerciseCard = ({
                         <td colSpan={3} className={`${td} text-[var(--cal-muted-soft)]`} aria-label="No plan set" />
                       </>
                     )}
-                  <td className={`${td} px-1`}>
+                  <td className={actionCell}>
                     {hasPlan ? (<>
                     <button
                       type="button"
                       disabled={locked || !hasPlan}
                       onClick={() => duplicateSet(planIndex, 'plan')}
-                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
+                      className={actionButton}
+                      aria-label={`Copy plan set ${laneIndex + 1}`}
                       title="Copy this set"
                     >
-                      <Copy size={11} strokeWidth={2.5} aria-hidden="true" />
-                      <span>Copy</span>
+                      <Copy size={12} strokeWidth={2} aria-hidden="true" />
+                      <span className="sr-only">Copy plan set</span>
                     </button>
                     <button
                       type="button"
                       disabled={locked || !hasPlan}
                       onClick={() => deleteSet(planIndex, 'plan')}
-                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-rose-300/55 hover:bg-rose-500/15 hover:text-rose-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:opacity-40"
+                      className={actionButton}
+                      aria-label={`Delete plan set ${laneIndex + 1}`}
                       title="Delete this plan set"
                     >
-                      <Trash2 size={11} strokeWidth={2.5} aria-hidden="true" />
-                      <span>Delete</span>
+                      <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
+                      <span className="sr-only">Delete plan set</span>
                     </button>
                     </>) : null}
                   </td>
@@ -528,7 +533,7 @@ export const ExerciseCard = ({
                     <td colSpan={7} className="p-0" aria-label="No plan set" />
                   )}
                   {hasLog ? (<>
-                  <td className={`${td} pl-3 border-l border-[var(--cal-hairline-soft)]`}>
+                  <td className={`${td} pl-3 border-l border-[var(--cal-hairline)]`}>
                     {locked ? (
                       <span className="text-[11px] tnum text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
                     ) : (
@@ -584,29 +589,31 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={`${td} px-1`}>
+                  <td className={actionCell}>
                     <button
                       type="button"
                       disabled={locked || !hasLog}
                       onClick={() => duplicateSet(logIndex, 'log')}
-                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
+                      className={actionButton}
+                      aria-label={`Copy log set ${laneIndex + 1}`}
                       title="Copy this log set"
                     >
-                      <Copy size={11} strokeWidth={2.5} aria-hidden="true" />
-                      <span>Copy</span>
+                      <Copy size={12} strokeWidth={2} aria-hidden="true" />
+                      <span className="sr-only">Copy log set</span>
                     </button>
                     <button
                       type="button"
                       disabled={locked || !hasLog}
                       onClick={() => deleteSet(logIndex, 'log')}
-                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-rose-300/55 hover:bg-rose-500/15 hover:text-rose-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:opacity-40"
+                      className={actionButton}
+                      aria-label={`Delete log set ${laneIndex + 1}`}
                       title="Delete this log set"
                     >
-                      <Trash2 size={11} strokeWidth={2.5} aria-hidden="true" />
-                      <span>Delete</span>
+                      <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
+                      <span className="sr-only">Delete log set</span>
                     </button>
                   </td>
-                  <td className={`${td} tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
+                  <td className={`${td} border-l border-[var(--cal-hairline)] tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
@@ -631,30 +638,32 @@ export const ExerciseCard = ({
         </tbody>
         {!locked ? (
           <tfoot>
-            <tr className="border-t border-[var(--cal-hairline-soft)]">
+            <tr className="border-t border-[var(--cal-hairline)]">
               <td colSpan={2} />
-              <td colSpan={4} className="px-2 py-1 text-center">
+              <td colSpan={4} className="px-1.5 py-1 text-center">
                 <button
                   type="button"
                   data-testid={`add-plan-set-${id}`}
+                  aria-label="+ Plan set"
                   onClick={() => addSet('plan')}
                   title={`Add a blank plan set to ${title}`}
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-blue-300/35 bg-blue-500/8 px-3 text-xs font-semibold text-blue-200 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+                  className={addSetButton}
                 >
-                  <Plus size={13} strokeWidth={2.5} aria-hidden="true" />
+                  <Plus size={12} strokeWidth={2} aria-hidden="true" />
                   <span>Plan set</span>
                 </button>
               </td>
               <td />
-              <td colSpan={4} className="px-2 py-1 text-center">
+              <td colSpan={4} className="px-1.5 py-1 text-center">
                 <button
                   type="button"
                   data-testid={`add-log-set-${id}`}
+                  aria-label="+ Log set"
                   onClick={() => addSet('log')}
                   title={`Add a blank log set to ${title}`}
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-300/35 bg-emerald-500/8 px-3 text-xs font-semibold text-emerald-200 shadow-sm transition-colors hover:border-emerald-300/55 hover:bg-emerald-500/15 hover:text-emerald-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+                  className={addSetButton}
                 >
-                  <Plus size={13} strokeWidth={2.5} aria-hidden="true" />
+                  <Plus size={12} strokeWidth={2} aria-hidden="true" />
                   <span>Log set</span>
                 </button>
               </td>
