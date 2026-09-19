@@ -12,8 +12,15 @@ import { useSync } from '../contexts/SyncContext';
 import { getRecentBlock, getUiPref, setRecentBlock, UI_KEYS } from '../storage/uiPrefs';
 import { NewSessionDialog } from './NewSessionDialog';
 import { DayNoteDialog } from './DayNoteDialog';
-import { LiftFilter, type LiftFilterValue } from './LiftFilter';
+import { LiftFilter } from './LiftFilter';
+import {
+  exercisePassesFilter,
+  isEmptyLiftFilter,
+  workoutPassesFilter,
+  type LiftFilterState,
+} from '../services/liftFilter';
 import { apiService } from '../services/api';
+import { formatPlanLabel } from '../features/plan/sessionLabels';
 import {
   buildCopyWeekRequest,
   buildDayClipboard,
@@ -24,11 +31,28 @@ import {
 
 interface CalendarViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
-  filter: LiftFilterValue;
-  onFilterChange: (value: LiftFilterValue) => void;
+  filter: LiftFilterState;
+  onFilterChange: (value: LiftFilterState) => void;
   copyClipboard: CopyClipboard | null;
   onStartCopy: (clip: CopyClipboard) => void;
   onClearCopy: () => void;
+}
+
+function liftShortName(title: string): { code: string; color?: string } {
+  const t = title.toLowerCase();
+  if (t.includes('squat')) return { code: 'SQ', color: 'var(--cal-badge-sq)' };
+  if (t.includes('bench')) return { code: 'BP', color: 'var(--cal-badge-bp)' };
+  if (t.includes('deadlift') || t.includes('dead')) return { code: 'DL', color: 'var(--cal-badge-dl)' };
+  const code = title.trim().slice(0, 3).toUpperCase();
+  return { code };
+}
+
+const HOVER_ACTION_ROW_PX = 24;
+const HOVER_ACTION_GAP_PX = 2;
+
+function hoverDockMinHeight(actionCount: number): number {
+  if (actionCount <= 0) return 0;
+  return actionCount * HOVER_ACTION_ROW_PX + (actionCount - 1) * HOVER_ACTION_GAP_PX;
 }
 
 export function CalendarView({
@@ -609,7 +633,7 @@ export function CalendarView({
                                     openNewSession(dateStr);
                                   }
                                 }}
-                                className={`h-auto min-h-[128px] p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors border-r border-b border-[var(--cal-hairline)] ${
+                                className={`h-auto min-h-[128px] min-w-0 p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors border-r border-b border-[var(--cal-hairline)] ${
                                   cellIdx === 6 ? 'border-r-0' : ''
                                 } ${
                                   isLastWeek ? 'border-b-0' : ''
@@ -631,9 +655,9 @@ export function CalendarView({
                                     : ''
                                 }`}
                               >
-                                <div className="flex items-center justify-between gap-1 relative z-10 mb-1">
+                                <div className="flex items-center gap-1 relative z-10 mb-1">
                                   <span
-                                    className={`text-[11px] tnum ${
+                                    className={`text-[11px] tnum shrink-0 ${
                                       isToday
                                         ? 'font-semibold text-[var(--cal-accent)]'
                                         : 'text-[var(--cal-muted)]'
@@ -643,17 +667,22 @@ export function CalendarView({
                                   </span>
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
-                                  .filter(item => {
-                                    if (filter === 'All') return true;
-                                    const hasSquat = item.workout.exercises.some(e => e.title.toLowerCase().includes('squat'));
-                                    const hasBench = item.workout.exercises.some(e => e.title.toLowerCase().includes('bench'));
-                                    const hasDeadlift = item.workout.exercises.some(e => e.title.toLowerCase().includes('deadlift') || e.title.toLowerCase().includes('dead'));
-                                    if (filter === 'Squat') return hasSquat;
-                                    if (filter === 'Bench') return hasBench;
-                                    if (filter === 'Deadlift') return hasDeadlift;
-                                    return false;
-                                  })
+                                  .filter(({ workout }) => workoutPassesFilter(workout, filter))
                                   .map(({ workout, microId }) => {
+                                    const visibleLifts = isEmptyLiftFilter(filter)
+                                      ? workout.exercises
+                                      : workout.exercises.filter((ex) => exercisePassesFilter(ex, filter));
+                                    const shortLifts: { code: string; color?: string }[] = [];
+                                    for (const ex of visibleLifts) {
+                                      const next = liftShortName(ex.title);
+                                      if (!next.code) continue;
+                                      if (!shortLifts.some((item) => item.code === next.code)) shortLifts.push(next);
+                                    }
+                                    const planMeta = [
+                                      formatPlanLabel('Day', workout.dayLabel),
+                                      formatPlanLabel('Week', workout.weekLabel),
+                                      formatPlanLabel('Block', workout.blockLabel),
+                                    ].filter(Boolean);
                                     return (
                                       <div
                                         key={workout.id}
@@ -669,67 +698,29 @@ export function CalendarView({
                                           }
                                           onViewSession(workout, microId);
                                         }}
-                                        className="mt-1 p-1 flex flex-col gap-0.5 cursor-pointer relative z-10 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] border border-[var(--cal-hairline)] shadow-sm"
+                                        className="cal-day-chip mt-1 px-1.5 py-1 flex flex-col gap-0.5 cursor-pointer w-full min-w-0 max-w-full overflow-hidden"
                                       >
-                                        {(workout.blockLabel || workout.weekLabel) ? (
-                                          <span className="text-[9px] tnum text-[var(--cal-muted)] truncate px-0.5">
-                                            {[workout.blockLabel, workout.weekLabel].filter(Boolean).join(' · ')}
+                                        <span className="text-[10px] font-medium text-[var(--cal-ink)] truncate leading-tight">
+                                          {workout.title || 'Session'}
+                                          {isWorkoutCompleted(workout.status) ? (
+                                            <span className="text-[var(--cal-success)]"> ✓</span>
+                                          ) : null}
+                                        </span>
+                                        {planMeta.length > 0 ? (
+                                          <span className="text-[9px] tnum text-[var(--cal-muted)] truncate leading-tight">
+                                            {planMeta.join(' · ')}
                                           </span>
                                         ) : null}
-                                        <div className="flex flex-col gap-0.5">
-                                          {workout.exercises.length === 0 && (
-                                            <span className="text-[10px] text-[var(--cal-muted)] truncate px-0.5">
-                                              {workout.title || 'Session'}
-                                            </span>
-                                          )}
-                                          {workout.exercises.map((ex) => {
-                                            const isSquat = ex.title.toLowerCase().includes('squat');
-                                            const isBench = ex.title.toLowerCase().includes('bench');
-                                            const isDead = ex.title.toLowerCase().includes('deadlift') || ex.title.toLowerCase().includes('dead');
-                                            const movementName = isSquat ? 'SQ' : (isBench ? 'BP' : (isDead ? 'DL' : ex.title.slice(0, 3).toUpperCase()));
-
-                                            const movementColorStyle = isSquat
-                                              ? { color: 'var(--cal-badge-sq)' }
-                                              : isBench
-                                                ? { color: 'var(--cal-badge-bp)' }
-                                                : isDead
-                                                  ? { color: 'var(--cal-badge-dl)' }
-                                                  : undefined;
-
-                                            const targetSet = ex.sets[0];
-                                            const plannedW = targetSet?.plannedWeight || '—';
-                                            const plannedR = targetSet?.plannedReps || '—';
-                                            const plannedRp = targetSet?.plannedRpe || '—';
-
-                                            const actualW = targetSet?.actual || '';
-                                            const actualR = targetSet?.reps || '';
-                                            const actualRp = targetSet?.executedRpe || '';
-                                            const logged = actualW
-                                              ? `${actualW}×${actualR}@${actualRp}`
-                                              : `${plannedW}×${plannedR}@${plannedRp}`;
-
-                                            return (
-                                              <div
-                                                key={ex.id}
-                                                className="flex items-center justify-between gap-1 text-[10px] leading-tight tnum px-0.5"
-                                              >
-                                                <span className="shrink-0 font-medium" style={movementColorStyle}>
-                                                  {movementName}
-                                                </span>
-                                                <span
-                                                  className={`truncate ${
-                                                    actualW ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
-                                                  }`}
-                                                >
-                                                  {logged}
-                                                </span>
-                                                {isWorkoutCompleted(workout.status) && (
-                                                  <span className="text-[var(--cal-success)] shrink-0">✓</span>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
+                                        {shortLifts.length > 0 ? (
+                                          <span className="text-[10px] font-medium truncate leading-tight">
+                                            {shortLifts.map((item, index) => (
+                                              <span key={item.code}>
+                                                {index > 0 ? <span className="text-[var(--cal-muted)]"> · </span> : null}
+                                                <span style={item.color ? { color: item.color } : undefined}>{item.code}</span>
+                                              </span>
+                                            ))}
+                                          </span>
+                                        ) : null}
                                       </div>
                                     );
                                   })}
@@ -745,7 +736,7 @@ export function CalendarView({
                                       }
                                       setNotesDate(dateStr);
                                     }}
-                                    className="mt-1 px-1.5 py-1 text-left border border-dashed border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] relative z-10"
+                                    className="cal-day-chip cal-day-chip--note mt-1 px-1.5 py-1 text-left w-full min-w-0 max-w-full overflow-hidden"
                                   >
                                     <span className="block text-[9px] uppercase tracking-wider text-[var(--cal-muted-soft)]">
                                       Note
@@ -755,49 +746,56 @@ export function CalendarView({
                                     </span>
                                   </button>
                                 ) : null}
-                                {hoveredDate === dateStr && cell.isCurrentMonth && !showCoachSelectAthlete && !copyClipboard && (
+                                {cell.isCurrentMonth && !showCoachSelectAthlete ? (
                                   <div
-                                    data-testid={`calendar-day-hover-${dateStr}`}
-                                    className="absolute left-1 bottom-1 z-20 w-max max-w-[min(160px,calc(100%-8px))] flex flex-col gap-0.5 p-0.5 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] shadow-sm"
+                                    className={`mt-auto shrink-0 w-full min-w-0 flex flex-col justify-end ${copyClipboard ? 'invisible' : ''}`}
+                                    style={{ minHeight: hoverDockMinHeight(dayWorkouts[0] ? 3 : 2) }}
                                   >
-                                    <button
-                                      type="button"
-                                      data-testid={`calendar-new-session-${dateStr}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        openNewSession(dateStr);
-                                      }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] whitespace-nowrap hover:bg-[var(--cal-primary-active)]"
-                                    >
-                                      New session
-                                    </button>
-                                    {dayWorkouts[0] && (
-                                      <button
-                                        type="button"
-                                        data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
-                                        disabled={!isOnline}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          startDayCopy(dayWorkouts[0].workout);
-                                        }}
-                                        className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap disabled:opacity-40"
+                                    {hoveredDate === dateStr && !copyClipboard ? (
+                                      <div
+                                        data-testid={`calendar-day-hover-${dateStr}`}
+                                        className="flex flex-col gap-0.5 w-full min-w-0"
                                       >
-                                        Copy to
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      data-testid={`calendar-day-notes-${dateStr}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        setNotesDate(dateStr);
-                                      }}
-                                      className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] whitespace-nowrap"
-                                    >
-                                      Notes
-                                    </button>
+                                        <button
+                                          type="button"
+                                          data-testid={`calendar-new-session-${dateStr}`}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            openNewSession(dateStr);
+                                          }}
+                                          className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] truncate hover:bg-[var(--cal-primary-active)] transform-none"
+                                        >
+                                          New session
+                                        </button>
+                                        {dayWorkouts[0] ? (
+                                          <button
+                                            type="button"
+                                            data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
+                                            disabled={!isOnline}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              startDayCopy(dayWorkouts[0].workout);
+                                            }}
+                                            className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] truncate disabled:opacity-40 transform-none"
+                                          >
+                                            Copy to
+                                          </button>
+                                        ) : null}
+                                        <button
+                                          type="button"
+                                          data-testid={`calendar-day-notes-${dateStr}`}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            setNotesDate(dateStr);
+                                          }}
+                                          className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] truncate transform-none"
+                                        >
+                                          Notes
+                                        </button>
+                                      </div>
+                                    ) : null}
                                   </div>
-                                )}
+                                ) : null}
                               </div>
                             );
                           })}

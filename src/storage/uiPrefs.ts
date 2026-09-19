@@ -14,6 +14,7 @@ export const UI_KEYS = {
   deviceId: 'al_client_device_id',
   sidebarCollapsed: 'al_sidebar_collapsed',
   theme: 'al_theme',
+  liftFilter: 'al_lift_filter',
   recentBlock: 'al_recent_block',
   recentWeek: 'al_recent_week',
   recentDay: 'al_recent_day',

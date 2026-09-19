@@ -15,6 +15,7 @@ import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
+import { parseLiftFilter, type LiftFilterState } from './services/liftFilter';
 import { readThemePref, applyThemeToDocument, setThemePref, toggleTheme } from './theme/themePref';
 import type { ThemePreference } from './theme/themePref';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
@@ -48,7 +49,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePref());
 
-  const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
+  const [filter, setFilter] = useState<LiftFilterState>(() => parseLiftFilter(getUiPref(UI_KEYS.liftFilter)));
   const [editSessionOpen, setEditSessionOpen] = useState(false);
   const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
   const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
@@ -75,6 +76,10 @@ export default function App() {
   useEffect(() => {
     setUiPref(UI_KEYS.sidebarCollapsed, sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    setUiPref(UI_KEYS.liftFilter, JSON.stringify(filter));
+  }, [filter]);
 
   useEffect(() => {
     applyThemeToDocument(theme);

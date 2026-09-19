@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Calendar day hover + day notes
 
-Do **not** put hover actions in the day cell’s in-flow layout. Do **not** reuse `ExerciseSet.note` or invent a second notes store. Do **not** key notes to weekday columns. Do **not** change Copy-to D1 (date offset).
+Do **not** let hover actions grow the day cell. Reserve their space at rest so filling the dock cannot shift the week row. Do **not** reuse `ExerciseSet.note` or invent a second notes store. Do **not** key notes to weekday columns. Do **not** change Copy-to D1 (date offset).
 
 **User prompt overrides `design.md`.** Patch `design.md` / `knowledge.md` (and `architecture.md` §5.1) in the **implementation** PR, not a rule-only PR.
 
@@ -13,7 +13,7 @@ Override (quote):
 
 > The popover is making the day container change size. Make it smaller. Add a 3rd action for notes. When a note is made it should be a card on that day. If something conflicts with design.md, follow this prompt instead.
 
-Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cell vs neighbors; (2) rest — compact date `01`, `1 · 1`, `SQ 150×5@5`.
+Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cell vs neighbors; (2) rest — compact date `01`, name, Day/Week/Block, `SQ · BP`.
 
 ---
 
@@ -21,8 +21,8 @@ Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cel
 
 | Challenge | Verdict |
 | :--- | :--- |
-| Hover actions in-flow vs overlay? | **Out-of-flow overlay.** Today `CalendarView` mounts `mt-auto pt-1 flex flex-col gap-1` **inside** the day cell (`h-auto min-h-[128px]`). Those `h-7 w-full` buttons add in-flow height; the CSS-grid week row grows; neighbors stretch. Hover **must not** change the day cell’s used layout size. Neighboring days stay aligned. |
-| Overlay vs portal? | **`position: absolute` child of the day cell** (cell is already `relative`). Absolute / fixed children do not contribute to grid row height. Keep the existing cell `onMouseEnter` / `onMouseLeave` so moving onto the actions does not dismiss. A **portal is allowed only** if a pointer-bridge prevents `mouseleave` from closing when the pointer is on the popover. Default: in-cell absolute. `overflow: visible` on the cell; the menu may paint over adjacent days. **Forbidden:** in-flow `mt-auto` stacks, `h-auto` growth from buttons, MUI/shadcn/Radix Popover. |
+| Hover actions in-flow vs overlay? | **Reserved in-flow dock at rest.** Hover filling New session / Copy to / Notes must not change the day’s used height. The week row **may** grow at rest when session/note chips leave no leftover for that dock. Neighboring days stay aligned because the dock is already in the layout before hover. |
+| Overlay vs portal? | **In-flow child of the day cell** (`mt-auto` stacked compact buttons, `w-full`). Keep the existing cell `onMouseEnter` / `onMouseLeave` so moving onto the actions does not dismiss. Stay inside the cell; do **not** paint over adjacent days. **Forbidden:** `position: absolute` leftover that sits behind chips, painting into the next day, MUI/shadcn/Radix Popover. |
 | Smaller than today’s buttons? | **Yes.** Today: full-width `h-7` primary slabs. Overlay is `width: max-content` (cap ~160px, not `w-full`), actions `h-6` / `text-[10px]–[11px]`, stacked compact. New session stays the one filled `#007AFF` action; Copy to and Notes are secondary (`bg-white/15` or text). Do not duplicate the screenshot’s large stacked CTAs. |
 | Empty day vs day with sessions? | **Empty:** overlay = **New session** + **Notes**. No Copy to. Empty-day **click** still opens New session (unchanged). **Has ≥1 session:** overlay = **New session** + **Copy to** + **Notes**. Copy to still uses `dayWorkouts[0]` / existing clipboard rules. Copy-to mode hides the overlay (unchanged). Coach with no athlete: no overlay (`calendar-empty`). |
 | One note vs many? | **One `DayNote` per `(owner_id, date)`.** One card on that calendar day. Hover **Notes** and click-the-card edit the same document. Extra paragraphs go in that body. Do not stack many note cards. Saving empty / whitespace **tombstones** the row; the card disappears. |
@@ -38,9 +38,9 @@ Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cel
 
 ## Diagnosis (this checkout)
 
-1. Hover actions are in-flow (`CalendarView.tsx` ~635–662). That is the size bug in screenshot 1.
+1. Hover used to mount extra in-flow `h-7` buttons (screenshot 1 size bug), then an absolute leftover that sat **behind** chips. The dock is now reserved at rest.
 2. Copy to already hides when `!dayWorkouts[0]`. New session always on hover. No Notes action.
-3. Resting session chip is compact (screenshot 2). Keep that chip; do not restyle it into the overlay.
+3. Resting session chip is compact: name, Day/Week/Block, short lift codes. No kg×reps@RPE. Do not restyle it into the overlay.
 4. Notes data: set-level `note` only. Architecture §5.1 Workout has no notes field. Sheets Workouts “session notes” is publish prose, not a schema.
 
 ---
@@ -49,7 +49,7 @@ Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cel
 
 | Keep | Drop |
 | :--- | :--- |
-| Date-first calendar; session chips at rest | In-flow hover buttons that resize the cell |
+| Date-first calendar; compact session chips at rest | Hover buttons that resize the cell |
 | Copy to only when a session exists; dest click = date D1 | Copying day notes; relabeling copy D1 as `dayLabel` |
 | New session dialog path unchanged | Notes textarea inside the hover popover |
 | One note card per date, visible at rest | Many note cards; hover-only notes; notes inside session cards |
@@ -64,7 +64,7 @@ Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cel
 ### Hover overlay (layout)
 
 - Mount only when `hoveredDate === dateStr` && current month && athlete selected && `!copyClipboard`.
-- **Out of flow:** `absolute` (e.g. bottom-center of the cell). Must not participate in the cell’s in-flow height. Week row height with overlay open **equals** the same week with overlay closed (e2e: `boundingBox` of hovered day vs neighbor, and/or hovered day height before vs after hover).
+- **In-flow reserved dock** at rest (`mt-auto`, stacked compact `h-6` actions). Hover fills the dock; it must not add height. Must **not** overlap this day’s session or note cards. Must **not** overflow into an adjacent day. Week row height with overlay open **equals** that same day at rest (the row may already be taller from chips + dock).
 - **Smaller** than today’s full-width `h-7` stack (see grill).
 - Actions, top to bottom: **New session** (always) → **Copy to** (iff a session exists) → **Notes** (always).
 - `data-testid`: keep `calendar-new-session-{date}` and `calendar-copy-to-{workoutId}`; add `calendar-notes-{date}`.
@@ -73,7 +73,7 @@ Screenshots: (1) hover — in-flow **New session** + **Copy to** stretch the cel
 ### Note card (rest)
 
 - If a non-tombstoned `DayNote` exists for that `dateStr`, render a card in the cell **without hover**.
-- Distinct from session cards: no SQ/BP/DL load line; muted surface; label **Note**; 2-line truncated body.
+- Distinct from session cards: no kg×reps@RPE; muted surface; label **Note**; 2-line truncated body.
 - Place **after** session chips (date header → sessions → note). Empty day with only a note: date → note card.
 - `data-testid="day-note-card-{date}"`. Click opens the editor; `stopPropagation`.
 - Not nested inside `workout-card`. No decorative hero.
@@ -121,7 +121,7 @@ Do not refactor Sessions, Insights, Sheets UI, Telegram, coach-code, or math.
 
 ## Acceptance
 
-- [ ] Hovering a day does **not** change that cell’s layout height or the week row vs neighbors; overlay is smaller than today’s full-width `h-7` stack.
+- [ ] Hovering a day does **not** change that cell’s layout height vs itself at rest; overlay stays inside the reserved dock and does not cover session/note cards.
 - [ ] Empty day hover: New session + Notes. Day with a session: New session + Copy to + Notes.
 - [ ] Saving a note shows a **Note** card on that date at rest, distinct from session chips; empty save removes it.
 - [ ] Click note card opens Notes editor; click session chip still opens the session.
