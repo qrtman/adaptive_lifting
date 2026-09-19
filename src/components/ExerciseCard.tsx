@@ -544,9 +544,7 @@ export const ExerciseCard = ({
               );
             })}
         </tbody>
-      </table>
-      {!locked ? (
-        <table aria-label="Add sets" className="w-max max-w-full border-collapse text-left">
+        {!locked ? (
           <tfoot>
             <tr className="border-t border-[var(--cal-hairline-soft)]">
               <td colSpan={2} />
@@ -576,8 +574,8 @@ export const ExerciseCard = ({
               <td colSpan={4} />
             </tr>
           </tfoot>
-        </table>
-      ) : null}
+        ) : null}
+      </table>
       </div>
       {editOpen && onUpdateMeta && (
         <CenteredDialog
