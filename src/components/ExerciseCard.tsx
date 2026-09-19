@@ -526,7 +526,7 @@ export const ExerciseCard = ({
                     </button>
                     </>) : null}
                   </td>
-                  <td className={td}>
+                  <td className={`${td} pl-1`}>
                     {hasPlan ? (
                     <button
                       type="button"
@@ -543,7 +543,7 @@ export const ExerciseCard = ({
                     <td colSpan={7} className="p-0" aria-label="No plan set" />
                   )}
                   {hasLog ? (<>
-                  <td className={`${td} pl-1 border-l border-[var(--cal-hairline)]`}>
+                  <td className={`${td} pl-px border-l border-[var(--cal-hairline)]`}>
                     {locked ? (
                       <span className="text-[11px] tnum text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
                     ) : (
@@ -581,7 +581,7 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={td}>
+                  <td className={`${td} pr-1`}>
                     {locked ? (
                       <span className="text-[11px] tnum">{set.executedRpe ?? '—'}</span>
                     ) : (

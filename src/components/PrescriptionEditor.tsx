@@ -50,7 +50,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
 
   return (
     <>
-      <td className={`${tdClass} pr-1`} data-lift-id={liftId}>
+      <td className={tdClass} data-lift-id={liftId}>
         <EditablePerformanceCell
           value={weight !== null && weight !== undefined ? weight.toString() : ""}
           onChange={(val) => onChange({ weight: trainingNumber(val) })}
@@ -77,7 +77,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
         />
       </td>
       <td className={`${tdClass} pr-0`}>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <EditablePerformanceCell
             value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
             onChange={(val) => onChange({ targetValue: trainingNumber(val) })}
