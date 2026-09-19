@@ -10,7 +10,6 @@ export const AppShell = ({
   children,
   dashboardMode,
   onNavigate,
-  onResetPlan,
   sidebarCollapsed,
   onToggleSidebar,
   focusAthleteScope = false,
@@ -19,7 +18,6 @@ export const AppShell = ({
   children: ReactNode;
   dashboardMode: DashboardMode;
   onNavigate: (mode: DashboardMode) => void;
-  onResetPlan?: () => void;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   focusAthleteScope?: boolean;
@@ -32,7 +30,6 @@ export const AppShell = ({
       <Sidebar
         dashboardMode={dashboardMode}
         onNavigate={onNavigate}
-        onResetPlan={onResetPlan}
         collapsed={sidebarCollapsed}
         onToggleCollapse={onToggleSidebar}
         focusAthleteScope={focusAthleteScope}

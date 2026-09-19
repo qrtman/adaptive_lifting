@@ -28,7 +28,6 @@ interface PeriodizationState {
   activeWorkout: WorkoutData | undefined;
   updateExerciseSets: (exerciseId: string, updatedSets: any[]) => void;
   finishSession: (status: WorkoutStatus) => Promise<void>;
-  resetPlan: () => Promise<void>;
 }
 
 const PeriodizationContext = createContext<PeriodizationState | null>(null);
@@ -268,17 +267,6 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     await reloadMicrocycles(planAthleteId);
   };
 
-  const resetPlan = async () => {
-    const next = await apiService.resetMicrocycles();
-    liveFetchedRef.current = true;
-    snapshotOwnerRef.current = resolvePlanOwnerId();
-    setMicrocycles(next);
-    const owner = resolvePlanOwnerId();
-    if (owner) {
-      await saveSnapshot(microcycleSnapshotKey(owner), next);
-    }
-  };
-
   return (
     <PeriodizationContext.Provider
       value={{
@@ -297,7 +285,6 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         activeWorkout,
         updateExerciseSets,
         finishSession,
-        resetPlan,
       }}
     >
       {children}

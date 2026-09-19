@@ -29,7 +29,7 @@ These rules are always active:
 - Do not use `LocalStorage` for workout sync. Use IndexedDB mutation queues and snapshots.
 - Do not bypass RBAC, workout locks, tombstones, idempotency, backend canonical math, or audit logging from integrations.
 - Do not create nested cards, decorative hero sections, gradient-orb backgrounds, or generic SaaS filler UI.
-- Do not auto-seed demo microcycles, sample athletes (e.g. Zahar), or restore seed plans on empty fetch / reset / coach push. New athlete plans start empty.
+- Do not auto-seed demo microcycles, sample athletes (e.g. Zahar), or restore seed plans on empty fetch or coach push. New athlete plans start empty.
 - Treat the training plan as **athlete-owned space**. A linked coach has shared full write. Athlete unlink revokes coach access only; the plan stays with the athlete.
 - Coach–athlete linking uses a **coach code** the athlete enters. Do not use coach email as the link code.
 - Sessions (dated workouts) are first-class. Block/Week are optional grouping labels (block is a prefix of week). Labels may be set at create or anytime later; unlabeled sessions are allowed.

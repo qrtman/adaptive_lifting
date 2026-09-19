@@ -1326,23 +1326,6 @@ def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends
         "metadata_json": e.metadata_json
     } for e in events]
 
-@app.post("/api/reset")
-def reset_database(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role == "ATHLETE":
-        # Clear athlete plan to empty — do not re-seed demo data.
-        mcs = db.query(Microcycle).filter(Microcycle.owner_id == current_user.id).all()
-        for mc in mcs:
-            db.delete(mc)
-        # Also clear any owner-scoped sessions without microcycle
-        orphans = db.query(Workout).filter(Workout.owner_id == current_user.id).all()
-        for w in orphans:
-            db.delete(w)
-        db.commit()
-
-    mcs = get_visible_microcycles(db, current_user)
-    return [format_microcycle(mc) for mc in sorted(mcs, key=lambda x: x.id)]
-
-
 class CreateSessionRequest(BaseModel):
     date: str
     title: Optional[str] = "Session"
