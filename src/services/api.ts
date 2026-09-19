@@ -544,23 +544,62 @@ export const apiService = {
     targetBlockLabel?: string | null;
     targetWeekLabel?: string | null;
     includeLogs?: boolean;
+    preserveWeekLabel?: boolean;
   }): Promise<{ status: string; copied: Array<{ id: string; date: string; title: string; blockLabel: string | null; weekLabel: string | null; sourceId: string }> }> {
+    const body: Record<string, unknown> = {
+      sessionIds: payload.sessionIds,
+      athleteId: payload.athleteId,
+      dateOffsetDays: payload.dateOffsetDays ?? 7,
+      includeLogs: payload.includeLogs === true,
+      preserveWeekLabel: payload.preserveWeekLabel === true,
+    };
+    if (payload.targetBlockLabel !== undefined) body.targetBlockLabel = payload.targetBlockLabel;
+    if (payload.targetWeekLabel !== undefined) body.targetWeekLabel = payload.targetWeekLabel;
     const response = await fetch(`${BACKEND_URL}/api/sessions/copy-week`, {
       method: 'POST',
       headers: getHeaders(),
       credentials: 'include',
-      body: JSON.stringify({
-        sessionIds: payload.sessionIds,
-        athleteId: payload.athleteId,
-        dateOffsetDays: payload.dateOffsetDays ?? 7,
-        targetBlockLabel: payload.targetBlockLabel,
-        targetWeekLabel: payload.targetWeekLabel,
-        includeLogs: payload.includeLogs === true,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       throw new Error(errData.detail || 'Failed to copy week');
+    }
+    return await response.json();
+  },
+
+  async fetchDayNotes(athleteId?: string | null): Promise<import('../types').DayNote[]> {
+    const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/api/day-notes${query}`, {
+      headers: getHeaders(),
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(apiErrorMessage(errData, 'Failed to load notes'));
+    }
+    const data = await response.json();
+    return Array.isArray(data?.notes) ? data.notes : [];
+  },
+
+  async upsertDayNote(payload: {
+    date: string;
+    body: string;
+    athleteId?: string | null;
+  }): Promise<{ id: string | null; date: string; body: string | null; ownerId?: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/day-notes`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        date: payload.date,
+        body: payload.body,
+        athleteId: payload.athleteId || undefined,
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(apiErrorMessage(errData, 'Failed to save note'));
     }
     return await response.json();
   },
@@ -608,6 +647,7 @@ export const apiService = {
       plannedReps?: number | null;
       plannedRpe?: number | null;
       intensityType?: string | null;
+      dropPercent?: number | null;
       isAuto?: boolean;
       isTop?: boolean;
       actual?: number | null;
@@ -627,6 +667,7 @@ export const apiService = {
           plannedReps: row.plannedReps,
           plannedRpe: row.plannedRpe,
           intensityType: row.intensityType,
+          dropPercent: row.dropPercent ?? 0,
           isAuto: row.isAuto,
           isTop: row.isTop,
           actual: row.actual,

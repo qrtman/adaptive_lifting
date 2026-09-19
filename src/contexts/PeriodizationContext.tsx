@@ -178,6 +178,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       plannedReps: row.plannedReps ?? null,
       plannedRpe: row.target_value ?? row.plannedRpe ?? null,
       intensityType: row.intensity_type || row.intensityType || 'RPE',
+      dropPercent: row.dropPercent ?? 0,
       isAuto: false,
       isTop: index === 0,
       actual: row.actual ?? null,

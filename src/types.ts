@@ -112,10 +112,17 @@ export function isMicrocycleActive(status: string): boolean {
   return status === 'ACTIVE' || status === 'In Progress';
 }
 
+export interface DayNote {
+  id: string;
+  date: string; // YYYY-MM-DD calendar date, not weekday
+  body: string;
+  ownerId?: string;
+}
+
 export interface WorkoutData {
   id: string;
   date: string; // YYYY-MM-DD
-  dayLabel: string; // e.g. "D1"
+  dayLabel: string; // slot "1"…"7" or custom; ISO date means unlabeled
   title: string;
   blockLabel?: string | null;
   weekLabel?: string | null;

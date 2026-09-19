@@ -332,6 +332,103 @@ def test_copy_week_shifts_dates_and_increments_week_label():
     assert cleared.json()["weekLabel"] is None
 
 
+def test_copy_week_preserve_week_label_keeps_source():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    squat = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-15", "title": "Squat", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    bench = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-17", "title": "Bench", "blockLabel": "Block2", "weekLabel": "Week3"},
+        cookies=cookies,
+    )
+    unlabeled = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-14", "title": "Open"},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    assert bench.status_code == 200
+    assert unlabeled.status_code == 200
+
+    preserved = client.post(
+        "/api/sessions/copy-week",
+        json={
+            "sessionIds": [squat.json()["id"], bench.json()["id"]],
+            "dateOffsetDays": 7,
+            "preserveWeekLabel": True,
+        },
+        cookies=cookies,
+    )
+    assert preserved.status_code == 200
+    rows = preserved.json()["copied"]
+    assert sorted(row["date"] for row in rows) == ["2026-09-22", "2026-09-24"]
+    assert all(row["weekLabel"] == "Week3" for row in rows)
+    assert all(row["blockLabel"] == "Block2" for row in rows)
+
+    unlabeled_copy = client.post(
+        "/api/sessions/copy-week",
+        json={
+            "sessionIds": [unlabeled.json()["id"]],
+            "dateOffsetDays": 3,
+            "preserveWeekLabel": True,
+        },
+        cookies=cookies,
+    )
+    assert unlabeled_copy.status_code == 200
+    clone = unlabeled_copy.json()["copied"][0]
+    assert clone["date"] == "2026-09-17"
+    assert clone["weekLabel"] is None
+    assert clone["blockLabel"] is None
+
+
+def test_copy_preserves_labeled_day_label_not_dest_date():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    labeled = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-15", "title": "Squat", "dayLabel": "1"},
+        cookies=cookies,
+    )
+    unlabeled = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-16", "title": "Open"},
+        cookies=cookies,
+    )
+    assert labeled.status_code == 200
+    assert unlabeled.status_code == 200
+    assert unlabeled.json()["dayLabel"] == "2026-09-16"
+
+    copied = client.post(
+        "/api/sessions/copy-week",
+        json={"sessionIds": [labeled.json()["id"], unlabeled.json()["id"]], "dateOffsetDays": 7},
+        cookies=cookies,
+    )
+    assert copied.status_code == 200
+    by_title = {row["title"]: row for row in copied.json()["copied"]}
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = {w["id"]: w for mc in tree.json() for w in mc["workouts"]}
+    squat_clone = workouts[by_title["Squat"]["id"]]
+    open_clone = workouts[by_title["Open"]["id"]]
+    assert squat_clone["date"] == "2026-09-22"
+    assert squat_clone["dayLabel"] == "1"
+    assert open_clone["date"] == "2026-09-23"
+    assert open_clone["dayLabel"] == "2026-09-23"
+
+
 def test_plan_sets_persist_typed_weight_and_empty_backoff():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
@@ -375,6 +472,90 @@ def test_plan_sets_persist_typed_weight_and_empty_backoff():
     sets = next(ex["sets"] for w in workouts for ex in w["exercises"] if ex["id"] == eid)
     assert sets[0]["plannedWeight"] == 180.0
     assert sets[1]["plannedWeight"] is None
+
+
+def test_plan_sets_persist_drop_percent():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"drop-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    cookies = dict(athlete.cookies)
+    created = client.post(
+        "/api/sessions",
+        json={"date": "2026-09-16", "title": "Squat"},
+        cookies=cookies,
+    )
+    sid = created.json()["id"]
+    squat = client.post(
+        f"/api/sessions/{sid}/exercises",
+        json={"title": "Squat", "liftCategory": "Squat"},
+        cookies=cookies,
+    )
+    assert squat.status_code == 200
+    eid = squat.json()["id"]
+    top_id = squat.json()["sets"][0]["id"]
+    saved = client.put(
+        f"/api/sessions/{sid}/exercises/{eid}/sets",
+        json={
+            "sets": [
+                {
+                    "id": top_id,
+                    "plannedWeight": 200,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "intensityType": "RPE",
+                    "isTop": True,
+                    "dropPercent": 0,
+                },
+                {
+                    "plannedWeight": 180,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "intensityType": "RPE",
+                    "dropPercent": -10,
+                },
+            ]
+        },
+        cookies=cookies,
+    )
+    assert saved.status_code == 200
+    rows = saved.json()["sets"]
+    assert rows[1]["dropPercent"] == -10
+    assert rows[1]["plannedWeight"] == 180.0
+    assert not rows[1]["isAuto"]
+
+    tree = client.get("/api/microcycles", cookies=cookies)
+    workouts = [w for mc in tree.json() for w in mc["workouts"]]
+    sets = next(ex["sets"] for w in workouts for ex in w["exercises"] if ex["id"] == eid)
+    assert sets[1]["dropPercent"] == -10
+    assert sets[1]["plannedWeight"] == 180.0
+
+    again = client.put(
+        f"/api/sessions/{sid}/exercises/{eid}/sets",
+        json={
+            "sets": [
+                {
+                    "id": rows[0]["id"],
+                    "plannedWeight": 200,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "dropPercent": 0,
+                },
+                {
+                    "id": rows[1]["id"],
+                    "plannedWeight": 180,
+                    "plannedReps": 5,
+                    "plannedRpe": 8,
+                    "dropPercent": -10,
+                },
+            ]
+        },
+        cookies=cookies,
+    )
+    assert again.status_code == 200
+    assert again.json()["sets"][1]["dropPercent"] == -10
 
 
 def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():

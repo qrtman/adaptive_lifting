@@ -6,7 +6,7 @@ This file is the first instruction layer for AI coding tools working in this rep
 - `design.md` for UI/UX, component contracts, layout rules, copy, states, and acceptance checks.
 - `knowledge.md` for compressed current product focus.
 
-If this file conflicts with `architecture.md` or `design.md`, prefer the more specific instruction from the relevant source-of-truth document.
+If this file conflicts with `architecture.md` or `design.md`, prefer the more specific instruction from the relevant source-of-truth document. Visual Cal theme work **overrides** `design.md` dark-only / no-nested-cards / JetBrains-required lines — see `.cursor/rules/cal-theme.mdc` (program 1, closed). Session console (hover, filter dialog, set grid, header) **overrides** calendar 4-pill / header Adj / Δ-as-RPE — `.cursor/rules/session-console.mdc` and `.cursor/scopes/session-console/SCOPE.md`.
 
 ---
 
@@ -28,7 +28,7 @@ These rules are always active:
 - Do not store numeric training values as strings.
 - Do not use `LocalStorage` for workout sync. Use IndexedDB mutation queues and snapshots.
 - Do not bypass RBAC, workout locks, tombstones, idempotency, backend canonical math, or audit logging from integrations.
-- Do not create nested cards, decorative hero sections, gradient-orb backgrounds, or generic SaaS filler UI.
+- Nested cards are allowed along the product tree (`.cursor/scopes/cal-theme/10-nested-cards.md`). Still no decorative hero, gradient-orb backgrounds, or marketing landing unless explicitly requested.
 - Do not auto-seed demo microcycles, sample athletes (e.g. Zahar), or restore seed plans on empty fetch or coach push. New athlete plans start empty.
 - Treat the training plan as **athlete-owned space**. A linked coach has shared full write. Athlete unlink revokes coach access only; the plan stays with the athlete.
 - Coach–athlete linking uses a **coach code** the athlete enters. Do not use coach email as the link code.
@@ -36,6 +36,7 @@ These rules are always active:
 - Do not invent fixed Mon–Sun week containers or require creating a week before the first session.
 - Calendar is date-first. Sessions view groups by Block/Week labels when present. Coach Calendar/Sessions must follow the active athlete switcher.
 - **Web first:** Build Calendar, Sessions, and the web session screen (add lifts, prescribe, log) before Telegram Mini App / phone logging. Do not swap the web session into a phone mock. Do not block web logging on mobile work.
+- File map: see `.cursor/rules/agent-file-map.mdc`. For a mapped need, read those files first and stop unless the task requires more.
 
 ### Layer 2: Task Brief
 
@@ -135,9 +136,9 @@ Implement:
 - [actions]
 
 Rules:
-- Follow design.md component contracts.
+- Follow design.md component contracts unless `.cursor/rules/cal-theme.mdc` overrides (nested cards along the product tree, light/dark, Inter tabular-nums).
 - Include loading, empty, error, permission, locked, and sync states where applicable.
-- No nested cards, no decorative hero, no generic SaaS filler.
+- Nested cards follow objects (Block/Week/Session, day/session/lift); no decorative hero, no generic SaaS filler, no marketing landing.
 - Use domain terms exactly: e1RM, INOL, ACWR, DOTS, RPE, mesocycle, microcycle, Block, Week, session.
 - Empty athlete plans show empty states — never inject demo data.
 
@@ -230,7 +231,9 @@ If the generated result does any of the following, revise immediately:
 | Stores numbers as strings | Use numeric types end to end. |
 | Hides sync failures | Add per-row status and conflict review. |
 | Ignores locks/tombstones | Add disabled/read-only behavior and recovery copy. |
-| Adds generic gradients/glass | Use restrained dark operational UI from `design.md`. |
+| Adds generic gradients/glass | Use Cal tokens (`.cursor/rules/cal-theme.mdc`); no orbs, no marketing hero. |
+| Wraps the same object in two cards, or adds a shell that is not a product object | Flatten dummy wraps (`.cursor/scopes/cal-theme/10-nested-cards.md`). |
+| Puts JetBrains Mono on kg/reps | Use Inter tabular-nums (`11-typography.md`). |
 | Auto-seeds demo weeks / Zahar / sample block | Return empty plan; show empty UI states. |
 | Forces Mon–Sun week before first session | Create dated session; optional Block/Week labels anytime. |
 | Uses coach email as invite code | Use coach code generate + athlete enter code. |
@@ -259,8 +262,8 @@ Notes:
 
 When asked to review, approve, or run a check cycle on the session constructor:
 
-1. **Design judge** — `design.md` + `knowledge.md` vs the touched UI. Fail nested cards, always-open editors that should be dialogs, missing lock copy, Plan vs Log confusion.
-2. **Logic judge** — set math and persistence. Typed plan kg is never invented from a fake e1RM. After a **log**, later empty plan kg may **suggest** kg from executed e1RM; never overwrite typed kg. Finished sessions cannot mutate. Numbers stay numeric.
+1. **Design judge** — `design.md` + `knowledge.md` + `.cursor/rules/cal-theme.mdc` vs the touched UI. Fail dummy extra card wraps and heroes, always-open editors that should be dialogs, missing lock copy, Plan vs Log confusion. Do **not** fail Block → Week → Session or day → session → lifts.
+2. **Logic judge** — set math and persistence. Typed plan kg is never invented from a fake e1RM. After a **log**, later plan kg may **suggest** `use {n}` from executed e1RM even when kg is already typed (if it differs); never auto-write. No offer on a row with LOG kg. Finished sessions cannot mutate. Numbers stay numeric.
 3. **Approve only blockers/majors** from this cycle. Implement that batch. Re-run the smallest tests. Do **not** loop forever in one turn; stop after one fix batch unless the user says run another cycle.
 4. **Speak coach language** in the user reply (Plan / Log, not API jargon).
 

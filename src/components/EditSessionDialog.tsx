@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { CenteredDialog } from './CenteredDialog';
-import { LabelCombo, uniquePlanLabels } from './LabelCombo';
+import { displayDayField, normalizeDayLabel } from '../features/plan/sessionLabels';
+import { setRecentBlock, setRecentDay, setRecentName, setRecentWeek } from '../storage/uiPrefs';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
+import { ComboBox } from './ComboBox';
+import { dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
 export function EditSessionDialog({
   session,
@@ -14,6 +17,7 @@ export function EditSessionDialog({
     id: string;
     date: string;
     title: string;
+    dayLabel?: string | null;
     blockLabel?: string | null;
     weekLabel?: string | null;
   };
@@ -21,10 +25,13 @@ export function EditSessionDialog({
   onSaved: () => void | Promise<void>;
   onDeleted?: () => void | Promise<void>;
 }) {
-  const { microcycles } = usePeriodization();
+  const { microcycles, planAthleteId } = usePeriodization();
   const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
   const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
-  const [title, setTitle] = useState(session.title || 'Session');
+  const dayOptions = dayComboOptions(microcycles);
+  const nameOptions = uniquePlanTitles(microcycles);
+  const [dayInput, setDayInput] = useState(() => displayDayField(session.dayLabel));
+  const [title, setTitle] = useState(session.title || '');
   const [blockLabel, setBlockLabel] = useState(session.blockLabel || '');
   const [weekLabel, setWeekLabel] = useState(session.weekLabel || '');
   const [busy, setBusy] = useState(false);
@@ -32,14 +39,25 @@ export function EditSessionDialog({
 
   const save = async () => {
     if (busy) return;
+    const name = title.trim();
+    if (!name) {
+      setError('Enter a name');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
+      const dayCanonical = normalizeDayLabel(dayInput);
       await apiService.updateSession(session.id, {
-        title: title.trim() || 'Session',
+        title: name,
+        dayLabel: dayCanonical ?? session.date,
         blockLabel: blockLabel.trim(),
         weekLabel: weekLabel.trim(),
       });
+      if (dayCanonical) setRecentDay(planAthleteId, dayCanonical);
+      setRecentName(planAthleteId, name);
+      if (blockLabel.trim()) setRecentBlock(planAthleteId, blockLabel.trim());
+      if (weekLabel.trim()) setRecentWeek(planAthleteId, weekLabel.trim());
       await onSaved();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save session');
@@ -74,7 +92,7 @@ export function EditSessionDialog({
               data-testid="edit-session-delete"
               disabled={busy}
               onClick={() => void remove()}
-              className="mr-auto h-8 px-3 text-xs text-[#FF453A] hover:text-white disabled:opacity-40"
+              className="mr-auto h-10 px-4 text-sm text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
             >
               Delete
             </button>
@@ -83,7 +101,7 @@ export function EditSessionDialog({
             type="button"
             data-testid="edit-session-cancel"
             onClick={onClose}
-            className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+            className="h-10 px-4 text-sm text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
           >
             Cancel
           </button>
@@ -92,40 +110,64 @@ export function EditSessionDialog({
             data-testid="edit-session-save"
             disabled={busy}
             onClick={() => void save()}
-            className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+            className="h-10 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)] disabled:opacity-40 disabled:hover:bg-[var(--cal-primary)]"
           >
             {busy ? 'Saving…' : 'Save'}
           </button>
         </>
       )}
     >
-      <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-[#636366]">Name</span>
-          <input
-            data-testid="session-title"
+      <div className="flex flex-col gap-2">
+        <NestedCard testId="edit-session-name-card" className="relative z-20 overflow-visible focus-within:!transform-none">
+          <ComboBox
+            label="Name"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+            onChange={setTitle}
+            options={nameOptions}
+            placeholder="Squat, Meet…"
+            testId="session-title"
           />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <LabelCombo
-            label="Block (optional)"
-            value={blockLabel}
-            onChange={setBlockLabel}
-            options={blockOptions}
-            testId="session-block"
-          />
-          <LabelCombo
-            label="Week (optional)"
-            value={weekLabel}
-            onChange={setWeekLabel}
-            options={weekOptions}
-            testId="session-week"
-          />
-        </div>
-        {error && <p className="text-xs text-[#FF453A]">{error}</p>}
+        </NestedCard>
+        <NestedCard testId="edit-session-slot-card" className="overflow-visible">
+          <div className="@container min-w-0">
+            <div
+              data-testid="edit-session-slot-row"
+              className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
+            >
+              <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
+                <ComboBox
+                  label="Day"
+                  value={dayInput}
+                  onChange={setDayInput}
+                  options={dayOptions}
+                  placeholder="Day 1…"
+                  testId="session-day"
+                />
+              </div>
+              <div className="min-w-0">
+                <ComboBox
+                  label="Block (optional)"
+                  value={blockLabel}
+                  onChange={setBlockLabel}
+                  options={blockOptions}
+                  placeholder="Block…"
+                  testId="session-block"
+                />
+              </div>
+              <div className="min-w-0">
+                <ComboBox
+                  label="Week (optional)"
+                  value={weekLabel}
+                  onChange={setWeekLabel}
+                  options={weekOptions}
+                  placeholder="Week…"
+                  testId="session-week"
+                />
+              </div>
+            </div>
+          </div>
+        </NestedCard>
+        {error && <p data-testid="edit-session-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>
   );

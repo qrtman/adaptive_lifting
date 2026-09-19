@@ -10,6 +10,9 @@ test.describe('navigation consolidation', () => {
     await page.goto('/#/roster');
     await expect(page.getByTestId('nav-calendar')).toBeVisible();
     await expect(page.getByTestId('athlete-scope-selector')).toBeVisible();
+    await expect(page.getByTestId('app-sidebar').getByText('Athlete plan')).toHaveCount(0);
+    await expect(page.getByTestId('app-sidebar').getByText('Your plan')).toHaveCount(0);
+    await expect(page.getByTestId('app-sidebar').getByText(/^Live$/)).toHaveCount(0);
     await expect(page).toHaveURL(/#\/calendar/);
     await expect(page.getByTestId('nav-roster')).toHaveCount(0);
     await expect(page.getByTestId('nav-insights')).toBeVisible();
@@ -25,5 +28,15 @@ test.describe('navigation consolidation', () => {
     await expect(page.getByTestId('app-sidebar')).toHaveAttribute('data-collapsed', 'true');
     await page.reload();
     await expect(page.getByTestId('app-sidebar')).toHaveAttribute('data-collapsed', 'true');
+  });
+
+  test('persists theme preference', async ({ page }) => {
+    await signInCoach(page, { al_app_view: 'dashboard', al_dashboard_mode: 'calendar', al_theme: 'light' });
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.getByTestId('theme-toggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 });

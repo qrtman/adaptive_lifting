@@ -3,6 +3,9 @@ import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 
+const fieldClass =
+  'w-full min-h-12 bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] py-3 pl-10 pr-3 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus:outline-none focus:border-[var(--cal-accent)] focus:ring-1 focus:ring-[var(--cal-accent)]';
+
 export const LoginView = () => {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -44,47 +47,51 @@ export const LoginView = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A] p-4">
-      <div className="w-full max-w-md bg-[#131313] border border-white/10 rounded-[8px] p-6 flex flex-col gap-6">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
+      <div
+        className="w-full max-w-md cal-nested-card p-6 flex flex-col gap-6"
+        data-elevated="true"
+        data-testid="login-card"
+      >
         <div>
-          <h1 className="text-xl font-semibold text-white tracking-tight">Adaptive Lifting</h1>
-          <p className="text-sm text-[#AEAEB2] mt-1">Sign in</p>
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--cal-ink)]">Adaptive Lifting</h1>
+          <p className="text-sm text-[var(--cal-muted)] mt-1">Sign in</p>
         </div>
 
         {error && (
-          <div role="alert" className="border border-[#FF453A]/40 bg-[#FF453A]/10 text-[#FF453A] text-sm p-3 rounded-[8px]">
+          <div role="alert" className="border border-[color-mix(in_srgb,var(--cal-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--cal-error)_10%,transparent)] text-[var(--cal-error)] text-sm p-3 rounded-[var(--cal-radius-md)]">
             {error}
           </div>
         )}
 
         <form onSubmit={handleStandardLogin} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-xs text-[#AEAEB2]">
+          <label className="flex flex-col gap-1 text-xs text-[var(--cal-muted)]">
             Email
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AEAEB2]" size={16} />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cal-muted)]" size={16} />
               <input
                 type="email"
                 autoComplete="username"
                 placeholder="coach@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full min-h-12 bg-[#161616] border border-white/10 rounded-[8px] py-3 pl-10 pr-3 text-white placeholder:text-[#636366] focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
+                className={fieldClass}
                 required
               />
             </div>
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-[#AEAEB2]">
+          <label className="flex flex-col gap-1 text-xs text-[var(--cal-muted)]">
             Password
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AEAEB2]" size={16} />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cal-muted)]" size={16} />
               <input
                 type="password"
                 autoComplete="current-password"
                 placeholder="Password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full min-h-12 bg-[#161616] border border-white/10 rounded-[8px] py-3 pl-10 pr-3 text-white placeholder:text-[#636366] focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
+                className={fieldClass}
                 required
               />
             </div>
@@ -93,7 +100,7 @@ export const LoginView = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full min-h-12 bg-[#007AFF] hover:bg-[#0066d6] text-white rounded-[8px] disabled:opacity-50"
+            className="w-full min-h-12 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
@@ -103,7 +110,7 @@ export const LoginView = () => {
           type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full min-h-12 border border-white/10 bg-[#161616] text-white rounded-[8px] disabled:opacity-50"
+          className="w-full min-h-12 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
         >
           Continue with Google
         </button>

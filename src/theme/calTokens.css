@@ -1,0 +1,114 @@
+/*
+ * Cal design tokens — mapped from design/sources/DESIGN-cal.md (YAML colors, rounded, spacing).
+ *
+ * Color tokens:
+ *   --cal-canvas, --cal-ink, --cal-body, --cal-muted, --cal-muted-soft
+ *   --cal-hairline, --cal-hairline-soft
+ *   --cal-surface-soft, --cal-surface-card, --cal-surface-strong, --cal-surface-elevated
+ *   --cal-primary, --cal-primary-active, --cal-primary-disabled, --cal-on-primary
+ *   --cal-accent (focus / links / sync — #007AFF, not YAML brand-accent)
+ *   --cal-success, --cal-warning, --cal-error
+ *   --cal-badge-sq, --cal-badge-bp, --cal-badge-dl (SQ/BP/DL pastel badge hues)
+ *
+ * Radius: --cal-radius-md (8px), --cal-radius-lg (12px), --cal-radius-pill (9999px)
+ * Space (app chrome only): --cal-space-xxs (4), --cal-space-xs (8), --cal-space-sm (12),
+ *   --cal-space-md (16), --cal-space-lg (24)
+ *
+ * Theme: default + [data-theme="light"] = light; [data-theme="dark"] = inverted roles.
+ */
+
+:root,
+[data-theme="light"] {
+  /* Surfaces */
+  --cal-canvas: #ffffff;
+  --cal-ink: #111111;
+  --cal-body: #374151;
+  --cal-muted: #6b7280;
+  --cal-muted-soft: #898989;
+  --cal-hairline: #e5e7eb;
+  --cal-hairline-soft: #f3f4f6;
+  --cal-surface-soft: #f8f9fa;
+  --cal-surface-card: #f5f5f5;
+  --cal-surface-strong: #e5e7eb;
+  --cal-surface-elevated: #ffffff;
+
+  /* Primary button — black fill, white label (DESIGN-cal colors.primary) */
+  --cal-primary: #111111;
+  --cal-primary-active: #242424;
+  --cal-primary-disabled: #e5e7eb;
+  --cal-on-primary: #ffffff;
+
+  /* Accent — product blue for focus, links, sync pulse only */
+  --cal-accent: #007aff;
+
+  /* Semantic */
+  --cal-success: #10b981;
+  --cal-warning: #f59e0b;
+  --cal-error: #ef4444;
+
+  /* SQ / BP / DL badge pastels (orange / emerald / violet) */
+  --cal-badge-sq: #fb923c;
+  --cal-badge-bp: #34d399;
+  --cal-badge-dl: #8b5cf6;
+
+  /* Radius */
+  --cal-radius-md: 8px;
+  --cal-radius-lg: 12px;
+  --cal-radius-pill: 9999px;
+
+  /* Spacing — 4/8/12/16/24 only in app chrome (no 96px section) */
+  --cal-space-xxs: 4px;
+  --cal-space-xs: 8px;
+  --cal-space-sm: 12px;
+  --cal-space-md: 16px;
+  --cal-space-lg: 24px;
+
+  /* Elevation — DESIGN-cal soft / lift (no shadow-2xl) */
+  --cal-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --cal-shadow-lift: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] {
+  /* Inverted roles — DESIGN-cal surface-dark / on-dark, not legacy ink-950 palette */
+  --cal-canvas: #101010;
+  --cal-ink: #ffffff;
+  --cal-body: #d4d4d8;
+  --cal-muted: #a1a1aa;
+  --cal-muted-soft: #71717a;
+  --cal-hairline: rgba(255, 255, 255, 0.12);
+  --cal-hairline-soft: rgba(255, 255, 255, 0.06);
+  --cal-surface-soft: #141414;
+  --cal-surface-card: #1a1a1a;
+  --cal-surface-strong: #262626;
+  --cal-surface-elevated: #1a1a1a;
+
+  /* Dark primary: near-white fill (#fafafa) + dark label — inverts light black button */
+  --cal-primary: #fafafa;
+  --cal-primary-active: #e4e4e7;
+  --cal-primary-disabled: #3f3f46;
+  --cal-on-primary: #111111;
+
+  --cal-accent: #007aff;
+
+  --cal-success: #34d399;
+  --cal-warning: #fbbf24;
+  --cal-error: #f87171;
+
+  /* Same hues, lighter for dark canvas readability */
+  --cal-badge-sq: #fdba74;
+  --cal-badge-bp: #6ee7b7;
+  --cal-badge-dl: #a78bfa;
+
+  --cal-radius-md: 8px;
+  --cal-radius-lg: 12px;
+  --cal-radius-pill: 9999px;
+
+  --cal-space-xxs: 4px;
+  --cal-space-xs: 8px;
+  --cal-space-sm: 12px;
+  --cal-space-md: 16px;
+  --cal-space-lg: 24px;
+
+  --cal-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --cal-shadow-lift: 0 8px 24px rgba(0, 0, 0, 0.45);
+}

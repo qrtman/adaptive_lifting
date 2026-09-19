@@ -196,6 +196,7 @@ erDiagram
     User ||--o{ InviteCode : "publishes"
     User ||--o{ Mesocycle : "owns"
     User ||--o{ Workout : "owns as athlete"
+    User ||--o{ DayNote : "owns as athlete"
     Mesocycle ||--o{ Microcycle : "optional contains"
     Microcycle ||--o{ Workout : "soft groups"
     Workout ||--o{ Exercise : "contains"
@@ -217,6 +218,7 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
 | **Microcycle** | `id` (String) | `weekName`, `focus`, `status`, `owner_id`, optional `mesocycle_id` | Soft week aggregation for labeled sessions; owned by athlete; not required before first session |
 | **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
+| **DayNote** | `id` (String) | `date` (`YYYY-MM-DD`), `body`, `owner_id` | One note per calendar date in athlete plan space; not a weekday slot and not a Workout. Empty days may have a note. Distinct from set `note`. |
 | **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `movement_pattern`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
 | **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `deleted_at` | Belongs to Exercise |
 
@@ -231,6 +233,7 @@ Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `
 | **LexoRank Order**: Ordering strings (`lexo_rank`) must maintain lexical sortability without integer collisions. | Client generation, DB indexing |
 | **Accessory identity**: Isolation work is `Exercise.tier = Accessory`, never a workout-level blob without sets. | Schema + sync entity allow-list |
 | Session `date` is required (`YYYY-MM-DD`); Block/Week labels are optional and independently nullable | Schema + service validation |
+| Day notes are keyed by `(owner_id, date)` — calendar date, not weekday; one live note per date per athlete plan | Unique constraint + service validation |
 | Plan rows for an athlete remain after `CoachingRelationship.ended_at` is set | Unlink service never deletes athlete-owned sessions |
 
 ### 5.3 Lifecycle Status Values
@@ -279,6 +282,7 @@ Indexes should be declared with migrations, not created opportunistically at run
 | Index | Reason |
 | :--- | :--- |
 | `workouts(microcycle_id, date)` | Fast calendar and boundary validation lookups. |
+| `day_notes(owner_id, date)` unique | One calendar-date note per athlete plan; calendar month fetch. |
 | `exercises(workout_id, lexo_rank)` | Stable exercise ordering inside a workout. |
 | `exercise_sets(exercise_id, lexo_rank)` | Stable set ordering inside an exercise. |
 | `exercise_sets(exercise_id, isTop)` | Fast top-set/e1RM extraction. |
@@ -320,8 +324,8 @@ $$\text{e1RM} = \frac{\text{Weight}}{1.0 - \text{Effective Drop \%}}$$
 
 #### 6.2.1 Boundary Constraints & Guards
 - **Null Inputs**: If `weight <= 0` or `reps <= 0`, return `0.0`.
-- **Reliability Fallback**: If `RPE < 6.0` or `reps > 12`, e1RM calculations are physiologically unreliable. The calculator must bypass linear decay and return the raw `weight` as a safe fallback.
-- **Metabolic Drop-off Cap**: For high-rep sets (e.g., backoffs), the linear decay is capped to prevent absurdly inflated 1RM projections. If `Effective Drop % > 0.25`, the value is constrained to `0.25` (representing a maximum 25% drop).
+- **Reliability Fallback**: If `reps > 12`, return the raw `weight`. If `rpe <= 0` (missing RPE), return the raw `weight` — do not treat empty LOG RPE as RPE 5. If `0 < rpe < 5.0` (`E1RM_RPE_FLOOR`), clamp **formula input only** to `5.0`; persist the athlete's logged RPE unchanged. RPE `5.0` and `5.5` run as entered.
+- **No Metabolic Drop-off Cap**: Do not clamp Effective Drop % at 25%. A fixed cap equalizes every formula RPE whose uncapped drop exceeds it (e.g. 150×6 @5 and @6 both become 200). After the RPE floor clamp, for the same `weight > 0` and `1 ≤ reps ≤ 12`, lower formula RPE ⇒ strictly higher e1RM (`e1RM(150, 6, 5) > e1RM(150, 6, 6) > e1RM(150, 6, 7)`).
 - **Zero-Division Guard**: If `denominator <= 0.1` (where `denominator = 1.0 - Effective Drop %`), the calculation is aborted, and the raw `weight` is returned.
 
 ### 6.3 INOL - Intensity Number of Lifts
@@ -420,6 +424,10 @@ Where:
 Coaches prescribe backdown sets using a target **Fatigue Percent** (e.g., 5% fatigue drop). This represents the target drop in performance from the daily peak (the "top set"):
 
 $$\text{Target Backdown Weight} = \text{Top Set Weight} \times (1.0 - \text{Fatigue \%})$$
+
+The session lift **Adj** control applies this as a one-shot rewrite of remaining unlogged **Plan kg** on that lift (`plannedWeight` only, plate-rounded). Signed UI percent maps as `−10` ⇒ `Fatigue % = 0.10` ⇒ 90% of base. Adj does **not** persist `dropPercent` / `adjustment_pct` as live Rx, does not auto-scale from e1RM, and does not change logged rows.
+
+The set table **`%` column** (between `#` and Plan) is a per-set signed integer modifier (`dropPercent` in percentage points, e.g. `−5`) on the e1RM-derived Plan kg **offer** (`use {n}`). Set 0 has no `%` editor (treat as 0). Later rows: `suggestedWeight = roundToCompetitionPlates(suggestKg × (1 + pct/100))`. Persist `dropPercent` on the set write path (`PlannedSetWrite` / `replace_exercise_sets`). Do **not** auto-write `plannedWeight` on `%` commit/blur. Tap `use {n}` still writes `plannedWeight`. Logged rows (LOG kg filled) get no offer. Empty = 0; committing 0 does not invent kg. Do not persist client-only `adjustment_pct`. Do not default extra sets to `−5` / `isAuto: true`. `%` is skip-chrome, not a 7th Tab cell. No +/- stepper in the cell; no `%` suffix (header already says `%`).
 
 When the athlete holds the weight constant, the 5% fatigue threshold is hit when the execution RPE rises by exactly one full RPE unit (representing a 5% drop in e1RM due to fatigue buildup) or when the execution velocity drops by a corresponding margin.
 
@@ -959,6 +967,8 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
 | `PATCH` | `/api/sessions/labels` | Bulk set/clear Block/Week labels | Coach / Athlete |
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
+| `GET` | `/api/day-notes?athlete_id=` | List live calendar-date notes for an athlete plan (empty days included; not weekday-keyed) | Coach / Athlete |
+| `PUT` | `/api/day-notes` | Upsert a day note (`date` YYYY-MM-DD, `body`; empty body tombstones). Coach must pass `athleteId` | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
@@ -993,7 +1003,7 @@ The frontend sends delta payloads - only changed fields, not full entities, mini
   "client_device_id": "dev-456",
   "workout_id": "w-abc-123",
   "last_updated_at": "2026-05-29T09:30:00Z",
-  "math_version": "linear-decay-v1",
+  "math_version": "linear-decay-v3",
   "changes": [
     {
       "entity": "ExerciseSet",
@@ -1191,7 +1201,7 @@ Shared formula fixtures live in `tests/math_vectors.json` (`math_version` plus e
 
 | Test Area | Key Scenarios |
 | :--- | :--- |
-| e1RM calculation | RPE 10, RPE 6, RPE < 6 fallback, high-rep cap, zero weight, zero reps |
+| e1RM calculation | RPE 10, RPE 5 floor, RPE < 5 clamps to 5.0, RPE 5.5 unclamped, missing RPE returns load, ranking @5 > @6 > @7 (no 25% cap), zero weight, zero reps |
 | INOL calculation | Standard intensity, 100% intensity cap, zero intensity |
 | DOTS coefficient | Male coefficients, female coefficients, zero bodyweight guard |
 | Attempt Calculator | Correct rounding to 2.5kg, non-overlapping 2nd/3rd ranges |
@@ -1262,6 +1272,7 @@ adaptive_lifting/
 |   \-- components/
 |       +-- AppShell.tsx / Sidebar.tsx / AthleteScopeSelector.tsx
 |       +-- CalendarView.tsx / SessionsView.tsx / InsightsView.tsx
+|       +-- DayNoteDialog.tsx / NewSessionDialog.tsx / EditSessionDialog.tsx
 |       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
 |       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |
@@ -1296,7 +1307,7 @@ Insights cards are saved per user (`InsightCard`) and executed against the curre
 
 **Query plan (weekday_matrix / heatmap over a block):** one SQL join of `workouts × exercises × sets × microcycles` filtered by owner and date window, then in-memory group-by. Avoids N+1. If a window regularly exceeds ~50,000 set rows, add a materialized `daily_set_facts` table keyed by `(owner_id, date, pattern)` — extension point documented on `fetch_set_rows`. ISO week is an analytics grain only, not a Mon–Sun scheduling container.
 
-Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview. `MATH_VERSION` (`linear-decay-v1`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build.
+Analytics metric math reuses `math_utils.py`. Insights UI must not add RTS formulas on the client. `mathEngine.ts` remains only for ExerciseCard / prescription live preview. `MATH_VERSION` (`linear-decay-v3`) is shared with `math_utils.py` and `tests/math_vectors.json`; sync 409s on mismatch so a server formula change fails the client build.
 
 Pattern-scoped cards (`weekday_matrix`, spacing vs e1RM) read `exercises.movement_pattern`. New lifts store the catalog field; existing rows are backfilled once via `pattern_for(title, lift_category)`. Query time does not re-run the title heuristic.
 

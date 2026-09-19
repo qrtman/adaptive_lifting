@@ -54,7 +54,7 @@ Do not build:
 
 - **No marketing landing page** as the first screen.
 - **No decorative hero section** or generic SaaS filler banners.
-- **No nested cards inside cards** (causes optical fatigue).
+- **Nested cards allowed** along the product tree (Block → Week → Session; day → session → lifts). No dummy extra wraps. See `.cursor/scopes/cal-theme/10-nested-cards.md`. Still no decorative hero or gradient orbs.
 - **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark aesthetic).
 - **No freeform text parsing** for prescriptions, set logging, or Sheets import.
 - **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).
@@ -83,7 +83,7 @@ If implementation context is missing, assume:
 | Decision | Default |
 | :--- | :--- |
 | Units | kg canonical, kg display unless user preference says otherwise |
-| Theme | Dark only for initial release |
+| Theme | Light default + Dark toggle (`al_theme`). Cal.com token language — `.cursor/rules/cal-theme.mdc` |
 | Mobile first screen | Today's active workout |
 | Coach first screen | Dashboard with athlete switcher that drives Calendar and Sessions |
 | Empty athlete plan | Show empty Calendar/Sessions states — never inject demo weeks |
@@ -113,9 +113,9 @@ The design system follows three product principles:
 | :--- | :--- | :--- | :--- |
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
-| Calendar workspace | Coach / Athlete | Date-first session timeline | Hover a day shows New session (and Copy to when a session exists). Copy to then click the destination day on the same calendar. |
-| Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
-| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions; Edit opens a dialog for name/block/week |
+| Calendar workspace | Coach / Athlete | Date-first session timeline | Cal light/dark skin: hairline 7-col month grid, nested session/note cards, lift-filter dialog (multiple chips per category / pattern / tier; OR within a row, AND across rows; stored fields). Session chips show name, Day/Week/Block, and a short lift-code line (no kg×reps@RPE). Hover actions fill a reserved in-flow dock (do not grow the day on hover; do not cover session/note cards; do not overflow to a neighbor). No accent inset ring around the day cell — quiet fill + dock, 180ms; today is the date numeral only. Week row may grow at rest when chips plus that dock need room. Session/note chips rest flat (surface-card + hairline); the chip under the pointer uses `--cal-shadow-lift`. Saved notes render as a distinct day card at rest. Copy to then click the destination day on the same calendar. |
+| Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Name is the large session title; Day · Week · Block + tonnage + Edit are muted meta. Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
+| Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions. Each card leads with **Name**, then Day · date (Block/Week live on the group headers). Every set is a Plan vs Log row — not set 0 only, not `150×5@6 150×5@6` unlabeled. Edit opens a dialog for Name, then Day/Block/Week as ComboBoxes (Name list never includes Day slots) |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
 | Telegram Mini App + bot | Athlete / Coach | Later: Telegram-native logging and alerts | Deferred until the web constructor is done. Do not gate current session UI on Mini App. |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
@@ -182,7 +182,7 @@ Adaptive Lifting enforces sharp, high-density structural grids. Page cards and s
 | `--space-4` | `16px` | Inner boundaries of dashboard grids and mobile sheets |
 | `--space-6` | `24px` | Section gaps, calendar grid columns |
 
-Page layouts must use full-width operational workspaces, never rounded floating cards inside panels.
+Page layouts use full-width operational workspaces. Nested cards follow the product tree (Block → Week → Session; day → session; lift → PLAN/LOG table). Dummy chrome wraps that do not name an object are still forbidden. See `.cursor/scopes/cal-theme/10-nested-cards.md`.
 
 ---
 
@@ -194,8 +194,8 @@ Typography is optimized strictly to prevent visual reading skew during heavy phy
 
 | Role | CSS Font Stack | Primary Design Constraint |
 | :--- | :--- | :--- |
-| **UI sans** | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif` | Clean, geometric geometry for labels, subheads, menus |
-| **Data mono** | `JetBrains Mono`, `ui-monospace`, `SFMono-Regular`, `monospace` | Monospaced numeric characters to ensure strict column visual alignment |
+| **UI sans** | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif` | Labels, subheads, menus, display titles (600, negative tracking) |
+| **Training numbers** | `Inter` + `tabular-nums` | kg/reps/RPE/e1RM. Not JetBrains Mono. Trial 2: IBM Plex Sans if columns drift — `.cursor/scopes/cal-theme/11-typography.md` |
 
 ### 4.2 Type Scale
 
@@ -212,7 +212,7 @@ Font sizes are strictly locked to standard responsive tokens. Avoid fluid text r
 
 ### 4.3 Numeric Formatting Specs
 
-Monospaced numbers must maintain a **9:1 contrast ratio** using JetBrains Mono against deep background slots (`--ok-bg`).
+Training numbers must keep **tabular figures** and WCAG AA contrast against the active theme canvas (`--cal-*`), not a required coding font.
 
 | Metric | Storage Type | Canonical Precision | Export Display Format |
 | :--- | :--- | :--- | :--- |
@@ -278,7 +278,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 +-------------------+------------------------------------------------------------------------------+
 | Persistent Sidebar| Top KPI Strip: Squat Max (kg) | Bench Max (kg) | Deadlift Max (kg) | ACWR    |
 | [240px width]     |------------------------------------------------------------------------------|
-| - Athlete plan    | Primary Work Area:                                                           |
+| - Athlete switcher| Primary Work Area:                                                           |
 | - Calendar        |                                                                              |
 | - Sessions        |   [Structured Builder Card | Meet Day Planner Table | Telemetry Streams]     |
 | - Insights        |                                                                              |
@@ -355,8 +355,8 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * Active name and real-time SSE stream status: Mapped in `--ok-green` if connection is streaming, or pulsing `--ok-amber` if syncing offline mutations queue.
 * **Workspace Links Navigation Group:** Navigation items highlighted in `--ok-blue` border tags when active:
   * **Calendar:** Date-first month grid for the scoped athlete plan.
-  * **Sessions:** List grouped by Block/Week labels when present.
-  * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace; linked athletes are chosen in the Athlete plan selector above this list.
+  * **Sessions:** List grouped by Block/Week labels when present. Cards lead with Name and show every set as Plan vs Log.
+  * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace. Coaches pick a linked athlete from the unlabeled email switcher above this list. Athletes do not see a switcher.
 * **Operations & Integrations Navigation Group:**
   * **Sheets Publisher:** Controls one-way spreadsheet target mappings.
   * **Telegram Mini App:** Links Telegram adapter connections.
@@ -415,7 +415,8 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 * **Interactive Calendar Grid Controls:**
   * **Unified Sub-Header Navigation Panel:** Renders current active Month, Microcycle sequence progression metrics (`[ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]` matching rolling CNS fatigue schedules), responsive View Mode toggle keys (`[ MONTH ]` and `[ MICRO ]`), and a prominent manual `[ SYNC LOGS ]` trigger button.
   * **Expand All Sets (All Days) Global Toggle:** A visual checkbox option `[x] Expand All Sets` located in the header. Checking this toggle transitions **every** daily card and exercise block across the entire microcycle into their expanded planned-vs-executed set stack at once, allowing complete high-density session review without clicking individual tabs.
-  * **Active Day Highlight Overlay:** The active calendar column (DAY 06) is framed in a high-contrast `--ok-blue` border (`hsl(217, 91%, 60%)`) to instantly establish cognitive anchoring for the viewer.
+  * **Day hover overlay:** Hovering a day shows a compact action overlay (`New session`, `Copy to` when that day has a session, `Notes`) in a reserved in-flow dock. It must not change the in-flow height of the day container. A hovered day stays the same height as at rest. Do not draw an accent inset ring around the day cell (hover or today). Today is the accent date numeral only. Hover fill is quiet `surface-soft` at 180ms, with ~100ms intent before the dock. Copy-to destination rings stay.
+  * **Day notes:** Notes are keyed by calendar date + athlete plan, not weekday. A saved note appears as a distinct card on that day at rest (including empty days with no session). Sibling of session cards under the Day — not nested inside a session chip. Coach Calendar notes follow the athlete switcher.
   * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
 * **Workout Cards Sizing & Functional States:**
   * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
@@ -604,9 +605,9 @@ When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to 
     * **Local Muscular Supercompensation Peak (Green Highlight / `[PEAK]*`)**: Movement-specific readiness rises above baseline. Characterized by high local motor unit recruitment thresholds and minimal local muscle soreness. Ideal timing to schedule heavy singles or e1RM peak tests for that specific movement category.
     * **Local Nervous System Fatigue Valley (`fatigued`)**: Movement-specific readiness deeply depressed below baseline due to recent heavy spinal or upper-body loading cycles. Cap top sets at RPE 8.0, reduce backdown sets by -10% for that exercise to allow targeted localized recovery.
 
-#### 6.1.3 Coach athlete plan selector (relocated roster)
+#### 6.1.3 Coach athlete switcher (relocated roster)
 
-The former Athletes Roster workspace is **not** a top-level tab. Its scope-selection job lives in the left sidebar **Athlete plan** control (`AthleteScopeSelector`). Coach code generate/link remains on Security. Push-program acknowledgement is a Plan actions item on the selector. Deep links `#/roster`, `#/athletes`, and `?view=roster` redirect to `#/calendar?panel=athlete-scope`.
+The former Athletes Roster workspace is **not** a top-level tab. Coaches pick a linked athlete from an unlabeled email switcher in the left sidebar (`AthleteScopeSelector`, `data-testid="athlete-scope-selector"`). Athletes do not see this control — each athlete has one plan. There is no profile factory in the switcher: each athlete registers an account, the coach generates a code on Security, and the athlete enters it. Empty coach list: `Select athlete…`; open list copy `No linked athletes.` plus a Security path for the coach code. Do not label the control **Athlete plan**, do not hint **Your plan** / **Linked**, and do not print Live / Queue / Offline under it (sync is the corner overlay, §10.3). Coach code generate/link remains on Security. Push-program acknowledgement is a Plan actions item on the selector. Deep links `#/roster`, `#/athletes`, and `?view=roster` redirect to `#/calendar?panel=athlete-scope`.
 
 Insights (formerly a hardcoded three-lift tonnage/e1RM strip) is a dedicated workspace of user-composed cards. Card configuration is a structured inspector form. Results come from `POST /api/analytics/query`; the client does not compute RTS metrics for cards. Pattern-scoped cards use the stored `movement_pattern` on each exercise row.
 
@@ -1693,20 +1694,31 @@ The application UI handles API errors with prescriptive user feedback and struct
 +==================================================================================================+
 ```
 
-### 10.3 Global Status Strip
+### 10.3 Global Sync Queue Overlay
+
+Global queue chrome is a **corner overlay**. It is not an in-flow or sticky bar. Mounting or unmounting the chip must not change `offsetTop` of PLAN/LOG, `[data-testid="session-name"]`, or `[data-testid="add-lift"]`. The retired `100vw × 28px` Global Status Strip is not used.
+
+Per-set PENDING / IN_FLIGHT / REJECTED cell badges remain **§10.1 backlog** — this overlay does not replace them.
 
 ##### Dimensional Constraints
-* **Width**: Full horizontal viewport width (`100vw`).
-* **Height**: Fixed static height of `28px` to maintain tight page budget.
-* **Padding & Margins**: Horizontal padding set to `--space-3` (12px).
+* **Positioning**: `position: fixed`. Default `right: 16px; bottom: 16px`. While lock or conflict cards occupy the center stack (`bottom-20`), move **only this chip** to `top: 16px; right: 16px`.
+* **Idle**: unmounted. Do not reserve a 28px spacer.
+* **Syncing**: 32×32 circle (`h-8 w-8`) with spinning `RefreshCw`. Accent `#007AFF`.
+* **Offline / error**: compact pill, max-width `120px`, height `32px`, `text-[11px]` Inter + `tnum`, `border-radius` ≤ `--radius-lg` (`8px`).
+* **z-index**: `z-40` (below `CenteredDialog` / sidebar / lock and conflict cards at `z-50`).
 
 ##### Spatial Allocation
-* **Layout Model**: Flex horizontal row (`display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: var(--space-2);`).
-* **Borders**: Border top bounds set to `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`).
+* **Layout Model**: Overlay, out of document flow, rendered on the `SyncProvider` layer (sibling of `{children}`), never inside `<main>` or a `transform` session wrapper.
+* **Pointer events**: `pointer-events: none` on the chip unless it exposes Retry (`pointer-events: auto` on that control).
+* **Surface**: `--cal-surface-elevated`, `border` `--cal-hairline`. Offline `--cal-warning`. Error `--cal-error`. No blur, dummy nested wrap, gradient orb, or `shadow-2xl` on the spinner.
 
-##### State Transitions (Default vs. Maximized)
-* **Default State**: Sticky bottom edge navigation helper always visible.
-* **Maximized State**: N/A (Always persistent to maintain offline sync confidence).
+##### State Transitions
+* **Priority (locked)**: offline > error > syncing > hidden.
+* **Idle**: hidden (unmounted). `data-testid="sync-status"` count 0.
+* **Offline**: visible even when `pendingCount === 0`. Copy: `Offline — queued locally`. `data-state=offline`.
+* **Error**: online and REJECTED > 0. Copy: `Needs review`. `data-state=error`. Not a spinner. Do not auto-dismiss.
+* **Syncing**: online, pending > 0, no rejected rows. Spinner. `data-state=syncing`. Unmounts when the queue drains (no ACK toast).
+* Conflict review and workout lock stay as their existing overlay cards (`ConflictReviewCard`, `WorkoutLockBanner`). Queue chrome is this overlay only — the sidebar athlete switcher does not show Live / Queue / Offline.
 
 All authenticated app surfaces include compact status:
 
@@ -1718,12 +1730,17 @@ All authenticated app surfaces include compact status:
 | Locked | Current workout has an active writer lock |
 | Staging | Environment label when not production |
 
-#### 10.3.1 Global Status Strip Layout Detail
+#### 10.3.1 Global Sync Queue Overlay Layout Detail
 
 ```
-+--------------------------------------------------------------------------------------------------+
-| [Offline Mode] [Sync: 3 Pending] [● Live SSE Stream] [Workout Locked] [Env: STAGING] [User: Coach] |
-+--------------------------------------------------------------------------------------------------+
++----------------------------------------------------------------------+
+|  session PLAN/LOG (document flow — y-position does not change)       |
+|                                                                      |
+|                                              [ ⟳ ]  syncing 32×32   |
+|                                         or   [ Offline — queued… ]   |
+|                                         or   [ ! Needs review ]      |
+|                                              fixed right/bottom 16px |
++----------------------------------------------------------------------+
 ```
 
 ---
@@ -1748,14 +1765,43 @@ Gym environments introduce specific physical challenges: sweat, dust, low dungeo
 - **Focus Shifts:** Background app suspensions (like telephone calls or battery warnings) trigger automatic storage hydration. Active unsaved state must be persisted to IndexedDB snapshots within **200ms** of focus loss to guarantee zero data loss.
 
 ### 11.4 Power-User Spreadsheet Keyboard Navigation (Desktop Console)
-Coaches designing programs or logging data require high-velocity data-entry models that match standard spreadsheet platforms.
-- **Trigger Mechanic:** Selecting any editable set cell (Reps, RPE, Weight, Baseline, fatigue) opens the inline text input field with programmatically triggered autofocus.
-- **Keyboard Mappings:**
-  - **`Enter` or `ArrowDown`:** Commits the current value, blurs active cell (triggering IndexedDB queueing), and simulates a programmatic `.click()` on the next row's cell in the same column (`rowIndex + 1`).
-  - **`ArrowUp`:** Commits the current value, blurs active cell, and simulates a programmatic `.click()` on the previous row's cell in the same column (`rowIndex - 1`), capped at `rowIndex >= 0`.
-  - **`Escape`:** Cancels the active editing focus state immediately without committing changes.
-- **Visual Smoothness:** Transition clicks must execute under a **50ms** setTimeout buffer. This prevents race conditions during state commit cycles, ensuring focus shifts cleanly without causing layout shifts or scroll jumping.
-- **Mobile Guard:** This spreadsheet pattern is restricted to desktop screen sizes. On touch-screen mobile devices, cell tap triggers invoke the large touch-safe quick adjuster bottom sheet.
+Coaches designing programs or logging data require high-velocity data-entry that matches Google Sheets for the PLAN/LOG set grid only — not a general spreadsheet. Do not add Handsontable, AG Grid, Luckysheet, Univer, FullCalendar, or any grid library.
+
+Each lift’s set table is two header rows so field names sit on the cells:
+
+`#` `%` **Plan** (kg · reps · RPE) copy **Log** (kg · reps · RPE) e1RM Δ% INOL actions
+
+Keyboard grid is still 6-column skip-chrome, row-major:
+
+`plan kg → plan reps → plan rpe → log kg → log reps → log rpe`
+
+then the next set of the **same** lift. Chrome (set #, `%` drop, plan→log copy, RPE/% unit toggle, e1RM, Δ%, INOL, duplicate, delete, lift header, + Set, `use {n}` plan-kg offer) is skipped. There are no `×` or `@` signs between editors. Locked / readonly rows are not in the grid. Do **not** grow `COLS`.
+
+**Plan kg after a log:** After the last logged set on this lift with executed load + reps + RPE yielding e1RM > 0, later Plan kg cells may show `use {n}` (client-derived, not persisted). Empty Plan kg keeps that offer. If Plan kg is already typed and the plate-rounded suggestion differs, still show `use {n}` as an update offer. Tap writes that number; never auto-write. Rows with LOG kg filled get no offer. Locked/readonly: no accept. Not a new column.
+
+**Set `%`:** Column between `#` and Plan. Per-set signed integer percent (`dropPercent` in percentage points, e.g. `−5`). Set 0: no editor — empty/em dash, not `0`. Later sets: compact typed number like kg/reps (skip-chrome, not a 7th Tab cell). No +/- stepper in the cell. No `%` suffix (header already says `%`). Empty later `%` displays empty or 0 without a `%` glyph. `%` scales the e1RM-derived `use {n}` offer: `suggestedWeight = roundToCompetitionPlates(suggestKg × (1 + pct/100))` (example: suggestion 150, `%` = −5 → `use 142.5`). Persist `dropPercent` on the set write path. Do **not** rewrite Plan kg on `%` commit/blur. Tap `use {n}` still writes `plannedWeight`; never auto-write. Logged rows (LOG kg filled) still display stored `%` but get no offer. Committing 0 does not invent kg. Do not persist client-only `adjustment_pct`. New rows start `dropPercent: 0` (`isAuto: false`); do not default extra sets to `−5`. Header: `%`. Locked / readonly: display only (set 0 still blank). There is **no lift-header Adj** control and no ± on `%`.
+
+**Δ%:** Column immediately **right of logged e1RM**, then INOL. Value is e1RM percent `((log e1RM − plan e1RM) / plan e1RM) * 100`, signed, 0 decimal (`+8%`, `-3%`, `0%`). Missing plan or log e1RM → `—`. Not a kg delta and not an RPE delta.
+
+**Two modes**
+- **Selected:** Focus ring (`#007AFF` / `--ok-blue`) on the display cell. No caret. `tabIndex=0` on the active cell, `-1` on others. Arrows move **cells and clamp** (ArrowRight on log rpe stays; no wrap). Tab / Shift+Tab move cells and **wrap** within the lift (`log.rpe` of set `i` → `plan.kg` of set `i+1`; last-set `log.rpe` stays). Enter / F2 begin insert-edit (keep the committed value; caret at end; **do not move**). A printable character begins overwrite-edit (draft starts as that character). Delete / Backspace clear to empty (`"—"`). Home / End jump to the first / last cell of the row. Ctrl/Cmd+C copies the committed display string (empty copies `""`, not the dash). Ctrl/Cmd+V pastes into the cell and commits immediately.
+- **Editing:** Native `<input type="text" inputMode="decimal">` (never `type="number"`). Draft is a **string** until commit. Arrows / Home / End move the **caret** only, including at string edges — they do not commit or change cells. Enter commits and moves **down the same column** into selected; Shift+Enter commits and moves up. Last/first row: commit and **stay** selected (do not create a set). Tab commits and moves right **with wrap**; Shift+Tab left with wrap. Escape cancels, restores the previous committed value, and stays selected on the same cell. Delete / Backspace edit the string. IME composition (`event.isComposing` or `key === 'Process'`) is not treated as a grid command. F2 while editing is a no-op (no formula range mode).
+
+**Click**
+- Click selects. Click does **not** open the editor.
+- Double-click, or a second click on the already-selected cell, starts insert-edit.
+- Click a different editable cell: commit if editing, then **select** the target (do not auto-edit it).
+- Click outside the grid (sidebar, another control): commit if editing.
+
+**Commit**
+- Enter / Tab / click-away parse with `trainingNumber` / `trainingInt`. Empty or invalid → `null` → display `"—"`. Reps are integers after commit. RPE may be `8.5`. Do not parse prescriptions like `5x8@8` in one cell.
+
+**Edges**
+- **Tab ≠ ArrowRight.** Arrows clamp at the first/last cell of the row. Tab wraps `log.rpe` → next set `plan.kg` and stays on last-set `log.rpe`. Enter while editing stays on the last row, same column. Navigating off the bottom does not create sets. After commit+move, the destination is **selected**, not editing. `preventDefault` on Tab / Arrows / Enter when the grid owns focus.
+
+**Mobile Guard:** This Sheets keyboard is restricted to desktop. On touch-screen mobile devices (`<768px` or `maxTouchPoints > 0`), cell tap opens the large touch-safe Quick Adjuster bottom sheet. Do not apply spreadsheet keys to that sheet.
+
+**Out of scope:** range selection, TSV paste, fill handle, formulas, freeze, sheet tabs, Ctrl+Arrow jump, Page Up/Down.
 
 ---
 
@@ -1858,11 +1904,11 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 ### 16.1 Global Acceptance
 
 - [ ] Screen matches the correct role: coach, athlete, integration, or operator.
-- [ ] No marketing hero, decorative background, or nested card layout was introduced.
+- [ ] No marketing hero or decorative background. Nested cards follow the product tree only (`.cursor/scopes/cal-theme/10-nested-cards.md`).
 - [ ] All primary actions are visible without reading explanatory paragraphs.
 - [ ] Online/offline and sync queue state are visible on authenticated PWA screens.
 - [ ] Loading, empty, error, and permission-denied states are implemented.
-- [ ] Numeric training values use tabular/mono styling and include units where needed.
+- [ ] Numeric training values use Inter tabular-nums and include units where needed.
 - [ ] Color is not the only indicator of risk or status.
 - [ ] Mobile layout works at 360px width without horizontal overflow.
 - [ ] Desktop layout works at 1440px width without clipped tables or charts.
@@ -1885,16 +1931,17 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Coach can switch active athlete; Calendar and Sessions reload for that athlete.
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
-- [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise.
-- [ ] Hovering a calendar day shows New session. Existing sessions show Copy to; then click the destination day on the same calendar. New session dialog is name + optional block/week; cancel does not create.
-- [ ] Block/Week labels can be set or changed anytime, including after Copy to. Name/Block/Week edit through a centered dialog (not always-open fields). Empty clears the label.
+- [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise. Sessions cards lead with Name (not ISO date); Day · date are meta; every lift set shows Plan vs Log.
+- [ ] Hovering a calendar day shows a compact overlay: New session; Copy to when a session exists; Notes. The overlay fills a reserved in-flow dock and must not grow the day cell on hover. No accent inset ring on the hovered or today cell. Calendar session chips are name + Day/Week/Block + short lift codes, not kg×reps@RPE. Saved notes show as a distinct day card at rest (empty days included). New session dialog is Name, then a compact Day / Block / Week row (Block/Week optional); cancel does not create. Date is in the dialog title on calendar hover — do not duplicate a date field. At 360px, Name then Day full width then Block|Week is allowed if three columns clip.
+- [ ] Block/Week labels can be set or changed anytime, including after Copy to. Day/Name/Block/Week use the same ComboBox listbox (no native select); Name suggestions never include Day-slot strings (`Day 1` / `D1`). Edit through a centered dialog (not always-open fields). Empty clears the label. Day is a training-slot label (`dayLabel`), not the calendar date.
 - [ ] Copy can duplicate lifts only, or lifts plus logged sets.
 - [ ] Coach or athlete can add squat, bench, deadlift, or accessory to a session.
 - [ ] Coach or athlete can remove a lift from a session; completed sessions stay editable.
 - [ ] Complete does not freeze the session; there is no Open / reopen step.
 - [ ] Lift variations are named with structured chips (High Bar, Pause, Deficit, Beltless) in the Edit lift dialog, compiling a readonly name. Chips are not always-open on the session.
 - [ ] Coach publishes a coach code; athlete enters code to link; unlink keeps athlete plan.
-- [ ] Workout builder uses structured prescription controls, not freeform parsing. Top-set Rx kg is typed; e1RM is a derived readout.
+- [ ] Workout builder uses structured prescription controls, not freeform parsing. Top-set Rx kg is typed; e1RM is a derived readout. After a log, later Plan kg may offer `use {n}` even when kg is already typed if the suggestion differs; tap to apply, never auto-write. No offer on a row with LOG kg. Per-set `%` between `#` and Plan (set 2+ only) scales that row’s `use {n}` offer by `dropPercent` (plate-rounded); Plan kg is unchanged until tap. There is no lift-header Adj. Plan and Log are two-row headers over kg · reps · RPE cells (no `×` `@`). Δ% is e1RM percent immediately right of logged e1RM.
+- [ ] Session screen header: **Name** is the only large identity line (`text-lg` / 600). Day · Week · Block, tonnage, and Edit are muted meta under the name. Complete stays top-right with Coach/Athlete. At 360px Name may wrap; Complete stays reachable. Name never includes Day.
 - [ ] Coach or athlete can reorder lifts with Up/Down; order persists as `lexo_rank`.
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Export and Google Sheets publish flows are separate.

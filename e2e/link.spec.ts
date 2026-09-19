@@ -50,9 +50,12 @@ test('athlete enters coach code in Security to link', async ({ browser, playwrig
     await athletePage.getByTestId('athlete-link-input').fill(code);
     await athletePage.getByTestId('athlete-link-submit').click();
     await expect(athletePage.getByTestId('athlete-link-success')).toBeVisible();
+    await expect(athletePage.getByTestId('athlete-scope-selector')).toHaveCount(0);
 
     await coachPage.reload();
     await expect(coachPage.getByTestId('athlete-scope-selector')).toContainText(athleteEmail);
+    await expect(coachPage.getByTestId('app-sidebar').getByText('Athlete plan')).toHaveCount(0);
+    await expect(coachPage.getByTestId('app-sidebar').getByText('Your plan')).toHaveCount(0);
   } finally {
     await coachPage.close();
     await athletePage.close();

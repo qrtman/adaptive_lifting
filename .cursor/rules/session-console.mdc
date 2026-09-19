@@ -1,0 +1,39 @@
+---
+description: Session console after Cal theme — hover elevation, lift-filter dialog, Name≠Day lists, set-grid headers/Δ%, session header hierarchy, Sessions list scan. Apply when changing those surfaces.
+alwaysApply: true
+---
+
+# Session console (overrides `design.md` where they conflict)
+
+Program **2**. Tokens stay Cal (`cal-theme`). This rule is constructor/layout behavior.
+
+Master map: `.cursor/scopes/session-console/SCOPE.md`  
+Load **one** child scope for the slice. Do not extend `.cursor/scopes/cal-theme/`.
+
+This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RPE, session identity as one equal-weight row, and Sessions cards that lead with ISO date / set-0 mash.
+
+## Locked (do not re-litigate)
+
+| Topic | Verdict |
+| :--- | :--- |
+| Hover cover | **No.** Reserve an in-flow action dock at rest; hover fills it. Do not cover session/note cards. Do not grow the day **on hover**, shrink chips, or overflow into the next day. Week row may grow at rest. Calendar chips are name + Day/Week/Block + short lift codes — no kg×reps@RPE. **No** accent inset ring on the day cell (hover or today). Quiet fill + dock only. Copy-to destination rings stay. |
+| Blur / scrim | **No.** No `backdrop-blur`, no dim wash. |
+| Overlay elevation | Action **buttons only** (not a wrapper card). No translate/scale on the day or the buttons. |
+| Card hover | Session/note chips rest **flat** (surface-card + hairline, no shadow). Pointer on a chip → `--cal-shadow-lift` (+ 1px translate), 180ms. |
+| Lift filter | **Dialog constructor**, not All/SQ/BP/DL pills. Multiple choice per row (OR); AND across lift category × pattern × tier. Match stored fields, not title substrings. No bar/tempo/ROM/gear. |
+| Name list | Never day-slot strings. Name/Day/Block/Week = same ComboBox. Opaque `z-30` list. |
+| Adj | **Gone** from the lift header. `%` column stays. No ± on `%`. |
+| Δ | **e1RM %** `(log − plan) / plan`, column **right of logged e1RM**. No kg Δ, no RPE Δ. |
+| Grid headers | Plan / Log on the row above. kg · reps · RPE as real columns. No `×` `@` between inputs. 6-col keyboard unchanged. |
+| Session header | **Name** is the only large line. Day · Week · Block + tonnage + Edit are muted meta. |
+| Sessions list | **Name** leads. Day · date are meta. Every set is Plan vs Log. No Block/Week inside grouped cards. No `—×5@8`. No `COMPLETED · 0kg`. |
+
+## Agent load order
+
+1. This rule + `SCOPE.md` (index only).
+2. The **one** child (`01-calendar-hover.md` … `06-sessions-list.md`).
+3. Mapped files from that child. Stop.
+
+## Non-goals
+
+Second theme. Telegram Mini App. Sheets. e1RM formula change. Migrating historical titles `"day 1"`. Reintroducing Adj elsewhere.

@@ -3,30 +3,36 @@ from typing import Dict, List
 
 # Bump this and the mirrored constant in src/services/mathEngine.ts together.
 # Shared tests/math_vectors.json.math_version must match; sync 409s on mismatch.
-MATH_VERSION = "linear-decay-v1"
+MATH_VERSION = "linear-decay-v3"
+E1RM_RPE_FLOOR = 5.0
+
+
+def _formula_rpe(rpe: float) -> float:
+    """Clamp formula input only. Persist the athlete's logged RPE unchanged."""
+    return rpe if rpe >= E1RM_RPE_FLOOR else E1RM_RPE_FLOOR
+
 
 def calculate_e1rm_linear_decay(weight: float, reps: int, rpe: float) -> float:
     """
     e1RM = Weight / (1 - 0.03 * (10 - RPE + Reps - 1))
-    Only calculate if RPE >= 6.0 and Reps <= 12.
-    For reps > 6, we apply a constraint (as requested) to cap the metabolic drop-off.
-    We cap the effective drop to max 25% to prevent absurd 1RM projections on high-rep sets.
+    Missing RPE (rpe <= 0) and reps > 12 return raw weight.
+    0 < rpe < E1RM_RPE_FLOOR uses formula RPE 5.0; 5.0 and 5.5 run as entered.
+    No metabolic drop cap: lower formula RPE yields strictly higher e1RM.
     """
     if weight <= 0 or reps <= 0:
         return 0.0
-    if rpe < 6.0 or reps > 12:
-        return weight # Fallback: return raw weight if outside bounds
-        
-    effective_drop_pct = 0.03 * (10 - rpe + reps - 1)
-    
-    # Correction: cap the drop percentage for high-rep sets (e.g. max 25% drop)
-    if effective_drop_pct > 0.25:
-        effective_drop_pct = 0.25
-        
+    if reps > 12:
+        return weight
+    if rpe <= 0:
+        return weight
+
+    formula_rpe = _formula_rpe(rpe)
+    effective_drop_pct = 0.03 * (10 - formula_rpe + reps - 1)
+
     denominator = 1.0 - effective_drop_pct
     if denominator <= 0.1:
         return weight
-        
+
     return round(weight / denominator, 2)
 
 # Architecture contract name (calculateE1RM). Same function as linear decay.

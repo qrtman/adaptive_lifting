@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { apiService } from '../services/api';
 import {
   CATALOG_EXERCISES,
@@ -8,8 +8,12 @@ import {
   type ExerciseCategory,
 } from '../services/exerciseCatalog';
 import { compileVariation, defaultModifiers } from '../services/liftVariation';
-import { CenteredDialog } from './CenteredDialog';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { LiftVariationPicker } from './LiftVariationPicker';
+
+const FIELD =
+  'h-8 px-2 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-xs text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
+const LABEL = 'text-[10px] uppercase tracking-wider text-[var(--cal-muted)]';
 
 export function AddLiftBar({
   sessionId,
@@ -27,15 +31,46 @@ export function AddLiftBar({
   const [tier, setTier] = useState<'Comp' | 'Variation' | 'Accessory'>('Comp');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const customRef = useRef<HTMLInputElement>(null);
 
+  const userDefined = category === 'User Defined';
   const options = useMemo(() => filterCatalog(category, search), [category, search]);
   const selected: CatalogExercise | null = useMemo(() => {
-    if (category === 'User Defined') {
+    if (userDefined) {
       const name = customName.trim() || 'Accessory';
       return { name, category: 'User Defined', movementPattern: 'Misc', liftCategory: 'Other', tier: 'Accessory' };
     }
+    if (!exerciseName || !options.some((item) => item.name === exerciseName)) return null;
     return CATALOG_EXERCISES.find((item) => item.name === exerciseName) ?? null;
-  }, [category, customName, exerciseName]);
+  }, [userDefined, customName, exerciseName, options]);
+
+  useEffect(() => {
+    if (userDefined) return;
+    if (exerciseName && !options.some((item) => item.name === exerciseName)) {
+      setExerciseName('');
+      setVariation('');
+    }
+  }, [userDefined, exerciseName, options]);
+
+  useEffect(() => {
+    setHighlightIndex((current) => {
+      if (options.length === 0) return 0;
+      const selectedIndex = options.findIndex((item) => item.name === exerciseName);
+      if (selectedIndex >= 0) return selectedIndex;
+      return Math.min(current, options.length - 1);
+    });
+  }, [options, exerciseName]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (userDefined) customRef.current?.focus();
+      else searchRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, userDefined]);
 
   const reset = () => {
     setCategory('');
@@ -45,6 +80,7 @@ export function AddLiftBar({
     setVariation('');
     setTier('Comp');
     setError(null);
+    setHighlightIndex(0);
   };
 
   const pickExercise = (name: string) => {
@@ -54,6 +90,29 @@ export function AddLiftBar({
     if (!category) setCategory(item.category);
     setVariation(compileVariation(item.name, defaultModifiers(item.liftCategory)));
     setTier(item.tier);
+    const nextIndex = options.findIndex((row) => row.name === name);
+    if (nextIndex >= 0) setHighlightIndex(nextIndex);
+  };
+
+  const pickHighlighted = () => {
+    const item = options[highlightIndex] ?? options[0];
+    if (item) pickExercise(item.name);
+  };
+
+  const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLDivElement>) => {
+    if (userDefined) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (options.length === 0) return;
+      setHighlightIndex((current) => Math.min(options.length - 1, current + 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (options.length === 0) return;
+      setHighlightIndex((current) => Math.max(0, current - 1));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      pickHighlighted();
+    }
   };
 
   const addLift = async () => {
@@ -79,7 +138,7 @@ export function AddLiftBar({
   };
 
   return (
-    <div className="px-2 py-3 border-t border-white/10">
+    <div className="px-2 py-3 border-t border-[var(--cal-hairline)]">
       <button
           type="button"
           data-testid="add-lift"
@@ -87,7 +146,7 @@ export function AddLiftBar({
             reset();
             setOpen(true);
           }}
-          className="h-8 px-3 text-xs text-white bg-white/10 rounded"
+          className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)]"
         >
           Add lift
         </button>
@@ -103,7 +162,7 @@ export function AddLiftBar({
                 type="button"
                 data-testid="add-lift-cancel"
                 onClick={() => setOpen(false)}
-                className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+                className="h-8 px-3 text-xs text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
               >
                 Cancel
               </button>
@@ -112,17 +171,19 @@ export function AddLiftBar({
                 data-testid="add-lift-confirm"
                 disabled={busy || !selected}
                 onClick={() => void addLift()}
-                className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+                className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
               >
                 {busy ? 'Adding…' : 'Confirm'}
               </button>
             </>
           )}
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <NestedCard testId="add-lift-exercise-card">
+            <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Category</span>
+                <span className={LABEL}>Category</span>
                 <select
                   data-testid="add-lift-category"
                   value={category}
@@ -131,8 +192,9 @@ export function AddLiftBar({
                     setCategory(next);
                     setExerciseName('');
                     setVariation('');
+                    setHighlightIndex(0);
                   }}
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className={FIELD}
                 >
                   <option value="">—</option>
                   {EXERCISE_CATEGORIES.map((item) => (
@@ -140,21 +202,50 @@ export function AddLiftBar({
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Search Exercises</span>
-                <input
-                  data-testid="add-lift-search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search"
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
-                />
-              </label>
+              <div className="flex flex-col gap-1">
+                <span className={LABEL}>Search Exercises</span>
+                <div className="relative">
+                  <input
+                    ref={searchRef}
+                    data-testid="add-lift-search"
+                    value={search}
+                    disabled={userDefined}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setHighlightIndex(0);
+                    }}
+                    onKeyDown={onSearchKeyDown}
+                    placeholder="Search"
+                    autoFocus
+                    aria-controls="add-lift-results"
+                    aria-autocomplete="list"
+                    className={`w-full pr-7 ${FIELD} disabled:opacity-40`}
+                  />
+                  {search && !userDefined ? (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => {
+                        setSearch('');
+                        setHighlightIndex(0);
+                        searchRef.current?.focus();
+                      }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                {userDefined ? (
+                  <p className="text-[11px] text-[var(--cal-muted)]">Catalog search does not apply. Name this lift.</p>
+                ) : null}
+              </div>
             </div>
-            {category === 'User Defined' ? (
+            {userDefined ? (
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <span className={LABEL}>Exercise</span>
                 <input
+                  ref={customRef}
                   data-testid="add-lift-custom-name"
                   value={customName}
                   onChange={(event) => {
@@ -163,28 +254,59 @@ export function AddLiftBar({
                     setTier('Accessory');
                   }}
                   placeholder="Name this lift"
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className={FIELD}
                 />
               </label>
+            ) : options.length === 0 ? (
+              <p className="text-xs text-[var(--cal-muted)]" data-testid="add-lift-no-results">
+                No catalog matches. Clear search, change category, or pick User Defined to name a custom lift.
+              </p>
             ) : (
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
-                <select
-                  data-testid="add-lift-exercise"
-                  value={exerciseName}
-                  onChange={(event) => pickExercise(event.target.value)}
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+              <div className="flex flex-col gap-1">
+                <span className={LABEL}>Exercise</span>
+                <div
+                  id="add-lift-results"
+                  role="listbox"
+                  tabIndex={0}
+                  aria-label="Catalog exercises"
+                  data-testid="add-lift-results"
+                  onKeyDown={onSearchKeyDown}
+                  className="max-h-48 overflow-y-auto cal-nested-card cal-nested-flush outline-none"
+                  data-elevated="true"
                 >
-                  <option value="">Select exercise</option>
-                  {options.map((item) => (
-                    <option key={`${item.category}-${item.name}`} value={item.name}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  {options.map((item, index) => {
+                    const active = index === highlightIndex;
+                    const isSelected = item.name === exerciseName;
+                    return (
+                      <button
+                        key={`${item.category}-${item.name}`}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        aria-label={item.name}
+                        data-testid={`add-lift-result-${item.name}`}
+                        onMouseEnter={() => setHighlightIndex(index)}
+                        onClick={() => pickExercise(item.name)}
+                        className={`w-full px-2 py-1.5 text-left ${
+                          active
+                            ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                            : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]'
+                        }`}
+                      >
+                        <span className="block text-xs">{item.name}</span>
+                        <span className="block text-[10px] text-[var(--cal-muted-soft)]" aria-hidden="true">
+                          {item.movementPattern}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
+            </div>
+            </NestedCard>
             {selected ? (
+              <NestedCard testId="add-lift-modifiers-card">
               <LiftVariationPicker
                 title={selected.name}
                 variation={variation || compileVariation(selected.name, defaultModifiers(selected.liftCategory))}
@@ -194,11 +316,12 @@ export function AddLiftBar({
                   if (selected.tier !== 'Accessory') setTier(patch.tier);
                 }}
               />
+              </NestedCard>
             ) : (
-              <p className="text-xs text-[#AEAEB2]">Select an exercise to configure modifiers.</p>
+              <p className="text-xs text-[var(--cal-muted)]">Select an exercise to configure modifiers.</p>
             )}
             {error && (
-              <p className="text-xs text-[#FF453A]" data-testid="add-lift-error">{error}</p>
+              <p className="text-xs text-[var(--cal-error)]" data-testid="add-lift-error">{error}</p>
             )}
           </div>
         </CenteredDialog>

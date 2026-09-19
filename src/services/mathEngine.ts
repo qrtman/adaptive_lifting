@@ -6,7 +6,12 @@
 
 import { trainingIntOrZero, trainingOrZero } from './numericTraining';
 
-export const MATH_VERSION = 'linear-decay-v1';
+export const MATH_VERSION = 'linear-decay-v3';
+export const E1RM_RPE_FLOOR = 5.0;
+
+function formulaRpe(rpe: number): number {
+  return rpe >= E1RM_RPE_FLOOR ? rpe : E1RM_RPE_FLOOR;
+}
 
 export const RPE_CHART: Record<number, Record<number, number>> = {
   1:  { 10: 1.00, 9.5: 0.978, 9: 0.955, 8.5: 0.932, 8: 0.91, 7.5: 0.892, 7: 0.875, 6.5: 0.858, 6: 0.841 },
@@ -38,10 +43,11 @@ export function getRpePercentage(reps: number, rpe: number): number {
 /** Mirrors calculate_e1rm_linear_decay in backend/math_utils.py */
 export function calculateE1RM(weight: number, reps: number, rpe: number): number {
   if (weight <= 0 || reps <= 0) return 0;
-  if (rpe < 6.0 || reps > 12) return weight;
+  if (reps > 12) return weight;
+  if (rpe <= 0) return weight;
 
-  let effectiveDropPct = 0.03 * (10 - rpe + reps - 1);
-  if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
+  const formulaRpeValue = formulaRpe(rpe);
+  const effectiveDropPct = 0.03 * (10 - formulaRpeValue + reps - 1);
 
   const denominator = 1.0 - effectiveDropPct;
   if (denominator <= 0.1) return weight;
@@ -240,11 +246,12 @@ export function calculateCapacityScaledWeight(
 
 /** Inverse of calculateE1RM linear decay, for prescription preview. */
 export function calculateWeightFromE1RM(e1RM: number, reps: number, rpe: number): number {
-  if (!e1RM || !reps || !rpe) return 0;
-  if (rpe < 6.0 || reps > 12) return e1RM;
+  if (!e1RM || !reps) return 0;
+  if (reps > 12) return e1RM;
+  if (rpe <= 0) return 0;
 
-  let effectiveDropPct = 0.03 * (10 - rpe + reps - 1);
-  if (effectiveDropPct > 0.25) effectiveDropPct = 0.25;
+  const formulaRpeValue = formulaRpe(rpe);
+  const effectiveDropPct = 0.03 * (10 - formulaRpeValue + reps - 1);
 
   const denominator = 1.0 - effectiveDropPct;
   if (denominator <= 0.1) return e1RM;

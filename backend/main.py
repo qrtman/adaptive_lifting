@@ -17,6 +17,7 @@ from .database import (
     User,
     CoachingRelationship,
     InviteCode,
+    DayNote,
 )
 from .runtime_config import (
     JWT_KID_CURRENT,
@@ -475,12 +476,11 @@ def format_exercise(e: Exercise) -> dict:
             "isAuto": s.isAuto,
             "isTop": s.isTop,
             "intensityType": getattr(s, "intensity_type", None) or "RPE",
+            "dropPercent": coerce_float(s.dropPercent) if s.dropPercent is not None else 0,
         }
         planned_preview = getattr(s, "planned", None)
         if planned_preview is not None:
             set_dict["planned"] = planned_preview
-        if s.dropPercent is not None:
-            set_dict["dropPercent"] = s.dropPercent
         if s.note is not None:
             set_dict["note"] = s.note
         sets_list.append(set_dict)
@@ -563,6 +563,17 @@ def resolve_athlete_id(current_user: User, athlete_id: Optional[str]) -> str:
     if not athlete_id:
         raise HTTPException(status_code=400, detail="athlete_id is required for coaches")
     return athlete_id
+
+
+def resolve_plan_owner(db: Session, current_user: User, athlete_id: Optional[str]) -> str:
+    """RBAC like microcycles: athletes 403 on another athlete_id; coaches need a linked athlete."""
+    if current_user.role == "ATHLETE":
+        target = athlete_id or current_user.id
+        assert_plan_access(db, current_user, target)
+        return current_user.id
+    target = resolve_athlete_id(current_user, athlete_id)
+    assert_plan_access(db, current_user, target)
+    return target
 
 
 def require_iso_date(value: str) -> str:
@@ -1326,6 +1337,7 @@ def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends
         "metadata_json": e.metadata_json
     } for e in events]
 
+
 class CreateSessionRequest(BaseModel):
     date: str
     title: Optional[str] = "Session"
@@ -1361,6 +1373,7 @@ class CopyWeekRequest(BaseModel):
     targetBlockLabel: Optional[str] = None
     targetWeekLabel: Optional[str] = None
     includeLogs: bool = False
+    preserveWeekLabel: bool = False
 
 
 ALLOWED_LIFT_CATEGORIES = {"Squat", "Bench", "Deadlift", "Other"}
@@ -1407,6 +1420,7 @@ class PlannedSetWrite(BaseModel):
     actual: Optional[float] = None
     reps: Optional[int] = None
     executedRpe: Optional[float] = None
+    dropPercent: Optional[float] = None
 
 
 class ReplaceExerciseSetsRequest(BaseModel):
@@ -1459,6 +1473,16 @@ def next_week_label(week: Optional[str]) -> Optional[str]:
     return f"{prefix}{int(digits) + 1}"
 
 
+_ISO_DAY_LABEL = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def clone_day_label(source_label: Optional[str], new_date: str) -> str:
+    raw = (source_label or "").strip()
+    if not raw or _ISO_DAY_LABEL.fullmatch(raw):
+        return new_date
+    return raw
+
+
 def clone_session_prescription(
     db: Session,
     source: Workout,
@@ -1470,7 +1494,7 @@ def clone_session_prescription(
     clone = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
         date=new_date,
-        dayLabel=new_date,
+        dayLabel=clone_day_label(source.dayLabel, new_date),
         title=source.title,
         tonnage=source.tonnage if include_logs else 0.0,
         delta=0.0,
@@ -1554,7 +1578,12 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
     created = []
     for source in sources:
         target_block = req.targetBlockLabel if req.targetBlockLabel is not None else source.block_label
-        target_week = req.targetWeekLabel if req.targetWeekLabel is not None else next_week_label(source.week_label)
+        if req.targetWeekLabel is not None:
+            target_week = req.targetWeekLabel
+        elif req.preserveWeekLabel:
+            target_week = source.week_label
+        else:
+            target_week = next_week_label(source.week_label)
         clone = clone_session_prescription(
             db,
             source,
@@ -1622,6 +1651,79 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), cur
         "ownerId": workout.owner_id,
         "exercises": [],
     }
+
+
+DAY_NOTE_MAX_LEN = 2000
+
+
+class UpsertDayNoteRequest(BaseModel):
+    date: str
+    body: Optional[str] = ""
+    athleteId: Optional[str] = None
+
+
+def format_day_note(note: DayNote) -> dict:
+    return {
+        "id": note.id,
+        "date": note.date,
+        "body": note.body,
+        "ownerId": note.owner_id,
+    }
+
+
+@app.get("/api/day-notes")
+def list_day_notes(
+    athlete_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    target_id = resolve_plan_owner(db, current_user, athlete_id)
+    rows = db.query(DayNote).filter(
+        DayNote.owner_id == target_id,
+        DayNote.deleted_at.is_(None),
+    ).order_by(DayNote.date.asc()).all()
+    return {"notes": [format_day_note(row) for row in rows if (row.body or "").strip()]}
+
+
+@app.put("/api/day-notes")
+def upsert_day_note(
+    req: UpsertDayNoteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    athlete_id = resolve_plan_owner(db, current_user, req.athleteId)
+    note_date = require_iso_date(req.date)
+    body = (req.body or "").strip()
+    if len(body) > DAY_NOTE_MAX_LEN:
+        raise HTTPException(status_code=400, detail=f"Note must be {DAY_NOTE_MAX_LEN} characters or fewer")
+
+    row = db.query(DayNote).filter(
+        DayNote.owner_id == athlete_id,
+        DayNote.date == note_date,
+    ).first()
+    now = datetime.utcnow()
+    if not body:
+        if row and row.deleted_at is None:
+            row.deleted_at = now
+            row.body = ""
+            db.commit()
+        return {"id": row.id if row else None, "date": note_date, "body": None, "ownerId": athlete_id}
+
+    if row:
+        row.body = body
+        row.deleted_at = None
+        row.updated_at = now
+    else:
+        row = DayNote(
+            id=f"dn-{uuid.uuid4().hex[:10]}",
+            owner_id=athlete_id,
+            date=note_date,
+            body=body,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return format_day_note(row)
 
 
 @app.post("/api/sessions/{session_id}/exercises")

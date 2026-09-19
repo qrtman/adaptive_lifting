@@ -1,6 +1,7 @@
-import { Calendar, BarChart3, Link2, Settings, List, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Calendar, BarChart3, Link2, Settings, List, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import type { ThemePreference } from '../theme/themePref';
 import type { DashboardMode } from '../navigation';
 import { AthleteScopeSelector } from './AthleteScopeSelector';
 
@@ -46,13 +47,15 @@ function NavButton({
       data-testid={testId}
       title={label}
       onClick={() => onNavigate(mode)}
-      className={`w-full px-2 h-8 rounded flex items-center gap-2 text-left text-[13px] ${
+      className={`w-full px-2 h-8 rounded-[var(--cal-radius-md)] flex items-center gap-2 text-left text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
         collapsed ? 'justify-center' : ''
       } ${
-        active ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white hover:bg-white/5'
+        active
+          ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)] border border-[var(--cal-hairline)]'
+          : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] border border-transparent'
       }`}
     >
-      <Icon size={14} className={active ? 'text-[#007AFF]' : ''} />
+      <Icon size={14} className={active ? 'text-[var(--cal-accent)]' : ''} />
       {!collapsed && label}
     </button>
   );
@@ -65,6 +68,8 @@ export const Sidebar = ({
   onToggleCollapse,
   focusAthleteScope = false,
   onAthleteScopeFocused,
+  theme,
+  onToggleTheme,
 }: {
   dashboardMode: DashboardMode;
   onNavigate: (mode: DashboardMode) => void;
@@ -72,6 +77,8 @@ export const Sidebar = ({
   onToggleCollapse: () => void;
   focusAthleteScope?: boolean;
   onAthleteScopeFocused?: () => void;
+  theme: ThemePreference;
+  onToggleTheme: () => void;
 }) => {
   const { user, roleMode, signOut } = useAuth();
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
@@ -81,11 +88,13 @@ export const Sidebar = ({
     <aside
       data-testid="app-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
-      className={`fixed left-0 top-0 h-screen ${widthClass} bg-[#131313] border-r border-white/10 flex flex-col py-4 z-50`}
+      className={`fixed left-0 top-0 h-screen ${widthClass} bg-[var(--cal-canvas)] border-r border-[var(--cal-hairline)] flex flex-col py-[var(--cal-space-md)] z-50`}
     >
-      <div className={`mb-4 flex items-center ${collapsed ? 'justify-center' : 'px-2 justify-between gap-2'}`}>
+      <div className={`mb-[var(--cal-space-md)] flex items-center ${collapsed ? 'justify-center' : 'px-2 justify-between gap-2'}`}>
         {!collapsed && (
-          <h1 className="text-xs font-semibold text-white tracking-wide uppercase truncate">Adaptive Lifting</h1>
+          <h1 className="text-[13px] font-semibold text-[var(--cal-ink)] tracking-tight truncate">
+            Adaptive Lifting
+          </h1>
         )}
         <button
           type="button"
@@ -93,7 +102,7 @@ export const Sidebar = ({
           aria-pressed={collapsed}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           onClick={onToggleCollapse}
-          className="h-8 w-8 flex items-center justify-center text-[#AEAEB2] hover:text-white"
+          className="h-8 w-8 flex items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
         >
           {collapsed ? <PanelLeft size={14} /> : <PanelLeftClose size={14} />}
         </button>
@@ -106,7 +115,7 @@ export const Sidebar = ({
         onNavigate={onNavigate}
       />
 
-      <nav className="flex-1 flex flex-col gap-4">
+      <nav className="flex-1 flex flex-col gap-[var(--cal-space-md)] overflow-y-auto">
         <div className="flex flex-col gap-0.5">
           {PRIMARY.map((item) => (
             <NavButton
@@ -120,7 +129,7 @@ export const Sidebar = ({
         </div>
         <div className="flex flex-col gap-0.5">
           {!collapsed && (
-            <p className="px-2 pb-1 text-[10px] text-[#636366] uppercase tracking-wider">Ops</p>
+            <p className="px-2 pb-1 text-[10px] text-[var(--cal-muted)] uppercase tracking-wider">Ops</p>
           )}
           {OPS.map((item) => (
             <NavButton
@@ -134,14 +143,37 @@ export const Sidebar = ({
         </div>
       </nav>
 
-      <div className={`pt-3 border-t border-white/10 flex flex-col gap-1 ${collapsed ? 'items-center px-1' : 'px-2'}`}>
+      <div
+        className={`pt-[var(--cal-space-sm)] border-t border-[var(--cal-hairline)] flex flex-col gap-1 ${
+          collapsed ? 'items-center px-1' : 'px-2'
+        }`}
+      >
         {!collapsed && (
           <>
-            <p className="text-xs text-white truncate">{email}</p>
-            <p className="text-[11px] text-[#AEAEB2] capitalize">{roleMode}</p>
+            <p className="text-xs text-[var(--cal-ink)] truncate">{email}</p>
+            <p className="text-[11px] text-[var(--cal-muted)] capitalize">{roleMode}</p>
           </>
         )}
-        <button type="button" onClick={signOut} className="text-left text-[12px] text-[#AEAEB2] hover:text-white h-7">
+        <button
+          type="button"
+          data-testid="theme-toggle"
+          aria-label={theme === 'light' ? 'Dark' : 'Light'}
+          title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
+          onClick={onToggleTheme}
+          className={`flex items-center gap-2 text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] h-7 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
+            collapsed ? 'justify-center w-full' : 'text-left w-full'
+          }`}
+        >
+          {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+          {!collapsed && (theme === 'light' ? 'Dark' : 'Light')}
+        </button>
+        <button
+          type="button"
+          onClick={signOut}
+          className={`text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] h-7 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
+            collapsed ? 'w-full text-center' : 'text-left w-full'
+          }`}
+        >
           {collapsed ? 'Out' : 'Sign out'}
         </button>
       </div>

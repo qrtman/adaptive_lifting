@@ -14,8 +14,13 @@ import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
-import { UI_KEYS, getUiPref, setUiPref } from './storage/uiPrefs';
+import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
+import { parseLiftFilter, type LiftFilterState } from './services/liftFilter';
+import { readThemePref, applyThemeToDocument, setThemePref, toggleTheme } from './theme/themePref';
+import type { ThemePreference } from './theme/themePref';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
+import { type CopyClipboard } from './features/plan/copyClipboard';
+import { formatPlanLabel } from './features/plan/sessionLabels';
 
 export default function App() {
   const { user, roleMode, setRoleMode } = useAuth();
@@ -41,9 +46,18 @@ export default function App() {
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => initialLocation.mode);
   const [focusAthleteScope, setFocusAthleteScope] = useState(() => initialLocation.panel === 'athlete-scope');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
+  const [theme, setTheme] = useState<ThemePreference>(() => readThemePref());
 
-  const [filter, setFilter] = useState<'All' | 'Squat' | 'Bench' | 'Deadlift'>('All');
+  const [filter, setFilter] = useState<LiftFilterState>(() => parseLiftFilter(getUiPref(UI_KEYS.liftFilter)));
   const [editSessionOpen, setEditSessionOpen] = useState(false);
+  const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
+  const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
+  const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
+  const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
+
+  useEffect(() => {
+    if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
+  }, [initialLocation.athleteId, setActiveAthleteId]);
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -67,8 +81,21 @@ export default function App() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    setUiPref(UI_KEYS.liftFilter, JSON.stringify(filter));
+  }, [filter]);
+
+  useEffect(() => {
+    applyThemeToDocument(theme);
+    setThemePref(theme);
+  }, [theme]);
+
+  useEffect(() => {
     if (focusAthleteScope && sidebarCollapsed) setSidebarCollapsed(false);
   }, [focusAthleteScope, sidebarCollapsed]);
+
+  useEffect(() => {
+    setCopyClipboard(null);
+  }, [planAthleteId]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -87,6 +114,17 @@ export default function App() {
     setCurrentView('dashboard');
     if (mode !== 'calendar') setFocusAthleteScope(false);
   };
+
+  const startCopy = (clip: CopyClipboard) => {
+    const uniqueBlocks = [...new Set(Object.values(clip.sourceBlocks).filter(Boolean))];
+    if (uniqueBlocks.length === 1) setRecentBlock(planAthleteId, uniqueBlocks[0]);
+    else if (clip.targetBlockLabel) setRecentBlock(planAthleteId, clip.targetBlockLabel);
+    setCopyClipboard(clip);
+    setDashboardMode('calendar');
+    setCurrentView('dashboard');
+  };
+
+  const clearCopy = () => setCopyClipboard(null);
 
   const handleViewSession = (workout: { id: string }, microId: string) => {
     setActiveWorkoutId(workout.id);
@@ -142,6 +180,8 @@ export default function App() {
       onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
       focusAthleteScope={focusAthleteScope}
       onAthleteScopeFocused={() => setFocusAthleteScope(false)}
+      theme={theme}
+      onToggleTheme={() => setTheme((current) => toggleTheme(current))}
     >
         <AnimatePresence mode="wait">
           {currentView === 'dashboard' ? (
@@ -159,12 +199,16 @@ export default function App() {
                     onViewSession={handleViewSession}
                     filter={filter}
                     onFilterChange={setFilter}
+                    copyClipboard={copyClipboard}
+                    onStartCopy={startCopy}
+                    onClearCopy={clearCopy}
                   />
                 ) : dashboardMode === 'sessions' ? (
                   <SessionsView 
                     onViewSession={handleViewSession}
                     filter={filter}
                     onFilterChange={setFilter}
+                    onStartCopy={startCopy}
                   />
                 ) : dashboardMode === 'insights' ? (
                   <InsightsView />
@@ -185,44 +229,50 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.12 }}
-              className="flex-1 overflow-y-auto p-1 bg-[#0A0A0A]"
+              className="flex-1 overflow-y-auto p-1 bg-[var(--cal-canvas)]"
             >
               {activeWorkout ? (
                 <>
-                  <div id="training-focus" className="min-h-7 flex flex-wrap items-center justify-between gap-2 px-1">
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <div id="training-focus" className="min-h-8 flex flex-wrap items-start justify-between gap-2 px-1">
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
                         <button 
                           onClick={() => {
                             setEditSessionOpen(false);
                             setCurrentView('dashboard');
                           }}
-                          className="text-xs text-[#AEAEB2] hover:text-white shrink-0"
+                          className="text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0 mt-1"
                         >
                           Back
                         </button>
-                        <p data-testid="session-name" className="text-sm text-white truncate max-w-[220px]">
-                          {activeWorkout.title}
-                        </p>
-                        <p data-testid="workout-tonnage" className="text-[11px] text-[#AEAEB2] font-mono shrink-0">
-                          {activeWorkout.tonnage}kg
-                        </p>
-                        <p data-testid="session-labels" className="text-[11px] text-[#AEAEB2] truncate">
-                          {[activeWorkout.blockLabel, activeWorkout.weekLabel].filter(Boolean).join(' · ') || 'No block/week'}
-                        </p>
-                        <button
-                          type="button"
-                          data-testid="session-edit"
-                          onClick={() => setEditSessionOpen(true)}
-                          className="h-7 px-2 text-[11px] text-[#AEAEB2] hover:text-white"
-                        >
-                          Edit
-                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p data-testid="session-name" className="text-lg font-semibold tracking-tight text-[var(--cal-ink)] break-words">
+                            {activeWorkout.title}
+                          </p>
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+                            <p data-testid="session-labels" className="text-xs text-[var(--cal-muted)] min-w-0">
+                              {[sessionDayLabel, sessionWeekLabel, sessionBlockLabel].filter(Boolean).join(' · ')}
+                              {sessionDayLabel && !sessionWeekLabel && !sessionBlockLabel ? ' · ' : null}
+                              {!sessionWeekLabel && !sessionBlockLabel ? 'No block/week' : null}
+                            </p>
+                            <p data-testid="workout-tonnage" className="text-[11px] text-[var(--cal-muted)] tnum shrink-0">
+                              {activeWorkout.tonnage} kg
+                            </p>
+                            <button
+                              type="button"
+                              data-testid="session-edit"
+                              onClick={() => setEditSessionOpen(true)}
+                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 ml-auto">
                       <button
                         onClick={() => setRoleMode('coach')}
                         className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'coach' ? 'text-white' : 'text-[#AEAEB2]'
+                          roleMode === 'coach' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
                         }`}
                       >
                         Coach
@@ -230,7 +280,7 @@ export default function App() {
                       <button
                         onClick={() => setRoleMode('athlete')}
                         className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'athlete' ? 'text-white' : 'text-[#AEAEB2]'
+                          roleMode === 'athlete' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
                         }`}
                       >
                         Athlete
@@ -246,7 +296,7 @@ export default function App() {
                             alert(err instanceof Error ? err.message : 'Failed to complete session');
                           }
                         }}
-                        className="h-7 px-2 text-[11px] bg-[#34C759] text-black rounded"
+                        className="h-7 px-2 text-[11px] bg-[var(--cal-primary)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)]"
                       >
                         Complete
                       </button>
@@ -255,7 +305,7 @@ export default function App() {
 
                   <div>
                     {activeWorkout.exercises.length === 0 && (
-                      <p className="px-2 py-6 text-xs text-[#AEAEB2]" data-testid="session-empty-lifts">
+                      <p className="px-2 py-6 text-xs text-[var(--cal-muted)]" data-testid="session-empty-lifts">
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
                     )}
@@ -302,11 +352,11 @@ export default function App() {
                 </>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20 px-4">
-                    <p className="text-sm text-white">No session open</p>
-                    <p className="text-xs text-[#AEAEB2] mt-2">Pick a day on the calendar or a session in the list.</p>
+                    <p className="text-sm text-[var(--cal-ink)]">No session open</p>
+                    <p className="text-xs text-[var(--cal-muted)] mt-2">Pick a day on the calendar or a session in the list.</p>
                     <button 
                       onClick={() => setCurrentView('dashboard')}
-                      className="mt-6 h-8 px-3 bg-[#007AFF] text-white rounded text-sm"
+                      className="mt-6 h-8 px-3 bg-[var(--cal-primary)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] text-sm"
                     >
                       Back
                     </button>
