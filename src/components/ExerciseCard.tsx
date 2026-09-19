@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Trash2, Copy } from 'lucide-react';
+import { ArrowRight, Trash2, Copy, Plus } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor, MovementPatternSelect } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
@@ -548,27 +548,29 @@ export const ExerciseCard = ({
           <tfoot>
             <tr className="border-t border-[var(--cal-hairline-soft)]">
               <td colSpan={2} />
-              <td colSpan={3} className="px-2 py-1">
+              <td colSpan={3} className="px-2 py-1 text-center">
                 <button
                   type="button"
                   data-testid={`add-plan-set-${id}`}
                   onClick={() => addSet('plan')}
                   title={`Add a blank plan set to ${title}`}
-                  className="h-6 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-sm)]"
+                  className="inline-flex h-7 items-center justify-center gap-1.5 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] px-2.5 text-[11px] font-medium text-[var(--cal-ink)] shadow-[var(--cal-shadow-soft)] transition-colors hover:border-[var(--cal-accent)] hover:bg-[var(--cal-surface-card)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] active:translate-y-px"
                 >
-                  + Plan set
+                  <Plus size={12} strokeWidth={2} aria-hidden="true" />
+                  <span>Plan set</span>
                 </button>
               </td>
               <td />
-              <td colSpan={3} className="px-2 py-1">
+              <td colSpan={3} className="px-2 py-1 text-center">
                 <button
                   type="button"
                   data-testid={`add-log-set-${id}`}
                   onClick={() => addSet('log')}
                   title={`Add a blank log set to ${title}`}
-                  className="h-6 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-sm)]"
+                  className="inline-flex h-7 items-center justify-center gap-1.5 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] px-2.5 text-[11px] font-medium text-[var(--cal-ink)] shadow-[var(--cal-shadow-soft)] transition-colors hover:border-[var(--cal-accent)] hover:bg-[var(--cal-surface-card)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] active:translate-y-px"
                 >
-                  + Log set
+                  <Plus size={12} strokeWidth={2} aria-hidden="true" />
+                  <span>Log set</span>
                 </button>
               </td>
               <td colSpan={4} />
