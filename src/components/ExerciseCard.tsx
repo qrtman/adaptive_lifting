@@ -189,6 +189,24 @@ export const ExerciseCard = ({
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
 
   const addSet = (target: 'plan' | 'log') => {
+    const counterpartScope = target === 'plan' ? 'log' : 'plan';
+    const counterpartIndex = sets.findIndex((set) => set.scope === counterpartScope);
+    if (counterpartIndex >= 0) {
+      const pairedSets = [...sets];
+      pairedSets[counterpartIndex] = {
+        ...pairedSets[counterpartIndex],
+        scope: 'both',
+      };
+      updateAndPropagate(pairedSets);
+      setGrid({
+        row: counterpartIndex,
+        col: target === 'plan' ? 0 : 3,
+        mode: 'selected',
+        overwrite: false,
+      });
+      return;
+    }
+
     const nextRow = sets.length;
     updateAndPropagate([...sets, {
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
