@@ -76,7 +76,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
           grid={repsGrid}
         />
       </td>
-      <td className={tdClass}>
+      <td className={`${tdClass} pr-0`}>
         <div className="flex items-center gap-0.5">
           <EditablePerformanceCell
             value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
