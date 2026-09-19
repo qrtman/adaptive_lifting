@@ -174,6 +174,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     const payload = updatedSets.map((row, index) => ({
       id: row.id,
       label: row.label || `Set ${index + 1}`,
+      scope: row.scope ?? 'both',
       plannedWeight: row.plannedWeight ?? null,
       plannedReps: row.plannedReps ?? null,
       plannedRpe: row.target_value ?? row.plannedRpe ?? null,

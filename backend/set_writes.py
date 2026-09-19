@@ -21,6 +21,7 @@ def replace_exercise_sets(exercise: Exercise, rows: List[dict]) -> None:
         payload = {
             "lexo_rank": f"a{index}",
             "label": row.get("label") or f"Set {index + 1}",
+            "scope": row.get("scope") if row.get("scope") in ("plan", "log", "both") else "both",
             "plannedWeight": row.get("plannedWeight"),
             "plannedReps": row.get("plannedReps"),
             "plannedRpe": planned_rpe,

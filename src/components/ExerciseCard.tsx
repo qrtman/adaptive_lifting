@@ -87,6 +87,7 @@ export const ExerciseCard = ({
         ...s,
         id: s.id,
         plannedWeight,
+        scope: s.scope === 'plan' || s.scope === 'log' ? s.scope : 'both',
         plannedReps,
         plannedRpe: intensity_type === "RPE" ? (target_value ?? plannedRpe) : plannedRpe,
         intensity_type,
@@ -135,34 +136,49 @@ export const ExerciseCard = ({
     updateAndPropagate(newSets);
   };
 
-  const duplicateSet = (index: number) => {
+  const duplicateSet = (index: number, target: 'plan' | 'log') => {
     const set = sets[index];
     const newSets = [...sets];
     newSets.splice(index + 1, 0, {
       ...set,
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
+      scope: target,
       isTop: false,
-      plannedWeight: null,
-      suggestedWeight: null,
+      ...(target === 'plan' ? {
+        actual: null,
+        reps: null,
+        executedRpe: null,
+      } : {
+        plannedWeight: null,
+        plannedReps: null,
+        plannedRpe: null,
+        target_value: null,
+        suggestedWeight: null,
+        dropPercent: 0,
+      }),
       dropPercent: 0,
-      actual: null,
-      reps: null,
-      executedRpe: null,
       isAuto: false,
     });
     updateAndPropagate(newSets);
   };
 
-  const deleteSet = (index: number) => {
-    const newSets = sets.filter((_, i) => i !== index);
-    updateAndPropagate(newSets);
+  const deleteSet = (index: number, target: 'plan' | 'log') => {
+    const set = sets[index];
+    if (set.scope === 'both') {
+      updateSet(index, target === 'plan'
+        ? { scope: 'log', plannedWeight: null, plannedReps: null, plannedRpe: null, target_value: null, dropPercent: 0 }
+        : { scope: 'plan', actual: null, reps: null, executedRpe: null });
+      return;
+    }
+    updateAndPropagate(sets.filter((_, i) => i !== index));
   };
 
   const syncTarget = (index: number) => {
     if (locked) return;
     const set = sets[index];
     const kg = trainingNumber(set.plannedWeight);
-    updateSet(index, { 
+    updateSet(index, {
+      scope: 'both',
       actual: kg,
       reps: trainingInt(set.plannedReps),
       executedRpe: set.intensity_type === 'PERCENT' ? null : trainingNumber(set.plannedRpe),
@@ -177,6 +193,7 @@ export const ExerciseCard = ({
     updateAndPropagate([...sets, {
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
       label: `Set ${sets.length + 1}`,
+      scope: target,
       plannedWeight: null,
       plannedReps: null,
       plannedRpe: null,
@@ -234,7 +251,7 @@ export const ExerciseCard = ({
   const thField = `${th} normal-case tracking-normal`;
 
   const commitDropPercent = (index: number, pct: number) => {
-    if (locked || index <= 0) return;
+    if (locked || index <= 0 || sets[index]?.scope === 'log') return;
     updateAndPropagate(applySetDropPercent(sets, index, pct));
   };
 
@@ -380,9 +397,12 @@ export const ExerciseCard = ({
                   : set.isTop ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]' : 'hover:bg-[var(--cal-surface-soft)]';
 
               const offerKg = planKgOfferKg(set.suggestedWeight, set.plannedWeight);
+              const hasPlan = set.scope !== 'log';
+              const hasLog = set.scope !== 'plan';
 
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
+                  {hasPlan ? (<>
                   <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{i + 1}</td>
                   <td className={`${td} w-14`}>
                     {i === 0 ? (
@@ -398,7 +418,7 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                    {!locked ? (
+                    {hasPlan ? (!locked ? (
                       <PrescriptionEditor
                             reps={set.plannedReps}
                             intensityType={set.intensity_type || "RPE"}
@@ -435,20 +455,37 @@ export const ExerciseCard = ({
                         <td className={`${td} tnum text-[11px]`}>{set.plannedReps ?? '—'}</td>
                         <td className={`${td} tnum text-[11px] pr-3`}>{set.target_value != null ? `${set.target_value}${set.intensity_type === "PERCENT" ? "%" : ""}` : '—'}</td>
                       </>
+                    )) : (
+                      <>
+                        <td colSpan={3} className={`${td} text-[var(--cal-muted-soft)]`} aria-label="No plan set" />
+                      </>
                     )}
                   <td className={`${td} px-1`}>
+                    {hasPlan ? (<>
                     <button
                       type="button"
-                      disabled={locked}
-                      onClick={() => duplicateSet(i)}
-                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-blue-400/40 bg-blue-500/10 px-2 text-[10px] font-semibold text-blue-100 shadow-sm transition-all hover:-translate-y-px hover:border-blue-300/70 hover:bg-blue-500 hover:text-white hover:shadow-blue-500/20 active:translate-y-0 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
+                      disabled={locked || !hasPlan}
+                      onClick={() => duplicateSet(i, 'plan')}
+                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
                       title="Copy this set"
                     >
                       <Copy size={11} strokeWidth={2.5} aria-hidden="true" />
                       <span>Copy</span>
                     </button>
+                    <button
+                      type="button"
+                      disabled={locked || !hasPlan}
+                      onClick={() => deleteSet(i, 'plan')}
+                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-rose-300/55 hover:bg-rose-500/15 hover:text-rose-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:opacity-40"
+                      title="Delete this plan set"
+                    >
+                      <Trash2 size={11} strokeWidth={2.5} aria-hidden="true" />
+                      <span>Delete</span>
+                    </button>
+                    </>) : null}
                   </td>
                   <td className={`${td} px-1`}>
+                    {hasPlan ? (
                     <button
                       type="button"
                       disabled={locked}
@@ -458,7 +495,12 @@ export const ExerciseCard = ({
                     >
                       <ArrowRight size={12} />
                     </button>
+                    ) : null}
                   </td>
+                  </>) : (
+                    <td colSpan={7} className="p-0" aria-label="No plan set" />
+                  )}
+                  {hasLog ? (<>
                   <td className={`${td} pl-3 border-l border-[var(--cal-hairline-soft)]`}>
                     {locked ? (
                       <span className="text-[11px] tnum text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
@@ -518,10 +560,20 @@ export const ExerciseCard = ({
                   <td className={`${td} px-1`}>
                     <button
                       type="button"
-                      disabled={locked}
-                      onClick={() => deleteSet(i)}
-                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-red-400/40 bg-red-500/10 px-2 text-[10px] font-semibold text-red-100 shadow-sm transition-all hover:-translate-y-px hover:border-red-300/70 hover:bg-red-500 hover:text-white hover:shadow-red-500/20 active:translate-y-0 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 disabled:opacity-40"
-                      title="Delete this set"
+                      disabled={locked || !hasLog}
+                      onClick={() => duplicateSet(i, 'log')}
+                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
+                      title="Copy this log set"
+                    >
+                      <Copy size={11} strokeWidth={2.5} aria-hidden="true" />
+                      <span>Copy</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={locked || !hasLog}
+                      onClick={() => deleteSet(i, 'log')}
+                      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-rose-300/55 hover:bg-rose-500/15 hover:text-rose-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:opacity-40"
+                      title="Delete this log set"
                     >
                       <Trash2 size={11} strokeWidth={2.5} aria-hidden="true" />
                       <span>Delete</span>
@@ -543,6 +595,9 @@ export const ExerciseCard = ({
                       {inol > 0 ? inol.toFixed(2) : '—'}
                     </span>
                   </td>
+                  </>) : (
+                    <td colSpan={7} className="p-0" aria-label="No log set" />
+                  )}
                 </tr>
               );
             })}
@@ -557,7 +612,7 @@ export const ExerciseCard = ({
                   data-testid={`add-plan-set-${id}`}
                   onClick={() => addSet('plan')}
                   title={`Add a blank plan set to ${title}`}
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 text-xs font-semibold text-blue-100 shadow-sm transition-all hover:-translate-y-px hover:border-blue-300/70 hover:bg-blue-500 hover:text-white hover:shadow-blue-500/20 active:translate-y-0 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-blue-300/35 bg-blue-500/8 px-3 text-xs font-semibold text-blue-200 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
                 >
                   <Plus size={13} strokeWidth={2.5} aria-hidden="true" />
                   <span>Plan set</span>
@@ -570,7 +625,7 @@ export const ExerciseCard = ({
                   data-testid={`add-log-set-${id}`}
                   onClick={() => addSet('log')}
                   title={`Add a blank log set to ${title}`}
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 shadow-sm transition-all hover:-translate-y-px hover:border-emerald-300/70 hover:bg-emerald-500 hover:text-white hover:shadow-emerald-500/20 active:translate-y-0 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-300/35 bg-emerald-500/8 px-3 text-xs font-semibold text-emerald-200 shadow-sm transition-colors hover:border-emerald-300/55 hover:bg-emerald-500/15 hover:text-emerald-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
                 >
                   <Plus size={13} strokeWidth={2.5} aria-hidden="true" />
                   <span>Log set</span>

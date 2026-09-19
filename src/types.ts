@@ -3,6 +3,7 @@ import type { MovementPattern } from './services/exerciseCatalog';
 export interface SetData {
   id: string;
   label: string;
+  scope?: 'both' | 'plan' | 'log';
   plannedWeight: number | null;
   plannedReps: number | null;
   plannedRpe: number | null;

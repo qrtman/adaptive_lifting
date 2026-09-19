@@ -130,6 +130,11 @@ def migrate_db():
     except Exception:
         db.rollback()
     try:
+        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN scope VARCHAR DEFAULT 'both'"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
         db.execute(text("ALTER TABLE workouts MODIFY microcycle_id VARCHAR NULL"))
         db.commit()
     except Exception:
@@ -464,6 +469,7 @@ def format_exercise(e: Exercise) -> dict:
         set_dict = {
             "id": s.id,
             "label": s.label,
+            "scope": getattr(s, "scope", None) or "both",
             "plannedWeight": coerce_float(s.plannedWeight),
             "plannedReps": coerce_int(s.plannedReps),
             "plannedRpe": coerce_float(s.plannedRpe),
@@ -845,6 +851,8 @@ def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: Use
     s.actual = req.weight
     s.reps = req.reps
     s.executedRpe = req.rpe
+    if (getattr(s, "scope", None) or "both") == "plan":
+        s.scope = "both"
     if req.note is not None:
         s.note = req.note
     if req.velocity is not None:
@@ -1411,6 +1419,7 @@ class UpdateExerciseRequest(BaseModel):
 class PlannedSetWrite(BaseModel):
     id: Optional[str] = None
     label: Optional[str] = None
+    scope: Optional[str] = "both"
     plannedWeight: Optional[float] = None
     plannedReps: Optional[int] = None
     plannedRpe: Optional[float] = None
@@ -1533,6 +1542,7 @@ def clone_session_prescription(
                 id=f"s-{uuid.uuid4().hex[:10]}",
                 lexo_rank=exercise_set.lexo_rank or "a0",
                 label=exercise_set.label,
+                scope=("both" if include_logs else "plan"),
                 plannedWeight=exercise_set.plannedWeight,
                 plannedReps=exercise_set.plannedReps,
                 plannedRpe=exercise_set.plannedRpe,
@@ -1775,6 +1785,7 @@ def add_session_exercise(
         id=f"s-{uuid.uuid4().hex[:10]}",
         lexo_rank="a0",
         label="Set 1",
+        scope="both",
         plannedWeight=req.plannedWeight,
         plannedReps=planned_reps,
         plannedRpe=planned_rpe,

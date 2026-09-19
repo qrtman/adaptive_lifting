@@ -205,6 +205,7 @@ export const apiService = {
     if (exercise) {
       const set = exercise.sets.find((s: any) => s.id === setId);
       if (set) {
+        if (set.scope === 'plan') set.scope = 'both';
         set.actual = trainingNumber(weight);
         set.reps = trainingInt(reps);
         set.executedRpe = trainingNumber(rpe);
@@ -643,6 +644,7 @@ export const apiService = {
     sets: Array<{
       id?: string;
       label?: string;
+      scope?: 'both' | 'plan' | 'log';
       plannedWeight?: number | null;
       plannedReps?: number | null;
       plannedRpe?: number | null;
@@ -663,6 +665,7 @@ export const apiService = {
         sets: sets.map((row) => ({
           id: row.id,
           label: row.label,
+          scope: row.scope ?? 'both',
           plannedWeight: row.plannedWeight,
           plannedReps: row.plannedReps,
           plannedRpe: row.plannedRpe,
