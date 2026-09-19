@@ -374,7 +374,7 @@ export const ExerciseCard = ({
               </div>
             </th>
             <th rowSpan={2} className={`${th} w-4`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
-            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_80%,var(--cal-surface-card))]`} data-testid="set-grid-h-log">
+            <th colSpan={7} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_80%,var(--cal-surface-card))]`} data-testid="set-grid-h-log">
               <span className="flex flex-col gap-0.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--cal-ink)]">Log</span>
                 <span className="text-[9px] font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">performed work</span>
@@ -390,10 +390,10 @@ export const ExerciseCard = ({
             <th className={`${thField} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logRpe">RPE</th>
-            <th className={`${thField} w-10 border-r border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
-            <th className={`${thField} border-l border-[var(--cal-hairline)]`} data-testid="set-grid-h-e1rm">e1RM</th>
-            <th className={th} data-testid="set-grid-h-delta">Δ%</th>
-            <th className={th} data-testid="set-grid-h-inol">INOL</th>
+            <th className={`${thField} w-10 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-e1rm">e1RM</th>
+            <th className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-delta">Δ%</th>
+            <th className={`${th} border-r border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-inol">INOL</th>
           </tr>
         </thead>
         <tbody>
@@ -593,7 +593,7 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={`${actionCell} border-r border-[var(--cal-hairline)]`}>
+                  <td className={actionCell}>
                     <button
                       type="button"
                       disabled={locked || !hasLog}
@@ -617,7 +617,7 @@ export const ExerciseCard = ({
                       <span className="sr-only">Delete log set</span>
                     </button>
                   </td>
-                  <td className={`${td} border-l border-[var(--cal-hairline)] tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
+                  <td className={`${td} tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
@@ -625,7 +625,7 @@ export const ExerciseCard = ({
                   <td className={`${td} tnum text-[11px] text-[var(--cal-muted)]`} data-testid={`set-e1rm-delta-${set.id}`}>
                     {e1rmDelta}
                   </td>
-                  <td className={`${td} tnum text-[11px]`}>
+                  <td className={`${td} border-r border-[var(--cal-hairline)] tnum text-[11px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
                       className={inol > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}
