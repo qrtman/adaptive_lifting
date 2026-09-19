@@ -172,7 +172,8 @@ export const ExerciseCard = ({
 
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
 
-  const addSet = () => {
+  const addSet = (target: 'plan' | 'log') => {
+    const nextRow = sets.length;
     updateAndPropagate([...sets, {
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
       label: `Set ${sets.length + 1}`,
@@ -188,6 +189,12 @@ export const ExerciseCard = ({
       reps: null,
       executedRpe: null
     }]);
+    setGrid({
+      row: nextRow,
+      col: target === 'plan' ? 0 : 3,
+      mode: 'selected',
+      overwrite: false,
+    });
   };
 
   const bindGrid = (row: number, col: number): SetGridBind => ({
@@ -538,23 +545,40 @@ export const ExerciseCard = ({
             })}
         </tbody>
       </table>
-      </div>
       {!locked ? (
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--cal-hairline-soft)] px-2 py-1">
-          <span className="text-[10px] text-[var(--cal-muted-soft)]">
-            Adds a blank set to this exercise
-          </span>
-          <button
-            type="button"
-            data-testid={`add-set-${id}`}
-            onClick={addSet}
-            title={`Add a blank set to ${title}`}
-            className="h-6 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-sm)]"
-          >
-            + Set
-          </button>
-        </div>
+        <table aria-label="Add sets" className="w-max max-w-full border-collapse text-left">
+          <tfoot>
+            <tr className="border-t border-[var(--cal-hairline-soft)]">
+              <td colSpan={2} />
+              <td colSpan={3} className="px-2 py-1">
+                <button
+                  type="button"
+                  data-testid={`add-plan-set-${id}`}
+                  onClick={() => addSet('plan')}
+                  title={`Add a blank plan set to ${title}`}
+                  className="h-6 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-sm)]"
+                >
+                  + Plan set
+                </button>
+              </td>
+              <td />
+              <td colSpan={3} className="px-2 py-1">
+                <button
+                  type="button"
+                  data-testid={`add-log-set-${id}`}
+                  onClick={() => addSet('log')}
+                  title={`Add a blank log set to ${title}`}
+                  className="h-6 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-sm)]"
+                >
+                  + Log set
+                </button>
+              </td>
+              <td colSpan={4} />
+            </tr>
+          </tfoot>
+        </table>
       ) : null}
+      </div>
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}

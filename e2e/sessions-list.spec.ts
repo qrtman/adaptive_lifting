@@ -62,7 +62,7 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await typeCell(squatRow.locator('[data-testid$="-executedRpe"]').first(), '6');
   await expect(squatRow.locator('[data-testid$="-executedRpe"]').first()).toHaveText('6');
 
-  await squatRow.getByRole('button', { name: '+ Set' }).click();
+  await squatRow.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(squatRow.getByTestId('rx-weight').nth(1), '140');
   await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('140');
   await typeCell(squatRow.getByTestId('reps').nth(1), '5');

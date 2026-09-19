@@ -43,7 +43,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await page.getByTestId('rx-weight').first().press('Enter');
   expect((await savedSets).ok()).toBeTruthy();
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
   await expect(page.getByTestId('lift-constructor')).toHaveCount(0);
   await page.getByTestId(/^edit-lift-/).first().click();

@@ -58,7 +58,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await typeCell(page.getByTestId('rx-weight').first(), '180');
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
 
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
   await expect(page.getByTestId('reps').nth(1)).toHaveText('—');
   await expect(page.getByTestId('targetValue').nth(1)).toHaveText('—');
@@ -86,12 +86,13 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByText(/SESSION LOCKED/i)).toHaveCount(0);
   await expect(page.getByTestId('session-complete')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
-  await expect(page.getByRole('button', { name: '+ Set' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Plan set' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Log set' })).toBeVisible();
   const firstPlan = page.getByTestId('rx-weight').first();
   await typeCell(firstPlan, '175');
   await expect(firstPlan).toHaveText('175');
   const planCount = await page.getByTestId('rx-weight').count();
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('rx-weight')).toHaveCount(planCount + 1);
 });
 
@@ -124,7 +125,7 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
 
   await typeCell(page.getByTestId('rx-weight').first(), '180');
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(page.getByTestId('rx-weight').nth(1), '180');
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
@@ -143,7 +144,7 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(suggested);
   await expect(suggest).toHaveCount(0);
 
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(page.getByTestId('rx-weight').nth(2), '175');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(1);
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
@@ -219,7 +220,7 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '7');
   await expect(delta).toHaveText('-4%');
 
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('plan-suggest')).toBeVisible();
   await expect(page.getByTestId('set-drop-pct')).toHaveCount(1);
 });
@@ -269,7 +270,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await typeCell(page.getByTestId('rx-weight').first(), '200');
   await firstSave;
   const addedSave = waitForSetsPut();
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await addedSave;
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
 
@@ -322,7 +323,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(String(expectedScaled));
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(page.getByTestId('rx-weight').nth(2), '175');
   await typeCell(page.locator('[data-testid$="-actual-weight"]').nth(2), '170');
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');

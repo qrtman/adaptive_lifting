@@ -31,7 +31,7 @@ test('Sheets-parity: click selects; Tab kgâ†’reps; Enter down same column; PLANâ
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: '+ Set' }).click();
+  await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('rx-weight')).toHaveCount(2);
 
   await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
