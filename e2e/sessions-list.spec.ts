@@ -20,8 +20,8 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await page.getByPlaceholder('coach@example.com').fill(email);
   await page.getByPlaceholder('Password').fill('password123');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sessions' }).click();
+  await expect(page.getByTestId('nav-sessions')).toBeVisible();
+  await page.getByTestId('nav-sessions').click();
 
   await page.getByTestId('sessions-add').click();
   await page.getByTestId('new-session-date').fill('2026-09-01');
@@ -36,35 +36,42 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await expect(page.getByTestId('add-lift')).toBeVisible();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
-  await page.getByTestId('add-lift-result-Squat').click();
-  await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
-
-  await typeCell(page.getByTestId('rx-weight').first(), '150');
-  await typeCell(page.getByTestId('reps').first(), '5');
-  await typeCell(page.getByTestId('targetValue').first(), '6');
-  await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '150');
-  await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
-  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '6');
-
-  await page.getByRole('button', { name: '+ Set' }).click();
-  await typeCell(page.getByTestId('rx-weight').nth(1), '140');
-  await typeCell(page.getByTestId('reps').nth(1), '5');
-  await typeCell(page.getByTestId('targetValue').nth(1), '7');
-
-  await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
-  const deadliftRow = page.getByRole('heading', { name: 'Deadlift', exact: true })
+
+  await page.getByTestId('add-lift').click();
+  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-result-Squat').click();
+  await page.getByTestId('add-lift-confirm').click();
+  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
-  await typeCell(deadliftRow.getByTestId('reps').first(), '5');
-  await typeCell(deadliftRow.getByTestId('targetValue').first(), '8');
+
+  await typeCell(squatRow.getByTestId('rx-weight').first(), '150');
+  await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('150');
+  await typeCell(squatRow.getByTestId('reps').first(), '5');
+  await expect(squatRow.getByTestId('reps').first()).toHaveText('5');
+  await typeCell(squatRow.getByTestId('targetValue').first(), '6');
+  await expect(squatRow.getByTestId('targetValue').first()).toHaveText('6');
+  await typeCell(squatRow.locator('[data-testid$="-actual-weight"]').first(), '150');
+  await expect(squatRow.locator('[data-testid$="-actual-weight"]').first()).toHaveText('150');
+  await typeCell(squatRow.locator('[data-testid$="-reps"]').first(), '5');
+  await expect(squatRow.locator('[data-testid$="-reps"]').first()).toHaveText('5');
+  await typeCell(squatRow.locator('[data-testid$="-executedRpe"]').first(), '6');
+  await expect(squatRow.locator('[data-testid$="-executedRpe"]').first()).toHaveText('6');
+
+  await squatRow.getByRole('button', { name: '+ Set' }).click();
+  await typeCell(squatRow.getByTestId('rx-weight').nth(1), '140');
+  await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('140');
+  await typeCell(squatRow.getByTestId('reps').nth(1), '5');
+  await expect(squatRow.getByTestId('reps').nth(1)).toHaveText('5');
+  await typeCell(squatRow.getByTestId('targetValue').nth(1), '7');
+  await expect(squatRow.getByTestId('targetValue').nth(1)).toHaveText('7');
+  await new Promise((resolve) => setTimeout(resolve, 800));
 
   await page.getByRole('button', { name: 'Back' }).click();
-  const card = page.locator('[data-testid^="sessions-card-"]');
   await expect(card).toHaveCount(1);
   await expect(card.getByTestId(/sessions-open-/)).toContainText('Lower');
   await expect(card.getByTestId(/sessions-open-/)).toContainText('Day 1');

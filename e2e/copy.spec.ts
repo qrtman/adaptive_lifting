@@ -68,8 +68,8 @@ test('copy selected keeps relative dates and source week labels', async ({ page,
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
   await expect(page.getByTestId('calendar-day-2026-09-22').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
   await expect(page.getByTestId('calendar-day-2026-09-24').locator('[data-testid^="workout-card-"]')).toHaveCount(1);
-  await expect(page.getByTestId('calendar-day-2026-09-22')).toContainText('Block2 · Week3');
-  await expect(page.getByTestId('calendar-day-2026-09-24')).toContainText('Block2 · Week3');
+  await expect(page.getByTestId('calendar-day-2026-09-22')).toContainText('Week 3 · Block 2');
+  await expect(page.getByTestId('calendar-day-2026-09-24')).toContainText('Week 3 · Block 2');
 });
 
 test('copy week lands D1 and increments the week label', async ({ page, request }) => {
@@ -91,8 +91,8 @@ test('copy week lands D1 and increments the week label', async ({ page, request 
   await expect(page.getByTestId('copy-to-banner')).toContainText('click where D1 lands');
   await page.getByTestId('calendar-day-2026-09-22').click();
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
-  await expect(page.getByTestId('calendar-day-2026-09-22')).toContainText('Block2 · Week4');
-  await expect(page.getByTestId('calendar-day-2026-09-24')).toContainText('Block2 · Week4');
+  await expect(page.getByTestId('calendar-day-2026-09-22')).toContainText('Week 4 · Block 2');
+  await expect(page.getByTestId('calendar-day-2026-09-24')).toContainText('Week 4 · Block 2');
 });
 
 test('copy block keeps week labels and relative dates', async ({ page, request }) => {
@@ -117,9 +117,9 @@ test('copy block keeps week labels and relative dates', async ({ page, request }
   await expect(page.getByTestId('copy-to-banner')).toContainText('Copy block');
   await page.getByTestId('calendar-day-2026-09-01').click();
   await expect(page.getByTestId('copy-to-banner')).toHaveCount(0);
-  await expect(page.getByTestId('calendar-day-2026-09-01')).toContainText('Block2 · Week3');
-  await expect(page.getByTestId('calendar-day-2026-09-03')).toContainText('Block2 · Week3');
-  await expect(page.getByTestId('calendar-day-2026-09-04')).toContainText('Block2 · Week4');
+  await expect(page.getByTestId('calendar-day-2026-09-01')).toContainText('Week 3 · Block 2');
+  await expect(page.getByTestId('calendar-day-2026-09-03')).toContainText('Week 3 · Block 2');
+  await expect(page.getByTestId('calendar-day-2026-09-04')).toContainText('Week 4 · Block 2');
 });
 
 test('offline disables copy; coach without an athlete has no copy', async ({ page, context, playwright }) => {
