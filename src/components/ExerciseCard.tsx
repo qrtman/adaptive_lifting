@@ -190,12 +190,21 @@ export const ExerciseCard = ({
 
   const addSet = (target: 'plan' | 'log') => {
     const counterpartScope = target === 'plan' ? 'log' : 'plan';
-    const counterpartIndex = sets.findIndex((set) => set.scope === counterpartScope);
+    const isEmptyLegacyRow = (set: any) => (
+      (set.scope === 'both' || !set.scope) &&
+      set.plannedWeight == null &&
+      set.plannedReps == null &&
+      set.plannedRpe == null &&
+      set.actual == null &&
+      set.reps == null &&
+      set.executedRpe == null
+    );
+    const counterpartIndex = sets.findIndex((set) => set.scope === counterpartScope || isEmptyLegacyRow(set));
     if (counterpartIndex >= 0) {
       const pairedSets = [...sets];
       pairedSets[counterpartIndex] = {
         ...pairedSets[counterpartIndex],
-        scope: 'both',
+        scope: pairedSets[counterpartIndex].scope === counterpartScope ? 'both' : target,
       };
       updateAndPropagate(pairedSets);
       setGrid({
