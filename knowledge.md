@@ -8,12 +8,12 @@ Persistent context for Cursor agents. Keep this short and aligned with `architec
 
 - **Functionality first**: Sync integrity and canonical math beat decorative UI.
 - **Exact paths**: Prefer precise file paths over broad scans when editing.
-- **File map**: `.cursor/rules/agent-file-map.mdc` — need → files to read first.
+- **File map**: `.cursor/rules/agent-file-map.mdc` — need → files to read first. Cal theme slices: `.cursor/scopes/cal-theme/SCOPE.md` (load one child).
 - **Do not ingest** `node_modules/`, `dist/`, `build/`, `.cache/`, or `__pycache__/`. Config files (`package.json`, `.env*`, `tsconfig*.json`, `vite.config.ts`) stay visible.
 
 ## 2. Technical State
 
-- **Stack**: React 19 (TypeScript/Vite 6), Tailwind v4 ink theme, FastAPI (Python), SQLite (SQLAlchemy). Docs that still say React 18 are stale.
+- **Stack**: React 19 (TypeScript/Vite 6), Tailwind v4, FastAPI (Python), SQLite (SQLAlchemy). Docs that still say React 18 are stale. Visual program: Cal.com tokens, light default + dark toggle — `.cursor/rules/cal-theme.mdc`. Nested cards follow the product tree (no depth quota). Training numbers = Inter tabular-nums, not JetBrains.
 - **Hybrid state**: IndexedDB for mutation queues and snapshots; LocalStorage only for `al_*` UI prefs — never workout trees. Sidebar collapse is `al_sidebar_collapsed`. Global sync-queue chrome is a **corner overlay** (not an in-flow bar) — `.cursor/rules/sync-queue-overlay.mdc`. Do not hide offline / rejected / conflict.
 - **Data integrity**: Numeric columns for weights/reps/RPE. Sessions bound to `YYYY-MM-DD`.
 - **Navigation**: Hash routes `#/calendar|sessions|insights|integrations|security`. Left sidebar owns nav + athlete plan scope. There is no Athletes Roster tab; `#/roster` and `?view=roster` land on calendar with the scope selector open. Coach code stays on Security.

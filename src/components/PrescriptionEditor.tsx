@@ -23,7 +23,7 @@ interface PrescriptionEditorProps {
 }
 
 const Sep = ({ children }: { children: string }) => (
-  <span className="text-[10px] text-[#636366] select-none" aria-hidden="true">
+  <span className="text-[10px] text-[var(--cal-muted-soft)] select-none" aria-hidden="true">
     {children}
   </span>
 );
@@ -71,7 +71,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
       <button
         type="button"
         onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
-        className="h-6 px-0.5 text-[10px] text-[#AEAEB2] hover:text-white"
+        className="h-6 px-0.5 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
         data-testid="rx-intensity"
         title="Switch between RPE and %"
       >
@@ -97,13 +97,13 @@ export function MovementPatternSelect({
     : 'Misc';
   return (
     <label className="flex items-center gap-1 min-w-0">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366]">Pattern</span>
+      <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Pattern</span>
       <select
         data-testid={id ? `movement-pattern-${id}` : 'movement-pattern'}
         disabled={locked}
         value={selected}
         onChange={(event) => onChange(event.target.value as MovementPattern)}
-        className="h-6 max-w-[11rem] px-1 text-[11px] bg-black border border-white/10 rounded text-[#AEAEB2] disabled:opacity-40"
+        className="h-6 max-w-[11rem] px-1 text-[11px] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded text-[var(--cal-muted)] disabled:opacity-40"
       >
         {MOVEMENT_PATTERNS.map((pattern) => (
           <option key={pattern} value={pattern}>{pattern}</option>

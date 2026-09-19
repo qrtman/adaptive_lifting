@@ -8,8 +8,12 @@ import {
   type ExerciseCategory,
 } from '../services/exerciseCatalog';
 import { compileVariation, defaultModifiers } from '../services/liftVariation';
-import { CenteredDialog } from './CenteredDialog';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { LiftVariationPicker } from './LiftVariationPicker';
+
+const FIELD =
+  'h-8 px-2 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-xs text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
+const LABEL = 'text-[10px] uppercase tracking-wider text-[var(--cal-muted)]';
 
 export function AddLiftBar({
   sessionId,
@@ -134,7 +138,7 @@ export function AddLiftBar({
   };
 
   return (
-    <div className="px-2 py-3 border-t border-white/10">
+    <div className="px-2 py-3 border-t border-[var(--cal-hairline)]">
       <button
           type="button"
           data-testid="add-lift"
@@ -142,7 +146,7 @@ export function AddLiftBar({
             reset();
             setOpen(true);
           }}
-          className="h-8 px-3 text-xs text-white bg-white/10 rounded"
+          className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)]"
         >
           Add lift
         </button>
@@ -158,7 +162,7 @@ export function AddLiftBar({
                 type="button"
                 data-testid="add-lift-cancel"
                 onClick={() => setOpen(false)}
-                className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+                className="h-8 px-3 text-xs text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
               >
                 Cancel
               </button>
@@ -167,17 +171,19 @@ export function AddLiftBar({
                 data-testid="add-lift-confirm"
                 disabled={busy || !selected}
                 onClick={() => void addLift()}
-                className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+                className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
               >
                 {busy ? 'Adding…' : 'Confirm'}
               </button>
             </>
           )}
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <NestedCard testId="add-lift-exercise-card">
+            <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Category</span>
+                <span className={LABEL}>Category</span>
                 <select
                   data-testid="add-lift-category"
                   value={category}
@@ -188,7 +194,7 @@ export function AddLiftBar({
                     setVariation('');
                     setHighlightIndex(0);
                   }}
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className={FIELD}
                 >
                   <option value="">—</option>
                   {EXERCISE_CATEGORIES.map((item) => (
@@ -197,7 +203,7 @@ export function AddLiftBar({
                 </select>
               </label>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Search Exercises</span>
+                <span className={LABEL}>Search Exercises</span>
                 <div className="relative">
                   <input
                     ref={searchRef}
@@ -213,7 +219,7 @@ export function AddLiftBar({
                     autoFocus
                     aria-controls="add-lift-results"
                     aria-autocomplete="list"
-                    className="w-full h-8 px-2 pr-7 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white disabled:opacity-40"
+                    className={`w-full pr-7 ${FIELD} disabled:opacity-40`}
                   />
                   {search && !userDefined ? (
                     <button
@@ -224,20 +230,20 @@ export function AddLiftBar({
                         setHighlightIndex(0);
                         searchRef.current?.focus();
                       }}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-[#AEAEB2] hover:text-white"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
                     >
                       ×
                     </button>
                   ) : null}
                 </div>
                 {userDefined ? (
-                  <p className="text-[11px] text-[#AEAEB2]">Catalog search does not apply. Name this lift.</p>
+                  <p className="text-[11px] text-[var(--cal-muted)]">Catalog search does not apply. Name this lift.</p>
                 ) : null}
               </div>
             </div>
             {userDefined ? (
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <span className={LABEL}>Exercise</span>
                 <input
                   ref={customRef}
                   data-testid="add-lift-custom-name"
@@ -248,16 +254,16 @@ export function AddLiftBar({
                     setTier('Accessory');
                   }}
                   placeholder="Name this lift"
-                  className="h-8 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+                  className={FIELD}
                 />
               </label>
             ) : options.length === 0 ? (
-              <p className="text-xs text-[#AEAEB2]" data-testid="add-lift-no-results">
+              <p className="text-xs text-[var(--cal-muted)]" data-testid="add-lift-no-results">
                 No catalog matches. Clear search, change category, or pick User Defined to name a custom lift.
               </p>
             ) : (
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wider text-[#636366]">Exercise</span>
+                <span className={LABEL}>Exercise</span>
                 <div
                   id="add-lift-results"
                   role="listbox"
@@ -265,7 +271,8 @@ export function AddLiftBar({
                   aria-label="Catalog exercises"
                   data-testid="add-lift-results"
                   onKeyDown={onSearchKeyDown}
-                  className="max-h-48 overflow-y-auto border border-white/10 rounded bg-[#0A0A0A] outline-none"
+                  className="max-h-48 overflow-y-auto cal-nested-card cal-nested-flush outline-none"
+                  data-elevated="true"
                 >
                   {options.map((item, index) => {
                     const active = index === highlightIndex;
@@ -281,11 +288,13 @@ export function AddLiftBar({
                         onMouseEnter={() => setHighlightIndex(index)}
                         onClick={() => pickExercise(item.name)}
                         className={`w-full px-2 py-1.5 text-left ${
-                          active ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                          active
+                            ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                            : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]'
                         }`}
                       >
                         <span className="block text-xs">{item.name}</span>
-                        <span className="block text-[10px] text-[#636366]" aria-hidden="true">
+                        <span className="block text-[10px] text-[var(--cal-muted-soft)]" aria-hidden="true">
                           {item.movementPattern}
                         </span>
                       </button>
@@ -294,7 +303,10 @@ export function AddLiftBar({
                 </div>
               </div>
             )}
+            </div>
+            </NestedCard>
             {selected ? (
+              <NestedCard testId="add-lift-modifiers-card">
               <LiftVariationPicker
                 title={selected.name}
                 variation={variation || compileVariation(selected.name, defaultModifiers(selected.liftCategory))}
@@ -304,11 +316,12 @@ export function AddLiftBar({
                   if (selected.tier !== 'Accessory') setTier(patch.tier);
                 }}
               />
+              </NestedCard>
             ) : (
-              <p className="text-xs text-[#AEAEB2]">Select an exercise to configure modifiers.</p>
+              <p className="text-xs text-[var(--cal-muted)]">Select an exercise to configure modifiers.</p>
             )}
             {error && (
-              <p className="text-xs text-[#FF453A]" data-testid="add-lift-error">{error}</p>
+              <p className="text-xs text-[var(--cal-error)]" data-testid="add-lift-error">{error}</p>
             )}
           </div>
         </CenteredDialog>

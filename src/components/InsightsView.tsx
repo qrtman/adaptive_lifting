@@ -17,6 +17,14 @@ const blankConfig = (): CardConfig => ({
   visualization: 'line',
 });
 
+const FEATURE_CARD =
+  'rounded-[var(--cal-radius-lg)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-card)] p-[var(--cal-space-xs)] flex flex-col gap-[var(--cal-space-xs)] cal-card-outer';
+
+const CHART_BODY = 'cal-nested-card bg-[var(--cal-surface-soft)] p-[var(--cal-space-xs)] min-h-[8rem]';
+
+const GHOST_ACTION =
+  'text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] px-1 transition-colors';
+
 function resultKey(cardId: string) {
   return `insight_result:${cardId}`;
 }
@@ -144,20 +152,28 @@ export function InsightsView() {
   };
 
   return (
-    <div className="flex-1 overflow-hidden bg-[#0A0A0A] flex">
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="h-7 flex items-center justify-between mb-2">
-          <h2 className="text-sm text-white">Insights</h2>
-          <button type="button" data-testid="insights-add-card" onClick={openNew} className="h-7 px-2 text-[11px] text-white bg-white/10 rounded">
+    <div className="flex-1 overflow-hidden bg-[var(--cal-canvas)] flex">
+      <div className="flex-1 overflow-y-auto p-[var(--cal-space-sm)]">
+        <div className="min-h-7 px-[var(--cal-space-xxs)] flex items-center justify-between gap-2 mb-[var(--cal-space-xs)]">
+          <h2 className="text-sm font-semibold tracking-tight text-[var(--cal-ink)]">Insights</h2>
+          <button
+            type="button"
+            data-testid="insights-add-card"
+            onClick={openNew}
+            className="h-7 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-strong)] text-[var(--cal-ink)] text-[11px] font-medium hover:opacity-90 transition-opacity"
+          >
             Add card
           </button>
         </div>
-        {loading && <p className="text-xs text-[#AEAEB2]">Loading…</p>}
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {loading && <p className="text-xs text-[var(--cal-muted)] px-[var(--cal-space-xxs)]">Loading…</p>}
+        {error && <p className="text-xs text-[var(--cal-error)] px-[var(--cal-space-xxs)]">{error}</p>}
         {!loading && cards.length === 0 && (
-          <p className="text-xs text-[#AEAEB2]">No cards yet. Add one or wait for presets to sync.</p>
+          <div className="border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-6 text-center bg-[var(--cal-surface-soft)]">
+            <p className="text-sm text-[var(--cal-ink)] mb-1">No cards yet</p>
+            <p className="text-xs text-[var(--cal-muted)]">Add one or wait for presets to sync.</p>
+          </div>
         )}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-[var(--cal-space-xs)]">
           {cards.map((card) => {
             const cached = results[card.id];
             const stale = insightResultIsStale(isOnline, Boolean(staleIds[card.id]));
@@ -165,35 +181,62 @@ export function InsightsView() {
               <article
                 key={card.id}
                 data-testid={`insight-card-${card.id}`}
-                className={`border border-white/10 rounded p-2 ${card.layout.col_span === 2 ? 'col-span-2' : 'col-span-1'}`}
+                className={`${FEATURE_CARD} ${card.layout.col_span === 2 ? 'col-span-2' : 'col-span-1'}`}
               >
-                <div className="h-7 flex items-center justify-between gap-2">
-                  <h3 className="text-xs text-white truncate">{card.name}</h3>
-                  <div className="flex items-center gap-1">
-                    {stale && cached && <span data-testid={`insight-stale-${card.id}`} className="text-[10px] text-amber-400">Stale</span>}
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => moveCard(card.id, -1)}>Up</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => moveCard(card.id, 1)}>Down</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => {
-                      const next = { ...card, layout: { ...card.layout, col_span: card.layout.col_span === 2 ? 1 : 2 as 1 | 2 } };
-                      void persistCard(next);
-                    }}>{card.layout.col_span === 2 ? 'Narrow' : 'Wide'}</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => {
-                      const copy = { ...card, id: `card-${Date.now()}`, name: `${card.name} copy`, layout: { ...card.layout, order: cards.length } };
-                      void persistCard(copy);
-                    }}>Dup</button>
-                    <button type="button" className="text-[10px] text-[#AEAEB2]" onClick={() => {
-                      setEditing(card);
-                      setDraftName(card.name);
-                      setDraftConfig(card.config);
-                    }}>Edit</button>
-                    <button type="button" className="text-[10px] text-red-400" onClick={() => void persistCard(card, true)}>Del</button>
+                <div className="min-h-7 flex items-center justify-between gap-2 px-[var(--cal-space-xxs)]">
+                  <h3 className="text-xs font-medium text-[var(--cal-ink)] truncate">{card.name}</h3>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {stale && cached && (
+                      <span
+                        data-testid={`insight-stale-${card.id}`}
+                        className="text-[10px] text-[var(--cal-warning)] mr-1"
+                      >
+                        Stale
+                      </span>
+                    )}
+                    <button type="button" className={GHOST_ACTION} onClick={() => moveCard(card.id, -1)}>Up</button>
+                    <button type="button" className={GHOST_ACTION} onClick={() => moveCard(card.id, 1)}>Down</button>
+                    <button
+                      type="button"
+                      className={GHOST_ACTION}
+                      onClick={() => {
+                        const next = { ...card, layout: { ...card.layout, col_span: card.layout.col_span === 2 ? 1 : 2 as 1 | 2 } };
+                        void persistCard(next);
+                      }}
+                    >
+                      {card.layout.col_span === 2 ? 'Narrow' : 'Wide'}
+                    </button>
+                    <button
+                      type="button"
+                      className={GHOST_ACTION}
+                      onClick={() => {
+                        const copy = { ...card, id: `card-${Date.now()}`, name: `${card.name} copy`, layout: { ...card.layout, order: cards.length } };
+                        void persistCard(copy);
+                      }}
+                    >
+                      Dup
+                    </button>
+                    <button
+                      type="button"
+                      className={GHOST_ACTION}
+                      onClick={() => {
+                        setEditing(card);
+                        setDraftName(card.name);
+                        setDraftConfig(card.config);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button type="button" className={`${GHOST_ACTION} text-[var(--cal-error)] hover:text-[var(--cal-error)]`} onClick={() => void persistCard(card, true)}>Del</button>
                   </div>
                 </div>
-                {cached?.result ? (
-                  <ChartFor visualization={card.config.visualization} result={cached.result} />
-                ) : (
-                  <p className="text-[11px] text-[#AEAEB2] py-6">No points in range</p>
-                )}
+                <div className={CHART_BODY}>
+                  {cached?.result ? (
+                    <ChartFor visualization={card.config.visualization} result={cached.result} />
+                  ) : (
+                    <p className="text-[11px] text-[var(--cal-muted)] py-6 text-center">No points in range</p>
+                  )}
+                </div>
               </article>
             );
           })}

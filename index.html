@@ -1,16 +1,26 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Adaptive Lifting</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('al_theme');
+          document.documentElement.dataset.theme = stored === 'dark' ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Modern Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-black text-white antialiased overflow-x-hidden">
+  <body class="antialiased overflow-x-hidden bg-[var(--cal-canvas)] text-[var(--cal-ink)]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>

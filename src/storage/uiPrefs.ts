@@ -13,6 +13,7 @@ export const UI_KEYS = {
   activeAthleteId: 'al_active_athlete_id',
   deviceId: 'al_client_device_id',
   sidebarCollapsed: 'al_sidebar_collapsed',
+  theme: 'al_theme',
   recentBlock: 'al_recent_block',
   recentWeek: 'al_recent_week',
   recentDay: 'al_recent_day',

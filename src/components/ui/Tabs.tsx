@@ -92,8 +92,8 @@ export function Tab({
   id,
   children,
   className = '',
-  activeClassName = 'bg-white/10 text-white',
-  inactiveClassName = 'text-[#AEAEB2] hover:text-white',
+  activeClassName = 'bg-[var(--cal-surface-elevated)] text-[var(--cal-ink)]',
+  inactiveClassName = 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]',
 }: {
   id: string;
   children: ReactNode;

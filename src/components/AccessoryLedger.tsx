@@ -24,7 +24,7 @@ export const AccessoryLedger = ({
 
   return (
     <div>
-      <p className="px-1 h-5 flex items-center text-[10px] text-[#AEAEB2]">
+      <p className="px-1 h-5 flex items-center text-[10px] tnum text-[var(--cal-muted)]">
         Acc · {pendingCount} open
       </p>
       {exercises.map((exercise) => (
