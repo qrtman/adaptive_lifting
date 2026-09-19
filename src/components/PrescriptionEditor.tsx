@@ -99,7 +99,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
               className={`flex h-5 w-5 items-center justify-center rounded-[3px] border text-[11px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
                 modeMenuOpen
                   ? 'border-[var(--cal-muted)] bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
-                  : 'border-[var(--cal-hairline)] text-[var(--cal-muted)] hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
+                  : 'border-[var(--cal-hairline)] text-[var(--cal-muted)] opacity-65 hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] group-hover:opacity-100'
               }`}
               data-testid="rx-intensity"
               aria-label={intensityType === 'PERCENT' ? 'Percentage target mode' : 'RPE target mode'}
