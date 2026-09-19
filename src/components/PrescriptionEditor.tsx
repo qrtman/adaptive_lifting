@@ -83,7 +83,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
             onChange={(val) => onChange({ targetValue: trainingNumber(val) })}
             placeholder="—"
             fieldKey="targetValue"
-            label={intensityType === "PERCENT" ? "Intensity %" : "Intensity RPE"}
+            label={intensityType === "PERCENT" ? "Target %" : "Target RPE"}
             widthClass="w-8"
             step={intensityType === "PERCENT" ? 1 : 0.5}
             rowIndex={rowIndex}
@@ -102,7 +102,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                   : 'border-[var(--cal-hairline)] text-[var(--cal-muted)] opacity-65 hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] group-hover:opacity-100'
               }`}
               data-testid="rx-intensity"
-              aria-label={intensityType === 'PERCENT' ? 'Percentage intensity mode' : 'RPE intensity mode'}
+              aria-label={intensityType === 'PERCENT' ? 'Percentage target mode' : 'RPE target mode'}
               aria-haspopup="menu"
               aria-expanded={modeMenuOpen}
               title="Choose RPE or percentage"
@@ -113,7 +113,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
               {modeMenuOpen ? (
               <motion.div
                 role="menu"
-                aria-label="Intensity mode"
+                aria-label="Target mode"
                 initial={{ clipPath: 'inset(0 40px 0 0)' }}
                 animate={{ clipPath: 'inset(0 0 0 0)' }}
                 exit={{ clipPath: 'inset(0 40px 0 0)' }}
@@ -131,7 +131,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
                   }`}
                   aria-label="RPE"
-                  title="RPE intensity"
+                  title="RPE target"
                 >
                   @
                 </button>
@@ -146,7 +146,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
                   }`}
                   aria-label="Percentage"
-                  title="Percentage intensity"
+                  title="Percentage"
                 >
                   %
                 </button>

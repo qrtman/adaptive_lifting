@@ -352,12 +352,9 @@ export const ExerciseCard = ({
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${th} w-6`} data-testid="set-grid-h-num">#</th>
             <th rowSpan={2} className={`${th} w-14`} data-testid="set-grid-h-pct">%</th>
-            <th colSpan={4} className={`${th} bg-[color-mix(in_srgb,var(--cal-accent)_8%,var(--cal-surface-soft))]`} data-testid="set-grid-h-plan">
-              <div className="flex min-h-7 items-center justify-between gap-2">
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--cal-ink)]">Plan</span>
-                  <span className="text-[9px] font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">prescribed work</span>
-                </span>
+            <th colSpan={4} className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
+              <div className="flex min-h-5 items-center justify-between gap-2">
+                <span>Plan</span>
                 {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
                   <span className="inline-flex items-center gap-1 whitespace-nowrap normal-case tracking-normal text-[10px] font-normal text-[var(--cal-muted)]">
                     <span className="text-[var(--cal-muted-soft)]">S{selectedPlanNumber}</span>
@@ -375,12 +372,7 @@ export const ExerciseCard = ({
               </div>
             </th>
             <th rowSpan={2} className={`${th} w-4`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
-            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-success)_7%,var(--cal-surface-soft))]`} data-testid="set-grid-h-log">
-              <span className="flex flex-col gap-0.5">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--cal-ink)]">Log</span>
-                <span className="text-[9px] font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">performed work</span>
-              </span>
-            </th>
+            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-log">Log</th>
             <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)]`} data-testid="set-grid-h-e1rm">e1RM</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-delta">Δ%</th>
             <th rowSpan={2} className={th} data-testid="set-grid-h-inol">INOL</th>
@@ -388,7 +380,7 @@ export const ExerciseCard = ({
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
-            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-accent)_8%,var(--cal-surface-soft))]`} data-testid="set-grid-h-planTarget">Intensity</th>
+            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planTarget">Target</th>
             <th className={`${thField} w-10 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
             <th className={`${thField} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logReps">reps</th>

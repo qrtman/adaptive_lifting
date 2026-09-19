@@ -198,7 +198,7 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
   await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('reps');
-  await expect(page.getByTestId('set-grid-h-planTarget')).toHaveText('Intensity');
+  await expect(page.getByTestId('set-grid-h-planTarget')).toHaveText('Target');
   await expect(page.getByTestId('set-grid-h-logKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
   await expect(page.getByTestId('set-grid-h-e1rm')).toHaveText('e1RM');
@@ -207,11 +207,11 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   const intensityMode = page.getByTestId('rx-intensity').first();
   await expect(intensityMode).toHaveText('@');
   await intensityMode.click();
-  const targetModeMenu = page.getByRole('menu', { name: 'Intensity mode' });
+  const targetModeMenu = page.getByRole('menu', { name: 'Target mode' });
   await expect(targetModeMenu).toBeVisible();
   await targetModeMenu.getByRole('menuitem', { name: 'Percentage' }).click();
   await expect(intensityMode).toHaveText('%');
-  await expect(page.getByLabel('Intensity %').first()).toBeVisible();
+  await expect(page.getByLabel('Target %').first()).toBeVisible();
   await intensityMode.click();
   await targetModeMenu.getByRole('menuitem', { name: 'RPE' }).click();
   await expect(intensityMode).toHaveText('@');
