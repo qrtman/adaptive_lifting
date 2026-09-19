@@ -255,6 +255,13 @@ export const ExerciseCard = ({
     updateAndPropagate(applySetDropPercent(sets, index, pct));
   };
 
+  const planRows = sets
+    .map((set, index) => ({ set, index }))
+    .filter(({ set }) => set.scope !== 'log');
+  const logRows = sets
+    .map((set, index) => ({ set, index }))
+    .filter(({ set }) => set.scope !== 'plan');
+
   return (
     <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -366,14 +373,34 @@ export const ExerciseCard = ({
           </tr>
         </thead>
         <tbody>
-            {sets.length === 0 && (
+            {planRows.length === 0 && logRows.length === 0 && (
               <tr>
                 <td colSpan={13} className="px-2 py-3 text-xs text-[var(--cal-muted-soft)]">
                   No sets programmed.
                 </td>
               </tr>
             )}
-            {sets.map((set, i) => {
+            {Array.from({ length: Math.max(planRows.length, logRows.length) }).map((_, laneIndex) => {
+              const planEntry = planRows[laneIndex];
+              const logEntry = logRows[laneIndex];
+              const planIndex = planEntry?.index ?? 0;
+              const logIndex = logEntry?.index ?? 0;
+              const planSet = planEntry?.set;
+              const logSet = logEntry?.set;
+              const set = {
+                ...(planSet ?? {}),
+                ...(logSet ?? {}),
+                plannedWeight: planSet?.plannedWeight ?? logSet?.plannedWeight,
+                plannedReps: planSet?.plannedReps ?? logSet?.plannedReps,
+                plannedRpe: planSet?.plannedRpe ?? logSet?.plannedRpe,
+                target_value: planSet?.target_value ?? logSet?.target_value,
+                intensity_type: planSet?.intensity_type ?? logSet?.intensity_type,
+                suggestedWeight: planSet?.suggestedWeight ?? logSet?.suggestedWeight,
+                dropPercent: planSet?.dropPercent ?? logSet?.dropPercent,
+                actual: logSet?.actual ?? planSet?.actual,
+                reps: logSet?.reps ?? planSet?.reps,
+                executedRpe: logSet?.executedRpe ?? planSet?.executedRpe,
+              };
               const weight = trainingOrZero(set.actual);
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
@@ -397,23 +424,23 @@ export const ExerciseCard = ({
                   : set.isTop ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]' : 'hover:bg-[var(--cal-surface-soft)]';
 
               const offerKg = planKgOfferKg(set.suggestedWeight, set.plannedWeight);
-              const hasPlan = set.scope !== 'log';
-              const hasLog = set.scope !== 'plan';
+              const hasPlan = Boolean(planEntry);
+              const hasLog = Boolean(logEntry);
 
               return (
-                <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
+                <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`}>
                   {hasPlan ? (<>
-                  <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{i + 1}</td>
+                  <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{laneIndex + 1}</td>
                   <td className={`${td} w-14`}>
-                    {i === 0 ? (
+                    {laneIndex === 0 ? (
                       <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true">—</span>
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
                         locked={locked}
-                        onCommit={(pct) => commitDropPercent(i, pct)}
+                        onCommit={(pct) => commitDropPercent(planIndex, pct)}
                         onTabToPlan={() => {
-                          setGrid({ row: i, col: 0, mode: 'selected', overwrite: false });
+                          setGrid({ row: planIndex, col: 0, mode: 'selected', overwrite: false });
                         }}
                       />
                     )}
@@ -424,24 +451,24 @@ export const ExerciseCard = ({
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
                             weight={set.plannedWeight}
-                            rowIndex={i}
+                            rowIndex={planIndex}
                             liftId={id}
-                            kgGrid={bindGrid(i, 0)}
-                            repsGrid={bindGrid(i, 1)}
-                            rpeGrid={bindGrid(i, 2)}
+                            kgGrid={bindGrid(planIndex, 0)}
+                            repsGrid={bindGrid(planIndex, 1)}
+                            rpeGrid={bindGrid(planIndex, 2)}
                             tdClass={td}
                             offer={offerKg != null ? (
                             <button
                               type="button"
                               data-testid="plan-suggest"
-                              onClick={() => updateSet(i, { plannedWeight: offerKg, isAuto: false })}
+                              onClick={() => updateSet(planIndex, { plannedWeight: offerKg, isAuto: false })}
                               className="h-6 px-1 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
                               title="Use kg from the set you just logged"
                             >
                               use {offerKg}
                             </button>
                           ) : null}
-                            onChange={(updates) => updateSet(i, {
+                            onChange={(updates) => updateSet(planIndex, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
                               target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
@@ -465,7 +492,7 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked || !hasPlan}
-                      onClick={() => duplicateSet(i, 'plan')}
+                      onClick={() => duplicateSet(planIndex, 'plan')}
                       className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
                       title="Copy this set"
                     >
@@ -475,7 +502,7 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked || !hasPlan}
-                      onClick={() => deleteSet(i, 'plan')}
+                      onClick={() => deleteSet(planIndex, 'plan')}
                       className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-rose-300/55 hover:bg-rose-500/15 hover:text-rose-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:opacity-40"
                       title="Delete this plan set"
                     >
@@ -489,7 +516,7 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked}
-                      onClick={() => syncTarget(i)}
+                      onClick={() => syncTarget(planIndex)}
                       className="h-6 w-5 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
                     >
@@ -507,7 +534,7 @@ export const ExerciseCard = ({
                     ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.actual)}
-                        onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
+                        onChange={(val) => updateSet(logIndex, { actual: trainingNumber(val), isAuto: !val })}
                         placeholder="—"
                         fieldKey={`${id}-actual-weight`}
                         label="Log Weight"
@@ -516,8 +543,8 @@ export const ExerciseCard = ({
                         isAuto={false}
                         suggestedValue={null}
                         step={2.5}
-                        rowIndex={i}
-                        grid={bindGrid(i, 3)}
+                        rowIndex={logIndex}
+                        grid={bindGrid(logIndex, 3)}
                       />
                     )}
                   </td>
@@ -527,15 +554,15 @@ export const ExerciseCard = ({
                     ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.reps)}
-                        onChange={(val) => updateSet(i, { reps: trainingInt(val) })}
+                        onChange={(val) => updateSet(logIndex, { reps: trainingInt(val) })}
                         placeholder="—"
                         fieldKey={`${id}-reps`}
                         label="Log Reps"
                         widthClass="w-8"
                         isLogged={true}
                         step={1}
-                        rowIndex={i}
-                        grid={bindGrid(i, 4)}
+                        rowIndex={logIndex}
+                        grid={bindGrid(logIndex, 4)}
                       />
                     )}
                   </td>
@@ -545,15 +572,15 @@ export const ExerciseCard = ({
                     ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.executedRpe)}
-                        onChange={(val) => updateSet(i, { executedRpe: trainingNumber(val) })}
+                        onChange={(val) => updateSet(logIndex, { executedRpe: trainingNumber(val) })}
                         placeholder="—"
                         fieldKey={`${id}-executedRpe`}
                         label="Log RPE"
                         widthClass="w-8"
                         isLogged={true}
                         step={0.5}
-                        rowIndex={i}
-                        grid={bindGrid(i, 5)}
+                        rowIndex={logIndex}
+                        grid={bindGrid(logIndex, 5)}
                       />
                     )}
                   </td>
@@ -561,7 +588,7 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked || !hasLog}
-                      onClick={() => duplicateSet(i, 'log')}
+                      onClick={() => duplicateSet(logIndex, 'log')}
                       className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-blue-300/55 hover:bg-blue-500/15 hover:text-blue-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 disabled:opacity-40"
                       title="Copy this log set"
                     >
@@ -571,7 +598,7 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked || !hasLog}
-                      onClick={() => deleteSet(i, 'log')}
+                      onClick={() => deleteSet(logIndex, 'log')}
                       className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-slate-600/70 bg-slate-900/45 px-2 text-[10px] font-semibold text-slate-300 shadow-sm transition-colors hover:border-rose-300/55 hover:bg-rose-500/15 hover:text-rose-100 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:opacity-40"
                       title="Delete this log set"
                     >
