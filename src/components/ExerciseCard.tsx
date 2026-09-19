@@ -264,6 +264,15 @@ export const ExerciseCard = ({
   const logRows = sets
     .map((set, index) => ({ set, index }))
     .filter(({ set }) => set.scope !== 'plan');
+  const selectedPlanEntry = grid?.col === 0
+    ? planRows.find(({ index }) => index === grid.row)
+    : undefined;
+  const selectedPlanOffer = selectedPlanEntry
+    ? planKgOfferKg(selectedPlanEntry.set.suggestedWeight, selectedPlanEntry.set.plannedWeight)
+    : null;
+  const selectedPlanNumber = selectedPlanEntry
+    ? planRows.findIndex(({ index }) => index === selectedPlanEntry.index) + 1
+    : null;
 
   return (
     <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
@@ -357,7 +366,25 @@ export const ExerciseCard = ({
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${th} w-6`} data-testid="set-grid-h-num">#</th>
             <th rowSpan={2} className={`${th} w-14`} data-testid="set-grid-h-pct">%</th>
-            <th colSpan={4} className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">Plan</th>
+            <th colSpan={4} className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
+              <div className="flex min-h-5 items-center justify-between gap-2">
+                <span>Plan</span>
+                {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap normal-case tracking-normal text-[10px] font-normal text-[var(--cal-muted)]">
+                    <span className="text-[var(--cal-muted-soft)]">S{selectedPlanNumber}</span>
+                    <span>{selectedPlanEntry.set.plannedWeight ?? '—'} → <span data-testid="plan-suggestion-value">{selectedPlanOffer}</span> kg</span>
+                    <button
+                      type="button"
+                      data-testid="plan-suggest"
+                      onClick={() => updateSet(selectedPlanEntry.index, { plannedWeight: selectedPlanOffer, isAuto: false })}
+                      className="h-5 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-1.5 text-[10px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+                    >
+                      Use
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+            </th>
             <th rowSpan={2} className={`${th} w-6 px-1`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
             <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-log">Log</th>
             <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)]`} data-testid="set-grid-h-e1rm">e1RM</th>
@@ -426,7 +453,6 @@ export const ExerciseCard = ({
                   ? 'bg-mac-green/10' 
                   : set.isTop ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]' : 'hover:bg-[var(--cal-surface-soft)]';
 
-              const offerKg = planKgOfferKg(set.suggestedWeight, set.plannedWeight);
               const hasPlan = Boolean(planEntry);
               const hasLog = Boolean(logEntry);
 
@@ -460,17 +486,6 @@ export const ExerciseCard = ({
                             repsGrid={bindGrid(planIndex, 1)}
                             rpeGrid={bindGrid(planIndex, 2)}
                             tdClass={td}
-                            offer={offerKg != null ? (
-                            <button
-                              type="button"
-                              data-testid="plan-suggest"
-                              onClick={() => updateSet(planIndex, { plannedWeight: offerKg, isAuto: false })}
-                              className="h-6 px-1 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-                              title="Use kg from the set you just logged"
-                            >
-                              use {offerKg}
-                            </button>
-                          ) : null}
                             onChange={(updates) => updateSet(planIndex, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,

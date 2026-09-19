@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import React from 'react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -15,7 +15,6 @@ interface PrescriptionEditorProps {
   repsGrid: SetGridBind;
   rpeGrid: SetGridBind;
   tdClass: string;
-  offer?: ReactNode;
   onChange: (updates: {
     reps?: number | null;
     intensityType?: string;
@@ -25,25 +24,22 @@ interface PrescriptionEditorProps {
 }
 
 export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
-  reps, intensityType, targetValue, weight, rowIndex, liftId, kgGrid, repsGrid, rpeGrid, tdClass, offer, onChange
+  reps, intensityType, targetValue, weight, rowIndex, liftId, kgGrid, repsGrid, rpeGrid, tdClass, onChange
 }) => {
   return (
     <>
       <td className={`${tdClass} pr-1`} data-lift-id={liftId}>
-        <div className="flex items-center gap-0.5">
-          <EditablePerformanceCell
-            value={weight !== null && weight !== undefined ? weight.toString() : ""}
-            onChange={(val) => onChange({ weight: trainingNumber(val) })}
-            placeholder="—"
-            fieldKey="rx-weight"
-            label="Plan weight"
-            widthClass="w-12"
-            step={2.5}
-            rowIndex={rowIndex}
-            grid={kgGrid}
-          />
-          {offer}
-        </div>
+        <EditablePerformanceCell
+          value={weight !== null && weight !== undefined ? weight.toString() : ""}
+          onChange={(val) => onChange({ weight: trainingNumber(val) })}
+          placeholder="—"
+          fieldKey="rx-weight"
+          label="Plan weight"
+          widthClass="w-12"
+          step={2.5}
+          rowIndex={rowIndex}
+          grid={kgGrid}
+        />
       </td>
       <td className={tdClass}>
         <EditablePerformanceCell

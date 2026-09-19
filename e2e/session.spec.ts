@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { expectCellSelected, fillEditableCell } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
@@ -7,6 +7,10 @@ async function typeCell(cell: Locator, value: string) {
   await cell.page().keyboard.press('Escape');
   await fillEditableCell(cell, value);
   await cell.blur();
+}
+
+async function planSuggestionKg(page: Page): Promise<number> {
+  return Number(await page.getByTestId('plan-suggestion-value').innerText());
 }
 
 test('plans typed kg, suggests later kg after a log, then stays editable after Complete', async ({ page, request }) => {
@@ -38,7 +42,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
   const liftRow = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
-  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
+  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(1);
   await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Knee Dominant');
   await page.getByTestId(/^edit-lift-/).first().click();
   await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
@@ -49,7 +53,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await page.getByTestId('edit-lift-done').click();
   await expect(page.getByTestId('edit-lift-dialog')).toHaveCount(0);
   await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Hip Dominant');
-  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
+  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(1);
 
   await expect(page.getByRole('columnheader', { name: /Plan/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
@@ -63,19 +67,22 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('reps').nth(1)).toHaveText('—');
   await expect(page.getByTestId('targetValue').nth(1)).toHaveText('—');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
+  await typeCell(page.getByTestId('reps').nth(1), '5');
+  await typeCell(page.getByTestId('targetValue').nth(1), '6');
 
   await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '180');
   await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
   await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
+  await page.getByTestId('rx-weight').nth(1).click();
 
   const suggest = page.getByTestId('plan-suggest');
   await expect(suggest).toBeVisible();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
-  const suggested = (await suggest.innerText()).replace('use ', '').trim();
-  expect(Number(suggested)).toBeGreaterThan(0);
-  expect(Number(suggested)).toBeLessThan(180);
+  const suggested = await planSuggestionKg(page);
+  expect(suggested).toBeGreaterThan(0);
+  expect(suggested).toBeLessThan(180);
   await suggest.click();
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(suggested);
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(String(suggested));
   await expect(suggest).toHaveCount(0);
 
   await page.getByTestId('session-complete').click();
@@ -127,30 +134,32 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await typeCell(page.getByTestId('rx-weight').first(), '180');
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(page.getByTestId('rx-weight').nth(1), '180');
+  await typeCell(page.getByTestId('reps').nth(1), '5');
+  await typeCell(page.getByTestId('targetValue').nth(1), '6');
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 
   await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '180');
   await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
   await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
+  await page.getByTestId('rx-weight').nth(1).click();
 
   const suggest = page.getByTestId('plan-suggest');
   await expect(suggest).toBeVisible();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
-  const suggested = (await suggest.innerText()).replace('use ', '').trim();
-  expect(Number(suggested)).toBeGreaterThan(0);
-  expect(Number(suggested)).not.toBe(180);
+  const suggested = await planSuggestionKg(page);
+  expect(suggested).toBeGreaterThan(0);
+  expect(suggested).not.toBe(180);
   await suggest.click();
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(suggested);
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(String(suggested));
   await expect(suggest).toHaveCount(0);
 
+  const logWeightCount = await page.locator('[data-testid$="-actual-weight"]').count();
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(page.getByTestId('rx-weight').nth(2), '175');
-  await expect(page.getByTestId('plan-suggest')).toHaveCount(1);
-  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
-  await typeCell(page.locator('[data-testid$="-actual-weight"]').nth(2), '170');
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
+  await expect(page.locator('[data-testid$="-actual-weight"]')).toHaveCount(logWeightCount);
 });
 
 test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', async ({ page, request }) => {
@@ -186,7 +195,7 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
 
   const headers = page.locator('thead th');
-  await expect(headers).toHaveCount(15);
+  await expect(headers).toHaveCount(16);
   await expect(page.getByTestId('set-grid-h-plan')).toHaveText('Plan');
   await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
   await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
@@ -221,6 +230,9 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await expect(delta).toHaveText('-4%');
 
   await page.getByRole('button', { name: '+ Plan set' }).click();
+  await typeCell(page.getByTestId('reps').nth(1), '5');
+  await typeCell(page.getByTestId('targetValue').nth(1), '6');
+  await page.getByTestId('rx-weight').nth(1).click();
   await expect(page.getByTestId('plan-suggest')).toBeVisible();
   await expect(page.getByTestId('set-drop-pct')).toHaveCount(1);
 });
@@ -254,7 +266,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
 
   const headers = page.locator('thead th');
-  await expect(headers).toHaveCount(15);
+  await expect(headers).toHaveCount(16);
   await expect(headers.nth(0)).toHaveText('#');
   await expect(headers.nth(1)).toHaveText('%');
   await expect(headers.nth(2)).toContainText('Plan');
@@ -273,6 +285,8 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await addedSave;
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await typeCell(page.getByTestId('reps').nth(1), '5');
+  await typeCell(page.getByTestId('targetValue').nth(1), '6');
 
   const firstPctCell = page.locator('tbody tr').nth(0).locator('td').nth(1);
   await expect(firstPctCell).toHaveText('—');
@@ -299,23 +313,23 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '200');
   await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
   await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
+  await page.getByTestId('rx-weight').nth(1).click();
   const suggest = page.getByTestId('plan-suggest');
   await expect(suggest).toBeVisible();
-  const scaled = (await suggest.innerText()).replace('use ', '').trim();
-  expect(Number(scaled)).toBeGreaterThan(0);
+  const scaled = await planSuggestionKg(page);
+  expect(scaled).toBeGreaterThan(0);
 
   await laterPct.fill('0');
   await laterPct.blur();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
-  const unscaledSuggest = page.getByTestId('plan-suggest');
-  await expect(unscaledSuggest).not.toHaveText(`use ${scaled}`);
-  const unscaled = Number((await unscaledSuggest.innerText()).replace('use ', '').trim());
+  await expect(page.getByTestId('plan-suggestion-value')).not.toHaveText(String(scaled));
+  const unscaled = await planSuggestionKg(page);
   expect(unscaled).toBeGreaterThan(0);
   const expectedScaled = Math.round((unscaled * 0.95) / 2.5) * 2.5;
   await laterPct.fill('-5');
   await laterPct.blur();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
-  await expect(page.getByTestId('plan-suggest')).toHaveText(`use ${expectedScaled}`);
+  await expect(page.getByTestId('plan-suggestion-value')).toHaveText(String(expectedScaled));
   await expect(laterPct).toHaveValue('-5');
   await expect(laterPctCell).not.toContainText('%');
 
@@ -323,10 +337,12 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(String(expectedScaled));
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 
+  const logWeightCount = await page.locator('[data-testid$="-actual-weight"]').count();
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(page.getByTestId('rx-weight').nth(2), '175');
-  await typeCell(page.locator('[data-testid$="-actual-weight"]').nth(2), '170');
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
+  await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
+  await expect(page.locator('[data-testid$="-actual-weight"]')).toHaveCount(logWeightCount);
   await page.getByTestId('set-drop-pct').nth(1).fill('-10');
   await page.getByTestId('set-drop-pct').nth(1).blur();
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
