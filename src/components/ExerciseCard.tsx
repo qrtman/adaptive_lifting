@@ -444,14 +444,9 @@ export const ExerciseCard = ({
               const intensityPct = e1RM > 0 ? (weight / e1RM) * 100 : 0;
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
               
-              const isOvershoot = rpe > trainingOrZero(set.plannedRpe ?? set.rpe);
-              const isUndershoot = rpe > 0 && rpe < trainingOrZero(set.plannedRpe ?? set.rpe);
-              
-              const rowHighlight = isOvershoot 
-                ? 'bg-orange-500/10' 
-                : isUndershoot 
-                  ? 'bg-mac-green/10' 
-                  : set.isTop ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]' : 'hover:bg-[var(--cal-surface-soft)]';
+              const rowHighlight = set.isTop
+                ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]'
+                : 'hover:bg-[var(--cal-surface-soft)]';
 
               const hasPlan = Boolean(planEntry);
               const hasLog = Boolean(logEntry);
