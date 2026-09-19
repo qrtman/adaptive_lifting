@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -14,6 +14,8 @@ interface PrescriptionEditorProps {
   kgGrid: SetGridBind;
   repsGrid: SetGridBind;
   rpeGrid: SetGridBind;
+  tdClass: string;
+  offer?: ReactNode;
   onChange: (updates: {
     reps?: number | null;
     intensityType?: string;
@@ -22,62 +24,65 @@ interface PrescriptionEditorProps {
   }) => void;
 }
 
-const Sep = ({ children }: { children: string }) => (
-  <span className="text-[10px] text-[var(--cal-muted-soft)] select-none" aria-hidden="true">
-    {children}
-  </span>
-);
-
 export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
-  reps, intensityType, targetValue, weight, rowIndex, liftId, kgGrid, repsGrid, rpeGrid, onChange
+  reps, intensityType, targetValue, weight, rowIndex, liftId, kgGrid, repsGrid, rpeGrid, tdClass, offer, onChange
 }) => {
   return (
-    <div className="flex items-center gap-0.5" data-lift-id={liftId}>
-      <EditablePerformanceCell
-        value={weight !== null && weight !== undefined ? weight.toString() : ""}
-        onChange={(val) => onChange({ weight: trainingNumber(val) })}
-        placeholder="—"
-        fieldKey="rx-weight"
-        label="Plan weight"
-        widthClass="w-12"
-        step={2.5}
-        rowIndex={rowIndex}
-        grid={kgGrid}
-      />
-      <Sep>×</Sep>
-      <EditablePerformanceCell
-        value={reps !== null && reps !== undefined ? reps.toString() : ""}
-        onChange={(val) => onChange({ reps: trainingInt(val) })}
-        placeholder="—"
-        fieldKey="reps"
-        label="Reps"
-        widthClass="w-8"
-        step={1}
-        rowIndex={rowIndex}
-        grid={repsGrid}
-      />
-      <Sep>@</Sep>
-      <EditablePerformanceCell
-        value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
-        onChange={(val) => onChange({ targetValue: trainingNumber(val) })}
-        placeholder="—"
-        fieldKey="targetValue"
-        label={intensityType === "PERCENT" ? "Target %" : "Target RPE"}
-        widthClass="w-8"
-        step={intensityType === "PERCENT" ? 1 : 0.5}
-        rowIndex={rowIndex}
-        grid={rpeGrid}
-      />
-      <button
-        type="button"
-        onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
-        className="h-6 px-0.5 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-        data-testid="rx-intensity"
-        title="Switch between RPE and %"
-      >
-        {intensityType === "PERCENT" ? "%" : "RPE"}
-      </button>
-    </div>
+    <>
+      <td className={`${tdClass} pr-1`} data-lift-id={liftId}>
+        <div className="flex items-center gap-0.5">
+          <EditablePerformanceCell
+            value={weight !== null && weight !== undefined ? weight.toString() : ""}
+            onChange={(val) => onChange({ weight: trainingNumber(val) })}
+            placeholder="—"
+            fieldKey="rx-weight"
+            label="Plan weight"
+            widthClass="w-12"
+            step={2.5}
+            rowIndex={rowIndex}
+            grid={kgGrid}
+          />
+          {offer}
+        </div>
+      </td>
+      <td className={tdClass}>
+        <EditablePerformanceCell
+          value={reps !== null && reps !== undefined ? reps.toString() : ""}
+          onChange={(val) => onChange({ reps: trainingInt(val) })}
+          placeholder="—"
+          fieldKey="reps"
+          label="Reps"
+          widthClass="w-8"
+          step={1}
+          rowIndex={rowIndex}
+          grid={repsGrid}
+        />
+      </td>
+      <td className={`${tdClass} pr-3`}>
+        <div className="flex items-center gap-0.5">
+          <EditablePerformanceCell
+            value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
+            onChange={(val) => onChange({ targetValue: trainingNumber(val) })}
+            placeholder="—"
+            fieldKey="targetValue"
+            label={intensityType === "PERCENT" ? "Target %" : "Target RPE"}
+            widthClass="w-8"
+            step={intensityType === "PERCENT" ? 1 : 0.5}
+            rowIndex={rowIndex}
+            grid={rpeGrid}
+          />
+          <button
+            type="button"
+            onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
+            className="h-6 px-0.5 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+            data-testid="rx-intensity"
+            title="Switch between RPE and %"
+          >
+            {intensityType === "PERCENT" ? "%" : "RPE"}
+          </button>
+        </div>
+      </td>
+    </>
   );
 };
 

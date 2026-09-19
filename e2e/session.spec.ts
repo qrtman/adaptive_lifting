@@ -37,7 +37,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
   const liftRow = page.getByRole('heading', { name: 'Squat', exact: true })
-    .locator('xpath=ancestor::div[contains(@class,"border-b")][1]');
+    .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
   await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
   await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Knee Dominant');
   await page.getByTestId(/^edit-lift-/).first().click();
@@ -150,8 +150,8 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 });
 
-test('lift Adj rewrites remaining unlogged Plan kg without a new column', async ({ page, request }) => {
-  const email = `liftadj-${Date.now()}@example.com`;
+test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', async ({ page, request }) => {
+  const email = `set-grid-${Date.now()}@example.com`;
   const register = await request.post('http://localhost:8000/api/auth/register', {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
@@ -166,7 +166,7 @@ test('lift Adj rewrites remaining unlogged Plan kg without a new column', async 
   await page.getByRole('button', { name: 'Sessions' }).click();
   await page.getByTestId('sessions-add').click();
   await page.getByTestId('new-session-date').fill('2026-09-14');
-  await page.getByTestId('new-session-title').fill('Lift adj');
+  await page.getByTestId('new-session-title').fill('Set grid');
   await page.getByTestId('new-session-create').click();
   const card = page.locator('[data-testid^="sessions-card-"]');
   await expect(card).toHaveCount(1, { timeout: 10_000 });
@@ -178,60 +178,48 @@ test('lift Adj rewrites remaining unlogged Plan kg without a new column', async 
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
 
-  const adj = page.getByRole('button', { name: 'Adj', exact: true });
-  await expect(adj).toBeVisible();
-  await expect(adj).toBeDisabled();
-  await expect(adj).toHaveAttribute('title', 'Type Plan kg or log a set first.');
-
-  await expect(page.locator('thead th')).toHaveCount(9);
-  await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
+  await expect(page.getByTestId('lift-adj-dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Adj', exact: true })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
-  await expect(page.getByRole('columnheader', { name: /%adj/i })).toHaveCount(0);
-  await expect(page.getByRole('columnheader', { name: /Fatigue/i })).toHaveCount(0);
 
-  await typeCell(page.getByTestId('rx-weight').first(), '180');
-  await page.getByRole('button', { name: '+ Set' }).click();
-  await typeCell(page.getByTestId('rx-weight').nth(1), '180');
-  await page.getByRole('button', { name: '+ Set' }).click();
-  await typeCell(page.getByTestId('rx-weight').nth(2), '180');
-  await expect(adj).toBeEnabled();
+  const headers = page.locator('thead th');
+  await expect(headers).toHaveCount(15);
+  await expect(page.getByTestId('set-grid-h-plan')).toHaveText('Plan');
+  await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
+  await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
+  await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('reps');
+  await expect(page.getByTestId('set-grid-h-planRpe')).toHaveText('RPE');
+  await expect(page.getByTestId('set-grid-h-logKg')).toHaveText('kg');
+  await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
+  await expect(page.getByTestId('set-grid-h-e1rm')).toHaveText('e1RM');
+  await expect(page.getByTestId('set-grid-h-inol')).toHaveText('INOL');
 
-  await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '180');
+  const kgHeaderBox = await page.getByTestId('set-grid-h-planKg').boundingBox();
+  const kgCellBox = await page.getByTestId('rx-weight').first().boundingBox();
+  expect(kgHeaderBox && kgCellBox).toBeTruthy();
+  expect(Math.abs(kgHeaderBox!.x - kgCellBox!.x)).toBeLessThan(24);
+
+  const table = page.getByTestId('set-grid');
+  await expect(table.getByText('×', { exact: true })).toHaveCount(0);
+  await expect(table.locator('tbody').getByText('@', { exact: true })).toHaveCount(0);
+
+  await typeCell(page.getByTestId('rx-weight').first(), '150');
+  await typeCell(page.getByTestId('reps').first(), '5');
+  await typeCell(page.getByTestId('targetValue').first(), '6');
+  await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '150');
   await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
-  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
-  const suggest = page.getByTestId('plan-suggest');
-  await expect(suggest).toHaveCount(2);
-  const suggested = (await suggest.first().innerText()).replace('use ', '').trim();
-  expect(Number(suggested)).toBeGreaterThan(0);
-  expect(Number(suggested)).not.toBe(180);
+  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '6');
 
-  await adj.click();
-  await expect(page.getByTestId('lift-adj-dialog')).toBeVisible();
-  await expect(page.getByTestId('lift-adj-mode-pct')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText('Remaining unlogged sets this lift')).toBeVisible();
-  await page.getByTestId('lift-adj-value').fill('-10');
-  await page.getByTestId('lift-adj-value').blur();
-  await expect(page.getByTestId('lift-adj-preview')).toHaveText('2 sets 180 → 162.5');
-  await page.getByTestId('lift-adj-cancel').click();
-  await expect(page.getByTestId('lift-adj-dialog')).toHaveCount(0);
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('180');
-  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('180');
+  const delta = page.getByTestId(/^set-e1rm-delta-/);
+  await expect(delta).toHaveText('0%');
+  await expect(delta).not.toContainText('r');
 
-  await adj.click();
-  await page.getByTestId('lift-adj-value').fill('-10');
-  await page.getByTestId('lift-adj-apply').click();
-  await expect(page.getByTestId('lift-adj-dialog')).toHaveCount(0);
+  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '7');
+  await expect(delta).toHaveText('-4%');
 
-  await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('162.5');
-  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('162.5');
-  await expect(page.locator('thead th')).toHaveCount(9);
-  await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
-
-  await expect(page.getByTestId('plan-suggest')).toHaveCount(2);
-  await page.getByTestId('plan-suggest').first().click();
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(suggested);
-  await expect(page.getByTestId('plan-suggest')).toHaveCount(1);
+  await page.getByRole('button', { name: '+ Set' }).click();
+  await expect(page.getByTestId('plan-suggest')).toBeVisible();
+  await expect(page.getByTestId('set-drop-pct')).toHaveCount(1);
 });
 
 test('set % column on later sets scales use {n} without writing Plan kg', async ({ page, request }) => {
@@ -263,11 +251,11 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
 
   const headers = page.locator('thead th');
-  await expect(headers).toHaveCount(9);
+  await expect(headers).toHaveCount(15);
   await expect(headers.nth(0)).toHaveText('#');
   await expect(headers.nth(1)).toHaveText('%');
   await expect(headers.nth(2)).toContainText('Plan');
-  await expect(page.getByRole('button', { name: 'Adj', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Adj', exact: true })).toHaveCount(0);
 
   const waitForSetsPut = () => page.waitForResponse((response) => (
     response.url().includes('/exercises/')

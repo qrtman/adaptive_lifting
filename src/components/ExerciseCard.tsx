@@ -20,23 +20,21 @@ import {
   type SetGridBind,
 } from '../services/sheetsCellKeyboard';
 import {
-  applyLiftAdj,
   applySetDropPercent,
-  formatLiftAdjPreview,
-  formatSignedDelta,
-  LIFT_ADJ_COPY,
-  LIFT_ADJ_KG_STEP,
-  LIFT_ADJ_PCT_STEP,
-  liftAdjDisabledReason,
   parseDropPercent,
-  parseSignedDelta,
   planKgOfferKg,
-  previewLiftAdj,
   refreshSetAnchors,
-  type LiftAdjMode,
 } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
 import type { MovementPattern } from '../services/exerciseCatalog';
+
+function formatE1rmDeltaPct(planE1rm: number, logE1rm: number): string {
+  if (!(planE1rm > 0) || !(logE1rm > 0)) return '—';
+  const pct = Math.round(((logE1rm - planE1rm) / planE1rm) * 100);
+  if (pct > 0) return `+${pct}%`;
+  if (pct < 0) return `${pct}%`;
+  return '0%';
+}
 
 export const ExerciseCard = ({ 
   id,
@@ -107,9 +105,6 @@ export const ExerciseCard = ({
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
   const [removing, setRemoving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [adjOpen, setAdjOpen] = useState(false);
-  const [adjMode, setAdjMode] = useState<LiftAdjMode>('pct');
-  const [adjDraft, setAdjDraft] = useState('0');
   const [grid, setGrid] = useState<{
     row: number;
     col: number;
@@ -230,25 +225,7 @@ export const ExerciseCard = ({
 
   const td = "px-2 py-0.5 align-middle whitespace-nowrap";
   const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
-  const sep = (ch: string) => (
-    <span className="text-[10px] text-[var(--cal-muted-soft)] select-none" aria-hidden="true">{ch}</span>
-  );
-  const adjDisabled = locked ? null : liftAdjDisabledReason(sets);
-  const adjDelta = parseSignedDelta(adjDraft) ?? 0;
-  const { preview: adjPreview, patches: adjPatches } = previewLiftAdj(sets, adjMode, adjDelta);
-  const nudgeAdj = (dir: 1 | -1) => {
-    const step = adjMode === 'kg' ? LIFT_ADJ_KG_STEP : LIFT_ADJ_PCT_STEP;
-    const current = parseSignedDelta(adjDraft) ?? 0;
-    const next = adjMode === 'kg'
-      ? Math.round((current + dir * step) * 10) / 10
-      : Math.round(current + dir * step);
-    setAdjDraft(formatSignedDelta(next));
-  };
-  const applyAdj = () => {
-    if (locked || adjPatches.length === 0) return;
-    updateAndPropagate(applyLiftAdj(sets, adjPatches));
-    setAdjOpen(false);
-  };
+  const thField = `${th} normal-case tracking-normal`;
 
   const commitDropPercent = (index: number, pct: number) => {
     if (locked || index <= 0) return;
@@ -294,27 +271,9 @@ export const ExerciseCard = ({
             <span className="text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
           </div>
           {!locked ? (
-          <>
-          <button
-            type="button"
-            data-testid={`lift-adj-${id}`}
-            disabled={adjDisabled != null}
-            title={adjDisabled ?? 'Adj remaining unlogged Plan kg'}
-            aria-label="Adj"
-            onClick={() => {
-              if (adjDisabled) return;
-              setAdjMode('pct');
-              setAdjDraft('0');
-              setAdjOpen(true);
-            }}
-            className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
-          >
-            Adj
-          </button>
           <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]">
             + Set
           </button>
-          </>
           ) : null}
           {onMoveUp && (
             <button
@@ -357,30 +316,32 @@ export const ExerciseCard = ({
         </div>
       </div>
       <div className="overflow-x-auto">
-      <table role="grid" aria-label="Plan and log sets" className="text-left border-collapse w-max max-w-full">
+      <table role="grid" aria-label="Plan and log sets" data-testid="set-grid" className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={`${th} w-6`}>#</th>
-            <th className={`${th} w-14`}>%</th>
-            <th className={`${th} pr-3`}>
-              <span className="text-[var(--cal-muted)]">Plan</span>
-              <span className="ml-1.5 font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">kg × reps @</span>
-            </th>
-            <th className={`${th} w-6 px-1`} aria-label="Copy plan to log" />
-            <th className={`${th} pl-3 border-l border-[var(--cal-hairline-soft)]`}>
-              <span className="text-[var(--cal-muted)]">Log</span>
-              <span className="ml-1.5 font-normal normal-case tracking-normal text-[var(--cal-muted-soft)]">kg × reps @ RPE</span>
-            </th>
-            <th className={th}>Δ</th>
-            <th className={th}>e1RM</th>
-            <th className={th}>INOL</th>
-            <th className={`${th} w-10`} aria-label="Set actions" />
+            <th rowSpan={2} className={`${th} w-6`} data-testid="set-grid-h-num">#</th>
+            <th rowSpan={2} className={`${th} w-14`} data-testid="set-grid-h-pct">%</th>
+            <th colSpan={3} className={th} data-testid="set-grid-h-plan">Plan</th>
+            <th rowSpan={2} className={`${th} w-6 px-1`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
+            <th colSpan={3} className={`${th} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-log">Log</th>
+            <th rowSpan={2} className={th} data-testid="set-grid-h-e1rm">e1RM</th>
+            <th rowSpan={2} className={th} data-testid="set-grid-h-delta">Δ%</th>
+            <th rowSpan={2} className={th} data-testid="set-grid-h-inol">INOL</th>
+            <th rowSpan={2} className={`${th} w-10`} aria-label="Set actions" />
+          </tr>
+          <tr className="border-b border-[var(--cal-hairline-soft)]">
+            <th className={thField} data-testid="set-grid-h-planKg">kg</th>
+            <th className={thField} data-testid="set-grid-h-planReps">reps</th>
+            <th className={thField} data-testid="set-grid-h-planRpe">RPE</th>
+            <th className={`${thField} border-l border-[var(--cal-hairline-soft)]`} data-testid="set-grid-h-logKg">kg</th>
+            <th className={thField} data-testid="set-grid-h-logReps">reps</th>
+            <th className={thField} data-testid="set-grid-h-logRpe">RPE</th>
           </tr>
         </thead>
         <tbody>
             {sets.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-2 py-3 text-xs text-[var(--cal-muted-soft)]">
+                <td colSpan={13} className="px-2 py-3 text-xs text-[var(--cal-muted-soft)]">
                   No sets programmed.
                 </td>
               </tr>
@@ -390,6 +351,12 @@ export const ExerciseCard = ({
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
               const e1RM = calculateE1RM(weight, reps, rpe);
+              const planE1RM = calculateE1RM(
+                trainingOrZero(set.plannedWeight),
+                trainingIntOrZero(set.plannedReps),
+                trainingOrZero(set.plannedRpe ?? set.target_value),
+              );
+              const e1rmDelta = formatE1rmDeltaPct(planE1RM, e1RM);
               const intensityPct = e1RM > 0 ? (weight / e1RM) * 100 : 0;
               const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
               
@@ -402,14 +369,7 @@ export const ExerciseCard = ({
                   ? 'bg-mac-green/10' 
                   : set.isTop ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]' : 'hover:bg-[var(--cal-surface-soft)]';
 
-              const actualWt = trainingOrZero(set.actual);
-              const plannedWt = trainingOrZero(set.plannedWeight);
-              const wtDelta = actualWt > 0 && plannedWt > 0 ? (actualWt - plannedWt) : null;
               const offerKg = planKgOfferKg(set.suggestedWeight, set.plannedWeight);
-
-              const actualRp = trainingOrZero(set.executedRpe);
-              const targetRpVal = trainingOrZero(set.plannedRpe);
-              const rpeDelta = actualRp > 0 && targetRpVal > 0 ? (actualRp - targetRpVal) : null;
 
               return (
                 <tr key={`${i}-${set.label}`} className={`group ${rowHighlight}`}>
@@ -428,10 +388,8 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={`${td} pr-3`}>
                     {!locked ? (
-                      <div className="flex items-center gap-0.5 whitespace-nowrap">
-                          <PrescriptionEditor
+                      <PrescriptionEditor
                             reps={set.plannedReps}
                             intensityType={set.intensity_type || "RPE"}
                             targetValue={set.target_value}
@@ -441,15 +399,8 @@ export const ExerciseCard = ({
                             kgGrid={bindGrid(i, 0)}
                             repsGrid={bindGrid(i, 1)}
                             rpeGrid={bindGrid(i, 2)}
-                            onChange={(updates) => updateSet(i, {
-                              plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
-                              intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
-                              target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
-                              plannedRpe: updates.targetValue !== undefined ? updates.targetValue : set.plannedRpe,
-                              plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
-                            })}
-                          />
-                          {offerKg != null ? (
+                            tdClass={td}
+                            offer={offerKg != null ? (
                             <button
                               type="button"
                               data-testid="plan-suggest"
@@ -460,17 +411,21 @@ export const ExerciseCard = ({
                               use {offerKg}
                             </button>
                           ) : null}
-                      </div>
+                            onChange={(updates) => updateSet(i, {
+                              plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
+                              intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
+                              target_value: updates.targetValue !== undefined ? updates.targetValue : set.target_value,
+                              plannedRpe: updates.targetValue !== undefined ? updates.targetValue : set.plannedRpe,
+                              plannedWeight: updates.weight !== undefined ? updates.weight : set.plannedWeight
+                            })}
+                          />
                     ) : (
-                      <div className="flex items-center gap-1 text-[11px] tnum whitespace-nowrap">
-                          <span className="text-[var(--cal-ink)]">{set.plannedWeight != null ? `${set.plannedWeight} kg` : '—'}</span>
-                          {sep('×')}
-                          <span>{set.plannedReps}</span>
-                          {sep('@')}
-                          <span>{set.target_value}{set.intensity_type === "PERCENT" ? "%" : " RPE"}</span>
-                      </div>
+                      <>
+                        <td className={`${td} tnum text-[11px] text-[var(--cal-ink)]`}>{set.plannedWeight != null ? set.plannedWeight : '—'}</td>
+                        <td className={`${td} tnum text-[11px]`}>{set.plannedReps ?? '—'}</td>
+                        <td className={`${td} tnum text-[11px] pr-3`}>{set.target_value != null ? `${set.target_value}${set.intensity_type === "PERCENT" ? "%" : ""}` : '—'}</td>
+                      </>
                     )}
-                  </td>
                   <td className={`${td} px-1`}>
                     <button
                       type="button"
@@ -484,15 +439,8 @@ export const ExerciseCard = ({
                   </td>
                   <td className={`${td} pl-3 border-l border-[var(--cal-hairline-soft)]`}>
                     {locked ? (
-                      <div className="flex items-center gap-1 text-[11px] tnum whitespace-nowrap">
-                        <span className="text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
-                        {sep('×')}
-                        <span>{set.reps ?? '—'}</span>
-                        {sep('@')}
-                        <span>{set.executedRpe ?? '—'}</span>
-                      </div>
+                      <span className="text-[11px] tnum text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
                     ) : (
-                    <div className="flex items-center gap-0.5 whitespace-nowrap">
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.actual)}
                         onChange={(val) => updateSet(i, { actual: trainingNumber(val), isAuto: !val })}
@@ -507,7 +455,12 @@ export const ExerciseCard = ({
                         rowIndex={i}
                         grid={bindGrid(i, 3)}
                       />
-                      {sep('×')}
+                    )}
+                  </td>
+                  <td className={td}>
+                    {locked ? (
+                      <span className="text-[11px] tnum">{set.reps ?? '—'}</span>
+                    ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.reps)}
                         onChange={(val) => updateSet(i, { reps: trainingInt(val) })}
@@ -520,7 +473,12 @@ export const ExerciseCard = ({
                         rowIndex={i}
                         grid={bindGrid(i, 4)}
                       />
-                      {sep('@')}
+                    )}
+                  </td>
+                  <td className={td}>
+                    {locked ? (
+                      <span className="text-[11px] tnum">{set.executedRpe ?? '—'}</span>
+                    ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.executedRpe)}
                         onChange={(val) => updateSet(i, { executedRpe: trainingNumber(val) })}
@@ -533,17 +491,15 @@ export const ExerciseCard = ({
                         rowIndex={i}
                         grid={bindGrid(i, 5)}
                       />
-                    </div>
                     )}
-                  </td>
-                  <td className={`${td} tnum text-[10px] text-[var(--cal-muted)]`}>
-                    {wtDelta !== null ? `${wtDelta > 0 ? '+' : ''}${wtDelta}` : '—'}
-                    {rpeDelta !== null ? ` ${rpeDelta > 0 ? '+' : ''}${rpeDelta}r` : ''}
                   </td>
                   <td className={`${td} tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
+                  </td>
+                  <td className={`${td} tnum text-[11px] text-[var(--cal-muted)]`} data-testid={`set-e1rm-delta-${set.id}`}>
+                    {e1rmDelta}
                   </td>
                   <td className={`${td} tnum text-[11px]`}>
                     <span
@@ -581,101 +537,6 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
-      {adjOpen && !locked ? (
-        <CenteredDialog
-          title="Adj"
-          subtitle={LIFT_ADJ_COPY.scope}
-          onClose={() => setAdjOpen(false)}
-          onSubmit={applyAdj}
-          testId="lift-adj-dialog"
-          footer={(
-            <>
-              <button
-                type="button"
-                data-testid="lift-adj-cancel"
-                onClick={() => setAdjOpen(false)}
-                className="h-8 px-3 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                data-testid="lift-adj-apply"
-                className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)]"
-              >
-                Apply
-              </button>
-            </>
-          )}
-        >
-          <NestedCard testId="lift-adj-card">
-          <div className="flex flex-col gap-3">
-            <div className="inline-flex self-start border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)]" role="group" aria-label="Adj mode">
-              <button
-                type="button"
-                data-testid="lift-adj-mode-kg"
-                aria-pressed={adjMode === 'kg'}
-                onClick={() => { setAdjMode('kg'); setAdjDraft('0'); }}
-                className={`h-7 px-2 text-[11px] ${adjMode === 'kg' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}
-              >
-                kg
-              </button>
-              <button
-                type="button"
-                data-testid="lift-adj-mode-pct"
-                aria-pressed={adjMode === 'pct'}
-                onClick={() => { setAdjMode('pct'); setAdjDraft('0'); }}
-                className={`h-7 px-2 text-[11px] ${adjMode === 'pct' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}
-              >
-                %
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                data-testid="lift-adj-dec"
-                onClick={() => nudgeAdj(-1)}
-                className="h-8 w-8 text-sm text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-                aria-label="Decrease"
-              >
-                −
-              </button>
-              <input
-                data-testid="lift-adj-value"
-                type="text"
-                inputMode="decimal"
-                value={adjDraft}
-                onChange={(event) => setAdjDraft(event.target.value)}
-                onBlur={() => {
-                  const parsed = parseSignedDelta(adjDraft);
-                  setAdjDraft(formatSignedDelta(parsed ?? 0));
-                }}
-                className="h-8 w-20 px-2 text-center text-xs tnum text-[var(--cal-ink)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)]"
-                aria-label="Adj amount"
-              />
-              <button
-                type="button"
-                data-testid="lift-adj-inc"
-                onClick={() => nudgeAdj(1)}
-                className="h-8 w-8 text-sm text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-                aria-label="Increase"
-              >
-                +
-              </button>
-            </div>
-            {adjPreview ? (
-              <p data-testid="lift-adj-preview" className="text-xs tnum text-[var(--cal-muted)]">
-                {formatLiftAdjPreview(adjPreview)}
-              </p>
-            ) : (
-              <p data-testid="lift-adj-preview" className="text-xs text-[var(--cal-muted-soft)]">
-                Nothing to apply at this value.
-              </p>
-            )}
-          </div>
-          </NestedCard>
-        </CenteredDialog>
-      ) : null}
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}
