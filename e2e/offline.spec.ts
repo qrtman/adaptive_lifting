@@ -32,7 +32,7 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Deadlift', exact: true })).toBeVisible();
   await expect(page.getByTestId('session-name')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await expect(page.getByTestId('sync-status')).toHaveCount(0);

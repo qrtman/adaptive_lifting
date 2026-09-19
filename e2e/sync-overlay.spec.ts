@@ -70,7 +70,7 @@ test('flushing shows a fixed spinner then unmounts without shifting session-name
   await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Deadlift', exact: true })).toBeVisible();
 
   const logReps = page.locator('[data-testid$="-reps"]').first();
   const logRpe = page.locator('[data-testid$="-executedRpe"]').first();

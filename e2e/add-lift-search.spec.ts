@@ -45,7 +45,7 @@ test('typing bench shows Bench variants; click and Confirm adds the lift', async
   await expect(page.locator('select[data-testid="add-lift-exercise"]')).toHaveCount(0);
   await page.getByTestId('add-lift-result-Bench').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Bench', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Bench', exact: true })).toBeVisible();
 });
 
 test('zzzz shows no catalog matches and disables Confirm', async ({ page, request }) => {

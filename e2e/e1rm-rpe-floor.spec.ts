@@ -35,7 +35,7 @@ test('LOG e1RM: 150×6 @5 > @6 > @7, @4 equals @5, empty RPE is load', async ({ 
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
 
   await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '150');
   await typeCell(page.locator('[data-testid$="-reps"]').first(), '6');

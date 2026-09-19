@@ -39,14 +39,14 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Deadlift', exact: true })).toBeVisible();
 
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
-  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
+  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
+  const squatRow = page.getByRole('heading', { name: 'Competition Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
 
   await typeCell(squatRow.getByTestId('rx-weight').first(), '150');

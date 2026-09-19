@@ -277,27 +277,13 @@ export const ExerciseCard = ({
   return (
     <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-start gap-2 min-w-0">
-          <h4 className="text-lg leading-7 font-semibold tracking-tight text-[var(--cal-ink)] truncate">{title}</h4>
-          <span className="text-xs text-[var(--cal-muted)] truncate">
-            {tier ? `${tier} · ${variation}` : variation}
-          </span>
-          {movementPattern ? (
-            <span
-              className="text-xs text-[var(--cal-muted)] truncate"
-              data-testid={`movement-pattern-label-${id}`}
-            >
-              {movementPattern}
-            </span>
-          ) : null}
-          {onUpdateMeta ? (
-            <MovementPatternSelect
-              id={id}
-              value={movementPattern}
-              locked={locked}
-              onChange={(next) => onUpdateMeta({ movementPattern: next })}
-            />
-          ) : null}
+        <div className="flex items-center gap-2 min-w-0">
+          <h4
+            className="text-lg leading-7 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
+            data-testid={`exercise-title-${id}`}
+          >
+            {variation}
+          </h4>
           {onUpdateMeta ? (
             <button
               type="button"

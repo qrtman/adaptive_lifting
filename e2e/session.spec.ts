@@ -39,11 +39,10 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
-  const liftRow = page.getByRole('heading', { name: 'Squat', exact: true })
+  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
+  const liftRow = page.getByRole('heading', { name: 'Competition Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
-  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(1);
-  await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Knee Dominant');
+  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
   await page.getByTestId(/^edit-lift-/).first().click();
   await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
   const pattern = page.getByTestId(/^movement-pattern-edit-/);
@@ -52,8 +51,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(pattern).toHaveValue('Hip Dominant');
   await page.getByTestId('edit-lift-done').click();
   await expect(page.getByTestId('edit-lift-dialog')).toHaveCount(0);
-  await expect(liftRow.getByTestId(/^movement-pattern-label-/)).toHaveText('Hip Dominant');
-  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(1);
+  await expect(liftRow.locator('select[data-testid^="movement-pattern-"]')).toHaveCount(0);
 
   await expect(page.getByRole('columnheader', { name: /Plan/ }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Log/ }).first()).toBeVisible();
@@ -129,7 +127,7 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
 
   await typeCell(page.getByTestId('rx-weight').first(), '180');
   await page.getByRole('button', { name: '+ Plan set' }).click();
@@ -188,7 +186,7 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
 
   await expect(page.getByTestId('lift-adj-dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Adj', exact: true })).toHaveCount(0);
@@ -274,7 +272,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
 
   const headers = page.locator('thead th');
   await expect(headers).toHaveCount(16);

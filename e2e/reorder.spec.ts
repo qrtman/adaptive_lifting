@@ -55,21 +55,21 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await addNamedLift('Hip Dominant', 'Deadlift');
 
   const liftHeadings = page.locator('.cal-nested-card h4');
-  await expect(liftHeadings).toHaveText(['Squat', 'Bench', 'Deadlift']);
+  await expect(liftHeadings).toHaveText(['Competition Squat', 'Competition Bench', 'Competition Deadlift']);
 
   const moved = page.waitForResponse((res) =>
     res.url().includes('/exercises/') && res.request().method() === 'PATCH'
   );
-  await page.getByRole('heading', { name: 'Bench', exact: true })
+  await page.getByRole('heading', { name: 'Competition Bench', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]')
     .getByRole('button', { name: 'Up', exact: true })
     .click();
   expect((await moved).ok()).toBeTruthy();
-  await expect(liftHeadings).toHaveText(['Bench', 'Squat', 'Deadlift']);
+  await expect(liftHeadings).toHaveText(['Competition Bench', 'Competition Squat', 'Competition Deadlift']);
 
   await page.reload();
-  await expect(page.locator('.cal-nested-card h4')).toHaveText(['Bench', 'Squat', 'Deadlift']);
-  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
+  await expect(page.locator('.cal-nested-card h4')).toHaveText(['Competition Bench', 'Competition Squat', 'Competition Deadlift']);
+  const squatRow = page.getByRole('heading', { name: 'Competition Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
   await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('180');
   await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('—');
@@ -79,7 +79,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(page.getByTestId('session-open')).toHaveCount(0);
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Up', exact: true }).first()).toBeEnabled();
-  const squatPlan = page.getByRole('heading', { name: 'Squat', exact: true })
+  const squatPlan = page.getByRole('heading', { name: 'Competition Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]')
     .getByTestId('rx-weight').first();
   await fillEditableCell(squatPlan, '182.5');
