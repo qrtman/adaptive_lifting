@@ -88,7 +88,7 @@ These are the non-negotiable principles governing all design decisions.
 * **Shared Full Write While Linked**: Linked coach and athlete may both structure and log on the shared plan, subject to the single-writer workout lock.
 * **Single-Writer per Workout**: Only one user (coach or athlete) may have a workout in an editable state at a time to prevent merge conflicts.
 * **Session-First Scheduling**: Sessions can be created with only a date. Block/Week labels are optional and may be assigned or changed anytime (including bulk). Unlabeled sessions are valid.
-* **No Demo Auto-Seed**: Empty athlete plans stay empty. Fetch, reset, and coach push must not inject sample microcycles.
+* **No Demo Auto-Seed**: Empty athlete plans stay empty. Fetch and coach push must not inject sample microcycles.
 * **Label Drag Soft Boundary**: When sessions share a Week label, drag-and-drop reschedule prefers staying within that labeled group; unlabeled sessions move freely by date. Server validates date integrity, not Mon–Sun week boxes.
 * **Fractional Indexing for Order**: Array-based indexing is strictly forbidden for user-ordered lists (Exercises, Sets) to prevent offline sync conflicts.
 * **Date-Only Scheduling**: Workout dates are stored as date-only values (`YYYY-MM-DD`). Timestamps are reserved for audit and sync metadata.
