@@ -237,7 +237,7 @@ def test_coach_create_session_requires_linked_athlete():
     assert any(w["id"] == body["id"] for mc in athlete_own.json() for w in mc["workouts"])
 
 
-def test_session_labels_anytime_and_reset_stays_empty():
+def test_session_labels_anytime_and_new_athlete_starts_empty():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     athlete = client.post(
