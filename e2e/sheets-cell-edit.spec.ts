@@ -34,6 +34,12 @@ test('Sheets-parity: click selects; Tab kgâ†’reps; Enter down same column; PLANâ
   await page.getByRole('button', { name: '+ Set' }).click();
   await expect(page.getByTestId('rx-weight')).toHaveCount(2);
 
+  await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
+  await expect(page.locator('tbody tr').nth(0).locator('[data-testid="set-drop-pct"]')).toHaveCount(0);
+  await expect(page.getByTestId('set-drop-pct').first()).toHaveAttribute('tabindex', '-1');
+  await expect(page.getByTestId('set-drop-pct-dec')).toHaveCount(0);
+  await expect(page.getByTestId('set-drop-pct-inc')).toHaveCount(0);
+
   const planKg0 = page.locator('[data-cell-id$=":0:plan:kg"]');
   const planKg1 = page.locator('[data-cell-id$=":1:plan:kg"]');
   const planReps0 = page.locator('[data-cell-id$=":0:plan:reps"]');
@@ -128,4 +134,11 @@ test('Sheets-parity: click selects; Tab kgâ†’reps; Enter down same column; PLANâ
   await expectCellEditing(planKg1);
   await planKg1.press('Enter');
   await expectCellSelected(planKg1);
+  await expect(page.locator('[data-cell-id$=":0:plan:kg"]')).toHaveCount(1);
+  await expect(page.locator('[data-cell-id$=":0:plan:reps"]')).toHaveCount(1);
+  await expect(page.locator('[data-cell-id$=":0:plan:rpe"]')).toHaveCount(1);
+  await expect(page.locator('[data-cell-id$=":0:log:kg"]')).toHaveCount(1);
+  await expect(page.locator('[data-cell-id$=":0:log:reps"]')).toHaveCount(1);
+  await expect(page.locator('[data-cell-id$=":0:log:rpe"]')).toHaveCount(1);
+  await expect(page.locator('[data-cell-id*=":drop:"]')).toHaveCount(0);
 });

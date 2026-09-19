@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import type { DashboardMode } from '../navigation';
+import type { ThemePreference } from '../theme/themePref';
 
 export type { DashboardMode };
 
@@ -13,6 +14,8 @@ export const AppShell = ({
   onToggleSidebar,
   focusAthleteScope = false,
   onAthleteScopeFocused,
+  theme,
+  onToggleTheme,
 }: {
   children: ReactNode;
   dashboardMode: DashboardMode;
@@ -22,9 +25,11 @@ export const AppShell = ({
   onToggleSidebar: () => void;
   focusAthleteScope?: boolean;
   onAthleteScopeFocused?: () => void;
+  theme: ThemePreference;
+  onToggleTheme: () => void;
 }) => {
   return (
-    <div className="flex min-h-screen overflow-hidden bg-[#0A0A0A] font-sans text-gray-200">
+    <div className="flex min-h-screen overflow-hidden bg-[var(--cal-canvas)] text-[var(--cal-ink)] font-sans antialiased">
       <Sidebar
         dashboardMode={dashboardMode}
         onNavigate={onNavigate}
@@ -33,6 +38,8 @@ export const AppShell = ({
         onToggleCollapse={onToggleSidebar}
         focusAthleteScope={focusAthleteScope}
         onAthleteScopeFocused={onAthleteScopeFocused}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
       />
       <main
         className={`flex-1 flex flex-col h-screen overflow-hidden ${sidebarCollapsed ? 'ml-[60px]' : 'ml-[240px]'}`}

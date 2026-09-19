@@ -1,4 +1,10 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
+import { motion } from 'motion/react';
+
+const inputClass =
+  'h-10 w-full min-w-0 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
+
+const labelClass = 'text-[10px] uppercase tracking-wider text-[var(--cal-muted)] leading-4';
 
 export function ComboBox({
   label,
@@ -76,7 +82,7 @@ export function ComboBox({
 
   return (
     <label className="flex w-full min-w-0 flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-[#636366] leading-4">{label}</span>
+      <span className={labelClass}>{label}</span>
       <div className="relative min-w-0">
         <input
           data-testid={testId}
@@ -99,14 +105,18 @@ export function ComboBox({
           }}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
-          className="h-8 w-full min-w-0 px-2 rounded bg-[#0A0A0A] border border-white/10 text-xs text-white"
+          className={inputClass}
         />
         {open && filtered.length > 0 ? (
-          <div
+          <motion.div
             id={listId}
             role="listbox"
             data-testid={listId}
-            className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto border border-white/10 rounded bg-[#131313]"
+            data-elevated="true"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.16, ease: [0.4, 0, 0.2, 1] }}
+            className="cal-nested-card absolute z-20 mt-1 w-full max-h-40 overflow-y-auto p-1 shadow-[var(--cal-shadow-lift)]"
           >
             {filtered.map((option, index) => {
               const active = index === highlightIndex;
@@ -120,15 +130,17 @@ export function ComboBox({
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setHighlightIndex(index)}
                   onClick={() => pick(option)}
-                  className={`w-full px-2 py-1.5 text-left text-xs ${
-                    active ? 'bg-white/10 text-white' : 'text-[#AEAEB2] hover:text-white'
+                  className={`w-full px-3 py-2 text-left text-sm ${
+                    active
+                      ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                      : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]'
                   }`}
                 >
                   {option}
                 </button>
               );
             })}
-          </div>
+          </motion.div>
         ) : null}
       </div>
     </label>

@@ -476,12 +476,11 @@ def format_exercise(e: Exercise) -> dict:
             "isAuto": s.isAuto,
             "isTop": s.isTop,
             "intensityType": getattr(s, "intensity_type", None) or "RPE",
+            "dropPercent": coerce_float(s.dropPercent) if s.dropPercent is not None else 0,
         }
         planned_preview = getattr(s, "planned", None)
         if planned_preview is not None:
             set_dict["planned"] = planned_preview
-        if s.dropPercent is not None:
-            set_dict["dropPercent"] = s.dropPercent
         if s.note is not None:
             set_dict["note"] = s.note
         sets_list.append(set_dict)
@@ -1440,6 +1439,7 @@ class PlannedSetWrite(BaseModel):
     actual: Optional[float] = None
     reps: Optional[int] = None
     executedRpe: Optional[float] = None
+    dropPercent: Optional[float] = None
 
 
 class ReplaceExerciseSetsRequest(BaseModel):

@@ -3,7 +3,7 @@ import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { displayDayField, normalizeDayLabel } from '../features/plan/sessionLabels';
 import { setRecentBlock, setRecentDay, setRecentName, setRecentWeek } from '../storage/uiPrefs';
-import { CenteredDialog } from './CenteredDialog';
+import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { ComboBox } from './ComboBox';
 import { LabelCombo, dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
 
@@ -92,7 +92,7 @@ export function EditSessionDialog({
               data-testid="edit-session-delete"
               disabled={busy}
               onClick={() => void remove()}
-              className="mr-auto h-8 px-3 text-xs text-[#FF453A] hover:text-white disabled:opacity-40"
+              className="mr-auto h-10 px-4 text-sm text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
             >
               Delete
             </button>
@@ -101,7 +101,7 @@ export function EditSessionDialog({
             type="button"
             data-testid="edit-session-cancel"
             onClick={onClose}
-            className="h-8 px-3 text-xs text-[#AEAEB2] hover:text-white"
+            className="h-10 px-4 text-sm text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
           >
             Cancel
           </button>
@@ -110,7 +110,7 @@ export function EditSessionDialog({
             data-testid="edit-session-save"
             disabled={busy}
             onClick={() => void save()}
-            className="h-8 px-3 text-xs text-white bg-[#007AFF] rounded disabled:opacity-40"
+            className="h-10 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)] disabled:opacity-40 disabled:hover:bg-[var(--cal-primary)]"
           >
             {busy ? 'Saving…' : 'Save'}
           </button>
@@ -118,50 +118,54 @@ export function EditSessionDialog({
       )}
     >
       <div className="flex flex-col gap-2">
-        <ComboBox
-          label="Name"
-          value={title}
-          onChange={setTitle}
-          options={nameOptions}
-          placeholder="Squat, Meet…"
-          testId="session-title"
-        />
-        <div className="@container min-w-0">
-          <div
-            data-testid="edit-session-slot-row"
-            className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
-          >
-            <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
-              <ComboBox
-                label="Day"
-                value={dayInput}
-                onChange={setDayInput}
-                options={dayOptions}
-                placeholder="Day 1…"
-                testId="session-day"
-              />
-            </div>
-            <div className="min-w-0">
-              <LabelCombo
-                label="Block (optional)"
-                value={blockLabel}
-                onChange={setBlockLabel}
-                options={blockOptions}
-                testId="session-block"
-              />
-            </div>
-            <div className="min-w-0">
-              <LabelCombo
-                label="Week (optional)"
-                value={weekLabel}
-                onChange={setWeekLabel}
-                options={weekOptions}
-                testId="session-week"
-              />
+        <NestedCard testId="edit-session-name-card">
+          <ComboBox
+            label="Name"
+            value={title}
+            onChange={setTitle}
+            options={nameOptions}
+            placeholder="Squat, Meet…"
+            testId="session-title"
+          />
+        </NestedCard>
+        <NestedCard testId="edit-session-slot-card">
+          <div className="@container min-w-0">
+            <div
+              data-testid="edit-session-slot-row"
+              className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
+            >
+              <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
+                <ComboBox
+                  label="Day"
+                  value={dayInput}
+                  onChange={setDayInput}
+                  options={dayOptions}
+                  placeholder="Day 1…"
+                  testId="session-day"
+                />
+              </div>
+              <div className="min-w-0">
+                <LabelCombo
+                  label="Block (optional)"
+                  value={blockLabel}
+                  onChange={setBlockLabel}
+                  options={blockOptions}
+                  testId="session-block"
+                />
+              </div>
+              <div className="min-w-0">
+                <LabelCombo
+                  label="Week (optional)"
+                  value={weekLabel}
+                  onChange={setWeekLabel}
+                  options={weekOptions}
+                  testId="session-week"
+                />
+              </div>
             </div>
           </div>
-        </div>
-        {error && <p data-testid="edit-session-error" className="text-xs text-[#FF453A]">{error}</p>}
+        </NestedCard>
+        {error && <p data-testid="edit-session-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>
   );

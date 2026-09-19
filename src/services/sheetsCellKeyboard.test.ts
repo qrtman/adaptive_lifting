@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   cellIdOf,
+  COLS,
+  GRID_COL_COUNT,
   makeCellId,
   neighbor,
   parseCellId,
@@ -224,6 +226,12 @@ describe('grid addresses', () => {
       col: 3,
     });
     expect(cellIdOf({ liftId: 'e-1', row: 2, axis: 'log', field: 'kg' })).toBe(id);
+  });
+
+  it('stays 6-col; % drop is not a COLS field', () => {
+    expect(COLS).toHaveLength(6);
+    expect(GRID_COL_COUNT).toBe(6);
+    expect(parseCellId('lift-1:0:drop:pct')).toBeNull();
   });
 });
 

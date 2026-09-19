@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { fillEditableCell } from './helpers';
+import { expectCellSelected, fillEditableCell } from './helpers';
 
 test.use({ baseURL: 'http://localhost:3000' });
 
@@ -183,7 +183,8 @@ test('lift Adj rewrites remaining unlogged Plan kg without a new column', async 
   await expect(adj).toBeDisabled();
   await expect(adj).toHaveAttribute('title', 'Type Plan kg or log a set first.');
 
-  await expect(page.locator('thead th')).toHaveCount(8);
+  await expect(page.locator('thead th')).toHaveCount(9);
+  await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: /%adj/i })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: /Fatigue/i })).toHaveCount(0);
@@ -224,11 +225,126 @@ test('lift Adj rewrites remaining unlogged Plan kg without a new column', async 
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('162.5');
   await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('162.5');
-  await expect(page.locator('thead th')).toHaveCount(8);
+  await expect(page.locator('thead th')).toHaveCount(9);
   await expect(page.getByRole('columnheader', { name: /^Adj$/ })).toHaveCount(0);
 
   await expect(page.getByTestId('plan-suggest')).toHaveCount(2);
   await page.getByTestId('plan-suggest').first().click();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(suggested);
   await expect(page.getByTestId('plan-suggest')).toHaveCount(1);
+});
+
+test('set % column on later sets scales use {n} without writing Plan kg', async ({ page, request }) => {
+  const email = `set-pct-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
+  });
+  expect(register.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sessions' }).click();
+  await page.getByTestId('sessions-add').click();
+  await page.getByTestId('new-session-date').fill('2026-09-17');
+  await page.getByTestId('new-session-title').fill('Set pct column');
+  await page.getByTestId('new-session-create').click();
+  const card = page.locator('[data-testid^="sessions-card-"]');
+  await expect(card).toHaveCount(1, { timeout: 10_000 });
+  await card.locator('button').first().click();
+
+  await page.getByTestId('add-lift').click();
+  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-result-Squat').click();
+  await page.getByTestId('add-lift-confirm').click();
+  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+
+  const headers = page.locator('thead th');
+  await expect(headers).toHaveCount(9);
+  await expect(headers.nth(0)).toHaveText('#');
+  await expect(headers.nth(1)).toHaveText('%');
+  await expect(headers.nth(2)).toContainText('Plan');
+  await expect(page.getByRole('button', { name: 'Adj', exact: true })).toBeVisible();
+
+  const waitForSetsPut = () => page.waitForResponse((response) => (
+    response.url().includes('/exercises/')
+    && response.url().includes('/sets')
+    && response.request().method() === 'PUT'
+  ));
+
+  const firstSave = waitForSetsPut();
+  await typeCell(page.getByTestId('rx-weight').first(), '200');
+  await firstSave;
+  const addedSave = waitForSetsPut();
+  await page.getByRole('button', { name: '+ Set' }).click();
+  await addedSave;
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+
+  const firstPctCell = page.locator('tbody tr').nth(0).locator('td').nth(1);
+  await expect(firstPctCell).toHaveText('—');
+  await expect(firstPctCell.locator('[data-testid="set-drop-pct"]')).toHaveCount(0);
+  await expect(page.getByTestId('set-drop-pct')).toHaveCount(1);
+  await expect(page.getByTestId('set-drop-pct-dec')).toHaveCount(0);
+  await expect(page.getByTestId('set-drop-pct-inc')).toHaveCount(0);
+
+  const laterPct = page.getByTestId('set-drop-pct');
+  await expect(laterPct).toHaveAttribute('tabindex', '-1');
+  await expect(laterPct).toHaveValue('');
+  const laterPctCell = page.locator('tbody tr').nth(1).locator('td').nth(1);
+  await expect(laterPctCell).not.toContainText('%');
+
+  const saved = waitForSetsPut();
+  await laterPct.fill('-5');
+  await laterPct.blur();
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  const payload = await saved.then((response) => response.json());
+  const written = payload.sets.find((row: { dropPercent?: number }) => row.dropPercent === -5);
+  expect(written).toBeTruthy();
+  expect(written.plannedWeight == null || written.plannedWeight === 0).toBeTruthy();
+
+  await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '200');
+  await typeCell(page.locator('[data-testid$="-reps"]').first(), '5');
+  await typeCell(page.locator('[data-testid$="-executedRpe"]').first(), '9');
+  const suggest = page.getByTestId('plan-suggest');
+  await expect(suggest).toBeVisible();
+  const scaled = (await suggest.innerText()).replace('use ', '').trim();
+  expect(Number(scaled)).toBeGreaterThan(0);
+
+  await laterPct.fill('0');
+  await laterPct.blur();
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  const unscaledSuggest = page.getByTestId('plan-suggest');
+  await expect(unscaledSuggest).not.toHaveText(`use ${scaled}`);
+  const unscaled = Number((await unscaledSuggest.innerText()).replace('use ', '').trim());
+  expect(unscaled).toBeGreaterThan(0);
+  const expectedScaled = Math.round((unscaled * 0.95) / 2.5) * 2.5;
+  await laterPct.fill('-5');
+  await laterPct.blur();
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expect(page.getByTestId('plan-suggest')).toHaveText(`use ${expectedScaled}`);
+  await expect(laterPct).toHaveValue('-5');
+  await expect(laterPctCell).not.toContainText('%');
+
+  await page.getByTestId('plan-suggest').click();
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(String(expectedScaled));
+  await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '+ Set' }).click();
+  await typeCell(page.getByTestId('rx-weight').nth(2), '175');
+  await typeCell(page.locator('[data-testid$="-actual-weight"]').nth(2), '170');
+  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
+  await page.getByTestId('set-drop-pct').nth(1).fill('-10');
+  await page.getByTestId('set-drop-pct').nth(1).blur();
+  await expect(page.getByTestId('rx-weight').nth(2)).toHaveText('175');
+  await expect(page.getByTestId('set-drop-pct').nth(1)).toHaveValue('-10');
+
+  const planKg0 = page.locator('[data-cell-id$=":0:plan:kg"]');
+  const planReps0 = page.locator('[data-cell-id$=":0:plan:reps"]');
+  await planKg0.click();
+  await expectCellSelected(planKg0);
+  await planKg0.press('Tab');
+  await expectCellSelected(planReps0);
 });
