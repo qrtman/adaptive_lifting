@@ -203,9 +203,23 @@
   animation: cal-elevate-in 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
+.cal-day-cell {
+  transition: background-color 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cal-day-dock {
+  animation: cal-day-dock-in 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes cal-day-dock-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cal-nested-card,
-  .cal-day-chip {
+  .cal-day-chip,
+  .cal-day-cell {
     transition: none;
   }
   .cal-nested-card:focus-within,
@@ -214,7 +228,8 @@
   .cal-day-chip:focus-visible {
     transform: none;
   }
-  .cal-elevate-in {
+  .cal-elevate-in,
+  .cal-day-dock {
     animation: none;
   }
 }
