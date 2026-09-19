@@ -114,31 +114,33 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
               <motion.div
                 role="menu"
                 aria-label="Target mode"
-                initial={{ opacity: 0, x: -4, scale: 0.96 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -3, scale: 0.98 }}
-                transition={{ duration: 0.14, ease: 'easeOut' }}
-                className="absolute left-full top-1/2 z-20 flex w-[84px] -translate-y-1/2 origin-left items-center gap-0.5 rounded-[3px] border border-[var(--cal-hairline)] bg-[var(--cal-surface-card)] p-0.5 shadow-lg"
+                initial={{ clipPath: 'inset(0 40px 0 0)' }}
+                animate={{ clipPath: 'inset(0 0 0 0)' }}
+                exit={{ clipPath: 'inset(0 40px 0 0)' }}
+                transition={{ duration: 0.12, ease: 'easeOut' }}
+                className="absolute left-0 top-0 z-20 flex h-5 w-[60px] overflow-hidden bg-[var(--cal-surface-card)]"
               >
                 <button
                   type="button"
                   role="menuitem"
                   data-testid="rx-intensity-rpe"
                   onClick={() => selectIntensityType('RPE')}
-                  className={`flex h-5 min-w-0 flex-1 items-center justify-center gap-1 rounded-[2px] px-1 text-[10px] ${
+                  className={`flex h-5 w-[30px] shrink-0 items-center justify-center border border-[var(--cal-hairline)] text-[11px] ${
                     intensityType === 'RPE'
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
                   }`}
+                  aria-label="RPE"
+                  title="RPE target"
                 >
-                  <span>@</span> RPE
+                  @
                 </button>
                 <button
                   type="button"
                   role="menuitem"
                   data-testid="rx-intensity-percent"
                   onClick={() => selectIntensityType('PERCENT')}
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px] text-[10px] ${
+                  className={`flex h-5 w-[30px] shrink-0 items-center justify-center border-y border-r border-[var(--cal-hairline)] text-[11px] ${
                     intensityType === 'PERCENT'
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
