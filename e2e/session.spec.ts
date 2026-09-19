@@ -200,11 +200,23 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
   await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('reps');
-  await expect(page.getByTestId('set-grid-h-planRpe')).toHaveText('RPE');
+  await expect(page.getByTestId('set-grid-h-planTarget')).toHaveText('Target');
   await expect(page.getByTestId('set-grid-h-logKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
   await expect(page.getByTestId('set-grid-h-e1rm')).toHaveText('e1RM');
   await expect(page.getByTestId('set-grid-h-inol')).toHaveText('INOL');
+
+  const intensityMode = page.getByTestId('rx-intensity').first();
+  await expect(intensityMode).toHaveText('@');
+  await intensityMode.click();
+  const targetModeMenu = page.getByRole('menu', { name: 'Target mode' });
+  await expect(targetModeMenu).toBeVisible();
+  await targetModeMenu.getByRole('menuitem', { name: 'Percentage' }).click();
+  await expect(intensityMode).toHaveText('%');
+  await expect(page.getByLabel('Target %').first()).toBeVisible();
+  await intensityMode.click();
+  await targetModeMenu.getByRole('menuitem', { name: 'RPE' }).click();
+  await expect(intensityMode).toHaveText('@');
 
   const kgHeaderBox = await page.getByTestId('set-grid-h-planKg').boundingBox();
   const kgCellBox = await page.getByTestId('rx-weight').first().boundingBox();
@@ -213,7 +225,6 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
 
   const table = page.getByTestId('set-grid');
   await expect(table.getByText('×', { exact: true })).toHaveCount(0);
-  await expect(table.locator('tbody').getByText('@', { exact: true })).toHaveCount(0);
 
   await typeCell(page.getByTestId('rx-weight').first(), '150');
   await typeCell(page.getByTestId('reps').first(), '5');

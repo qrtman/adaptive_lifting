@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -26,6 +26,27 @@ interface PrescriptionEditorProps {
 export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
   reps, intensityType, targetValue, weight, rowIndex, liftId, kgGrid, repsGrid, rpeGrid, tdClass, onChange
 }) => {
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const modeMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!modeMenuOpen) return;
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (!modeMenuRef.current?.contains(event.target as Node)) setModeMenuOpen(false);
+    };
+    window.addEventListener('mousedown', closeOnOutsidePointer);
+    return () => window.removeEventListener('mousedown', closeOnOutsidePointer);
+  }, [modeMenuOpen]);
+
+  const selectIntensityType = (nextType: 'RPE' | 'PERCENT') => {
+    setModeMenuOpen(false);
+    if (nextType === intensityType) return;
+    onChange({
+      intensityType: nextType,
+      targetValue: nextType === 'PERCENT' ? 80 : 8,
+    });
+  };
+
   return (
     <>
       <td className={`${tdClass} pr-1`} data-lift-id={liftId}>
@@ -54,7 +75,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
           grid={repsGrid}
         />
       </td>
-      <td className={`${tdClass} pr-3`}>
+      <td className={tdClass}>
         <div className="flex items-center gap-0.5">
           <EditablePerformanceCell
             value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
@@ -67,15 +88,54 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
             rowIndex={rowIndex}
             grid={rpeGrid}
           />
-          <button
-            type="button"
-            onClick={() => onChange({ intensityType: intensityType === "RPE" ? "PERCENT" : "RPE", targetValue: intensityType === "RPE" ? 80 : 8 })}
-            className="h-6 px-0.5 text-[10px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-            data-testid="rx-intensity"
-            title="Switch between RPE and %"
-          >
-            {intensityType === "PERCENT" ? "%" : "RPE"}
-          </button>
+          <div ref={modeMenuRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setModeMenuOpen((open) => !open)}
+              className="flex h-5 w-4 items-center justify-center rounded-[2px] text-[11px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+              data-testid="rx-intensity"
+              aria-label={intensityType === 'PERCENT' ? 'Percentage target mode' : 'RPE target mode'}
+              aria-haspopup="menu"
+              aria-expanded={modeMenuOpen}
+              title="Choose RPE or percentage"
+            >
+              {intensityType === "PERCENT" ? "%" : "@"}
+            </button>
+            {modeMenuOpen ? (
+              <div
+                role="menu"
+                aria-label="Target mode"
+                className="absolute right-0 top-6 z-20 w-24 rounded-[3px] border border-[var(--cal-hairline)] bg-[var(--cal-surface-card)] p-0.5 shadow-lg"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="rx-intensity-rpe"
+                  onClick={() => selectIntensityType('RPE')}
+                  className={`flex h-6 w-full items-center gap-1.5 rounded-[2px] px-1.5 text-left text-[10px] ${
+                    intensityType === 'RPE'
+                      ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                      : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
+                  }`}
+                >
+                  <span className="w-2 text-center">@</span> RPE
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="rx-intensity-percent"
+                  onClick={() => selectIntensityType('PERCENT')}
+                  className={`flex h-6 w-full items-center gap-1.5 rounded-[2px] px-1.5 text-left text-[10px] ${
+                    intensityType === 'PERCENT'
+                      ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                      : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
+                  }`}
+                >
+                  <span className="w-2 text-center">%</span> Percentage
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </td>
     </>
