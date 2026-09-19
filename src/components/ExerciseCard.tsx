@@ -173,15 +173,14 @@ export const ExerciseCard = ({
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
 
   const addSet = () => {
-    const previous = sets[sets.length - 1];
     updateAndPropagate([...sets, {
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
       label: `Set ${sets.length + 1}`,
       plannedWeight: null,
-      plannedReps: previous?.plannedReps ?? null,
-      plannedRpe: previous?.plannedRpe ?? previous?.target_value ?? null,
-      intensity_type: previous?.intensity_type || 'RPE',
-      target_value: previous?.target_value ?? previous?.plannedRpe ?? null,
+      plannedReps: null,
+      plannedRpe: null,
+      intensity_type: 'RPE',
+      target_value: null,
       dropPercent: 0,
       isTop: false,
       isAuto: false,
@@ -278,11 +277,6 @@ export const ExerciseCard = ({
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Vol</span>
             <span className="text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
           </div>
-          {!locked ? (
-          <button type="button" onClick={addSet} className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]">
-            + Set
-          </button>
-          ) : null}
           {onMoveUp && (
             <button
               type="button"
@@ -545,6 +539,22 @@ export const ExerciseCard = ({
         </tbody>
       </table>
       </div>
+      {!locked ? (
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--cal-hairline-soft)] px-2 py-1">
+          <span className="text-[10px] text-[var(--cal-muted-soft)]">
+            Adds a blank set to this exercise
+          </span>
+          <button
+            type="button"
+            data-testid={`add-set-${id}`}
+            onClick={addSet}
+            title={`Add a blank set to ${title}`}
+            className="h-6 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-sm)]"
+          >
+            + Set
+          </button>
+        </div>
+      ) : null}
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}

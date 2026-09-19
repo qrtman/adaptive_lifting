@@ -60,6 +60,8 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
 
   await page.getByRole('button', { name: '+ Set' }).click();
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expect(page.getByTestId('reps').nth(1)).toHaveText('—');
+  await expect(page.getByTestId('targetValue').nth(1)).toHaveText('—');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
 
   await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '180');
