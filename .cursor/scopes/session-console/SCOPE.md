@@ -16,8 +16,8 @@ Cal theme shipped hairline calendar, nested cards, and Inter `tnum`. The session
 
 Copied here so a child-only read still has them. Canonical lock: `.cursor/rules/session-console.mdc`.
 
-1. **Hover overlay** — covering session chips is OK. **No blur, no scrim.** Elevation = opaque stack + `--cal-shadow-lift`. No translate/scale on the day or the buttons.
-2. **Lift filter** — constructor dialog, not the 4-pill. Facets AND: lift category × pattern × tier. Trigger chip on Calendar and Sessions.
+1. **Hover overlay** — do **not** cover session/note cards. Reserve an in-flow action dock at rest; hover fills it and must not grow the day. Week row may grow at rest. Do **not** overflow to the right onto a neighbor. **No blur, no scrim.** Session chips are name + Day/Week/Block + short lift codes (no kg×reps@RPE). Chips rest flat; the chip under the pointer uses `--cal-shadow-lift`.
+2. **Lift filter** — constructor dialog, not the 4-pill. Multiple choice per facet (OR within a row, AND across lift category × pattern × tier). Trigger chip on Calendar and Sessions.
 3. **Name ≠ Day** — Name suggestions never include day-slot strings. Name/Day/Block/Week are the same ComboBox. Opaque elevated list.
 4. **Adj header is gone.** Per-set `%` stays. No ± steppers on `%`.
 5. **Δ is e1RM %** of plan vs log, sitting **right of logged e1RM**. No kg Δ, no RPE Δ in that column.
@@ -58,7 +58,7 @@ Ship **01 → 03** (calendar + create) before **04 → 05** (open session). 02 m
 ## Shared constraints (every slice)
 
 - Cal tokens, nested-card rule, Inter `tnum` — do not invent a second theme.
-- Hover must **not** grow the day cell.
+- Hover must **not** grow the day cell. Rest content + reserved action dock may.
 - Day ≠ Name ≠ date.
 - PLAN/LOG keyboard stays 6-col. `%` skip-chrome. `use {n}` stays.
 - Copy dest D1 = earliest source **date**.
@@ -70,7 +70,7 @@ Ship **01 → 03** (calendar + create) before **04 → 05** (open session). 02 m
 | Artifact | Role |
 | :--- | :--- |
 | `.cursor/rules/session-console.mdc` | Locks for this program |
-| `.cursor/rules/calendar-day-notes.mdc` | Overlay is absolute; covering chips OK |
+| `.cursor/rules/calendar-day-notes.mdc` | Notes card + hover actions; 01 owns reserved-dock geometry |
 | `.cursor/rules/session-day-name.mdc` | Day vs Name |
 | `.cursor/rules/sheets-cell-edit.mdc` | 6-col keyboard |
 | `.cursor/scopes/cal-theme/10-nested-cards.md` | Overlay is **not** a card |

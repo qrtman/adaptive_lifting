@@ -7,7 +7,7 @@ Load this whenever a slice nests a card in a card. **Overrides** `design.md` §0
 That cap was leftover caution from the old optical-fatigue ban. It is **wrong** for this product:
 
 - **Sessions** grouping is already three nouns: Block → Week → Session.
-- **Calendar** can be day → session → lift lines (SQ 150×5@5) when a day holds a real session card, not a one-line chip.
+- **Calendar** can be day → session → short lift codes (`SQ · BP`) when a day holds a real session card, not a load line.
 - Cal.com’s own language is **product UI inside cards** — that is nesting by content, not a depth quota.
 
 ## Locked
@@ -29,9 +29,9 @@ Still forbidden: decorative hero, gradient orbs, marketing filler, 96px empty ba
 ```
 Day
   ├── Session
-  │     └── Lift lines (optional inner cards or compact rows)
+  │     └── Short lift codes (optional inner row)
   └── Note
-Hover overlay — not a card
+Hover overlay — not a card (reserved in-flow dock)
 ```
 
 **Sessions list**
