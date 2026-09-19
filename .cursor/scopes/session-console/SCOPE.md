@@ -16,7 +16,7 @@ Cal theme shipped hairline calendar, nested cards, and Inter `tnum`. The session
 
 Copied here so a child-only read still has them. Canonical lock: `.cursor/rules/session-console.mdc`.
 
-1. **Hover overlay** — do **not** cover session/note cards. Reserve an in-flow action dock at rest; hover fills it and must not grow the day. Week row may grow at rest. Do **not** overflow to the right onto a neighbor. **No blur, no scrim.** Session chips are name + Day/Week/Block + short lift codes (no kg×reps@RPE). Chips rest flat; the chip under the pointer uses `--cal-shadow-lift`.
+1. **Hover overlay** — do **not** cover session/note cards. Reserve an in-flow action dock at rest; hover fills it and must not grow the day. Week row may grow at rest. Do **not** overflow to the right onto a neighbor. **No blur, no scrim. No accent inset ring** on the day cell (hover or today). Session chips are name + Day/Week/Block + short lift codes (no kg×reps@RPE). Chips rest flat; the chip under the pointer uses `--cal-shadow-lift`.
 2. **Lift filter** — constructor dialog, not the 4-pill. Multiple choice per facet (OR within a row, AND across lift category × pattern × tier). Trigger chip on Calendar and Sessions.
 3. **Name ≠ Day** — Name suggestions never include day-slot strings. Name/Day/Block/Week are the same ComboBox. Opaque elevated list.
 4. **Adj header is gone.** Per-set `%` stays. No ± steppers on `%`.

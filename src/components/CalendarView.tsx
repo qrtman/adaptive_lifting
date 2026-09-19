@@ -49,6 +49,11 @@ function liftShortName(title: string): { code: string; color?: string } {
 
 const HOVER_ACTION_ROW_PX = 24;
 const HOVER_ACTION_GAP_PX = 2;
+const DAY_HOVER_INTENT_MS = 100;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 function hoverDockMinHeight(actionCount: number): number {
   if (actionCount <= 0) return 0;
@@ -89,6 +94,7 @@ export function CalendarView({
   const [newSessionDate, setNewSessionDate] = useState<string | null>(null);
   const [notesDate, setNotesDate] = useState<string | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const hoverIntentRef = useRef<number | null>(null);
   const [dayNotes, setDayNotes] = useState<Record<string, string>>({});
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
@@ -193,6 +199,27 @@ export function CalendarView({
     setNewSessionDate(dateStr);
   };
 
+  const enterDayHover = (dateStr: string) => {
+    if (hoverIntentRef.current != null) window.clearTimeout(hoverIntentRef.current);
+    const apply = () => {
+      hoverIntentRef.current = null;
+      setHoveredDate(dateStr);
+    };
+    if (prefersReducedMotion()) {
+      apply();
+      return;
+    }
+    hoverIntentRef.current = window.setTimeout(apply, DAY_HOVER_INTENT_MS);
+  };
+
+  const leaveDayHover = (dateStr: string) => {
+    if (hoverIntentRef.current != null) {
+      window.clearTimeout(hoverIntentRef.current);
+      hoverIntentRef.current = null;
+    }
+    setHoveredDate((current) => (current === dateStr ? null : current));
+  };
+
   const cancelCopyTo = () => {
     onClearCopy();
     setCopyBusy(false);
@@ -239,6 +266,10 @@ export function CalendarView({
     setCopyError(null);
     setCopyBusy(false);
   }, [copyClipboard]);
+
+  useEffect(() => () => {
+    if (hoverIntentRef.current != null) window.clearTimeout(hoverIntentRef.current);
+  }, []);
 
   useEffect(() => {
     if (showCoachSelectAthlete || !planAthleteId) {
@@ -606,8 +637,10 @@ export function CalendarView({
                             const dayNote = dayNotes[dateStr];
                             const isToday = dateStr === todayStr && cell.isCurrentMonth;
                             const isHovered = hoveredDate === dateStr && cell.isCurrentMonth;
-                            const isActive =
-                              newSessionDate === dateStr || notesDate === dateStr || isHovered;
+                            const isQuietFill =
+                              cell.isCurrentMonth
+                              && !copyClipboard
+                              && (isHovered || newSessionDate === dateStr || notesDate === dateStr);
 
                             return (
                               <div
@@ -616,9 +649,9 @@ export function CalendarView({
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, dateStr)}
                                 onMouseEnter={() => {
-                                  if (cell.isCurrentMonth && !showCoachSelectAthlete) setHoveredDate(dateStr);
+                                  if (cell.isCurrentMonth && !showCoachSelectAthlete) enterDayHover(dateStr);
                                 }}
-                                onMouseLeave={() => setHoveredDate((current) => current === dateStr ? null : current)}
+                                onMouseLeave={() => leaveDayHover(dateStr)}
                                 onClick={() => {
                                   if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
                                   if (copyClipboard) {
@@ -633,14 +666,16 @@ export function CalendarView({
                                     openNewSession(dateStr);
                                   }
                                 }}
-                                className={`h-auto min-h-[128px] min-w-0 p-1.5 flex flex-col relative overflow-visible cursor-pointer transition-colors border-r border-b border-[var(--cal-hairline)] ${
+                                className={`cal-day-cell h-auto min-h-[128px] min-w-0 p-1.5 flex flex-col relative overflow-visible cursor-pointer border-r border-b border-[var(--cal-hairline)] ${
                                   cellIdx === 6 ? 'border-r-0' : ''
                                 } ${
                                   isLastWeek ? 'border-b-0' : ''
                                 } ${
                                   !cell.isCurrentMonth
                                     ? 'opacity-40 select-none bg-[var(--cal-surface-soft)]'
-                                    : 'bg-[var(--cal-canvas)] hover:bg-[var(--cal-surface-soft)]'
+                                    : isQuietFill
+                                      ? 'bg-[var(--cal-surface-soft)]'
+                                      : 'bg-[var(--cal-canvas)]'
                                 } ${
                                   copyClipboard && cell.isCurrentMonth && dateStr !== copyOriginDate
                                     ? 'ring-1 ring-inset ring-[color-mix(in_srgb,var(--cal-accent)_50%,transparent)]'
@@ -648,10 +683,6 @@ export function CalendarView({
                                 } ${
                                   copyClipboard && dateStr === copyOriginDate
                                     ? 'ring-1 ring-inset ring-[var(--cal-hairline)]'
-                                    : ''
-                                } ${
-                                  !copyClipboard && (isActive || isToday)
-                                    ? 'ring-1 ring-inset ring-[var(--cal-accent)]'
                                     : ''
                                 }`}
                               >
@@ -754,7 +785,7 @@ export function CalendarView({
                                     {hoveredDate === dateStr && !copyClipboard ? (
                                       <div
                                         data-testid={`calendar-day-hover-${dateStr}`}
-                                        className="flex flex-col gap-0.5 w-full min-w-0"
+                                        className="cal-day-dock flex flex-col gap-0.5 w-full min-w-0"
                                       >
                                         <button
                                           type="button"

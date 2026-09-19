@@ -19,6 +19,7 @@ Absolute leftover overlays sat **behind** session/note chips (z-index) or spille
 - Calendar chips drop kg×reps@RPE. Show **Name**, then Day · Week · Block when labeled, then one truncated line of unique short lift codes (`SQ · BP · DL`). Empty fields omit their line.
 - **No** `backdrop-blur`, **no** dim scrim, **no** wrapper card around the actions (buttons only).
 - **No** `translate` / `scale` / `cal-elevate-in` on the **day** or the **action buttons**. Honor `prefers-reduced-motion`.
+- **No** accent inset ring on the day cell for hover or today. Today is the accent **numeral** only. Hover is a quiet `surface-soft` fill (180ms) plus the dock. ~100ms hover intent before filling the dock. Copy-to destination rings stay (mode, not hover).
 - Actions unchanged: New session (black primary) → Copy to (iff session) → Notes. Same testids. Copy-to still uses unfiltered `dayWorkouts[0]`.
 
 ### Cards inside the day (DESIGN-cal elevation)
@@ -34,8 +35,8 @@ Do not lift every card when the day is hovered — only the chip the pointer is 
 ## Files
 
 - `src/components/CalendarView.tsx` (compact chips + reserved in-flow dock)
-- `src/index.css` (`.cal-day-chip` hover lift; reduced motion)
-- `e2e/calendar.spec.ts` (height vs neighbor **on hover**; overlay inside cell, no cover; chip lift; no deep set line)
+- `src/index.css` (`.cal-day-chip` hover lift; `.cal-day-cell` 180ms fill; `.cal-day-dock` opacity fade; reduced motion)
+- `e2e/calendar.spec.ts` (height vs neighbor **on hover**; overlay inside cell, no cover; chip lift; no deep set line; no `#007AFF` inset ring on hover/today; copy-to destination rings stay)
 
 ## States
 
@@ -47,6 +48,7 @@ hover empty · hover with session · hover with note · hover a session chip · 
 - [ ] Overlay sits in the reserved dock; it does not overlap this day’s session or note cards; it does not overflow the cell.
 - [ ] Session chips show name / Day·Week·Block / short lift codes — not `kg×reps@RPE`.
 - [ ] No blur filter on the day cell.
+- [ ] Hovered / today day cells have **no** `#007AFF` inset ring. Copy-to destination rings still show.
 - [ ] Session/note chips rest with no drop shadow; the hovered chip uses `--cal-shadow-lift`.
 - [ ] New session / Copy to / Notes still work.
 

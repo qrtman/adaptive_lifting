@@ -16,7 +16,7 @@ This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RP
 
 | Topic | Verdict |
 | :--- | :--- |
-| Hover cover | **No.** Reserve an in-flow action dock at rest; hover fills it. Do not cover session/note cards. Do not grow the day **on hover**, shrink chips, or overflow into the next day. Week row may grow at rest. Calendar chips are name + Day/Week/Block + short lift codes — no kg×reps@RPE. |
+| Hover cover | **No.** Reserve an in-flow action dock at rest; hover fills it. Do not cover session/note cards. Do not grow the day **on hover**, shrink chips, or overflow into the next day. Week row may grow at rest. Calendar chips are name + Day/Week/Block + short lift codes — no kg×reps@RPE. **No** accent inset ring on the day cell (hover or today). Quiet fill + dock only. Copy-to destination rings stay. |
 | Blur / scrim | **No.** No `backdrop-blur`, no dim wash. |
 | Overlay elevation | Action **buttons only** (not a wrapper card). No translate/scale on the day or the buttons. |
 | Card hover | Session/note chips rest **flat** (surface-card + hairline, no shadow). Pointer on a chip → `--cal-shadow-lift` (+ 1px translate), 180ms. |
