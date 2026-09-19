@@ -8,7 +8,7 @@ Product program **after** Cal theme. Visual tokens stay `--cal-*`. This map is l
 
 ## Why this map exists
 
-Cal theme shipped hairline calendar, nested cards, and Inter `tnum`. The session console still has five product gaps the theme pass did not own: hover overlay feels flat and twitchy, All/SQ/BP/DL is a toy filter, New session Name/Day lists collide, the set grid headers do not sit on the cells, session identity is one undifferentiated row.
+Cal theme shipped hairline calendar, nested cards, and Inter `tnum`. The session console still has product gaps the theme pass did not own: hover overlay, toy lift filter, Name/Day list collision, set-grid headers, session identity, and Sessions cards that hide sets behind an unreadable mash.
 
 ---
 
@@ -23,6 +23,7 @@ Copied here so a child-only read still has them. Canonical lock: `.cursor/rules/
 5. **Δ is e1RM %** of plan vs log, sitting **right of logged e1RM**. No kg Δ, no RPE Δ in that column.
 6. **Plan / Log on the row above** kg · reps · RPE. Split those into real `<td>`s so headers line up. Drop `×` `@` between input cells.
 7. **Session header hierarchy** — Name is the only large line. Day · Week · Block + tonnage + Edit are muted meta.
+8. **Sessions list** — Name leads; Day · date are meta; every set is Plan vs Log. Do not repeat Block/Week inside grouped cards.
 
 `design.md` calendar pill, Adj-in-header, and “Δ is RPE” lines are **wrong** for this program. Patch them in the implementation PRs.
 
@@ -36,10 +37,11 @@ session-console
 ├── 02-lift-filter      ← dialog facets (category × pattern × tier)
 ├── 03-session-dialog   ← ComboBox consistency; Name ≠ Day
 ├── 04-set-grid         ← two-row headers; no signs; e1RM Δ%; drop Adj
-└── 05-session-header   ← Name vs Day/Week/Block/tonnage
+├── 05-session-header   ← Name vs Day/Week/Block/tonnage
+└── 06-sessions-list    ← Name + Plan/Log sets on the list
 ```
 
-Ship **01 → 03** (calendar + create) before **04 → 05** (open session). 02 may land with 01 (same chrome row).
+Ship **01 → 03** (calendar + create) before **04 → 05** (open session). **06** is the Sessions workspace cards. 02 may land with 01 (same chrome row).
 
 ---
 
@@ -52,6 +54,7 @@ Ship **01 → 03** (calendar + create) before **04 → 05** (open session). 02 m
 | 03 | `03-session-dialog.md` | New/Edit session lists | session-day-name |
 | 04 | `04-set-grid.md` | PLAN/LOG table chrome + Adj + Δ | sheets-cell-edit |
 | 05 | `05-session-header.md` | Session screen identity row | session-day-name |
+| 06 | `06-sessions-list.md` | Sessions workspace cards | 05 + 07-sessions-list |
 
 ---
 

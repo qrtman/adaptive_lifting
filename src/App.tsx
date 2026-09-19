@@ -31,7 +31,6 @@ export default function App() {
     activeWorkout,
     updateExerciseSets,
     finishSession,
-    resetPlan,
     reloadMicrocycles,
     planAthleteId,
     setActiveAthleteId,
@@ -177,12 +176,6 @@ export default function App() {
       onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
       focusAthleteScope={focusAthleteScope}
       onAthleteScopeFocused={() => setFocusAthleteScope(false)}
-      onResetPlan={async () => {
-        if (window.confirm('Reset plan? This clears all sessions and logged sets.')) {
-          await resetPlan();
-          window.location.reload();
-        }
-      }}
       theme={theme}
       onToggleTheme={() => setTheme((current) => toggleTheme(current))}
     >

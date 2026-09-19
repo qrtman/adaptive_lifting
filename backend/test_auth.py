@@ -237,7 +237,7 @@ def test_coach_create_session_requires_linked_athlete():
     assert any(w["id"] == body["id"] for mc in athlete_own.json() for w in mc["workouts"])
 
 
-def test_session_labels_anytime_and_reset_stays_empty():
+def test_session_labels_anytime_and_new_athlete_starts_empty():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     athlete = client.post(
@@ -271,10 +271,6 @@ def test_session_labels_anytime_and_reset_stays_empty():
 
     removed = client.delete(f"/api/sessions/{sid}", cookies=cookies)
     assert removed.status_code == 200
-
-    reset = client.post("/api/reset", cookies=cookies)
-    assert reset.status_code == 200
-    assert reset.json() == []
 
 
 def test_copy_week_shifts_dates_and_increments_week_label():

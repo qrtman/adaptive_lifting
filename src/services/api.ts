@@ -223,24 +223,6 @@ export const apiService = {
   },
 
   /**
-   * Flushes and resets all datasets back to their initial baseline structures.
-   */
-  async resetMicrocycles(): Promise<MicrocycleData[]> {
-    if (BACKEND_URL) {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/reset`, { method: 'POST', credentials: 'include' });
-        if (!response.ok) throw new Error('API server reset failed');
-        const data = await response.json();
-        return data;
-      } catch (err) {
-        console.warn('Backend server reset unavailable. Resetting IndexedDB snapshot.', err);
-      }
-    }
-    await saveOfflineMicrocycles([]);
-    return [];
-  },
-
-  /**
    * Fetches the secure AI-driven auto-regulation coaching prescriptions.
    */
   async fetchAICoachPrescription(athleteId?: string): Promise<AICoachResponse> {
