@@ -64,7 +64,6 @@ function NavButton({
 export const Sidebar = ({
   dashboardMode,
   onNavigate,
-  onResetPlan,
   collapsed,
   onToggleCollapse,
   focusAthleteScope = false,
@@ -74,7 +73,6 @@ export const Sidebar = ({
 }: {
   dashboardMode: DashboardMode;
   onNavigate: (mode: DashboardMode) => void;
-  onResetPlan?: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   focusAthleteScope?: boolean;
@@ -178,17 +176,6 @@ export const Sidebar = ({
         >
           {collapsed ? 'Out' : 'Sign out'}
         </button>
-        {onResetPlan && (
-          <button
-            type="button"
-            onClick={onResetPlan}
-            className={`text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] h-7 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
-              collapsed ? 'w-full text-center' : 'text-left w-full'
-            }`}
-          >
-            {collapsed ? 'Rst' : 'Reset plan'}
-          </button>
-        )}
       </div>
     </aside>
   );

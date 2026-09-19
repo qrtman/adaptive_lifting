@@ -272,10 +272,6 @@ def test_session_labels_anytime_and_reset_stays_empty():
     removed = client.delete(f"/api/sessions/{sid}", cookies=cookies)
     assert removed.status_code == 200
 
-    reset = client.post("/api/reset", cookies=cookies)
-    assert reset.status_code == 200
-    assert reset.json() == []
-
 
 def test_copy_week_shifts_dates_and_increments_week_label():
     client = TestClient(app)
