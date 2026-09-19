@@ -278,7 +278,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 +-------------------+------------------------------------------------------------------------------+
 | Persistent Sidebar| Top KPI Strip: Squat Max (kg) | Bench Max (kg) | Deadlift Max (kg) | ACWR    |
 | [240px width]     |------------------------------------------------------------------------------|
-| - Athlete plan    | Primary Work Area:                                                           |
+| - Athlete switcher| Primary Work Area:                                                           |
 | - Calendar        |                                                                              |
 | - Sessions        |   [Structured Builder Card | Meet Day Planner Table | Telemetry Streams]     |
 | - Insights        |                                                                              |
@@ -356,7 +356,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 * **Workspace Links Navigation Group:** Navigation items highlighted in `--ok-blue` border tags when active:
   * **Calendar:** Date-first month grid for the scoped athlete plan.
   * **Sessions:** List grouped by Block/Week labels when present. Cards lead with Name and show every set as Plan vs Log.
-  * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace; linked athletes are chosen in the Athlete plan selector above this list.
+  * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace. Coaches pick a linked athlete from the unlabeled email switcher above this list. Athletes do not see a switcher.
 * **Operations & Integrations Navigation Group:**
   * **Sheets Publisher:** Controls one-way spreadsheet target mappings.
   * **Telegram Mini App:** Links Telegram adapter connections.
@@ -605,9 +605,9 @@ When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to 
     * **Local Muscular Supercompensation Peak (Green Highlight / `[PEAK]*`)**: Movement-specific readiness rises above baseline. Characterized by high local motor unit recruitment thresholds and minimal local muscle soreness. Ideal timing to schedule heavy singles or e1RM peak tests for that specific movement category.
     * **Local Nervous System Fatigue Valley (`fatigued`)**: Movement-specific readiness deeply depressed below baseline due to recent heavy spinal or upper-body loading cycles. Cap top sets at RPE 8.0, reduce backdown sets by -10% for that exercise to allow targeted localized recovery.
 
-#### 6.1.3 Coach athlete plan selector (relocated roster)
+#### 6.1.3 Coach athlete switcher (relocated roster)
 
-The former Athletes Roster workspace is **not** a top-level tab. Its scope-selection job lives in the left sidebar **Athlete plan** control (`AthleteScopeSelector`). Coach code generate/link remains on Security. Push-program acknowledgement is a Plan actions item on the selector. Deep links `#/roster`, `#/athletes`, and `?view=roster` redirect to `#/calendar?panel=athlete-scope`.
+The former Athletes Roster workspace is **not** a top-level tab. Coaches pick a linked athlete from an unlabeled email switcher in the left sidebar (`AthleteScopeSelector`, `data-testid="athlete-scope-selector"`). Athletes do not see this control — each athlete has one plan. There is no profile factory in the switcher: each athlete registers an account, the coach generates a code on Security, and the athlete enters it. Empty coach list: `Select athlete…`; open list copy `No linked athletes.` plus a Security path for the coach code. Do not label the control **Athlete plan**, do not hint **Your plan** / **Linked**, and do not print Live / Queue / Offline under it (sync is the corner overlay, §10.3). Coach code generate/link remains on Security. Push-program acknowledgement is a Plan actions item on the selector. Deep links `#/roster`, `#/athletes`, and `?view=roster` redirect to `#/calendar?panel=athlete-scope`.
 
 Insights (formerly a hardcoded three-lift tonnage/e1RM strip) is a dedicated workspace of user-composed cards. Card configuration is a structured inspector form. Results come from `POST /api/analytics/query`; the client does not compute RTS metrics for cards. Pattern-scoped cards use the stored `movement_pattern` on each exercise row.
 
@@ -1718,7 +1718,7 @@ Per-set PENDING / IN_FLIGHT / REJECTED cell badges remain **§10.1 backlog** —
 * **Offline**: visible even when `pendingCount === 0`. Copy: `Offline — queued locally`. `data-state=offline`.
 * **Error**: online and REJECTED > 0. Copy: `Needs review`. `data-state=error`. Not a spinner. Do not auto-dismiss.
 * **Syncing**: online, pending > 0, no rejected rows. Spinner. `data-state=syncing`. Unmounts when the queue drains (no ACK toast).
-* Conflict review and workout lock stay as their existing overlay cards (`ConflictReviewCard`, `WorkoutLockBanner`). Sidebar `Queue n` / `Live` / `Offline` is secondary and stays.
+* Conflict review and workout lock stay as their existing overlay cards (`ConflictReviewCard`, `WorkoutLockBanner`). Queue chrome is this overlay only — the sidebar athlete switcher does not show Live / Queue / Offline.
 
 All authenticated app surfaces include compact status:
 

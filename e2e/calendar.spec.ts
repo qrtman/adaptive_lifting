@@ -279,6 +279,13 @@ test('coach without an athlete cannot create; linked coach can', async ({ page, 
     await page.getByRole('button', { name: 'Calendar' }).click();
     await expect(page.getByTestId('calendar-empty')).toBeVisible();
     await expect(page.getByText('Select an athlete')).toBeVisible();
+    await expect(page.getByTestId('athlete-scope-selector')).toHaveText('Select athlete…');
+    await expect(page.getByTestId('app-sidebar').getByText('Athlete plan')).toHaveCount(0);
+    await page.getByTestId('athlete-scope-selector').click();
+    await expect(page.getByText('No linked athletes.')).toBeVisible();
+    await page.getByTestId('athlete-scope-security').click();
+    await expect(page.getByTestId('coach-link-panel')).toBeVisible();
+    await page.getByRole('button', { name: 'Calendar' }).click();
 
     const codeResp = await coachApi.post('/api/auth/coach-code');
     expect(codeResp.ok()).toBeTruthy();

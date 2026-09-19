@@ -16,7 +16,7 @@ Persistent context for Cursor agents. Keep this short and aligned with `architec
 - **Stack**: React 19 (TypeScript/Vite 6), Tailwind v4, FastAPI (Python), SQLite (SQLAlchemy). Docs that still say React 18 are stale. Visual program (shipped): Cal.com tokens, light default + dark toggle — `.cursor/rules/cal-theme.mdc`. Next product slices: session console — `.cursor/rules/session-console.mdc`. Nested cards follow the product tree (no depth quota). Training numbers = Inter tabular-nums, not JetBrains.
 - **Hybrid state**: IndexedDB for mutation queues and snapshots; LocalStorage only for `al_*` UI prefs — never workout trees. Sidebar collapse is `al_sidebar_collapsed`. Global sync-queue chrome is a **corner overlay** (not an in-flow bar) — `.cursor/rules/sync-queue-overlay.mdc`. Do not hide offline / rejected / conflict.
 - **Data integrity**: Numeric columns for weights/reps/RPE. Sessions bound to `YYYY-MM-DD`.
-- **Navigation**: Hash routes `#/calendar|sessions|insights|integrations|security`. Left sidebar owns nav + athlete plan scope. There is no Athletes Roster tab; `#/roster` and `?view=roster` land on calendar with the scope selector open. Coach code stays on Security.
+- **Navigation**: Hash routes `#/calendar|sessions|insights|integrations|security`. Left sidebar owns nav. Coaches pick a linked athlete from an unlabeled email switcher; athletes have one plan and do not see it. Multiple athletes = separate accounts + coach code on Security, not profiles in the switcher. `#/roster` and `?view=roster` land on calendar with the switcher open (coach).
 
 ## 3. Product Model (current focus)
 
