@@ -443,10 +443,7 @@ export const ExerciseCard = ({
                   <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{laneIndex + 1}</td>
                   <td className={`${td} w-11 border-l border-[var(--cal-hairline)] pr-0`}>
                     {laneIndex === 0 ? (
-                      <span
-                        className="inline-flex h-6 w-10 border border-[var(--cal-hairline)] rounded-sm bg-[var(--cal-surface-soft)]"
-                        aria-hidden="true"
-                      />
+                      <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true"> </span>
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
