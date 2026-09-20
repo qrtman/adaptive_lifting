@@ -350,8 +350,8 @@ export const ExerciseCard = ({
       <table role="grid" aria-label="Plan and log sets" data-testid="set-grid" className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th rowSpan={2} className={`${th} w-6`} data-testid="set-grid-h-num">#</th>
-            <th rowSpan={2} className={`${th} w-14`} data-testid="set-grid-h-pct">%</th>
+            <th rowSpan={2} className={`${th} w-6 align-bottom`} data-testid="set-grid-h-num">#</th>
+            <th rowSpan={2} className={`${th} w-14 align-bottom`} data-testid="set-grid-h-pct">%</th>
             <th colSpan={4} className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
               <div className="flex min-h-5 items-center justify-between gap-2">
                 <span>Plan</span>
@@ -373,9 +373,9 @@ export const ExerciseCard = ({
             </th>
             <th rowSpan={2} className={`${th} w-4`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
             <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-log">Log</th>
-            <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)]`} data-testid="set-grid-h-e1rm">e1RM</th>
-            <th rowSpan={2} className={th} data-testid="set-grid-h-delta">Δ%</th>
-            <th rowSpan={2} className={th} data-testid="set-grid-h-inol">INOL</th>
+            <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)] align-bottom`} data-testid="set-grid-h-e1rm">e1RM</th>
+            <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-delta">Δ%</th>
+            <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-inol">INOL</th>
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
