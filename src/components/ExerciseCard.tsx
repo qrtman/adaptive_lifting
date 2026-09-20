@@ -748,7 +748,7 @@ function DropPercentCell({
   }
 
   return (
-    <span className="relative inline-flex h-6 w-10 items-center">
+    <span className="relative inline-flex h-6 w-10 -translate-y-px items-center">
       <input
         data-testid="set-drop-pct"
         type="text"
