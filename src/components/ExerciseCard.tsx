@@ -351,7 +351,7 @@ export const ExerciseCard = ({
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${th} w-6 align-bottom`} data-testid="set-grid-h-num">#</th>
-            <th colSpan={5} className={`${th} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
+            <th colSpan={5} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
               <div className="flex min-h-5 items-center justify-between gap-2">
                 <span>Plan</span>
                 {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
@@ -377,11 +377,11 @@ export const ExerciseCard = ({
             <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-inol">INOL</th>
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={`${thField} w-14 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">Adj %</th>
+            <th className={`${thField} w-12 border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">Adj %</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planTarget">Intensity</th>
-            <th className={`${thField} w-10 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
+            <th className={`${thField} w-10 border-r border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
             <th className={`${thField} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logRpe">RPE</th>
@@ -441,7 +441,7 @@ export const ExerciseCard = ({
                 <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`}>
                   {hasPlan ? (<>
                   <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{laneIndex + 1}</td>
-                  <td className={`${td} w-14`}>
+                  <td className={`${td} w-12 border-l border-[var(--cal-hairline)]`}>
                     {laneIndex === 0 ? (
                       <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true"> </span>
                     ) : (
@@ -486,7 +486,7 @@ export const ExerciseCard = ({
                         <td colSpan={3} className={`${td} text-[var(--cal-muted-soft)]`} aria-label="No plan set" />
                       </>
                     )}
-                  <td className={actionCell}>
+                  <td className={`${actionCell} border-r border-[var(--cal-hairline)]`}>
                     {hasPlan ? (<>
                     <button
                       type="button"
