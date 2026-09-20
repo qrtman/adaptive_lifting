@@ -377,7 +377,7 @@ export const ExerciseCard = ({
             <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-inol">INOL</th>
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={`${thField} w-12 border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">Adj %</th>
+            <th className={`${thField} w-11 border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">Adj %</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planTarget">Intensity</th>
@@ -441,7 +441,7 @@ export const ExerciseCard = ({
                 <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`}>
                   {hasPlan ? (<>
                   <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{laneIndex + 1}</td>
-                  <td className={`${td} w-12 border-l border-[var(--cal-hairline)]`}>
+                  <td className={`${td} w-11 border-l border-[var(--cal-hairline)] pr-0`}>
                     {laneIndex === 0 ? (
                       <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true"> </span>
                     ) : (

@@ -89,7 +89,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
             rowIndex={rowIndex}
             grid={rpeGrid}
           />
-          <div ref={modeMenuRef} className="relative shrink-0">
+          <div ref={modeMenuRef} className="relative ml-auto shrink-0">
             <button
               type="button"
               onClick={() => setModeMenuOpen((open) => !open)}
