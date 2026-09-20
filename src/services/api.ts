@@ -633,7 +633,11 @@ export const apiService = {
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to add lift');
+      if (response.status === 401) {
+        window.dispatchEvent(new Event('auth-session-revoked'));
+        throw new Error('Your session expired. Please sign in again.');
+      }
+      throw new Error(apiErrorMessage(errData, 'Failed to add lift'));
     }
     return await response.json();
   },
