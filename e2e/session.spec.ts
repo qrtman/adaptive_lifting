@@ -198,7 +198,7 @@ test('set grid headers sit on kg/reps/RPE; Δ% is e1RM percent; Adj is gone', as
   await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
   await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('reps');
-  await expect(page.getByTestId('set-grid-h-planTarget')).toHaveText('Target');
+  await expect(page.getByTestId('set-grid-h-planTarget')).toHaveText('Intensity');
   await expect(page.getByTestId('set-grid-h-logKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
   await expect(page.getByTestId('set-grid-h-e1rm')).toHaveText('e1RM');
