@@ -247,7 +247,7 @@ export const ExerciseCard = ({
   });
 
   const td = "px-0.5 py-0.5 align-middle whitespace-nowrap";
-  const th = "px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
+  const th = "px-0.5 py-1 text-center text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
   const thField = `${th} normal-case tracking-normal`;
   const actionCell = "w-10 px-0 py-0.5 align-middle whitespace-nowrap";
   const actionButton = "inline-flex h-5 w-5 items-center justify-center rounded-[3px] border border-[var(--cal-hairline)] bg-transparent text-[var(--cal-muted)] opacity-65 transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-30 group-hover:opacity-100";
@@ -352,10 +352,10 @@ export const ExerciseCard = ({
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${th} w-6 align-bottom`} data-testid="set-grid-h-num">#</th>
             <th colSpan={5} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
-              <div className="flex min-h-5 items-center justify-between gap-2">
+              <div className="relative flex min-h-5 items-center justify-center">
                 <span>Plan</span>
                 {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap normal-case tracking-normal text-[10px] font-normal text-[var(--cal-muted)]">
+                  <span className="absolute right-0 inline-flex items-center gap-1 whitespace-nowrap normal-case tracking-normal text-[10px] font-normal text-[var(--cal-muted)]">
                     <span className="text-[var(--cal-muted-soft)]">S{selectedPlanNumber}</span>
                     <span>{selectedPlanEntry.set.plannedWeight ?? '—'} → <span data-testid="plan-suggestion-value">{selectedPlanOffer}</span> kg</span>
                     <button
