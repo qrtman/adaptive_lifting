@@ -34,7 +34,7 @@ test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN�
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('rx-weight')).toHaveCount(2);
 
-  await expect(page.getByRole('columnheader', { name: /^%$/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^Adj %$/ })).toBeVisible();
   await expect(page.getByTestId('set-grid-h-plan')).toBeVisible();
   await expect(page.getByTestId('set-grid-h-planKg')).toBeVisible();
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');

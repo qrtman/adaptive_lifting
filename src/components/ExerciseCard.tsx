@@ -377,7 +377,7 @@ export const ExerciseCard = ({
             <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-inol">INOL</th>
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={`${thField} w-14 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">%</th>
+            <th className={`${thField} w-14 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">Adj %</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
             <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planTarget">Intensity</th>
@@ -443,7 +443,7 @@ export const ExerciseCard = ({
                   <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{laneIndex + 1}</td>
                   <td className={`${td} w-14`}>
                     {laneIndex === 0 ? (
-                      <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true">—</span>
+                      <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true"> </span>
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
@@ -742,20 +742,21 @@ function DropPercentCell({
         className="text-[11px] tnum text-[var(--cal-muted)]"
         data-testid="set-drop-pct"
       >
-        {dropPercentDisplay(value) || '—'}
+        {dropPercentDisplay(value) ? String(dropPercentDisplay(value)) + '%' : ''}
       </span>
     );
   }
 
   return (
-    <input
-      data-testid="set-drop-pct"
-      type="text"
-      inputMode="decimal"
-      tabIndex={-1}
-      value={draft}
-      placeholder="—"
-      aria-label="Set percent"
+    <span className="relative inline-flex h-6 w-10 items-center">
+      <input
+        data-testid="set-drop-pct"
+        type="text"
+        inputMode="decimal"
+        tabIndex={-1}
+        value={draft}
+        placeholder=""
+        aria-label="Adjustment percent"
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => commitDraft(draft)}
       onKeyDown={(event) => {
@@ -778,7 +779,9 @@ function DropPercentCell({
           event.currentTarget.blur();
         }
       }}
-      className="h-6 w-10 px-0.5 text-center text-[11px] tnum text-[var(--cal-ink)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-sm focus:outline-none focus:border-[var(--cal-accent)] placeholder:text-[var(--cal-muted-soft)]"
-    />
+        className="h-6 w-10 px-0.5 pr-3 text-center text-[11px] tnum text-[var(--cal-ink)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-sm focus:outline-none focus:border-[var(--cal-accent)]"
+      />
+      {draft ? <span className="pointer-events-none absolute right-1 text-[10px] text-[var(--cal-muted)]">%</span> : null}
+    </span>
   );
 }

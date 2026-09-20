@@ -277,7 +277,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   const headers = page.locator('thead th');
   await expect(headers).toHaveCount(16);
   await expect(headers.nth(0)).toHaveText('#');
-  await expect(headers.nth(1)).toHaveText('%');
+  await expect(headers.nth(1)).toHaveText('Adj %');
   await expect(headers.nth(2)).toContainText('Plan');
   await expect(page.getByRole('button', { name: 'Adj', exact: true })).toHaveCount(0);
 
