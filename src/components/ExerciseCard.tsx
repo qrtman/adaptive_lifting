@@ -779,7 +779,7 @@ function DropPercentCell({
           event.currentTarget.blur();
         }
       }}
-        className="h-6 w-10 px-0.5 pr-3 text-center text-[11px] tnum text-[var(--cal-ink)] bg-[var(--cal-surface-soft)] border border-[var(--cal-hairline)] rounded-sm focus:outline-none focus:border-[var(--cal-accent)]"
+        className="h-6 w-10 px-0.5 pr-3 text-center text-[11px] tnum text-[var(--cal-ink)] bg-transparent border border-[var(--cal-hairline)] rounded-sm focus:outline-none focus:border-[var(--cal-accent)]"
       />
       {draft ? <span className="pointer-events-none absolute right-1 text-[10px] text-[var(--cal-muted)]">%</span> : null}
     </span>
