@@ -85,6 +85,7 @@ class Exercise(Base, TimestampMixin):
     tier = Column(String, default="Comp") # "Comp", "Variation", "Accessory"
     lift_category = Column(String, default="Squat") # "Squat", "Bench", "Deadlift", "Other"
     movement_pattern = Column(String, nullable=True)  # catalog pattern; see exercise_patterns.PATTERNS
+    lift_note = Column(String, nullable=True)
     tags_raw = Column(String, default="")  # Comma-separated list of tags
     top = Column(String, default="—")
     vol = Column(String, default="—")

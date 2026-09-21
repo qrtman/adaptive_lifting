@@ -77,3 +77,9 @@ def cookie_secure_flag() -> bool:
     if raw in {"0", "false", "no"}:
         return False
     return is_production_like()
+
+
+def development_login_enabled() -> bool:
+    """Allow the local demo-account shortcut only when explicitly enabled."""
+    enabled = os.environ.get("DEV_LOGIN_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+    return enabled and not is_production_like()

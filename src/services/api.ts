@@ -4,6 +4,7 @@ import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 import type { AnalyticsCatalog, CardConfig, QueryResult, SavedCard } from '../insights/types';
+import type { CopyMode } from '../features/plan/copyClipboard';
 
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
 
@@ -309,6 +310,19 @@ export const apiService = {
     return data;
   },
 
+  async developmentLogin(role: 'COACH' | 'ATHLETE') {
+    const response = await fetch(`${BACKEND_URL}/api/dev/login/${role.toLowerCase()}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Development login is unavailable');
+    const data = await response.json();
+    setUiPref(UI_KEYS.role, data.user.role);
+    setUiPref(UI_KEYS.email, data.user.email);
+    setUiPref(UI_KEYS.userId, String(data.user.id));
+    return data;
+  },
+
   async googleLogin(token: string, role = 'COACH') {
     const response = await fetch(`${BACKEND_URL}/api/auth/google`, {
       method: 'POST',
@@ -544,6 +558,7 @@ export const apiService = {
     dateOffsetDays?: number;
     targetBlockLabel?: string | null;
     targetWeekLabel?: string | null;
+    copyMode?: CopyMode;
     includeLogs?: boolean;
     preserveWeekLabel?: boolean;
   }): Promise<{ status: string; copied: Array<{ id: string; date: string; title: string; blockLabel: string | null; weekLabel: string | null; sourceId: string }> }> {
@@ -551,7 +566,7 @@ export const apiService = {
       sessionIds: payload.sessionIds,
       athleteId: payload.athleteId,
       dateOffsetDays: payload.dateOffsetDays ?? 7,
-      includeLogs: payload.includeLogs === true,
+      copyMode: payload.copyMode ?? (payload.includeLogs === true ? 'logs' : payload.includeLogs === false ? 'plan' : 'logs'),
       preserveWeekLabel: payload.preserveWeekLabel === true,
     };
     if (payload.targetBlockLabel !== undefined) body.targetBlockLabel = payload.targetBlockLabel;
@@ -611,6 +626,7 @@ export const apiService = {
     tier?: 'Comp' | 'Variation' | 'Accessory';
     liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
     movementPattern?: string;
+    liftNote?: string;
     plannedWeight?: number | null;
     plannedReps?: number | null;
     plannedRpe?: number | null;
@@ -621,6 +637,7 @@ export const apiService = {
       tier: payload.tier,
       liftCategory: payload.liftCategory,
       movementPattern: payload.movementPattern,
+      liftNote: payload.liftNote,
     };
     if (payload.plannedWeight != null) body.plannedWeight = payload.plannedWeight;
     if (payload.plannedReps != null) body.plannedReps = payload.plannedReps;
@@ -690,7 +707,9 @@ export const apiService = {
     variation?: string;
     title?: string;
     tier?: 'Comp' | 'Variation' | 'Accessory';
+    liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
     movementPattern?: string;
+    liftNote?: string;
     move?: 'up' | 'down';
   }): Promise<import('../types').ExerciseData> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {

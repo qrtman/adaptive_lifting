@@ -46,6 +46,21 @@ export const LoginView = () => {
     }
   };
 
+  const handleDevelopmentLogin = async (role: 'COACH' | 'ATHLETE') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiService.developmentLogin(role);
+      signIn(data.user);
+    } catch (err: any) {
+      setError(err.message || 'Development login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showDevelopmentLogin = Boolean((import.meta as any).env.DEV);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
       <div
@@ -114,6 +129,30 @@ export const LoginView = () => {
         >
           Continue with Google
         </button>
+
+        {showDevelopmentLogin && (
+          <div className="border-t border-[var(--cal-hairline)] pt-3">
+            <p className="mb-2 text-xs text-[var(--cal-muted)]">Local development</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleDevelopmentLogin('COACH')}
+                disabled={loading}
+                className="min-h-10 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-sm text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
+              >
+                Open as coach
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDevelopmentLogin('ATHLETE')}
+                disabled={loading}
+                className="min-h-10 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-sm text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
+              >
+                Open as athlete
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

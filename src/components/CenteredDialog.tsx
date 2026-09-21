@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 
 export function NestedCard({
@@ -48,7 +49,8 @@ export function CenteredDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
+    (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
@@ -61,10 +63,10 @@ export function CenteredDialog({
         aria-modal="true"
         aria-labelledby="centered-dialog-title"
         data-testid={testId}
-        initial={{ opacity: 0, y: 8, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
+        initial={false}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-        className="relative z-10 w-full max-w-lg max-h-[85dvh] overflow-y-auto bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-[var(--cal-space-md)] cal-card-outer cal-elevate-in"
+        className="relative z-10 w-full max-w-lg max-h-[85dvh] overflow-y-auto bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-[var(--cal-space-md)] cal-card-outer"
       >
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
@@ -104,5 +106,7 @@ export function CenteredDialog({
         )}
       </motion.div>
     </div>
+    ),
+    document.body,
   );
 }

@@ -25,6 +25,7 @@ import { formatSessionStatusMeta, formatSetReadout } from '../features/plan/sess
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
+  onDeleteSession: (workout: WorkoutData) => void | Promise<void>;
   filter: LiftFilterState;
   onFilterChange: (value: LiftFilterState) => void;
   onStartCopy: (clip: CopyClipboard) => void;
@@ -68,6 +69,7 @@ function SessionCard({
   selected,
   filter,
   onOpen,
+  onDelete,
   onToggleSelected,
   onCopyTo,
   onEdit,
@@ -78,6 +80,7 @@ function SessionCard({
   selected: boolean;
   filter: LiftFilterState;
   onOpen: () => void;
+  onDelete: () => void;
   onToggleSelected: (checked: boolean) => void;
   onCopyTo: () => void;
   onEdit: () => void;
@@ -206,6 +209,14 @@ function SessionCard({
         >
           Edit
         </button>
+        <button
+          type="button"
+          data-testid={`sessions-delete-${workout.id}`}
+          onClick={onDelete}
+          className="h-7 px-2 text-[11px] text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
+        >
+          Delete
+        </button>
       </div>
     </div>
   );
@@ -285,6 +296,7 @@ function BlockHeader({
 
 export function SessionsView({
   onViewSession,
+  onDeleteSession,
   filter,
   onFilterChange,
   onStartCopy,
@@ -362,6 +374,7 @@ export function SessionsView({
       onToggleSelected={(checked) => toggleSelected(workout.id, checked)}
       onCopyTo={() => startDayCopy([workout])}
       onEdit={() => setEditingSession(workout)}
+      onDelete={() => void onDeleteSession(workout)}
     />
   );
 

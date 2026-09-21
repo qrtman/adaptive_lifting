@@ -69,17 +69,22 @@ export function toggleGear(gear: GearMod[], item: GearMod): GearMod[] {
 
 export function compileVariation(title: string, mods: LiftModifiers): string {
   const bits: string[] = [];
+  const barMatchesWholeTitle = mods.bar && title.trim().toLowerCase() === mods.bar.toLowerCase();
+  const normalizedTitle = mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard'
+    && (barMatchesWholeTitle || title.toLowerCase().startsWith(`${mods.bar.toLowerCase()} `))
+    ? (barMatchesWholeTitle ? title : title.slice(mods.bar.length).trim())
+    : title;
   for (const item of mods.gear) bits.push(item);
   const romWord = ROM_WORD[mods.rom];
   if (romWord) bits.push(romWord);
-  if (mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard') {
+  if (mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard' && !barMatchesWholeTitle) {
     bits.push(mods.bar);
-  } else if (bits.length === 0) {
+  } else if (mods.bar === 'Competition' && bits.length === 0) {
     bits.push('Competition');
   }
   const tempo = formatTempo(...parseTempoParts(mods.tempo));
   const note = tempo === DEFAULT_TEMPO ? '' : ` (${tempo})`;
-  return `${bits.join(' ')} ${title}${note}`.replace(/\s+/g, ' ').trim();
+  return `${bits.join(' ')} ${normalizedTitle}${note}`.replace(/\s+/g, ' ').trim();
 }
 
 export function variationTier(mods: LiftModifiers): 'Comp' | 'Variation' {

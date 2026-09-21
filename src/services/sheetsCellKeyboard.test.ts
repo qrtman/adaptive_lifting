@@ -3,6 +3,7 @@ import {
   cellIdOf,
   COLS,
   GRID_COL_COUNT,
+  addressAt,
   makeCellId,
   neighbor,
   parseCellId,
@@ -216,22 +217,23 @@ describe('reduceCellKey composing', () => {
 
 describe('grid addresses', () => {
   it('encodes lift:row:axis:field and parses back', () => {
-    const id = makeCellId('e-1', 2, 3);
+    const id = makeCellId('e-1', 2, 4);
     expect(id).toBe('e-1:2:log:kg');
     expect(parseCellId(id)).toEqual({
       liftId: 'e-1',
       row: 2,
       axis: 'log',
       field: 'kg',
-      col: 3,
+      col: 4,
     });
     expect(cellIdOf({ liftId: 'e-1', row: 2, axis: 'log', field: 'kg' })).toBe(id);
   });
 
-  it('stays 6-col; % drop is not a COLS field', () => {
-    expect(COLS).toHaveLength(6);
-    expect(GRID_COL_COUNT).toBe(6);
-    expect(parseCellId('lift-1:0:drop:pct')).toBeNull();
+  it('includes adjustment percent before the plan fields', () => {
+    expect(COLS).toHaveLength(7);
+    expect(GRID_COL_COUNT).toBe(7);
+    expect(addressAt('lift-1', 0, 0)).toMatchObject({ axis: 'plan', field: 'adjust' });
+    expect(parseCellId('lift-1:0:plan:adjust')).toMatchObject({ col: 0, field: 'adjust' });
   });
 });
 
@@ -245,16 +247,16 @@ describe('neighbor (Tab wrap vs arrow clamp vs Enter same-column)', () => {
   });
 
   it('Tab log.rpe set0 → plan.kg set1', () => {
-    expect(neighbor(addr(0, 'log', 'rpe'), 'right', 'tab', 2)).toEqual(addr(1, 'plan', 'kg'));
+    expect(neighbor(addr(0, 'log', 'rpe'), 'right', 'tab', 2)).toEqual(addr(1, 'plan', 'adjust'));
   });
 
   it('Tab on last-set log.rpe stays', () => {
     expect(neighbor(addr(1, 'log', 'rpe'), 'right', 'tab', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 
-  it('Shift+Tab wraps: plan.kg set1 → log.rpe set0; first plan.kg stays', () => {
-    expect(neighbor(addr(1, 'plan', 'kg'), 'left', 'tab', 2)).toEqual(addr(0, 'log', 'rpe'));
-    expect(neighbor(addr(0, 'plan', 'kg'), 'left', 'tab', 2)).toEqual(addr(0, 'plan', 'kg'));
+  it('Shift+Tab wraps: plan.adjust set1 → log.rpe set0; first plan.adjust stays', () => {
+    expect(neighbor(addr(1, 'plan', 'adjust'), 'left', 'tab', 2)).toEqual(addr(0, 'log', 'rpe'));
+    expect(neighbor(addr(0, 'plan', 'adjust'), 'left', 'tab', 2)).toEqual(addr(0, 'plan', 'adjust'));
   });
 
   it('ArrowRight plan.kg → plan.reps; plan.rpe → log.kg', () => {
@@ -267,9 +269,11 @@ describe('neighbor (Tab wrap vs arrow clamp vs Enter same-column)', () => {
     expect(neighbor(addr(1, 'log', 'rpe'), 'right', 'arrow', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 
-  it('ArrowLeft on plan.kg stays', () => {
-    expect(neighbor(addr(0, 'plan', 'kg'), 'left', 'arrow', 2)).toEqual(addr(0, 'plan', 'kg'));
-    expect(neighbor(addr(1, 'plan', 'kg'), 'left', 'arrow', 2)).toEqual(addr(1, 'plan', 'kg'));
+  it('ArrowLeft on adjustment stays; plan.kg moves into adjustment', () => {
+    expect(neighbor(addr(0, 'plan', 'adjust'), 'left', 'arrow', 2)).toEqual(addr(0, 'plan', 'adjust'));
+    expect(neighbor(addr(1, 'plan', 'adjust'), 'left', 'arrow', 2)).toEqual(addr(1, 'plan', 'adjust'));
+    expect(neighbor(addr(0, 'plan', 'kg'), 'left', 'arrow', 2)).toEqual(addr(0, 'plan', 'adjust'));
+    expect(neighbor(addr(1, 'plan', 'kg'), 'left', 'arrow', 2)).toEqual(addr(1, 'plan', 'adjust'));
   });
 
   it('ArrowUp / ArrowDown clamp same column', () => {
@@ -298,7 +302,7 @@ describe('neighbor (Tab wrap vs arrow clamp vs Enter same-column)', () => {
   });
 
   it('Home / End stay on the same row', () => {
-    expect(neighbor(addr(1, 'log', 'kg'), 'rowStart', 'arrow', 2)).toEqual(addr(1, 'plan', 'kg'));
+    expect(neighbor(addr(1, 'log', 'kg'), 'rowStart', 'arrow', 2)).toEqual(addr(1, 'plan', 'adjust'));
     expect(neighbor(addr(1, 'plan', 'reps'), 'rowEnd', 'arrow', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 });

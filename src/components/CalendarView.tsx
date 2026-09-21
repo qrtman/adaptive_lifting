@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { 
+import {
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
+  Check,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
@@ -26,11 +29,13 @@ import {
   buildDayClipboard,
   clipboardMinDate,
   copyBannerText,
+  type CopyMode,
   type CopyClipboard,
 } from '../features/plan/copyClipboard';
 
 interface CalendarViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
+  onDeleteSession: (workout: WorkoutData) => void | Promise<void>;
   filter: LiftFilterState;
   onFilterChange: (value: LiftFilterState) => void;
   copyClipboard: CopyClipboard | null;
@@ -50,6 +55,23 @@ function liftShortName(title: string): { code: string; color?: string } {
 const HOVER_ACTION_ROW_PX = 24;
 const HOVER_ACTION_GAP_PX = 2;
 const DAY_HOVER_INTENT_MS = 100;
+const COPY_MODE_OPTIONS: Array<{ value: CopyMode; label: string; description: string }> = [
+  {
+    value: 'lifts',
+    label: 'Lifts only',
+    description: 'Exercise order and set rows without planned or logged numbers.',
+  },
+  {
+    value: 'plan',
+    label: 'Lifts + Plan',
+    description: 'Planned kg, reps, RPE, and structure without logged work.',
+  },
+  {
+    value: 'logs',
+    label: 'Lifts + Plan + logs',
+    description: 'Everything in the plan plus completed log values.',
+  },
+];
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -62,6 +84,7 @@ function hoverDockMinHeight(actionCount: number): number {
 
 export function CalendarView({
   onViewSession,
+  onDeleteSession,
   filter,
   onFilterChange,
   copyClipboard,
@@ -98,10 +121,13 @@ export function CalendarView({
   const [dayNotes, setDayNotes] = useState<Record<string, string>>({});
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
-  const [copyWithLogs, setCopyWithLogs] = useState(false);
+  const [copyMode, setCopyMode] = useState<CopyMode>('logs');
+  const [copyModeOpen, setCopyModeOpen] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const copyModeMenuRef = useRef<HTMLDivElement>(null);
   const copyOriginDate = copyClipboard ? clipboardMinDate(copyClipboard) : null;
+  const selectedCopyMode = COPY_MODE_OPTIONS.find((option) => option.value === copyMode) || COPY_MODE_OPTIONS[2];
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -245,7 +271,7 @@ export function CalendarView({
     setCopyBusy(true);
     setCopyError(null);
     try {
-      const payload = buildCopyWeekRequest(copyClipboard, dateStr, copyWithLogs, planAthleteId || undefined);
+      const payload = buildCopyWeekRequest(copyClipboard, dateStr, copyMode, planAthleteId || undefined);
       if (payload.dateOffsetDays === 0) {
         setCopyError('Pick a different day.');
         setCopyBusy(false);
@@ -262,10 +288,22 @@ export function CalendarView({
   };
 
   useEffect(() => {
-    setCopyWithLogs(false);
+    setCopyMode('logs');
+    setCopyModeOpen(false);
     setCopyError(null);
     setCopyBusy(false);
   }, [copyClipboard]);
+
+  useEffect(() => {
+    if (!copyModeOpen) return;
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Node && copyModeMenuRef.current?.contains(target)) return;
+      setCopyModeOpen(false);
+    };
+    window.addEventListener('mousedown', closeOnOutsidePointer);
+    return () => window.removeEventListener('mousedown', closeOnOutsidePointer);
+  }, [copyModeOpen]);
 
   useEffect(() => () => {
     if (hoverIntentRef.current != null) window.clearTimeout(hoverIntentRef.current);
@@ -306,11 +344,16 @@ export function CalendarView({
   useEffect(() => {
     if (!copyClipboard) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelCopyTo();
+      if (event.key !== 'Escape') return;
+      if (copyModeOpen) {
+        setCopyModeOpen(false);
+        return;
+      }
+      cancelCopyTo();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [copyClipboard]);
+  }, [copyClipboard, copyModeOpen]);
 
   const readDragPayload = (e: React.DragEvent): { workoutId: string; microId: string } | null => {
     if (dragPayloadRef.current) return dragPayloadRef.current;
@@ -504,30 +547,54 @@ export function CalendarView({
               {!isOnline ? ' · Connect to copy sessions.' : ''}
             </span>
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                data-testid="copy-to-lifts"
-                onClick={() => setCopyWithLogs(false)}
-                className={`h-6 px-2 rounded-[var(--cal-radius-md)] text-[11px] ${
-                  !copyWithLogs
-                    ? 'bg-[var(--cal-surface-elevated)] text-[var(--cal-ink)]'
-                    : 'text-[var(--cal-muted)]'
-                }`}
-              >
-                Lifts only
-              </button>
-              <button
-                type="button"
-                data-testid="copy-to-logs"
-                onClick={() => setCopyWithLogs(true)}
-                className={`h-6 px-2 rounded-[var(--cal-radius-md)] text-[11px] ${
-                  copyWithLogs
-                    ? 'bg-[var(--cal-surface-elevated)] text-[var(--cal-ink)]'
-                    : 'text-[var(--cal-muted)]'
-                }`}
-              >
-                With logs
-              </button>
+              <div ref={copyModeMenuRef} className="relative flex items-center gap-1.5 text-[10px] text-[var(--cal-muted)]">
+                <span>Copy as</span>
+                <button
+                  type="button"
+                  aria-label="Copy as"
+                  aria-haspopup="listbox"
+                  aria-expanded={copyModeOpen}
+                  data-testid="copy-to-mode"
+                  onClick={() => setCopyModeOpen((open) => !open)}
+                  className="h-6 min-w-[124px] inline-flex items-center justify-between gap-1 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] px-2 text-left text-[11px] font-medium text-[var(--cal-ink)] hover:border-[color-mix(in_srgb,var(--cal-accent)_45%,var(--cal-hairline))] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--cal-accent)_35%,transparent)]"
+                >
+                  <span className="truncate">{selectedCopyMode.label}</span>
+                  <ChevronDown size={12} className="shrink-0 text-[var(--cal-muted)]" />
+                </button>
+                {copyModeOpen ? (
+                  <div
+                    role="listbox"
+                    aria-label="Copy as"
+                    className="absolute right-0 top-7 z-30 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] shadow-[var(--cal-shadow-lift)]"
+                  >
+                    {COPY_MODE_OPTIONS.map((option) => {
+                      const selected = option.value === copyMode;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          data-testid={`copy-to-mode-${option.value}`}
+                          onClick={() => {
+                            setCopyMode(option.value);
+                            setCopyModeOpen(false);
+                          }}
+                          className={`w-full min-h-12 px-3 py-2 text-left flex items-start gap-2 border-b border-[var(--cal-hairline)] last:border-b-0 hover:bg-[color-mix(in_srgb,var(--cal-accent)_10%,transparent)] focus:outline-none focus:bg-[color-mix(in_srgb,var(--cal-accent)_12%,transparent)] ${selected ? 'bg-[color-mix(in_srgb,var(--cal-accent)_12%,transparent)]' : ''}`}
+                        >
+                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-[var(--cal-accent)]">
+                            {selected ? <Check size={13} /> : null}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[11px] font-semibold text-[var(--cal-ink)]">{option.label}</span>
+                            <span className="block text-[10px] leading-snug text-[var(--cal-muted)]">{option.description}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 data-testid="copy-to-cancel"
@@ -729,8 +796,20 @@ export function CalendarView({
                                           }
                                           onViewSession(workout, microId);
                                         }}
-                                        className="cal-day-chip mt-1 px-1.5 py-1 flex flex-col gap-0.5 cursor-pointer w-full min-w-0 max-w-full overflow-hidden"
+                                        className="cal-day-chip group relative mt-1 px-1.5 py-1 flex flex-col gap-0.5 cursor-pointer w-full min-w-0 max-w-full overflow-hidden"
                                       >
+                                        <button
+                                          type="button"
+                                          aria-label={`Delete ${workout.title || 'session'}`}
+                                          data-testid={`calendar-delete-${workout.id}`}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            void onDeleteSession(workout);
+                                          }}
+                                          className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] text-[var(--cal-muted)] opacity-0 transition-opacity hover:text-[var(--cal-error)] focus:opacity-100 group-hover:opacity-100"
+                                        >
+                                          <Trash2 size={11} />
+                                        </button>
                                         <span className="text-[10px] font-medium text-[var(--cal-ink)] truncate leading-tight">
                                           {workout.title || 'Session'}
                                           {isWorkoutCompleted(workout.status) ? (

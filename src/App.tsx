@@ -4,6 +4,7 @@ import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
 import { AppShell } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
+import { AccessoryLedger } from './components/AccessoryLedger';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
@@ -21,9 +22,10 @@ import type { ThemePreference } from './theme/themePref';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel } from './features/plan/sessionLabels';
+import { splitWorkoutExercises, type LiftMetaPatch } from './types';
 
 export default function App() {
-  const { user, roleMode, setRoleMode } = useAuth();
+  const { user } = useAuth();
   const {
     activeWorkoutId,
     setActiveWorkoutId,
@@ -54,6 +56,7 @@ export default function App() {
   const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
   const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
   const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
+  const workoutExercises = activeWorkout ? splitWorkoutExercises(activeWorkout.exercises) : null;
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -137,6 +140,20 @@ export default function App() {
     }, 100);
   };
 
+  const handleDeleteSession = async (workout: { id: string; title?: string }) => {
+    if (!window.confirm(`Delete ${workout.title || 'this session'}?`)) return;
+    try {
+      await apiService.deleteSession(workout.id);
+      await reloadMicrocycles(planAthleteId);
+      if (activeWorkoutId === workout.id) {
+        setActiveWorkoutId(null);
+        setCurrentView('dashboard');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete session');
+    }
+  };
+
   const handleRemoveLift = async (exerciseId: string) => {
     if (!activeWorkout) return;
     try {
@@ -148,13 +165,14 @@ export default function App() {
     }
   };
 
-  const handleUpdateLift = async (exerciseId: string, patch: { variation?: string; tier?: 'Comp' | 'Variation' | 'Accessory'; movementPattern?: string }) => {
+  const handleUpdateLift = async (exerciseId: string, patch: LiftMetaPatch) => {
     if (!activeWorkout) return;
     try {
       await apiService.updateSessionExercise(activeWorkout.id, exerciseId, patch);
       await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update lift');
+      throw err;
     }
   };
 
@@ -197,6 +215,7 @@ export default function App() {
                 {dashboardMode === 'calendar' ? (
                   <CalendarView 
                     onViewSession={handleViewSession}
+                    onDeleteSession={handleDeleteSession}
                     filter={filter}
                     onFilterChange={setFilter}
                     copyClipboard={copyClipboard}
@@ -206,6 +225,7 @@ export default function App() {
                 ) : dashboardMode === 'sessions' ? (
                   <SessionsView 
                     onViewSession={handleViewSession}
+                    onDeleteSession={handleDeleteSession}
                     filter={filter}
                     onFilterChange={setFilter}
                     onStartCopy={startCopy}
@@ -270,22 +290,6 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-auto">
                       <button
-                        onClick={() => setRoleMode('coach')}
-                        className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'coach' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
-                        }`}
-                      >
-                        Coach
-                      </button>
-                      <button
-                        onClick={() => setRoleMode('athlete')}
-                        className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'athlete' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
-                        }`}
-                      >
-                        Athlete
-                      </button>
-                      <button
                         type="button"
                         data-testid="session-complete"
                         onClick={async () => {
@@ -309,7 +313,9 @@ export default function App() {
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
                     )}
-                    {activeWorkout.exercises.map((ex, index) => (
+                    {workoutExercises?.main.map((ex) => {
+                      const index = activeWorkout.exercises.findIndex((exercise) => exercise.id === ex.id);
+                      return (
                       <ExerciseCard 
                         key={ex.id}
                         id={ex.id}
@@ -319,15 +325,23 @@ export default function App() {
                         tier={ex.tier}
                         liftCategory={ex.liftCategory}
                         movementPattern={ex.movementPattern}
+                        liftNote={ex.liftNote}
                         initialSets={ex.sets}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
                         onRemove={() => handleRemoveLift(ex.id)}
                         onMoveUp={index > 0 ? () => handleMoveLift(ex.id, 'up') : undefined}
                         onMoveDown={index < activeWorkout.exercises.length - 1 ? () => handleMoveLift(ex.id, 'down') : undefined}
-                        roleMode={roleMode}
                       />
-                    ))}
+                    );
+                    })}
+
+                    <AccessoryLedger
+                      exercises={workoutExercises?.accessories ?? []}
+                      onUpdateSets={updateExerciseSets}
+                      onUpdateMeta={handleUpdateLift}
+                      onRemove={handleRemoveLift}
+                    />
 
                     <AddLiftBar
                       sessionId={activeWorkout.id}

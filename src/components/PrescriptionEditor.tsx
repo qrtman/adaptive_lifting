@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { MOVEMENT_PATTERNS, type MovementPattern } from '../services/exerciseCatalog';
@@ -29,14 +30,35 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
 }) => {
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const modeMenuRef = useRef<HTMLDivElement>(null);
+  const modeMenuPortalRef = useRef<HTMLDivElement>(null);
+  const modeButtonRef = useRef<HTMLButtonElement>(null);
+  const [modeMenuPosition, setModeMenuPosition] = useState({ top: 0, left: 0 });
+
+  const updateModeMenuPosition = () => {
+    const button = modeButtonRef.current;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    setModeMenuPosition({ top: rect.top, left: Math.min(rect.left, window.innerWidth - 64) });
+  };
+
+  useLayoutEffect(() => {
+    if (modeMenuOpen) updateModeMenuPosition();
+  }, [modeMenuOpen]);
 
   useEffect(() => {
     if (!modeMenuOpen) return;
     const closeOnOutsidePointer = (event: MouseEvent) => {
-      if (!modeMenuRef.current?.contains(event.target as Node)) setModeMenuOpen(false);
+      const target = event.target as Node;
+      if (!modeMenuRef.current?.contains(target) && !modeMenuPortalRef.current?.contains(target)) setModeMenuOpen(false);
     };
     window.addEventListener('mousedown', closeOnOutsidePointer);
-    return () => window.removeEventListener('mousedown', closeOnOutsidePointer);
+    window.addEventListener('resize', updateModeMenuPosition);
+    window.addEventListener('scroll', updateModeMenuPosition, true);
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutsidePointer);
+      window.removeEventListener('resize', updateModeMenuPosition);
+      window.removeEventListener('scroll', updateModeMenuPosition, true);
+    };
   }, [modeMenuOpen]);
 
   const selectIntensityType = (nextType: 'RPE' | 'PERCENT') => {
@@ -92,6 +114,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
           <div ref={modeMenuRef} className="relative ml-auto shrink-0">
             <button
               type="button"
+              ref={modeButtonRef}
               onClick={() => setModeMenuOpen((open) => !open)}
               onKeyDown={(event) => {
                 if (event.key === 'Escape') setModeMenuOpen(false);
@@ -105,20 +128,24 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
               aria-label={intensityType === 'PERCENT' ? 'Percentage target mode' : 'RPE target mode'}
               aria-haspopup="menu"
               aria-expanded={modeMenuOpen}
+              aria-controls={`rx-intensity-menu-${liftId}-${rowIndex}`}
               title="Choose RPE or percentage"
             >
               {intensityType === "PERCENT" ? "%" : "@"}
             </button>
             <AnimatePresence>
-              {modeMenuOpen ? (
+              {modeMenuOpen ? createPortal(
               <motion.div
+                ref={modeMenuPortalRef}
+                id={`rx-intensity-menu-${liftId}-${rowIndex}`}
                 role="menu"
                 aria-label="Target mode"
                 initial={{ clipPath: 'inset(0 40px 0 0)' }}
                 animate={{ clipPath: 'inset(0 0 0 0)' }}
                 exit={{ clipPath: 'inset(0 40px 0 0)' }}
                 transition={{ duration: 0.12, ease: 'easeOut' }}
-                className="absolute left-0 top-0 z-20 flex h-5 w-[60px] overflow-hidden bg-[var(--cal-surface-card)]"
+                style={{ top: modeMenuPosition.top, left: modeMenuPosition.left }}
+                className="fixed z-[1000] flex h-5 w-[60px] overflow-hidden bg-[var(--cal-surface-card)] shadow-[var(--cal-shadow-lift)]"
               >
                 <button
                   type="button"
@@ -151,7 +178,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                   %
                 </button>
               </motion.div>
-              ) : null}
+              , document.body) : null}
             </AnimatePresence>
           </div>
         </div>
@@ -176,7 +203,7 @@ export function MovementPatternSelect({
     : 'Misc';
   return (
     <label className="flex items-center gap-1 min-w-0">
-      <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Pattern</span>
+      <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Movement Pattern</span>
       <select
         data-testid={id ? `movement-pattern-${id}` : 'movement-pattern'}
         disabled={locked}

@@ -1,4 +1,5 @@
 export type CopyGrain = 'day' | 'week' | 'block';
+export type CopyMode = 'lifts' | 'plan' | 'logs';
 
 export type CopySourceSession = {
   id: string;
@@ -23,7 +24,7 @@ export type CopyWeekPayload = {
   sessionIds: string[];
   athleteId?: string;
   dateOffsetDays: number;
-  includeLogs: boolean;
+  copyMode: CopyMode;
   preserveWeekLabel: boolean;
   targetBlockLabel?: string;
 };
@@ -134,17 +135,18 @@ export function copyBannerText(clip: CopyClipboard): string {
 export function buildCopyWeekRequest(
   clip: CopyClipboard,
   destD1: string,
-  includeLogs: boolean,
+  copyMode: CopyMode | boolean,
   athleteId?: string,
 ): CopyWeekPayload {
   const minDate = clipboardMinDate(clip);
   if (!minDate) {
     throw new Error('Copy clipboard has no source dates');
   }
+  const mode: CopyMode = typeof copyMode === 'boolean' ? (copyMode ? 'logs' : 'plan') : copyMode;
   const payload: CopyWeekPayload = {
     sessionIds: clip.sessionIds,
     dateOffsetDays: dateOffsetDays(destD1, minDate),
-    includeLogs,
+    copyMode: mode,
     preserveWeekLabel: clip.preserveWeekLabel,
   };
   if (athleteId) payload.athleteId = athleteId;

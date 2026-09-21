@@ -25,9 +25,12 @@ export interface SetData {
 }
 
 export type LiftMetaPatch = {
+  title?: string;
   variation?: string;
   tier?: 'Comp' | 'Variation' | 'Accessory';
+  liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
   movementPattern?: MovementPattern;
+  liftNote?: string;
 };
 
 export interface ExerciseData {
@@ -37,6 +40,7 @@ export interface ExerciseData {
   tier?: 'Comp' | 'Variation' | 'Accessory';
   liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
   movementPattern?: MovementPattern;
+  liftNote?: string | null;
   tags: string[];
   top: string;
   vol: string;

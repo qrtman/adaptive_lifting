@@ -24,9 +24,11 @@ from .runtime_config import (
     JWT_KID_PREVIOUS,
     apply_dotenv,
     cookie_secure_flag,
+    development_login_enabled,
     load_cors_allowed_origins,
     load_jwt_secrets,
 )
+from .dev_seed import DEMO_ATHLETE_EMAIL, DEMO_COACH_EMAIL, ensure_demo_accounts
 
 apply_dotenv()
 SECRET_KEY, JWT_SECRET_PREVIOUS = load_jwt_secrets()
@@ -93,6 +95,11 @@ def migrate_db():
         db.rollback()
     try:
         db.execute(text("ALTER TABLE exercises ADD COLUMN movement_pattern VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text("ALTER TABLE exercises ADD COLUMN lift_note VARCHAR"))
         db.commit()
     except Exception:
         db.rollback()
@@ -195,6 +202,42 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
         headers={"kid": JWT_KID_CURRENT},
     )
     return encoded_jwt
+
+
+def start_session(response: Response, user: User) -> dict:
+    """Create the same signed, HttpOnly session used by every authentication path."""
+    from .database import Session as DBSession, SessionLocal
+
+    session_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(DBSession(
+            id=session_id,
+            user_id=user.id,
+            jwt_id=session_id,
+            expires_at=datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    access_token = create_access_token(
+        data={"sub": user.id, "role": user.role, "session_id": session_id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    response.set_cookie(
+        key="session_id",
+        value=access_token,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {"id": user.id, "email": user.email, "role": user.role},
+    }
 
 
 def decode_access_token(token: str):
@@ -300,6 +343,22 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
     )
     
     return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+
+
+@app.post("/api/dev/login/{role}")
+def development_login(role: str, response: Response, db: Session = Depends(get_db)):
+    """Sign into a stable, linked demo account in explicitly enabled local environments."""
+    if not development_login_enabled():
+        raise HTTPException(status_code=404, detail="Development login is unavailable")
+
+    normalized_role = role.strip().upper()
+    if normalized_role not in {"COACH", "ATHLETE"}:
+        raise HTTPException(status_code=404, detail="Unknown development role")
+
+    ensure_demo_accounts(db, get_password_hash)
+    email = DEMO_COACH_EMAIL if normalized_role == "COACH" else DEMO_ATHLETE_EMAIL
+    user = db.query(User).filter(User.email == email).one()
+    return start_session(response, user)
 
 @app.post("/api/auth/google")
 def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
@@ -498,6 +557,7 @@ def format_exercise(e: Exercise) -> dict:
         "tier": e.tier or "Comp",
         "liftCategory": e.lift_category or "Other",
         "movementPattern": e.movement_pattern or pattern_for(e.title, e.lift_category),
+        "liftNote": e.lift_note,
         "tags": e.tags,
         "top": e.top,
         "vol": e.vol,
@@ -1380,7 +1440,8 @@ class CopyWeekRequest(BaseModel):
     dateOffsetDays: int = 7
     targetBlockLabel: Optional[str] = None
     targetWeekLabel: Optional[str] = None
-    includeLogs: bool = False
+    copyMode: Optional[str] = None
+    includeLogs: Optional[bool] = None
     preserveWeekLabel: bool = False
 
 
@@ -1403,6 +1464,7 @@ class AddExerciseRequest(BaseModel):
     tier: Optional[str] = "Comp"
     liftCategory: Optional[str] = "Other"
     movementPattern: Optional[str] = None
+    liftNote: Optional[str] = None
     plannedWeight: Optional[float] = None
     plannedReps: Optional[int] = 5
     plannedRpe: Optional[float] = 8.0
@@ -1412,7 +1474,9 @@ class UpdateExerciseRequest(BaseModel):
     variation: Optional[str] = None
     title: Optional[str] = None
     tier: Optional[str] = None
+    liftCategory: Optional[str] = None
     movementPattern: Optional[str] = None
+    liftNote: Optional[str] = None
     move: Optional[str] = None
 
 
@@ -1498,8 +1562,10 @@ def clone_session_prescription(
     new_date: str,
     block_label: Optional[str],
     week_label: Optional[str],
-    include_logs: bool = False,
+    copy_mode: str = "logs",
 ) -> Workout:
+    include_logs = copy_mode == "logs"
+    include_plan = copy_mode in ("plan", "logs")
     clone = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
         date=new_date,
@@ -1507,9 +1573,9 @@ def clone_session_prescription(
         title=source.title,
         tonnage=source.tonnage if include_logs else 0.0,
         delta=0.0,
-        color="mac-blue",
+        color=source.color,
         status="PLANNED",
-        athlete_bw=None,
+        athlete_bw=source.athlete_bw,
         block_label=block_label,
         week_label=week_label,
         owner_id=source.owner_id,
@@ -1529,12 +1595,15 @@ def clone_session_prescription(
             lift_category=exercise.lift_category or "Other",
             movement_pattern=exercise.movement_pattern or pattern_for(exercise.title, exercise.lift_category),
             tags_raw=exercise.tags_raw or "",
-            top=exercise.top if include_logs else "—",
-            vol=exercise.vol if include_logs else "—",
+            lift_note=exercise.lift_note,
+            top=exercise.top if include_plan else "—",
+            vol=exercise.vol if include_plan else "—",
             workout_id=clone.id,
         )
         db.add(cloned_exercise)
         db.flush()
+        if copy_mode == "lifts":
+            continue
         for exercise_set in sorted(exercise.sets, key=lambda item: (item.lexo_rank or "", item.id)):
             if not is_live(exercise_set):
                 continue
@@ -1542,7 +1611,7 @@ def clone_session_prescription(
                 id=f"s-{uuid.uuid4().hex[:10]}",
                 lexo_rank=exercise_set.lexo_rank or "a0",
                 label=exercise_set.label,
-                scope=("both" if include_logs else "plan"),
+                scope=((getattr(exercise_set, "scope", None) or "both") if include_logs else "plan"),
                 plannedWeight=exercise_set.plannedWeight,
                 plannedReps=exercise_set.plannedReps,
                 plannedRpe=exercise_set.plannedRpe,
@@ -1553,7 +1622,7 @@ def clone_session_prescription(
                 reps=exercise_set.reps if include_logs else None,
                 executedRpe=exercise_set.executedRpe if include_logs else None,
                 isTop=exercise_set.isTop,
-                note=exercise_set.note,
+                note=exercise_set.note if include_logs else None,
                 velocity=exercise_set.velocity if include_logs else None,
                 readiness=exercise_set.readiness if include_logs else None,
                 hrv=exercise_set.hrv if include_logs else None,
@@ -1567,6 +1636,12 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
     if not req.sessionIds:
         raise HTTPException(status_code=400, detail="sessionIds required")
     # Offset may be negative or zero so a copy can land on a chosen calendar date.
+
+    copy_mode = req.copyMode
+    if copy_mode is None:
+        copy_mode = "logs" if req.includeLogs is True else "plan" if req.includeLogs is False else "logs"
+    if copy_mode not in {"lifts", "plan", "logs"}:
+        raise HTTPException(status_code=400, detail="copyMode must be lifts, plan, or logs")
 
     sources = []
     owner_id = None
@@ -1600,7 +1675,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
             shift_iso_date(source.date, req.dateOffsetDays),
             target_block,
             target_week,
-            include_logs=req.includeLogs,
+            copy_mode=copy_mode,
         )
         created.append({
             "id": clone.id,
@@ -1771,6 +1846,7 @@ def add_session_exercise(
         tier=tier,
         lift_category=lift_category,
         movement_pattern=movement_pattern,
+        lift_note=(req.liftNote or "").strip() or None,
         tags_raw=",".join(tags),
         top="—",
         vol="—",
@@ -1868,10 +1944,16 @@ def update_session_exercise(
         if req.tier not in ALLOWED_TIERS:
             raise HTTPException(status_code=400, detail="Invalid tier")
         exercise.tier = req.tier
+    if req.liftCategory is not None:
+        if req.liftCategory not in ALLOWED_LIFT_CATEGORIES:
+            raise HTTPException(status_code=400, detail="Invalid liftCategory")
+        exercise.lift_category = req.liftCategory
     if req.movementPattern is not None:
         exercise.movement_pattern = resolve_movement_pattern(
             exercise.title, exercise.lift_category, req.movementPattern
         )
+    if req.liftNote is not None:
+        exercise.lift_note = req.liftNote.strip() or None
     if req.move is not None:
         direction = req.move.strip().lower()
         if direction not in ("up", "down"):
