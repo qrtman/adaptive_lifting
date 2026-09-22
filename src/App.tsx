@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useRef, type ComponentProps, type RefObject } from 'react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
 import { AppShell } from './components/AppShell';
@@ -23,6 +23,29 @@ import { parseAppLocation, writeAppLocation, type DashboardMode } from './naviga
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel } from './features/plan/sessionLabels';
 import { splitWorkoutExercises, type LiftMetaPatch } from './types';
+
+type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
+  value: string;
+  reorderContainerRef: RefObject<HTMLDivElement | null>;
+};
+
+function SortableExerciseCard({ value, reorderContainerRef, ...props }: SortableExerciseCardProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      as="div"
+      value={value}
+      drag="y"
+      dragListener={false}
+      dragControls={dragControls}
+      dragConstraints={reorderContainerRef}
+      className="relative"
+    >
+      <ExerciseCard {...props} dragControls={dragControls} />
+    </Reorder.Item>
+  );
+}
 
 export default function App() {
   const { user } = useAuth();
@@ -53,10 +76,31 @@ export default function App() {
   const [filter, setFilter] = useState<LiftFilterState>(() => parseLiftFilter(getUiPref(UI_KEYS.liftFilter)));
   const [editSessionOpen, setEditSessionOpen] = useState(false);
   const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
+  const [mainLiftOrder, setMainLiftOrder] = useState<string[]>([]);
+  const reorderContainerRef = useRef<HTMLDivElement>(null);
   const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
   const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
   const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
   const workoutExercises = activeWorkout ? splitWorkoutExercises(activeWorkout.exercises) : null;
+
+  useEffect(() => {
+    const mainIds = workoutExercises?.main.map((exercise) => exercise.id) ?? [];
+    setMainLiftOrder((current) => {
+      const next = [
+      ...current.filter((id) => mainIds.includes(id)),
+      ...mainIds.filter((id) => !current.includes(id)),
+      ];
+      return next.length === current.length && next.every((id, index) => id === current[index])
+        ? current
+        : next;
+    });
+  }, [activeWorkout?.id, activeWorkout?.exercises]);
+
+  const orderedMainExercises = (workoutExercises?.main ?? []).slice().sort((a, b) => {
+    const aIndex = mainLiftOrder.indexOf(a.id);
+    const bIndex = mainLiftOrder.indexOf(b.id);
+    return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+  });
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -176,13 +220,21 @@ export default function App() {
     }
   };
 
-  const handleMoveLift = async (exerciseId: string, move: 'up' | 'down') => {
+  const handleReorderLifts = async (orderedMainIds: string[]) => {
     if (!activeWorkout) return;
+    setMainLiftOrder(orderedMainIds);
+    const mainIds = new Set(workoutExercises?.main.map((exercise) => exercise.id) ?? []);
+    let nextMainIndex = 0;
+    const fullOrder = activeWorkout.exercises.map((exercise) => {
+      if (!mainIds.has(exercise.id)) return exercise.id;
+      return orderedMainIds[nextMainIndex++];
+    });
     try {
-      await apiService.updateSessionExercise(activeWorkout.id, exerciseId, { move });
+      await apiService.updateSessionExercise(activeWorkout.id, orderedMainIds[0], { order: fullOrder });
       await reloadMicrocycles(planAthleteId);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to move lift');
+      setMainLiftOrder(workoutExercises?.main.map((exercise) => exercise.id) ?? []);
+      alert(err instanceof Error ? err.message : 'Failed to reorder lifts');
     }
   };
 
@@ -269,13 +321,10 @@ export default function App() {
                             {activeWorkout.title}
                           </p>
                           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
-                            <p data-testid="session-labels" className="text-xs text-[var(--cal-muted)] min-w-0">
+                            <p data-testid="session-labels" className="min-w-0 rounded-[var(--cal-radius-sm)] bg-[var(--cal-surface-2)] px-1.5 py-0.5 text-[12px] font-semibold text-[var(--cal-ink)]">
                               {[sessionDayLabel, sessionWeekLabel, sessionBlockLabel].filter(Boolean).join(' · ')}
                               {sessionDayLabel && !sessionWeekLabel && !sessionBlockLabel ? ' · ' : null}
                               {!sessionWeekLabel && !sessionBlockLabel ? 'No block/week' : null}
-                            </p>
-                            <p data-testid="workout-tonnage" className="text-[11px] text-[var(--cal-muted)] tnum shrink-0">
-                              {activeWorkout.tonnage} kg
                             </p>
                             <button
                               type="button"
@@ -288,7 +337,11 @@ export default function App() {
                           </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-auto">
+                    <div className="flex items-center gap-2 shrink-0 ml-auto">
+                      <p data-testid="workout-tonnage" className="flex w-36 shrink-0 items-baseline justify-end gap-1 text-right text-[11px] font-semibold text-[var(--cal-ink)]">
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Tonnage</span>
+                        <span className="tnum">{activeWorkout.tonnage.toLocaleString()} kg</span>
+                      </p>
                       <button
                         type="button"
                         data-testid="session-complete"
@@ -313,11 +366,19 @@ export default function App() {
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
                     )}
-                    {workoutExercises?.main.map((ex) => {
-                      const index = activeWorkout.exercises.findIndex((exercise) => exercise.id === ex.id);
+                    <Reorder.Group
+                      as="div"
+                      axis="y"
+                      ref={reorderContainerRef}
+                      values={orderedMainExercises.map((exercise) => exercise.id)}
+                      onReorder={(next) => void handleReorderLifts(next)}
+                    >
+                    {orderedMainExercises.map((ex) => {
                       return (
-                      <ExerciseCard 
+                      <SortableExerciseCard
                         key={ex.id}
+                        value={ex.id}
+                        reorderContainerRef={reorderContainerRef}
                         id={ex.id}
                         title={ex.title}
                         variation={ex.variation}
@@ -330,11 +391,10 @@ export default function App() {
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
                         onRemove={() => handleRemoveLift(ex.id)}
-                        onMoveUp={index > 0 ? () => handleMoveLift(ex.id, 'up') : undefined}
-                        onMoveDown={index < activeWorkout.exercises.length - 1 ? () => handleMoveLift(ex.id, 'down') : undefined}
                       />
                     );
                     })}
+                    </Reorder.Group>
 
                     <AccessoryLedger
                       exercises={workoutExercises?.accessories ?? []}

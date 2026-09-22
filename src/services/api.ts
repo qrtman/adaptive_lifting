@@ -711,6 +711,7 @@ export const apiService = {
     movementPattern?: string;
     liftNote?: string;
     move?: 'up' | 'down';
+    order?: string[];
   }): Promise<import('../types').ExerciseData> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}`, {
       method: 'PATCH',

@@ -1478,6 +1478,7 @@ class UpdateExerciseRequest(BaseModel):
     movementPattern: Optional[str] = None
     liftNote: Optional[str] = None
     move: Optional[str] = None
+    order: Optional[List[str]] = None
 
 
 class PlannedSetWrite(BaseModel):
@@ -1966,6 +1967,14 @@ def update_session_exercise(
         if 0 <= swap_with < len(ordered):
             ordered[index], ordered[swap_with] = ordered[swap_with], ordered[index]
             reindex_exercises(ordered)
+    if req.order is not None:
+        ordered = live_exercises(workout)
+        current_ids = {item.id for item in ordered}
+        requested_ids = req.order
+        if len(requested_ids) != len(set(requested_ids)) or set(requested_ids) != current_ids:
+            raise HTTPException(status_code=400, detail="order must contain each live lift exactly once")
+        by_id = {item.id: item for item in ordered}
+        reindex_exercises([by_id[item_id] for item_id in requested_ids])
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, ChevronDown, ChevronRight, Trash2, Copy, Plus } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus } from 'lucide-react';
+import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
@@ -54,6 +55,7 @@ export const ExerciseCard = ({
   onRemove,
   onMoveUp,
   onMoveDown,
+  dragControls,
   locked = false,
   roleMode: _roleMode = 'coach',
   initialMinimized = true
@@ -72,6 +74,7 @@ export const ExerciseCard = ({
   onRemove?: () => void | Promise<void>,
   onMoveUp?: () => void | Promise<void>,
   onMoveDown?: () => void | Promise<void>,
+  dragControls?: DragControls,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
   initialMinimized?: boolean,
@@ -368,6 +371,19 @@ export const ExerciseCard = ({
     <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-center gap-2 min-w-0">
+          {dragControls ? (
+            <button
+              type="button"
+              data-testid={`reorder-lift-${id}`}
+              aria-label={`Reorder ${variation}`}
+              disabled={locked}
+              onPointerDown={(event) => dragControls.start(event)}
+              className="inline-flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-[3px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+              title="Drag to reorder lift"
+            >
+              <GripVertical size={15} strokeWidth={2} aria-hidden="true" />
+            </button>
+          ) : null}
           <button
             type="button"
             data-testid={`toggle-lift-${id}`}
@@ -425,7 +441,7 @@ export const ExerciseCard = ({
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Vol</span>
-            <span className="text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
+            <span className="w-24 text-right text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
           </div>
           {onMoveUp && (
             <button
