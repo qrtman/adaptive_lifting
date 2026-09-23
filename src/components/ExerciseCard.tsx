@@ -8,6 +8,7 @@ import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { 
   calculateE1RM, 
   calculateINOL,
+  getRpePercentage,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 import {
@@ -40,6 +41,59 @@ function formatE1rmDeltaPct(planE1rm: number, logE1rm: number): string {
   return '0%';
 }
 
+type ExerciseSummarySet = {
+  scope?: string;
+  actual?: unknown;
+  reps?: unknown;
+  executedRpe?: unknown;
+  plannedReps?: unknown;
+  plannedRpe?: unknown;
+  target_value?: unknown;
+  intensity_type?: string;
+};
+
+export function summarizeExerciseCard(sets: ExerciseSummarySet[]): {
+  intensityPct: number | null;
+  nl: number;
+} {
+  const loggedSets = sets.filter((set) => set.scope !== 'plan' && trainingNumber(set.actual) != null);
+  const useLogged = loggedSets.length > 0;
+  const selectedSets = useLogged
+    ? loggedSets
+    : sets.filter((set) => set.scope !== 'log');
+
+  const intensityValues = selectedSets
+    .map((set) => {
+      if (useLogged) {
+        const weight = trainingOrZero(set.actual);
+        const reps = trainingIntOrZero(set.reps);
+        const rpe = trainingOrZero(set.executedRpe);
+        if (weight > 0 && reps > 0 && rpe > 0) {
+          const e1rm = calculateE1RM(weight, reps, rpe);
+          if (e1rm > 0) return (weight / e1rm) * 100;
+        }
+      }
+
+      const reps = trainingIntOrZero(useLogged ? set.reps ?? set.plannedReps : set.plannedReps);
+      const target = trainingOrZero(set.target_value ?? set.plannedRpe);
+      if (reps <= 0 || target <= 0) return null;
+      return set.intensity_type === 'PERCENT'
+        ? target
+        : getRpePercentage(reps, target) * 100;
+    })
+    .filter((value): value is number => value != null && value > 0);
+
+  return {
+    intensityPct: intensityValues.length > 0
+      ? Math.round(intensityValues.reduce((sum, value) => sum + value, 0) / intensityValues.length)
+      : null,
+    nl: selectedSets.reduce(
+      (sum, set) => sum + trainingIntOrZero(useLogged ? set.reps : set.plannedReps),
+      0,
+    ),
+  };
+}
+
 export const ExerciseCard = ({ 
   id,
   title, 
@@ -55,6 +109,7 @@ export const ExerciseCard = ({
   onRemove,
   onMoveUp,
   onMoveDown,
+  onMinimizedChange,
   dragControls,
   locked = false,
   roleMode: _roleMode = 'coach',
@@ -74,6 +129,7 @@ export const ExerciseCard = ({
   onRemove?: () => void | Promise<void>,
   onMoveUp?: () => void | Promise<void>,
   onMoveDown?: () => void | Promise<void>,
+  onMinimizedChange?: (minimized: boolean) => void,
   dragControls?: DragControls,
   locked?: boolean,
   roleMode?: 'coach' | 'athlete',
@@ -244,6 +300,7 @@ export const ExerciseCard = ({
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
   const plannedCount = sets.filter((set) => set.scope !== 'log').length;
   const loggedCount = sets.filter((set) => set.scope !== 'plan' && trainingNumber(set.actual) != null).length;
+  const { intensityPct, nl } = summarizeExerciseCard(sets);
 
   const addSet = (target: 'plan' | 'log') => {
     const nextRow = sets.filter((set) => target === 'plan' ? set.scope !== 'log' : set.scope !== 'plan').length;
@@ -391,7 +448,11 @@ export const ExerciseCard = ({
             aria-controls={`lift-grid-${id}`}
             aria-label={`${minimized ? 'Expand' : 'Minimize'} ${variation}`}
             onClick={() => {
-              setMinimized((value) => !value);
+              setMinimized((value) => {
+                const next = !value;
+                onMinimizedChange?.(next);
+                return next;
+              });
               setGrid(null);
             }}
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
@@ -412,10 +473,6 @@ export const ExerciseCard = ({
               aria-label="Lift summary"
               className="flex min-w-0 items-center gap-2 truncate text-[11px] text-[var(--cal-muted)]"
             >
-              <span className="tnum whitespace-nowrap">{plannedCount} plan set{plannedCount === 1 ? '' : 's'}</span>
-              <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
-              <span className="tnum whitespace-nowrap">{loggedCount} logged</span>
-              <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
               <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
               <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
               <span className="truncate whitespace-nowrap">{movementPattern ?? liftCategory}</span>
@@ -433,6 +490,24 @@ export const ExerciseCard = ({
           ) : null}
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Intensity</span>
+            <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-intensity-${id}`}>
+              {intensityPct != null ? `${intensityPct}%` : 'â€”'}
+            </span>
+            <span aria-hidden="true" className="ml-1 text-[var(--cal-muted-soft)]">·</span>
+            <span
+              className="text-xs tnum text-[var(--cal-muted)]"
+              data-testid={`lift-set-count-${id}`}
+              title={`${plannedCount} planned, ${loggedCount} logged`}
+            >
+              {plannedCount}/{loggedCount} sets
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">NL</span>
+            <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-nl-${id}`}>{nl}</span>
+          </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">e1RM</span>
             <span className="text-xs tnum text-[var(--cal-muted)]">
@@ -469,6 +544,8 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid={`remove-lift-${id}`}
+              aria-label="Remove exercise"
+              title="Remove exercise"
               disabled={locked || removing}
               onClick={() => {
                 if (locked || removing) return;
@@ -476,9 +553,10 @@ export const ExerciseCard = ({
                 setRemoving(true);
                 void Promise.resolve(onRemove()).finally(() => setRemoving(false));
               }}
-              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
+              className={`${actionButton} text-[0px]`}
             >
               {removing ? 'Removing…' : 'Remove'}
+              <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         </div>

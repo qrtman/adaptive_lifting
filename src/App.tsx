@@ -31,6 +31,7 @@ type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
 
 function SortableExerciseCard({ value, reorderContainerRef, ...props }: SortableExerciseCardProps) {
   const dragControls = useDragControls();
+  const [minimized, setMinimized] = useState(props.initialMinimized ?? true);
 
   return (
     <Reorder.Item
@@ -40,9 +41,16 @@ function SortableExerciseCard({ value, reorderContainerRef, ...props }: Sortable
       dragListener={false}
       dragControls={dragControls}
       dragConstraints={reorderContainerRef}
+      layout="position"
+      layoutDependency={minimized}
       className="relative"
     >
-      <ExerciseCard {...props} dragControls={dragControls} />
+      <ExerciseCard
+        {...props}
+        initialMinimized={minimized}
+        onMinimizedChange={setMinimized}
+        dragControls={dragControls}
+      />
     </Reorder.Item>
   );
 }
