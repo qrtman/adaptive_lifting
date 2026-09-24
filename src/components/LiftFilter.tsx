@@ -4,6 +4,7 @@ import {
   LIFT_FILTER_LIFTS,
   LIFT_FILTER_TIERS,
   facetHasValue,
+  isEmptyLiftFilter,
   summarizeLiftFilter,
   toggleLiftFilterChip,
   type LiftFilterFacet,
@@ -60,12 +61,14 @@ function FacetRow({
 export function LiftFilter({
   value,
   onChange,
+  emptyLabel,
 }: {
   value: LiftFilterState;
   onChange: (next: LiftFilterState) => void;
+  emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const summary = summarizeLiftFilter(value);
+  const summary = emptyLabel && isEmptyLiftFilter(value) ? emptyLabel : summarizeLiftFilter(value);
 
   const toggle = (facet: LiftFilterFacet, chip: string) => {
     onChange(toggleLiftFilterChip(value, facet, chip));

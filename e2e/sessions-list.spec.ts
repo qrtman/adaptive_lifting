@@ -14,7 +14,9 @@ test('empty athlete plan shows an addable empty state', async ({ page, request }
   await page.getByPlaceholder('Password').fill('password123');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByTestId('nav-sessions').click();
-  await expect(page.getByTestId('sessions-show-accessories')).not.toBeChecked();
+  await expect(page.getByTestId('sessions-show-accessories')).toHaveCount(0);
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('All lifts');
+  await expect(page.getByTestId('sessions-mode-both')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('sessions-empty')).toContainText('No sessions yet');
   await expect(page.locator('[data-testid^="sessions-week-board-"]')).toHaveCount(0);
   await expect(page.getByTestId('sessions-add')).toBeVisible();
@@ -104,6 +106,7 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await expect(card).toContainText('140 × 5 @ 7');
   await expect(card).toContainText('130 × 3 @ 7');
   await expect(card).toContainText('5 @ 8');
+  await expect(card.getByTestId(/sessions-lift-e1rm-/)).toHaveText('e1RM 197 kg');
   await expect(card).not.toContainText('—×');
   await expect(card).not.toContainText('COMPLETED');
   await expect(card).not.toContainText('0kg');
@@ -120,20 +123,23 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   expect(titleStyle.size).toBeGreaterThan(metaStyle.size);
   expect(titleStyle.weight).toBeGreaterThan(metaStyle.weight);
 
-  const weekKey = '1::1';
-  await page.getByTestId(`sessions-mode-${weekKey}-plan`).click();
+  await page.getByTestId('sessions-mode-plan').click();
+  await expect(card.getByTestId(/sessions-lift-e1rm-/)).toHaveText('e1RM 197 kg');
   await expect(card.getByTestId(/sessions-plan-h-/)).toBeVisible();
   await expect(card.getByTestId(/sessions-log-h-/)).toHaveCount(0);
   await expect(card).not.toContainText('130 × 3 @ 7');
-  await page.getByTestId(`sessions-mode-${weekKey}-log`).click();
+  await page.getByTestId('sessions-mode-log').click();
   await expect(card.getByTestId(/sessions-plan-h-/)).toHaveCount(0);
   await expect(card.getByTestId(/sessions-log-h-/)).toBeVisible();
   await expect(card).not.toContainText('140 × 5 @ 7');
   await expect(card).toContainText('130 × 3 @ 7');
-  await page.getByTestId(`sessions-mode-${weekKey}-both`).click();
+  await page.getByTestId('sessions-mode-both').click();
 
   await page.setViewportSize({ width: 360, height: 740 });
   await page.getByTestId('sidebar-toggle').click();
+  const addButton = await page.getByTestId('sessions-add').boundingBox();
+  const filterButton = await page.getByTestId('lift-filter-open').boundingBox();
+  expect(addButton && filterButton && addButton.y < filterButton.y).toBeTruthy();
   await expect(card.getByTestId(/sessions-plan-h-/)).toBeVisible();
   await expect(card.getByTestId(/sessions-log-h-/)).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2);
@@ -166,6 +172,16 @@ test('labeled weeks compare by first session date with dated rest rows', async (
     expect(response.ok()).toBeTruthy();
     ids.push((await response.json()).id as string);
   }
+  for (const id of [ids[0], ids[2], ids[3], ids[4]]) {
+    const response = await request.post(`http://localhost:8000/api/sessions/${id}/exercises`, {
+      data: { title: 'Competition Squat', tier: 'Comp', liftCategory: 'Squat', plannedWeight: 100, plannedReps: 5, plannedRpe: 7 },
+    });
+    expect(response.ok()).toBeTruthy();
+    const accessory = await request.post(`http://localhost:8000/api/sessions/${id}/exercises`, {
+      data: { title: 'Accessory Row', tier: 'Accessory', liftCategory: 'Other', plannedWeight: 40, plannedReps: 10, plannedRpe: 7 },
+    });
+    expect(accessory.ok()).toBeTruthy();
+  }
 
   await page.goto('/');
   await page.getByPlaceholder('coach@example.com').fill(email);
@@ -184,10 +200,26 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   await expect(secondWeek.locator('[data-testid^="sessions-rest-"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No Week' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No Block or Week' })).toBeVisible();
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('All lifts');
+  await expect(page.getByTestId('sessions-show-accessories')).toHaveCount(0);
+  for (const id of [ids[0], ids[2], ids[3], ids[4]]) {
+    const card = page.getByTestId(`sessions-card-${id}`);
+    await expect(card).toContainText('Competition Squat');
+    await expect(card).toContainText('Accessory Row');
+    await expect(card).toContainText('40 × 10 @ 7');
+  }
 
-  await firstWeek.getByTestId('sessions-mode-1::9-log').click();
-  await expect(firstWeek.getByTestId('sessions-mode-1::9-log')).toHaveAttribute('aria-pressed', 'true');
-  await expect(secondWeek.getByTestId('sessions-mode-1::2-both')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('sessions-mode-both')).toHaveCount(1);
+  await page.getByTestId('sessions-mode-log').click();
+  await expect(page.getByTestId('sessions-mode-log')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('sessions-mode-both')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('[data-testid^="sessions-plan-h-"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid^="sessions-log-h-"]')).toHaveCount(4);
+  await page.getByTestId('nav-calendar').click();
+  await page.getByTestId('nav-sessions').click();
+  await expect(page.getByTestId('sessions-mode-both')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-testid^="sessions-plan-h-"]')).toHaveCount(4);
+  await expect(page.getByTestId(`sessions-card-${ids[4]}`)).toContainText('Accessory Row');
 
   await page.getByTestId(`sessions-actions-${ids[3]}`).click();
   await page.getByTestId(`sessions-edit-${ids[3]}`).click();
@@ -206,4 +238,70 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   }));
   expect(Math.abs(widths.board - widths.column)).toBeLessThan(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBeFalsy();
+});
+
+test('Compare switches control logged lift deltas across Weeks and reset on reopen', async ({ page, request }) => {
+  const email = `sessions-compare-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
+  });
+  expect(register.ok()).toBeTruthy();
+
+  const ids: string[] = [];
+  for (const [date, weekLabel, weight] of [
+    ['2026-09-01', '1', 140], ['2026-09-08', '2', 150], ['2026-09-15', '3', 145],
+  ] as const) {
+    const session = await request.post('http://localhost:8000/api/sessions', {
+      data: { date, title: `Lower ${weekLabel}`, blockLabel: '1', weekLabel, dayLabel: '1' },
+    });
+    expect(session.ok()).toBeTruthy();
+    const id = (await session.json()).id as string;
+    ids.push(id);
+    const added = await request.post(`http://localhost:8000/api/sessions/${id}/exercises`, {
+      data: { title: 'Competition Squat', variation: 'Competition', tier: 'Comp', liftCategory: 'Squat', plannedWeight: 300, plannedReps: 5, plannedRpe: 8 },
+    });
+    expect(added.ok()).toBeTruthy();
+    const exercise = await added.json();
+    const logged = await request.put(`http://localhost:8000/api/sessions/${id}/exercises/${exercise.id}/sets`, {
+      data: { sets: [{ id: exercise.sets[0].id, scope: 'both', plannedWeight: 300, plannedReps: 5, plannedRpe: 8, actual: weight, reps: 5, executedRpe: 8 }] },
+    });
+    expect(logged.ok()).toBeTruthy();
+  }
+
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByTestId('nav-sessions').click();
+  const first = page.getByTestId(`sessions-card-${ids[0]}`);
+  const second = page.getByTestId(`sessions-card-${ids[1]}`);
+  const third = page.getByTestId(`sessions-card-${ids[2]}`);
+  await expect(first.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 700 kg');
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg (+7.1%)');
+  await expect(third.getByTestId(/sessions-lift-tonnage-/)).toContainText('-25 kg (-3.3%)');
+  await expect(second.getByTestId(/sessions-lift-avg-int-/)).toContainText('0%');
+
+  await page.getByTestId('sessions-compare-open').click();
+  await page.getByTestId('sessions-compare-hide-all').click();
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg');
+  await expect(third.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 725 kg');
+  await page.getByTestId('sessions-compare-e1rm').check();
+  await expect(second.getByTestId(/sessions-lift-e1rm-/)).toContainText('(+');
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg');
+  await page.getByTestId('sessions-compare-show-all').click();
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+  await page.getByTestId('sessions-mode-plan').click();
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+  await page.getByTestId('sessions-mode-log').click();
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.getByTestId('sidebar-toggle').click();
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBeFalsy();
+  await page.getByTestId('nav-calendar').click();
+  await page.getByTestId('nav-sessions').click();
+  await page.getByTestId('sessions-compare-open').click();
+  await expect(page.getByTestId('sessions-compare-tonnage')).toBeChecked();
+  await expect(page.getByTestId(`sessions-card-${ids[1]}`).getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
 });
