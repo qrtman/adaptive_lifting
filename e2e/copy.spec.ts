@@ -30,6 +30,7 @@ test('unlabeled sessions have day copy only; no week or block rows', async ({ pa
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
   await expect(page.getByTestId(`sessions-card-${openId}`)).toBeVisible();
+  await page.getByTestId(`sessions-actions-${openId}`).click();
   await expect(page.getByTestId(`sessions-copy-to-${openId}`)).toBeVisible();
   await expect(page.locator('[data-testid^="sessions-week-row-"]')).toHaveCount(0);
   await expect(page.locator('[data-testid^="sessions-block-row-"]')).toHaveCount(0);
@@ -60,7 +61,9 @@ test('copy selected keeps relative dates and source week labels', async ({ page,
 
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
+  await page.getByTestId(`sessions-actions-${squatId}`).click();
   await page.getByTestId(`sessions-select-${squatId}`).check();
+  await page.getByTestId(`sessions-actions-${benchId}`).click();
   await page.getByTestId(`sessions-select-${benchId}`).check();
   await page.getByTestId('sessions-copy-selected').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('click where D1 lands');
