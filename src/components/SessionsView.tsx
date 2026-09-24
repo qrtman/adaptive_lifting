@@ -60,7 +60,7 @@ function Delta({ current, previous, digits, unit, relative }: {
   const change = metricChange(current, previous, digits);
   if (!change) return null;
   const color = change.amount > 0 ? 'text-[var(--cal-success)]' : change.amount < 0 ? 'text-[var(--cal-error)]' : 'text-[var(--cal-muted)]';
-  return <span className={color}>{formatSigned(change.amount, digits)}{unit}{relative ? ` (${formatSigned(change.relativePct, 1)}%)` : ''}</span>;
+  return <span className={color}>{relative ? formatSigned(change.relativePct, 1) + '%' : formatSigned(change.amount, digits) + unit}</span>;
 }
 
 const weekCardClass =
@@ -119,7 +119,7 @@ function SessionCard({
     <div
       data-testid={`sessions-card-${workout.id}`}
       data-elevated={active ? 'true' : undefined}
-      className={`cal-nested-card relative flex flex-col gap-[var(--cal-space-xs)] ${
+      className={`cal-nested-card relative w-full max-w-full min-w-0 flex flex-col gap-[var(--cal-space-xs)] ${
         active ? 'ring-1 ring-[color-mix(in_srgb,var(--cal-accent)_45%,transparent)]' : ''
       }`}
     >
@@ -140,7 +140,7 @@ function SessionCard({
           <span className="text-[10px] tnum text-[var(--cal-muted)] shrink-0 pt-0.5">{statusMeta || 'Planned'}</span>
         </div>
         {visibleExercises.length > 0 ? (
-          <div className={`grid ${showPlan && showLog ? 'grid-cols-[1rem_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[1rem_minmax(0,1fr)]'} gap-x-2 gap-y-0.5 min-w-0`}>
+          <div className={`grid ${showPlan && showLog ? 'grid-cols-[1rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,9.5rem)]' : 'grid-cols-[1rem_minmax(0,1fr)_minmax(0,9.5rem)]'} gap-x-2 gap-y-0.5 min-w-0`}>
             <span className="text-[10px] text-[var(--cal-muted-soft)]">#</span>
             {showPlan && <span
               data-testid={`sessions-plan-h-${workout.id}`}
@@ -154,6 +154,7 @@ function SessionCard({
             >
               Log
             </span>}
+            <span className="text-[10px] text-[var(--cal-muted)] text-left">Metrics</span>
             {visibleExercises.map((ex) => {
               const planRows = mode === 'log' ? [] : ex.sets.filter((set) => set.scope !== 'log');
               const logRows = mode === 'plan' ? [] : ex.sets.filter((set) => set.scope !== 'plan');
@@ -162,18 +163,12 @@ function SessionCard({
               const previous = comparison.get(ex.id);
               return (
                 <Fragment key={ex.id}>
-                  <div className={`${showPlan && showLog ? 'col-span-3' : 'col-span-2'} flex flex-col gap-0.5 min-w-0 pt-1`}>
+                  <div className={`${showPlan && showLog ? 'col-span-3' : 'col-span-2'}`}>
                     <span className="min-w-0 text-[11px] font-medium text-[var(--cal-ink)] truncate" title={ex.title}>
                       {ex.title}
                     </span>
-                    {topE1RM != null || tonnage != null || avgIntensityPct != null ? (
-                      <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] tnum text-[var(--cal-muted)] min-w-0">
-                        {topE1RM != null ? <span className="whitespace-nowrap" data-testid={`sessions-lift-e1rm-${ex.id}`} title="Highest logged e1RM for this lift">e1RM {Math.round(topE1RM)} kg {compareVisibility.e1rm && <Delta current={topE1RM} previous={previous?.topE1RM ?? null} digits={0} unit=" kg" relative />}</span> : null}
-                        {tonnage != null ? <span className="whitespace-nowrap" data-testid={`sessions-lift-tonnage-${ex.id}`} title="Logged weight × reps for this lift">Tonnage {tonnage.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg {compareVisibility.tonnage && <Delta current={tonnage} previous={previous?.tonnage ?? null} digits={2} unit=" kg" relative />}</span> : null}
-                        {avgIntensityPct != null ? <span className="whitespace-nowrap" data-testid={`sessions-lift-avg-int-${ex.id}`} title="Average intensity of logged sets with RPE">Avg int {avgIntensityPct}% {compareVisibility.avgInt && <Delta current={avgIntensityPct} previous={previous?.avgIntensityPct ?? null} digits={0} unit="%" />}</span> : null}
-                      </span>
-                    ) : null}
                   </div>
+                  <span aria-hidden="true" />
                   {Array.from({ length: Math.max(rowCount, 1) }).map((_, index) => {
                     const planSet = planRows[index];
                     const logSet = logRows[index];
@@ -197,6 +192,31 @@ function SessionCard({
                         >
                           {logged}
                         </span>}
+                        {index === 0 && (
+                          <div
+                            className="self-start flex flex-col items-stretch text-left gap-y-0.5 text-[10px] tnum text-[var(--cal-muted)] min-w-0"
+                            style={{ gridRow: 'span ' + Math.max(rowCount, 1) }}
+                          >
+                            {topE1RM != null ? (
+                              <div className="flex w-full justify-between gap-1 whitespace-nowrap" data-testid={'sessions-lift-e1rm-' + ex.id} title="Highest logged e1RM for this lift">
+                                <span>e1RM {Math.round(topE1RM)} kg</span>
+                                {compareVisibility.e1rm && <Delta current={topE1RM} previous={previous?.topE1RM ?? null} digits={0} unit=" kg" relative />}
+                              </div>
+                            ) : null}
+                            {tonnage != null ? (
+                              <div className="flex w-full justify-between gap-1 whitespace-nowrap" data-testid={'sessions-lift-tonnage-' + ex.id} title="Logged weight × reps for this lift">
+                                <span>Tonnage {tonnage.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg</span>
+                                {compareVisibility.tonnage && <Delta current={tonnage} previous={previous?.tonnage ?? null} digits={2} unit=" kg" relative />}
+                              </div>
+                            ) : null}
+                            {avgIntensityPct != null ? (
+                              <div className="flex w-full justify-between gap-1 whitespace-nowrap" data-testid={'sessions-lift-avg-int-' + ex.id} title="Average intensity of logged sets with RPE">
+                                <span>Avg int {avgIntensityPct}%</span>
+                                {compareVisibility.avgInt && <Delta current={avgIntensityPct} previous={previous?.avgIntensityPct ?? null} digits={0} unit="%" relative />}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </Fragment>
                     );
                   })}
@@ -561,14 +581,14 @@ export function SessionsView({
         data-testid={`sessions-week-board-${blockLabel || 'no-block'}`}
         data-block-label={blockLabel}
         className="sessions-week-board grid grid-flow-col gap-[var(--cal-space-xs)] overflow-x-auto overscroll-x-contain min-w-0 pb-1"
-        style={{ gridAutoColumns: 'minmax(min(100%, 20rem), 1fr)' }}
+        style={{ gridAutoColumns: 'fit-content(32rem)' }}
         onScroll={(event) => syncHorizontalScroll(event.currentTarget, event.currentTarget.scrollLeft)}
       >
         {ordered.map((week, index) => {
           const rowKey = `${blockLabel || '_'}::${week.weekLabel}`;
           const nextWeekDate = ordered[index + 1]?.items[0]?.workout.date;
           return (
-            <div key={rowKey} className={weekCardClass}>
+            <div key={rowKey} className={weekCardClass} style={{ minWidth: 'min(100%, 20rem)', maxWidth: '32rem' }}>
               <WeekRow
                 rowKey={rowKey}
                 weekLabel={week.weekLabel}
