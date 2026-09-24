@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 
@@ -41,17 +41,41 @@ export function CenteredDialog({
   footer: ReactNode;
   testId?: string;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const target = dialogRef.current?.querySelector<HTMLElement>('[autofocus], [role="combobox"]')
+      ?? dialogRef.current?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    target?.focus();
+    return () => previouslyFocused?.focus();
+  }, []);
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab' || !dialogRef.current) return;
+    const focusable: HTMLElement[] = Array.from(dialogRef.current.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) as NodeListOf<HTMLElement>).filter((element) => element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   return createPortal(
     (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <button
         type="button"
         aria-label="Close dialog"
@@ -63,12 +87,14 @@ export function CenteredDialog({
         aria-modal="true"
         aria-labelledby="centered-dialog-title"
         data-testid={testId}
+        ref={dialogRef}
+        onKeyDown={handleDialogKeyDown}
         initial={false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-        className="relative z-10 w-full max-w-lg max-h-[85dvh] overflow-y-auto bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-[var(--cal-space-md)] cal-card-outer"
+        className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-3 sm:max-h-[85dvh] sm:p-[var(--cal-space-md)] cal-card-outer"
       >
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
           <div>
             <h2 id="centered-dialog-title" className="text-sm font-medium text-[var(--cal-ink)]">
               {title}
@@ -86,20 +112,21 @@ export function CenteredDialog({
         </div>
         {onSubmit ? (
           <form
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               onSubmit();
             }}
           >
-            {children}
-            <div className="mt-4 flex items-center justify-end gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            <div className="mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-[var(--cal-hairline)] pt-3">
               {footer}
             </div>
           </form>
         ) : (
           <>
-            {children}
-            <div className="mt-4 flex items-center justify-end gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            <div className="mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-[var(--cal-hairline)] pt-3">
               {footer}
             </div>
           </>

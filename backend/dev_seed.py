@@ -42,9 +42,9 @@ def ensure_demo_accounts(db, password_hasher) -> None:
         )
         db.add(microcycle)
         workouts = [
-            ("D1", "Squat + Bench", 0, "#fb923c", "Squat", "Competition Squat", 170, 4, 7.5),
-            ("D2", "Bench + Deadlift", 2, "#34d399", "Bench", "Competition Bench", 105, 5, 7.0),
-            ("D3", "Deadlift", 4, "#8b5cf6", "Deadlift", "Competition Deadlift", 200, 3, 8.0),
+            ("D1", "Squat + Bench", 0, "#fb923c", "Squat", "Squat", 170, 4, 7.5),
+            ("D2", "Bench + Deadlift", 2, "#34d399", "Bench", "Bench", 105, 5, 7.0),
+            ("D3", "Deadlift", 4, "#8b5cf6", "Deadlift", "Deadlift", 200, 3, 8.0),
         ]
         for index, (day_label, title, offset, color, category, exercise_title, weight, reps, rpe) in enumerate(workouts, start=1):
             workout_id = f"dev-athlete-d{index}"
@@ -65,7 +65,7 @@ def ensure_demo_accounts(db, password_hasher) -> None:
                 id=f"{workout_id}-main",
                 lexo_rank="a0",
                 title=exercise_title,
-                variation="Competition",
+                variation=exercise_title,
                 tier="Comp",
                 lift_category=category,
                 movement_pattern=category,

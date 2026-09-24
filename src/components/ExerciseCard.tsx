@@ -284,13 +284,14 @@ export const ExerciseCard = ({
     updateAndPropagate(sets.filter((_, i) => i !== index));
   };
 
-  const syncTarget = (index: number) => {
+  const syncTarget = (index: number, laneIndex: number) => {
     if (locked) return;
     const set = sets[index];
-    const kg = trainingNumber(set.plannedWeight);
-    updateSet(index, {
+    const logEntry = logRows[laneIndex];
+    const targetIndex = logEntry?.index ?? index;
+    updateSet(targetIndex, {
       scope: 'both',
-      actual: kg,
+      actual: trainingNumber(set.plannedWeight),
       reps: trainingInt(set.plannedReps),
       executedRpe: set.intensity_type === 'PERCENT' ? null : trainingNumber(set.plannedRpe),
       isAuto: false
@@ -303,7 +304,17 @@ export const ExerciseCard = ({
   const { intensityPct, nl } = summarizeExerciseCard(sets);
 
   const addSet = (target: 'plan' | 'log') => {
-    const nextRow = sets.filter((set) => target === 'plan' ? set.scope !== 'log' : set.scope !== 'plan').length;
+    const targetRows = target === 'plan' ? planRows : logRows;
+    const oppositeRows = target === 'plan' ? logRows : planRows;
+    const nextRow = targetRows.length;
+    const oppositeEntry = oppositeRows[nextRow];
+    if (oppositeEntry) {
+      updateSet(oppositeEntry.index, target === 'plan'
+        ? { scope: 'both', plannedWeight: null, plannedReps: null, plannedRpe: null, target_value: null, dropPercent: 0 }
+        : { scope: 'both', actual: null, reps: null, executedRpe: null });
+      setGrid({ row: nextRow, col: target === 'plan' ? (nextRow === 0 ? 1 : 0) : 4, mode: 'selected', overwrite: false });
+      return;
+    }
     updateAndPropagate([...sets, {
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
       label: `Set ${sets.length + 1}`,
@@ -491,11 +502,13 @@ export const ExerciseCard = ({
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
+            {intensityPct != null ? <>
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Intensity</span>
             <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-intensity-${id}`}>
               {intensityPct != null ? `${intensityPct}%` : 'â€”'}
             </span>
             <span aria-hidden="true" className="ml-1 text-[var(--cal-muted-soft)]">·</span>
+            </> : null}
             <span
               className="text-xs tnum text-[var(--cal-muted)]"
               data-testid={`lift-set-count-${id}`}
@@ -765,7 +778,7 @@ export const ExerciseCard = ({
                     <button
                       type="button"
                       disabled={locked}
-                      onClick={() => syncTarget(planIndex)}
+                      onClick={() => syncTarget(planIndex, laneIndex)}
                       className="h-5 w-4 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
                     >
@@ -929,6 +942,7 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid="edit-lift-done"
+              disabled={locked || (editCategory === 'User Defined' && !editCustomName.trim())}
               onClick={() => {
                 const nextTitle = (editCategory === 'User Defined' ? editCustomName : editTitle).trim();
                 if (!locked && nextTitle) {
@@ -943,7 +957,7 @@ export const ExerciseCard = ({
                 }
                 setEditOpen(false);
               }}
-              className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)]"
+              className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
             >
               Done
             </button>
@@ -1001,6 +1015,9 @@ export const ExerciseCard = ({
                 }}
               />
             </NestedCard>
+            {editCategory === 'User Defined' && !editCustomName.trim() ? (
+              <p role="alert" data-testid="edit-lift-name-error" className="text-xs text-[var(--cal-error)]">Enter an exercise name before saving.</p>
+            ) : null}
           </div>
         </CenteredDialog>
       )}

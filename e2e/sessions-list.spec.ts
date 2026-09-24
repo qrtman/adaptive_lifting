@@ -199,10 +199,12 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   await expect(firstWeek.getByTestId('sessions-rest-2026-09-05')).toBeVisible();
   await expect(secondWeek.locator('[data-testid^="sessions-rest-"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No Week' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'No Block or Week' })).toBeVisible();
+  await expect(page.getByTestId('sessions-block-picker')).toHaveValue('block:1');
+  await expect(page.getByTestId('sessions-block-picker').locator('option[value="unassigned"]')).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'No Block or Week' })).toHaveCount(0);
   await expect(page.getByTestId('lift-filter-open')).toHaveText('All lifts');
   await expect(page.getByTestId('sessions-show-accessories')).toHaveCount(0);
-  for (const id of [ids[0], ids[2], ids[3], ids[4]]) {
+  for (const id of [ids[0], ids[2], ids[3]]) {
     const card = page.getByTestId(`sessions-card-${id}`);
     await expect(card).toContainText('Competition Squat');
     await expect(card).toContainText('Accessory Row');
@@ -214,23 +216,31 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   await expect(page.getByTestId('sessions-mode-log')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('sessions-mode-both')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('[data-testid^="sessions-plan-h-"]')).toHaveCount(0);
-  await expect(page.locator('[data-testid^="sessions-log-h-"]')).toHaveCount(4);
+  await expect(page.locator('[data-testid^="sessions-log-h-"]')).toHaveCount(3);
   await page.getByTestId('nav-calendar').click();
   await page.getByTestId('nav-sessions').click();
   await expect(page.getByTestId('sessions-mode-both')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('[data-testid^="sessions-plan-h-"]')).toHaveCount(4);
+  await expect(page.locator('[data-testid^="sessions-plan-h-"]')).toHaveCount(3);
+  await page.getByTestId('sessions-block-picker').selectOption('unassigned');
+  await expect(page.getByRole('heading', { name: 'No Block or Week' })).toBeVisible();
   await expect(page.getByTestId(`sessions-card-${ids[4]}`)).toContainText('Accessory Row');
+  await page.getByTestId('sessions-add').click();
+  await expect(page.getByTestId('new-session-block')).toHaveValue('');
+  await page.getByTestId('new-session-cancel').click();
 
+  await page.getByTestId('sessions-block-picker').selectOption('block:1');
   await page.getByTestId(`sessions-actions-${ids[3]}`).click();
   await page.getByTestId(`sessions-edit-${ids[3]}`).click();
   await expect(page.getByTestId('edit-session-dialog')).toBeVisible();
   await page.getByTestId('edit-session-cancel').click();
+  await page.getByTestId('sessions-block-picker').selectOption('unassigned');
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByTestId(`sessions-actions-${ids[4]}`).click();
   await page.getByTestId(`sessions-delete-${ids[4]}`).click();
   await expect(page.getByTestId(`sessions-card-${ids[4]}`)).toHaveCount(0);
+  await expect(page.getByTestId('sessions-block-picker').locator('option[value="unassigned"]')).toHaveCount(0);
 
-  await page.setViewportSize({ width: 360, height: 740 });
+  await page.setViewportSize({ width: 360, height: 400 });
   await page.getByTestId('sidebar-toggle').click();
   const widths = await board.evaluate((element) => ({
     board: element.clientWidth,
@@ -238,6 +248,90 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   }));
   expect(Math.abs(widths.board - widths.column)).toBeLessThan(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBeFalsy();
+
+  const scrollbar = page.getByTestId('sessions-scrollbar');
+  await expect(scrollbar).toBeVisible();
+  await scrollbar.evaluate((element) => { element.scrollLeft = 100; });
+  await expect.poll(() => board.evaluate((element) => element.scrollLeft)).toBe(100);
+  await board.evaluate((element) => { element.scrollLeft = 0; });
+  await expect.poll(() => scrollbar.evaluate((element) => element.scrollLeft)).toBe(0);
+
+  const content = page.getByTestId('sessions-content');
+  await content.evaluate((element) => {
+    const weekBoard = element.querySelector('[data-testid="sessions-week-board-1"]');
+    if (weekBoard) element.scrollTop += weekBoard.getBoundingClientRect().top - element.getBoundingClientRect().top + 60;
+  });
+  await expect(page.getByTestId('sessions-sticky-weeks')).toContainText('Week 9');
+  await expect(page.getByTestId('sessions-sticky-weeks')).toContainText('Week 2');
+  await expect(page.getByTestId('sessions-sticky-weeks')).toContainText('Block 1');
+  const stickyTop = await page.getByTestId('sessions-sticky-weeks').evaluate((element) => element.getBoundingClientRect().top);
+  const contentTop = await content.evaluate((element) => element.getBoundingClientRect().top);
+  const toolbarBottom = await page.getByTestId('sessions-toolbar').evaluate((element) => element.getBoundingClientRect().bottom);
+  expect(Math.abs(stickyTop - contentTop)).toBeLessThan(2);
+  expect(Math.abs(stickyTop - toolbarBottom)).toBeLessThan(2);
+});
+
+test('block picker opens the latest block and resets scrolling when switching', async ({ page, request }) => {
+  const email = `sessions-scroll-${Date.now()}@example.com`;
+  const register = await request.post('http://localhost:8000/api/auth/register', {
+    data: { email, password: 'password123', role: 'ATHLETE' },
+  });
+  expect(register.ok()).toBeTruthy();
+  for (const blockLabel of ['1', '2']) {
+    for (const weekLabel of ['1', '2', '3']) {
+      const response = await request.post('http://localhost:8000/api/sessions', {
+        data: { date: `2026-0${blockLabel}-${weekLabel.padStart(2, '0')}`, title: `Block ${blockLabel} week ${weekLabel}`, blockLabel, weekLabel },
+      });
+      expect(response.ok()).toBeTruthy();
+      if (weekLabel === '1') {
+        const sessionId = (await response.json()).id as string;
+        const exercise = await request.post(`http://localhost:8000/api/sessions/${sessionId}/exercises`, {
+          data: { title: blockLabel === '1' ? 'Competition Squat' : 'Competition Bench', tier: 'Comp', liftCategory: blockLabel === '1' ? 'Squat' : 'Bench', plannedWeight: 100, plannedReps: 5, plannedRpe: 7 },
+        });
+        expect(exercise.ok()).toBeTruthy();
+      }
+    }
+  }
+  await page.goto('/');
+  await page.getByPlaceholder('coach@example.com').fill(email);
+  await page.getByPlaceholder('Password').fill('password123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByTestId('nav-sessions').click();
+  await page.setViewportSize({ width: 420, height: 250 });
+
+  const scrollbar = page.getByTestId('sessions-scrollbar');
+  const first = page.getByTestId('sessions-week-board-1');
+  const second = page.getByTestId('sessions-week-board-2');
+  const picker = page.getByTestId('sessions-block-picker');
+  await expect(picker).toHaveValue('block:2');
+  await expect(first).toHaveCount(0);
+  await expect(second).toBeVisible();
+  await expect(scrollbar).toBeVisible();
+  await scrollbar.evaluate((element) => { element.scrollLeft = 120; });
+  await expect.poll(() => second.evaluate((element) => element.scrollLeft)).toBe(120);
+
+  const content = page.getByTestId('sessions-content');
+  await content.evaluate((element) => {
+    const weekBoard = element.querySelector('[data-testid="sessions-week-board-2"]');
+    if (weekBoard) element.scrollTop += weekBoard.getBoundingClientRect().top - element.getBoundingClientRect().top + 20;
+  });
+  await expect(page.getByTestId('sessions-sticky-weeks')).toContainText('Block 2');
+  await page.getByTestId('sessions-block-prev').click();
+  await expect(picker).toHaveValue('block:1');
+  await expect(first).toBeVisible();
+  await expect(second).toHaveCount(0);
+  await expect.poll(() => first.evaluate((element) => element.scrollLeft)).toBe(0);
+  await expect.poll(() => content.evaluate((element) => element.scrollTop)).toBe(0);
+  await page.getByTestId('sessions-add').click();
+  await expect(page.getByTestId('new-session-block')).toHaveValue('1');
+  await page.getByTestId('new-session-cancel').click();
+  await page.getByTestId('sessions-block-next').click();
+  await expect(picker).toHaveValue('block:2');
+  await page.getByTestId('lift-filter-open').click();
+  await page.getByTestId('lift-filter-lift-Squat').click();
+  await page.getByTestId('lift-filter-done').click();
+  await expect(picker).toHaveValue('block:1');
+  await expect(second).toHaveCount(0);
 });
 
 test('Compare switches control logged lift deltas across Weeks and reset on reopen', async ({ page, request }) => {

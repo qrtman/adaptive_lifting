@@ -117,6 +117,17 @@ def migrate_db():
     except Exception:
         db.rollback()
     try:
+        db.execute(text("""
+            UPDATE exercises
+            SET variation = title
+            WHERE (title = 'Squat' AND variation IN ('Competition', 'Competition Squat'))
+               OR (title = 'Bench' AND variation IN ('Competition', 'Competition Bench'))
+               OR (title = 'Deadlift' AND variation IN ('Competition', 'Competition Deadlift'))
+        """))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
         db.execute(text("ALTER TABLE workouts ADD COLUMN block_label VARCHAR"))
         db.commit()
     except Exception:
@@ -1466,8 +1477,8 @@ class AddExerciseRequest(BaseModel):
     movementPattern: Optional[str] = None
     liftNote: Optional[str] = None
     plannedWeight: Optional[float] = None
-    plannedReps: Optional[int] = 5
-    plannedRpe: Optional[float] = 8.0
+    plannedReps: Optional[int] = None
+    plannedRpe: Optional[float] = None
 
 
 class UpdateExerciseRequest(BaseModel):
@@ -1834,7 +1845,7 @@ def add_session_exercise(
     movement_pattern = resolve_movement_pattern(title, lift_category, req.movementPattern)
 
     variation = (req.variation or "").strip() or (
-        "Accessory" if tier == "Accessory" else "Competition"
+        "Accessory" if tier == "Accessory" else title
     )
     tags = [lift_category] if lift_category != "Other" else ([tier] if tier == "Accessory" else [])
 
@@ -1856,8 +1867,8 @@ def add_session_exercise(
     db.add(exercise)
     db.flush()
 
-    planned_reps = req.plannedReps if req.plannedReps is not None else 5
-    planned_rpe = req.plannedRpe if req.plannedRpe is not None else 8.0
+    planned_reps = req.plannedReps
+    planned_rpe = req.plannedRpe
     db.add(ExerciseSet(
         id=f"s-{uuid.uuid4().hex[:10]}",
         lexo_rank="a0",

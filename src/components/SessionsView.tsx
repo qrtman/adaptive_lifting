@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { WorkoutData } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
@@ -34,6 +34,16 @@ interface SessionsViewProps {
 }
 
 type SessionEntry = { workout: WorkoutData; microId: string };
+type WeekGroup = { weekLabel: string; items: SessionEntry[] };
+type BlockChoice = {
+  key: string;
+  label: string;
+  blockLabel: string | null;
+  weeks: WeekGroup[];
+  noWeek: SessionEntry[];
+  all: SessionEntry[];
+  latestDate: string;
+};
 type DisplayMode = 'plan' | 'log' | 'both';
 type Metric = 'e1rm' | 'tonnage' | 'avgInt';
 type CompareVisibility = Record<Metric, boolean>;
@@ -54,7 +64,7 @@ function Delta({ current, previous, digits, unit, relative }: {
 }
 
 const weekCardClass =
-  'p-[var(--cal-space-xs)] flex flex-col gap-[var(--cal-space-xs)] min-w-0 snap-start';
+  'p-[var(--cal-space-xs)] flex flex-col gap-[var(--cal-space-xs)] min-w-0';
 
 const blockCardClass =
   'flex flex-col gap-[var(--cal-space-sm)]';
@@ -145,7 +155,9 @@ function SessionCard({
               Log
             </span>}
             {visibleExercises.map((ex) => {
-              const sets = ex.sets.filter((set) => mode === 'both' || (mode === 'plan' ? set.scope !== 'log' : set.scope !== 'plan'));
+              const planRows = mode === 'log' ? [] : ex.sets.filter((set) => set.scope !== 'log');
+              const logRows = mode === 'plan' ? [] : ex.sets.filter((set) => set.scope !== 'plan');
+              const rowCount = Math.max(planRows.length, logRows.length);
               const { topE1RM, tonnage, avgIntensityPct } = getLoggedLiftSummary(ex.sets);
               const previous = comparison.get(ex.id);
               return (
@@ -162,21 +174,23 @@ function SessionCard({
                       </span>
                     ) : null}
                   </div>
-                  {(sets.length > 0 ? sets : [null]).map((set, index) => {
-                    const planned = set?.scope === 'log' ? '—' : formatSetReadout(set?.plannedWeight, set?.plannedReps, set?.plannedRpe);
-                    const logged = set?.scope === 'plan' ? '—' : formatSetReadout(set?.actual, set?.reps, set?.executedRpe);
-                    const rowKey = set?.id ?? `${ex.id}-empty`;
+                  {Array.from({ length: Math.max(rowCount, 1) }).map((_, index) => {
+                    const planSet = planRows[index];
+                    const logSet = logRows[index];
+                    const planned = planSet ? formatSetReadout(planSet.plannedWeight, planSet.plannedReps, planSet.plannedRpe) : '—';
+                    const logged = logSet ? formatSetReadout(logSet.actual, logSet.reps, logSet.executedRpe) : '—';
+                    const rowKey = `${planSet?.id ?? 'no-plan'}-${logSet?.id ?? 'no-log'}-${index}`;
                     return (
                       <Fragment key={rowKey}>
                         <span className="tnum text-[10px] text-[var(--cal-muted-soft)]">{index + 1}</span>
                         {showPlan && <span
-                          data-testid={set ? `sessions-set-plan-${set.id}` : undefined}
+                          data-testid={planSet ? `sessions-set-plan-${planSet.id}` : undefined}
                           className="tnum text-[11px] text-[var(--cal-muted)] text-right whitespace-nowrap"
                         >
                           {planned}
                         </span>}
                         {showLog && <span
-                          data-testid={set ? `sessions-set-log-${set.id}` : undefined}
+                          data-testid={logSet ? `sessions-set-log-${logSet.id}` : undefined}
                           className={`tnum text-[11px] text-right whitespace-nowrap ${
                             logged === '—' ? 'text-[var(--cal-muted-soft)]' : 'text-[var(--cal-ink)]'
                           }`}
@@ -351,6 +365,15 @@ export function SessionsView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('both');
   const [compareVisibility, setCompareVisibility] = useState<CompareVisibility>(allComparisons);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+  const expectedScrollRef = useRef(new Map<HTMLElement, number>());
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const [scrollViewportWidth, setScrollViewportWidth] = useState(0);
+  const [activeWeekHeaders, setActiveWeekHeaders] = useState<{ label: string; width: number }[]>([]);
+  const [activeBlockLabel, setActiveBlockLabel] = useState<string | null>(null);
+  const [headerOffset, setHeaderOffset] = useState(0);
+  const [blockSelection, setBlockSelection] = useState<{ athleteId: string | null; key: string } | null>(null);
   const { user } = useAuth();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
 
@@ -375,6 +398,35 @@ export function SessionsView({
     () => groupLabeledSessions<SessionEntry>(allSessions, (entry) => entry.workout),
     [allSessions],
   );
+  const blockChoices = useMemo((): BlockChoice[] => {
+    const named = groupedSessions.blocks.map((block) => ({
+      key: `block:${block.blockLabel}`,
+      label: `Block ${block.blockLabel}`,
+      blockLabel: block.blockLabel,
+      weeks: block.weeks,
+      noWeek: block.noWeek,
+      all: block.all,
+      latestDate: block.all.at(-1)?.workout.date || '',
+    })).sort((a, b) => a.latestDate.localeCompare(b.latestDate) || a.label.localeCompare(b.label));
+    const unassigned = [...groupedSessions.weeksNoBlock.flatMap((week) => week.items), ...groupedSessions.unlabeled]
+      .sort((a, b) => a.workout.date.localeCompare(b.workout.date));
+    if (unassigned.length === 0) return named;
+    return [...named, {
+      key: 'unassigned',
+      label: 'Unassigned',
+      blockLabel: null,
+      weeks: groupedSessions.weeksNoBlock,
+      noWeek: groupedSessions.unlabeled,
+      all: unassigned,
+      latestDate: unassigned.at(-1)?.workout.date || '',
+    }];
+  }, [groupedSessions]);
+  const defaultBlockKey = [...blockChoices].reverse().find((choice) => choice.blockLabel)?.key || blockChoices[0]?.key || '';
+  const selectedBlockKey = blockSelection?.athleteId === planAthleteId && blockChoices.some((choice) => choice.key === blockSelection.key)
+    ? blockSelection.key
+    : defaultBlockKey;
+  const selectedBlockIndex = blockChoices.findIndex((choice) => choice.key === selectedBlockKey);
+  const selectedBlock = blockChoices[selectedBlockIndex];
   const occupiedDates = useMemo(
     () => new Set(microcycles.flatMap((micro) => micro.workouts.map((workout) => workout.date))),
     [microcycles],
@@ -383,6 +435,79 @@ export function SessionsView({
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   const [showNewSession, setShowNewSession] = useState(false);
   const canCopy = isOnline && !showCoachSelectAthlete;
+
+  useEffect(() => {
+    expectedScrollRef.current.clear();
+    setSelectedIds(new Set());
+    const content = contentRef.current;
+    if (content) {
+      content.scrollTop = 0;
+      const board = content.querySelector<HTMLElement>('.sessions-week-board');
+      if (board) board.scrollLeft = 0;
+    }
+    if (scrollbarRef.current) scrollbarRef.current.scrollLeft = 0;
+    setHeaderOffset(0);
+  }, [planAthleteId, selectedBlockKey]);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    const board = () => content.querySelector<HTMLElement>('.sessions-week-board');
+    const updateHeaders = () => {
+      const threshold = content.getBoundingClientRect().top + 1;
+      const current = board();
+      const rect = current?.getBoundingClientRect();
+      if (!current || !rect || rect.top > threshold || rect.bottom <= threshold) {
+        setActiveWeekHeaders([]);
+        setActiveBlockLabel(null);
+        return;
+      }
+      setActiveBlockLabel(current.dataset.blockLabel || '');
+      const weeks: Element[] = Array.from(current.children);
+      setActiveWeekHeaders(weeks.map((week) => ({
+        label: week.querySelector('h4')?.textContent || '',
+        width: (week as HTMLElement).getBoundingClientRect().width,
+      })));
+      setHeaderOffset(current.scrollLeft);
+    };
+    const updateSize = () => {
+      setScrollWidth(board()?.scrollWidth || 0);
+      setScrollViewportWidth(board()?.clientWidth || 0);
+      updateHeaders();
+    };
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(content);
+    const current = board();
+    if (current) observer.observe(current);
+    content.addEventListener('scroll', updateHeaders, { passive: true });
+    updateSize();
+    return () => {
+      observer.disconnect();
+      content.removeEventListener('scroll', updateHeaders);
+    };
+  }, [groupedSessions, selectedBlockKey]);
+
+  const syncHorizontalScroll = (source: HTMLElement, left: number) => {
+    const expected = expectedScrollRef.current;
+    if (expected.get(source) === left) {
+      expected.delete(source);
+      return;
+    }
+    expected.delete(source);
+    const content = contentRef.current;
+    if (!content) return;
+    const targets = [scrollbarRef.current, content.querySelector<HTMLElement>('.sessions-week-board')];
+    targets.forEach((target) => {
+      if (target && target !== source && target.scrollLeft !== left) {
+        expected.set(target, Math.min(left, target.scrollWidth - target.clientWidth));
+        target.scrollLeft = left;
+      }
+    });
+    const threshold = content.getBoundingClientRect().top + 1;
+    const activeBoard = content.querySelector<HTMLElement>('.sessions-week-board');
+    const rect = activeBoard?.getBoundingClientRect();
+    setHeaderOffset(rect && rect.top <= threshold && rect.bottom > threshold ? activeBoard.scrollLeft : 0);
+  };
 
   const toggleSelected = (id: string, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -434,8 +559,10 @@ export function SessionsView({
     return (
       <div
         data-testid={`sessions-week-board-${blockLabel || 'no-block'}`}
-        className="grid grid-flow-col gap-[var(--cal-space-xs)] overflow-x-auto overscroll-x-contain snap-x snap-mandatory min-w-0 pb-1"
+        data-block-label={blockLabel}
+        className="sessions-week-board grid grid-flow-col gap-[var(--cal-space-xs)] overflow-x-auto overscroll-x-contain min-w-0 pb-1"
         style={{ gridAutoColumns: 'minmax(min(100%, 20rem), 1fr)' }}
+        onScroll={(event) => syncHorizontalScroll(event.currentTarget, event.currentTarget.scrollLeft)}
       >
         {ordered.map((week, index) => {
           const rowKey = `${blockLabel || '_'}::${week.weekLabel}`;
@@ -464,12 +591,19 @@ export function SessionsView({
   };
 
   return (
-    <div className="flex-1 flex relative h-full min-w-0 overflow-hidden bg-[var(--cal-canvas)]">
-      <div className="flex-1 min-w-0 overflow-y-auto p-[var(--cal-space-sm)]">
-        <div className="space-y-[var(--cal-space-sm)] pb-[var(--cal-space-lg)]">
-          <div data-testid="sessions-toolbar" className="px-[var(--cal-space-xxs)] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden bg-[var(--cal-canvas)]">
+      <div data-testid="sessions-toolbar" className="relative z-30 shrink-0 px-[var(--cal-space-sm)] py-[var(--cal-space-sm)] flex flex-col gap-2 border-b border-[var(--cal-hairline)] bg-[var(--cal-canvas)] sm:flex-row sm:items-center sm:justify-between">
             {!showCoachSelectAthlete ? (
               <div className="flex flex-wrap items-center gap-2 order-first sm:order-last">
+                {selectedBlock ? (
+                  <div role="group" aria-label="Block navigation" className="inline-flex h-8 items-center rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] text-[11px] text-[var(--cal-ink)]">
+                    <button type="button" data-testid="sessions-block-prev" aria-label="Previous block" disabled={selectedBlockIndex <= 0} onClick={() => setBlockSelection({ athleteId: planAthleteId, key: blockChoices[selectedBlockIndex - 1].key })} className="h-full px-2 disabled:opacity-40">‹</button>
+                    <select data-testid="sessions-block-picker" aria-label="Block" value={selectedBlockKey} onChange={(event) => setBlockSelection({ athleteId: planAthleteId, key: event.target.value })} className="h-full max-w-32 bg-[var(--cal-canvas)] font-semibold outline-none">
+                      {blockChoices.map((choice) => <option key={choice.key} value={choice.key}>{choice.label}</option>)}
+                    </select>
+                    <button type="button" data-testid="sessions-block-next" aria-label="Next block" disabled={selectedBlockIndex >= blockChoices.length - 1} onClick={() => setBlockSelection({ athleteId: planAthleteId, key: blockChoices[selectedBlockIndex + 1].key })} className="h-full px-2 disabled:opacity-40">›</button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   data-testid="sessions-add"
@@ -533,8 +667,27 @@ export function SessionsView({
                 Connect to copy sessions.
               </p>
             ) : null}
+      </div>
+      <div ref={contentRef} data-testid="sessions-content" className="flex-1 min-h-0 min-w-0 overflow-y-auto">
+        {activeWeekHeaders.length > 0 ? (
+          <div data-testid="sessions-sticky-weeks" className="sticky top-0 z-20 h-0 overflow-visible">
+            <div className="overflow-hidden border-b border-[var(--cal-hairline)] bg-[var(--cal-canvas)]">
+              <div className="h-5 px-[var(--cal-space-sm)] flex items-center text-[11px] font-semibold text-[var(--cal-ink)]">
+                {activeBlockLabel ? `Block ${activeBlockLabel}` : 'Unassigned'}
+              </div>
+              <div className="px-[var(--cal-space-sm)] overflow-hidden">
+                <div className="flex gap-[var(--cal-space-xs)]" style={{ transform: `translateX(-${headerOffset}px)` }}>
+                  {activeWeekHeaders.map((week, index) => (
+                    <div key={`${week.label}-${index}`} className="h-5 shrink-0 px-[var(--cal-space-xs)] flex items-center text-[11px] font-semibold text-[var(--cal-ink)]" style={{ width: week.width }}>
+                      {week.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-
+        ) : null}
+        <div className="space-y-[var(--cal-space-sm)] px-[var(--cal-space-sm)] pt-[var(--cal-space-sm)] pb-[var(--cal-space-lg)]">
           {showCoachSelectAthlete ? (
             <div
               data-testid="sessions-empty"
@@ -556,56 +709,49 @@ export function SessionsView({
               <p className="text-xs text-[var(--cal-muted)]">Add session. Block/Week can wait.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-[var(--cal-space-lg)]">
-              {[...groupedSessions.blocks].sort((a, b) => a.all[0].workout.date.localeCompare(b.all[0].workout.date)).map((block) => (
-                <section key={`block-${block.blockLabel}`} className="flex flex-col gap-[var(--cal-space-xs)]">
+            selectedBlock ? (
+              <section key={selectedBlock.key} className="flex flex-col gap-[var(--cal-space-xs)] min-w-0">
+                {selectedBlock.blockLabel ? (
                   <BlockHeader
-                    blockLabel={block.blockLabel}
-                    count={block.all.length}
+                    blockLabel={selectedBlock.blockLabel}
+                    count={selectedBlock.all.length}
                     canCopy={canCopy}
-                    onCopyBlock={() => startBlockCopy(block.all, block.blockLabel)}
+                    onCopyBlock={() => startBlockCopy(selectedBlock.all, selectedBlock.blockLabel!)}
                   />
-                  <div className={`${blockCardClass} min-w-0`}>
-                    {block.weeks.length > 0 ? renderWeeks(block.weeks, block.blockLabel) : null}
-                    {block.noWeek.length > 0 ? (
-                      <section className="flex flex-col gap-[var(--cal-space-xs)]">
-                        <h4 className="px-[var(--cal-space-xxs)] text-xs font-semibold text-[var(--cal-ink)]">No Week</h4>
-                        <div className="grid gap-[var(--cal-space-xs)] [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
-                          {block.noWeek.map((entry) => renderSessionCard(entry))}
-                        </div>
-                      </section>
-                    ) : null}
-                  </div>
-                </section>
-              ))}
-              {groupedSessions.weeksNoBlock.length > 0 ? (
-                <section className="flex flex-col gap-[var(--cal-space-xs)] min-w-0">
-                  <h3 className="px-[var(--cal-space-xxs)] text-sm font-semibold text-[var(--cal-ink)]">Weeks without Block</h3>
-                  {renderWeeks(groupedSessions.weeksNoBlock, '')}
-                </section>
-              ) : null}
-              {groupedSessions.unlabeled.length > 0 ? (
-                <section className="flex flex-col gap-[var(--cal-space-xs)]">
-                  <div className="min-h-8 px-[var(--cal-space-xxs)] flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold tracking-tight text-[var(--cal-ink)]">No Block or Week</h3>
-                    <span className="text-[10px] tnum text-[var(--cal-muted)]">
-                      {groupedSessions.unlabeled.length} session{groupedSessions.unlabeled.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-[var(--cal-space-xs)]">
-                    {groupedSessions.unlabeled.map(renderSessionCard)}
-                  </div>
-                </section>
-              ) : null}
-            </div>
+                ) : (
+                  <h3 className="min-h-8 px-[var(--cal-space-xxs)] flex items-center text-sm font-semibold text-[var(--cal-ink)]">Unassigned</h3>
+                )}
+                <div className={`${blockCardClass} min-w-0`}>
+                  {selectedBlock.weeks.length > 0 ? renderWeeks(selectedBlock.weeks, selectedBlock.blockLabel || '') : null}
+                  {selectedBlock.noWeek.length > 0 ? (
+                    <section className="flex flex-col gap-[var(--cal-space-xs)]">
+                      <h4 className="px-[var(--cal-space-xxs)] text-xs font-semibold text-[var(--cal-ink)]">{selectedBlock.blockLabel ? 'No Week' : 'No Block or Week'}</h4>
+                      <div className="grid gap-[var(--cal-space-xs)] [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
+                        {selectedBlock.noWeek.map((entry) => renderSessionCard(entry))}
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+              </section>
+            ) : null
           )}
         </div>
       </div>
+      {scrollWidth > scrollViewportWidth ? (
+        <div className="absolute bottom-0 left-0 right-0 z-30 bg-[var(--cal-canvas)] px-[var(--cal-space-sm)]" data-testid="sessions-scrollbar-wrap">
+          <div ref={scrollbarRef} data-testid="sessions-scrollbar" className="overflow-x-scroll overflow-y-hidden" onScroll={(event) => syncHorizontalScroll(event.currentTarget, event.currentTarget.scrollLeft)}>
+            <div style={{ width: scrollWidth, height: 1 }} />
+          </div>
+        </div>
+      ) : (
+        <div ref={scrollbarRef} className="hidden" />
+      )}
       {showNewSession && (
         <NewSessionDialog
           date={new Date().toISOString().slice(0, 10)}
           allowDateEdit
           athleteId={planAthleteId}
+          initialBlockLabel={selectedBlock ? selectedBlock.blockLabel || '' : undefined}
           onClose={() => setShowNewSession(false)}
           onCreated={async () => {
             await reloadMicrocycles(planAthleteId);
