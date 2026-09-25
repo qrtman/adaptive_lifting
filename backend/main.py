@@ -83,10 +83,6 @@ def on_startup():
             "run `alembic -c alembic.ini upgrade head` before starting the application."
         )
 
-    from .integrations import start_background_worker
-    start_background_worker()
-
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,

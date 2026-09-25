@@ -276,6 +276,16 @@ class IntegrationConnection(Base, TimestampMixin):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     revoked_at = Column(DateTime, nullable=True)
 
+class OAuthState(Base):
+    """Short-lived, one-time OAuth correlation state (only its hash is stored)."""
+    __tablename__ = "oauth_states"
+    state_hash = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    return_to = Column(String, nullable=True)
+
 class IntegrationCredential(Base):
     __tablename__ = "integration_credentials"
     connection_id = Column(String, ForeignKey("integration_connections.id"), primary_key=True)
@@ -302,6 +312,7 @@ class IntegrationOutbox(Base):
     status = Column(String, nullable=False)
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
+    result = Column(String, nullable=True)
 
 class DayNote(Base, TimestampMixin):
     """Athlete-plan note keyed by calendar date, not weekday and not a workout."""

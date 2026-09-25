@@ -23,6 +23,7 @@ LEGACY_ADDITIVE_COLUMNS = {
     "workouts": {"athlete_bw", "block_label", "week_label", "owner_id"},
     "exercises": {"tier", "lift_category", "movement_pattern", "lift_note"},
     "users": {"display_name", "google_sub"},
+    "integration_outbox": {"result"},
 }
 LEGACY_COLUMN_SPECS = {
     "microcycles": [("owner_id", sa.String(), None, True)],

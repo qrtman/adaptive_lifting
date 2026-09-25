@@ -16,7 +16,8 @@ LEGACY_SERVER_DEFAULTS = {
     ("exercise_sets", "scope"): "both",
 }
 BASELINE_REVISION = "0001_current_schema"
-POST_BASELINE_COLUMNS = {("users", "google_sub")}
+POST_BASELINE_COLUMNS = {("users", "google_sub"), ("integration_outbox", "result")}
+POST_BASELINE_TABLES = {"oauth_states"}
 
 
 def _normalize_default(value):
@@ -28,7 +29,7 @@ def validate_schema(connection):
     expected = set(Base.metadata.tables)
     actual = set(inspector.get_table_names()) - {"alembic_version"}
     problems = []
-    missing_tables = expected - actual
+    missing_tables = expected - actual - POST_BASELINE_TABLES
     extra_tables = actual - expected
     if missing_tables:
         problems.append("missing tables: " + ", ".join(sorted(missing_tables)))

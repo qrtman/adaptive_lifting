@@ -27,8 +27,9 @@ def test_fresh_database_migrates_repeats_and_starts(tmp_path):
     engine = create_engine(database_url)
     try:
         names = set(inspect(engine).get_table_names())
-        assert {"users", "workouts", "exercises", "exercise_sets", "alembic_version"} <= names
-        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0002_google_subject"
+        assert {"users", "workouts", "exercises", "exercise_sets", "oauth_states", "alembic_version"} <= names
+        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0004_outbox_result"
+        assert "result" in {column["name"] for column in inspect(engine).get_columns("integration_outbox")}
         assert "google_sub" in {column["name"] for column in inspect(engine).get_columns("users")}
     finally:
         engine.dispose()
@@ -68,7 +69,7 @@ with engine.begin() as c:
  c.exec_driver_sql("INSERT INTO exercise_sets (id,lexo_rank,label,scope,plannedWeight,plannedReps,plannedRpe,exercise_id) VALUES ('set1','a0','Top','both',100,5,8,'ex1')")
  c.exec_driver_sql("INSERT INTO coaching_relationships (coach_id,athlete_id,created_at) VALUES ('coach','athlete','2025-01-01')")
  c.exec_driver_sql("INSERT INTO accessories (id,lexo_rank,name,prescribedSets,targetReps,targetRpe,workout_id) VALUES ('acc1','a0','Leg Press','2','10','8','w1')")
- for table, columns in {'users':['display_name'], 'workouts':['athlete_bw','block_label','week_label'], 'exercises':['tier','lift_category','movement_pattern','lift_note'], 'exercise_sets':['velocity','readiness','hrv','intensity_type','scope']}.items():
+ for table, columns in {'users':['display_name'], 'workouts':['athlete_bw','block_label','week_label'], 'exercises':['tier','lift_category','movement_pattern','lift_note'], 'exercise_sets':['velocity','readiness','hrv','intensity_type','scope'], 'integration_outbox':['result']}.items():
   for column in columns:
    c.exec_driver_sql(f'ALTER TABLE {table} DROP COLUMN {column}')
 engine.dispose()
@@ -88,6 +89,7 @@ engine.dispose()
             assert connection.scalar(text("SELECT plannedWeight FROM exercise_sets WHERE id='set1'")) == 100
             assert connection.scalar(text("SELECT scope FROM exercise_sets WHERE id='set1'")) == "both"
             assert "google_sub" in {column["name"] for column in inspect(connection).get_columns("users")}
+            assert "result" in {column["name"] for column in inspect(connection).get_columns("integration_outbox")}
             assert connection.scalar(text("SELECT deleted_at FROM accessories WHERE id='acc1'")) is not None
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
     finally:
@@ -120,8 +122,10 @@ with Session(engine) as db:
  db.add(User(id='existing',email='existing@example.test',hashed_password='hash',role='ATHLETE'))
  db.commit()
 with engine.begin() as connection:
+ connection.exec_driver_sql('DROP TABLE oauth_states')
  connection.exec_driver_sql('DROP INDEX uq_users_google_sub')
  connection.exec_driver_sql('ALTER TABLE users DROP COLUMN google_sub')
+ connection.exec_driver_sql('ALTER TABLE integration_outbox DROP COLUMN result')
 engine.dispose()
 """
     subprocess.run([sys.executable, "-c", create_schema], cwd=ROOT, env=environment, check=True)
@@ -132,7 +136,7 @@ engine.dispose()
     try:
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT id FROM users WHERE id='existing'")) == "existing"
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002_google_subject"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004_outbox_result"
             assert connection.scalar(text("SELECT google_sub FROM users WHERE id='existing'")) is None
     finally:
         engine.dispose()

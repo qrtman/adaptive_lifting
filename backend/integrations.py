@@ -6,8 +6,8 @@ import hashlib
 import urllib.parse
 import json
 import requests
-import threading
 import time
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, Response
@@ -22,7 +22,7 @@ except Exception as exc:
 from .database import (
     get_db, User, IntegrationConnection, IntegrationCredential, 
     IntegrationOutbox, WebhookEvent, SheetPublication, Workout, 
-    Microcycle, Exercise, ExerciseSet, CoachingRelationship
+    Microcycle, Exercise, ExerciseSet, CoachingRelationship, OAuthState
 )
 from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
@@ -248,6 +248,10 @@ def get_telegram_status(current_user: User = Depends(get_current_user), db: Sess
 @router.post("/api/integrations/telegram/webhook")
 def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bot_api_secret_token: Optional[str] = Header(None)):
     # Verify webhook secret token if configured
+    env_name = (os.environ.get("APP_ENV") or os.environ.get("ENV") or "").strip().lower()
+    production_like = env_name in {"production", "staging", "prod"} or os.environ.get("COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
+    if TELEGRAM_WEBHOOK_SECRET == "mock_webhook_secret" and production_like:
+        raise HTTPException(status_code=503, detail="Telegram webhook secret is not configured")
     if TELEGRAM_WEBHOOK_SECRET != "mock_webhook_secret":
         if x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
             raise HTTPException(status_code=403, detail="Invalid webhook secret token")
@@ -449,8 +453,21 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
 # --- Google Sheets OAuth & Outbox Implementation ---
 
 @router.get("/api/integrations/google-sheets/auth-url")
-def get_sheets_auth_url(current_user: User = Depends(get_current_user)):
-    # Minimally scoped Sheets OAuth URL with CSRF state
+def get_sheets_auth_url(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Google Sheets is available to coaches")
+    # Keep only a hash in storage; the bearer value is opaque, random, and short-lived.
+    now = datetime.utcnow()
+    db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
+    state = secrets.token_urlsafe(32)
+    db.add(OAuthState(
+        state_hash=hashlib.sha256(state.encode("utf-8")).hexdigest(),
+        user_id=current_user.id,
+        provider="google-sheets",
+        created_at=now,
+        expires_at=now + timedelta(minutes=10),
+    ))
+    db.commit()
     redirect_uri = f"{APP_URL}/api/integrations/google-sheets/callback"
     params = {
         "client_id": GOOGLE_OAUTH_CLIENT_ID,
@@ -459,16 +476,44 @@ def get_sheets_auth_url(current_user: User = Depends(get_current_user)):
         "scope": "https://www.googleapis.com/auth/spreadsheets",
         "access_type": "offline",
         "prompt": "consent",
-        "state": current_user.id
+        "state": state
     }
     url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     return {"auth_url": url}
 
 @router.get("/api/integrations/google-sheets/callback")
-def sheets_callback(code: str, state: str, db: Session = Depends(get_db)):
+def sheets_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
     # Exchange authorization code for tokens
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing authorization parameters")
+
+    state_hash = hashlib.sha256(state.encode("utf-8")).hexdigest()
+    state_record = db.query(OAuthState).filter(OAuthState.state_hash == state_hash).one_or_none()
+    if state_record is None:
+        raise HTTPException(status_code=400, detail="Invalid or already used OAuth state")
+    now = datetime.utcnow()
+    if state_record.expires_at <= now:
+        db.delete(state_record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Expired OAuth state")
+    if state_record.provider != "google-sheets":
+        db.delete(state_record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="OAuth state provider mismatch")
+    user_id = state_record.user_id
+    if not db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).one_or_none():
+        db.delete(state_record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="OAuth state user is unavailable")
+    # A conditional DELETE makes consumption atomic across concurrent callbacks.
+    consumed = db.query(OAuthState).filter(
+        OAuthState.state_hash == state_hash,
+        OAuthState.provider == "google-sheets",
+        OAuthState.expires_at > now,
+    ).delete(synchronize_session=False)
+    db.commit()
+    if consumed != 1:
+        raise HTTPException(status_code=400, detail="Invalid or already used OAuth state")
         
     redirect_uri = f"{APP_URL}/api/integrations/google-sheets/callback"
     token_url = "https://oauth2.googleapis.com/token"
@@ -500,14 +545,14 @@ def sheets_callback(code: str, state: str, db: Session = Depends(get_db)):
             
     # Connect
     conn = db.query(IntegrationConnection).filter(
-        IntegrationConnection.user_id == state,
+        IntegrationConnection.user_id == user_id,
         IntegrationConnection.provider == "google-sheets"
     ).first()
     
     if not conn:
         conn = IntegrationConnection(
             id=str(uuid.uuid4()),
-            user_id=state,
+            user_id=user_id,
             provider="google-sheets",
             status="active",
             scopes="spreadsheets"
@@ -775,39 +820,79 @@ def process_sheets_publish_job(job: IntegrationOutbox, db: Session) -> bool:
         "Content-Type": "application/json"
     }
     
-    # Create Google Spreadsheet
-    try:
-        res_create = requests.post(
-            "https://sheets.googleapis.com/v4/spreadsheets",
-            headers=headers,
-            json={"properties": {"title": sheet_name}},
-            timeout=8
-        )
-        if res_create.status_code != 200:
+    # Persist the created resource ID separately from the user-visible result.
+    # If a later request fails or the worker exits, retries resume this sheet.
+    spreadsheet_id = payload.get("_spreadsheet_id")
+    if not spreadsheet_id:
+        if payload.get("_spreadsheet_create_started"):
             job.status = "failed"
-            job.result = f"Google Spreadsheet creation failed: {res_create.text}"
+            job.attempt_count = 3
+            job.result = "Spreadsheet creation outcome is uncertain; automatic retry stopped"
             return False
-            
-        ss_info = res_create.json()
-        spreadsheet_id = ss_info["spreadsheetId"]
-    except Exception as ex:
-        job.status = "failed"
-        job.result = f"Network failure during creation: {str(ex)}"
-        return False
+        # Persist intent before the external side effect. If the provider succeeds
+        # but the worker or database fails before the ID is checkpointed, recovery
+        # will stop instead of issuing a second create request.
+        payload["_spreadsheet_create_started"] = True
+        job.payload_json = json.dumps(payload)
+        db.commit()
+        try:
+            res_create = requests.post(
+                "https://sheets.googleapis.com/v4/spreadsheets",
+                headers=headers,
+                json={"properties": {"title": sheet_name}},
+                timeout=8
+            )
+            if res_create.status_code != 200:
+                job.status = "failed"
+                job.attempt_count = 3
+                job.result = f"Google Spreadsheet creation failed; automatic retry stopped: {res_create.text}"
+                return False
+
+            spreadsheet_id = res_create.json()["spreadsheetId"]
+            payload["_spreadsheet_id"] = spreadsheet_id
+            job.payload_json = json.dumps(payload)
+        except Exception as ex:
+            job.status = "failed"
+            # The provider may have created the sheet before the response was
+            # lost. Without an ID there is no safe automatic retry.
+            job.attempt_count = 3
+            job.result = f"Spreadsheet creation outcome is uncertain; automatic retry stopped: {str(ex)}"
+            return False
+        db.commit()
         
     # Create worksheets/tabs
-    sheets_requests = []
-    for tab in tabs:
-        sheets_requests.append({"addSheet": {"properties": {"title": tab}}})
-    sheets_requests.append({"deleteSheet": {"sheetId": 0}}) # Delete default first tab
-    
     try:
-        requests.post(
-            f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate",
+        current = requests.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}",
             headers=headers,
-            json={"requests": sheets_requests},
-            timeout=8
+            params={"fields": "sheets.properties(sheetId,title)"},
+            timeout=8,
         )
+        if current.status_code != 200:
+            job.status = "failed"
+            job.result = f"Could not inspect spreadsheet tabs: {current.text}"
+            return False
+        existing_sheets = current.json().get("sheets", [])
+        existing_titles = {sheet.get("properties", {}).get("title") for sheet in existing_sheets}
+        sheets_requests = [
+            {"addSheet": {"properties": {"title": tab}}}
+            for tab in tabs if tab not in existing_titles
+        ]
+        default_sheet = next((sheet.get("properties", {}) for sheet in existing_sheets
+                              if sheet.get("properties", {}).get("sheetId") == 0), None)
+        if default_sheet and default_sheet.get("title") not in tabs:
+            sheets_requests.append({"deleteSheet": {"sheetId": 0}})
+        if sheets_requests:
+            res_tabs = requests.post(
+                f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate",
+                headers=headers,
+                json={"requests": sheets_requests},
+                timeout=8
+            )
+            if res_tabs.status_code != 200:
+                job.status = "failed"
+                job.result = f"Sheet structure creation failed: {res_tabs.text}"
+                return False
     except Exception as ex:
         job.status = "failed"
         job.result = f"Sheet structure creation failed: {str(ex)}"
@@ -943,48 +1028,104 @@ def process_sheets_publish_job(job: IntegrationOutbox, db: Session) -> bool:
         job.result = f"Network error writing cells: {str(e)}"
         return False
 
-def background_outbox_processor():
-    """
-    Background thread processing sheets exports sequentially
-    """
-    print("[adaptive_lifting] Starting background outbox processor thread...")
-    while True:
-        try:
-            # Open local database session
-            from .database import SessionLocal
-            db = SessionLocal()
-            
-            # Fetch queued or failed retries
-            now = datetime.utcnow()
-            jobs = db.query(IntegrationOutbox).filter(
-                (IntegrationOutbox.status == "queued") | 
-                ((IntegrationOutbox.status == "failed") & (IntegrationOutbox.attempt_count < 3) & 
-                 ((IntegrationOutbox.retry_after.is_(None)) | (IntegrationOutbox.retry_after <= now)))
-            ).all()
-            
-            for job in jobs:
-                print(f"[WORKER] Processing export outbox job {job.id}...")
-                job.attempt_count += 1
-                success = process_sheets_publish_job(job, db)
-                
-                if success:
-                    print(f"[WORKER] Job {job.id} succeeded!")
-                else:
-                    print(f"[WORKER] Job {job.id} failed! Error: {job.result}")
-                    if job.attempt_count < 3:
-                        job.retry_after = datetime.utcnow() + timedelta(minutes=5 * job.attempt_count)
-                        job.status = "failed"
-                    else:
-                        job.status = "failed" # Final failure
-                        
-                db.commit()
-                
-            db.close()
-        except Exception as e:
-            print(f"[WORKER ERROR] Outbox exception: {str(e)}")
-            
-        time.sleep(10) # check every 10 seconds
+OUTBOX_POLL_SECONDS = 10
+OUTBOX_CLAIM_LEASE = timedelta(minutes=15)
 
-def start_background_worker():
-    t = threading.Thread(target=background_outbox_processor, daemon=True)
-    t.start()
+
+def claim_next_outbox_job(session_factory=None) -> Optional[str]:
+    """Atomically reserve one due job so concurrent worker processes cannot both run it."""
+    from sqlalchemy import or_, and_
+    from .database import SessionLocal
+
+    factory = session_factory or SessionLocal
+    now = datetime.utcnow()
+    db = factory()
+    try:
+        db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
+        db.query(IntegrationOutbox).filter(
+            IntegrationOutbox.provider == "google-sheets",
+            IntegrationOutbox.status == "processing",
+            IntegrationOutbox.attempt_count >= 3,
+            IntegrationOutbox.retry_after <= now,
+        ).update({
+            IntegrationOutbox.status: "failed",
+            IntegrationOutbox.retry_after: None,
+            IntegrationOutbox.result: "Worker lease expired after the maximum attempts",
+        }, synchronize_session=False)
+        # Selecting candidates is only advisory: the conditional UPDATE is the claim.
+        # retry_after doubles as a lease while status is processing, allowing recovery
+        # after a worker dies without introducing another migration.
+        candidates = db.query(IntegrationOutbox.id).filter(IntegrationOutbox.provider == "google-sheets").filter(or_(
+            IntegrationOutbox.status == "queued",
+            and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
+                 or_(IntegrationOutbox.retry_after.is_(None), IntegrationOutbox.retry_after <= now)),
+            and_(IntegrationOutbox.status == "processing", IntegrationOutbox.attempt_count < 3,
+                 IntegrationOutbox.retry_after <= now),
+        )).order_by(IntegrationOutbox.id).limit(20).all()
+        for (job_id,) in candidates:
+            changed = db.query(IntegrationOutbox).filter(
+                IntegrationOutbox.id == job_id,
+                IntegrationOutbox.provider == "google-sheets",
+                or_(
+                    IntegrationOutbox.status == "queued",
+                    and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
+                         or_(IntegrationOutbox.retry_after.is_(None), IntegrationOutbox.retry_after <= now)),
+                    and_(IntegrationOutbox.status == "processing", IntegrationOutbox.attempt_count < 3,
+                         IntegrationOutbox.retry_after <= now),
+                ),
+            ).update({
+                IntegrationOutbox.status: "processing",
+                IntegrationOutbox.retry_after: now + OUTBOX_CLAIM_LEASE,
+                IntegrationOutbox.attempt_count: IntegrationOutbox.attempt_count + 1,
+            }, synchronize_session=False)
+            if changed:
+                db.commit()
+                return job_id
+        db.commit()
+        return None
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def process_next_outbox_job(session_factory=None) -> bool:
+    """Claim and process at most one job. Returns whether a job was claimed."""
+    from .database import SessionLocal
+
+    factory = session_factory or SessionLocal
+    job_id = claim_next_outbox_job(factory)
+    if job_id is None:
+        return False
+
+    db = factory()
+    try:
+        job = db.query(IntegrationOutbox).filter_by(id=job_id, status="processing").one_or_none()
+        if job is None:
+            return True
+        print(f"[WORKER] Processing export outbox job {job.id}...")
+        try:
+            success = process_sheets_publish_job(job, db)
+        except Exception as exc:
+            db.rollback()
+            job = db.query(IntegrationOutbox).filter_by(id=job_id, status="processing").one_or_none()
+            if job is None:
+                return True
+            job.status = "failed"
+            job.result = f"Worker error: {exc}"
+            success = False
+        if not success:
+            if job.attempt_count < 3:
+                job.retry_after = datetime.utcnow() + timedelta(minutes=5 * job.attempt_count)
+            else:
+                job.retry_after = None
+        else:
+            job.retry_after = None
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

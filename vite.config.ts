@@ -17,7 +17,7 @@ export default defineConfig(() => {
       include: ['src/**/*.test.ts'],
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Disable HMR in hosted preview sessions with DISABLE_HMR=true.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Keep browser API requests same-origin. HTTP streaming responses such as

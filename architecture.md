@@ -1512,7 +1512,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 
 The repository's production deployment uses the root `docker-compose.yml`. The `web` service builds and serves the Vite frontend through Caddy, which obtains and renews HTTPS certificates for `APP_DOMAIN` and proxies `/api/*` to the private `api` service. Only Caddy publishes host ports (80/tcp, 443/tcp, and 443/udp). The API has no host-published port.
 
-The API uses the persistent `app_data` volume at `/data` and SQLite at `/data/adaptive-lifting.sqlite`. SQLite connections enable WAL, foreign keys, and a 30-second busy timeout. The current integration outbox worker starts as a daemon thread from FastAPI startup, so the API runs exactly one Uvicorn worker and there is no separate worker service. Do not scale the API replicas with this worker topology. If a standalone worker entrypoint is introduced later, move the worker out of API startup before adding that service.
+The API and standalone integration worker share the persistent `app_data` volume at `/data` and SQLite at `/data/adaptive-lifting.sqlite`. SQLite connections enable WAL, foreign keys, and a 5-second busy timeout. The worker runs as a separate Compose service using `python -m backend.worker`; API replicas do not start integration consumers.
 
 On a Linux host, install Docker Engine with the Compose plugin, point `APP_DOMAIN` DNS at the host, allow inbound 80/443, and prepare private secrets:
 
@@ -1527,7 +1527,7 @@ Set `APP_DOMAIN`, `APP_URL`, a unique random `JWT_SECRET_CURRENT`, and a stable 
 docker compose --env-file .env.production up -d --build
 ```
 
-The same environment file is passed only to the API for application configuration; Compose interpolation gives Caddy only `APP_DOMAIN`. It is excluded from the Docker build context and must not be copied into an image. Check status with `docker compose ps` and logs with `docker compose logs -f api web`. The API health check is `/api/health`; Caddy's internal-only health check is `http://127.0.0.1:8080/healthz`.
+The same environment file is passed to the API and worker for application configuration; Compose interpolation gives Caddy only `APP_DOMAIN`. It is excluded from the Docker build context and must not be copied into an image. Check status with `docker compose ps` and logs with `docker compose logs -f api worker web`. The API health check is `/api/health`; Caddy's internal-only health check is `http://127.0.0.1:8080/healthz`.
 
 Back up SQLite using its online backup API, then encrypt and copy the result off-host. Run this from the deployment directory on a Linux host with GPG installed and the backup operator's public key imported. Set `BACKUP_GPG_RECIPIENT` to that key's email or fingerprint:
 
