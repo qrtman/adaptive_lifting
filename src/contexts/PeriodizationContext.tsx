@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, ReactNode } from 'react';
-import { apiService } from '../services/api';
-import { saveSnapshot, getSnapshot, evictOldSyncedData, microcycleSnapshotKey } from '../services/db';
+import { ApiRequestError, apiService } from '../services/api';
+import { saveSnapshot, getSnapshot, clearSnapshot, evictOldSyncedData, microcycleSnapshotKey } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
@@ -88,15 +88,34 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const owner = resolvePlanOwnerId(athleteId);
     const gen = ++reloadGen.current;
-    const data = await apiService.fetchMicrocycles(owner ?? undefined, { allowOffline: false });
+    let data: MicrocycleData[];
+    try {
+      data = await apiService.fetchMicrocycles(owner ?? undefined, { allowOffline: false });
+    } catch (error) {
+      if (accountRole(user) === 'COACH' && owner && error instanceof ApiRequestError && error.status === 403) {
+        snapshotOwnerRef.current = null;
+        liveFetchedRef.current = false;
+        setMicrocycles([]);
+        if (activeAthleteId === owner) {
+          setActiveAthleteIdState(null);
+          removeUiPref(UI_KEYS.activeAthleteId);
+          setActiveWorkoutId(null);
+          setActiveMicrocycleId(null);
+        }
+      }
+      throw error;
+    }
     if (gen !== reloadGen.current) return;
     snapshotOwnerRef.current = owner ?? null;
     liveFetchedRef.current = true;
     setMicrocycles(data);
     if (owner) {
       await saveSnapshot(microcycleSnapshotKey(owner), data);
+      if (gen !== reloadGen.current) {
+        await clearSnapshot(microcycleSnapshotKey(owner)).catch(() => undefined);
+      }
     }
-  }, [user, resolvePlanOwnerId]);
+  }, [user, resolvePlanOwnerId, activeAthleteId]);
 
   const setActiveAthleteId = useCallback((id: string | null) => {
     setActiveAthleteIdState(id);
@@ -106,6 +125,49 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       removeUiPref(UI_KEYS.activeAthleteId);
     }
   }, []);
+
+  useEffect(() => {
+    if (accountRole(user) !== 'COACH') return;
+
+    const clearRevokedAthlete = (athleteId: unknown) => {
+      if (typeof athleteId !== 'string' || !athleteId) return;
+      void clearSnapshot(microcycleSnapshotKey(athleteId)).catch((error) => {
+        console.warn('Failed to clear revoked athlete snapshot:', error);
+      });
+
+      if (activeAthleteId !== athleteId && planAthleteId !== athleteId) return;
+      reloadGen.current += 1;
+      snapshotOwnerRef.current = null;
+      liveFetchedRef.current = false;
+      setMicrocycles([]);
+      setActiveAthleteIdState(null);
+      removeUiPref(UI_KEYS.activeAthleteId);
+      setActiveWorkoutId(null);
+      setActiveMicrocycleId(null);
+      removeUiPref(UI_KEYS.activeWorkoutId);
+      removeUiPref(UI_KEYS.activeMicrocycleId);
+    };
+
+    const onCustomEvent = (event: Event) => {
+      clearRevokedAthlete((event as CustomEvent<{ athleteId?: unknown }>).detail?.athleteId);
+    };
+    window.addEventListener('coach-athlete-unlinked', onCustomEvent);
+
+    if (typeof BroadcastChannel === 'undefined') {
+      return () => window.removeEventListener('coach-athlete-unlinked', onCustomEvent);
+    }
+
+    const channel = new BroadcastChannel('adaptive-lifting-access');
+    const onBroadcast = (event: MessageEvent<{ type?: string; athleteId?: unknown }>) => {
+      if (event.data?.type === 'coach-athlete-unlinked') clearRevokedAthlete(event.data.athleteId);
+    };
+    channel.addEventListener('message', onBroadcast);
+    return () => {
+      window.removeEventListener('coach-athlete-unlinked', onCustomEvent);
+      channel.removeEventListener('message', onBroadcast);
+      channel.close();
+    };
+  }, [user, activeAthleteId, planAthleteId]);
 
   useEffect(() => {
     if (!user) {
@@ -121,8 +183,14 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
       const owner = resolvePlanOwnerId();
       if (!owner) return;
+      // A coach's cached plan is only a convenience while this tab is already
+      // open. On an offline launch we cannot verify that the relationship is
+      // still active, so keep the cached copy hidden until the server responds.
+      if (accountRole(user) === 'COACH' && typeof navigator !== 'undefined' && !navigator.onLine) return;
       try {
+        const gen = reloadGen.current;
         const cached = await getSnapshot(microcycleSnapshotKey(owner));
+        if (gen !== reloadGen.current) return;
         if (liveFetchedRef.current && snapshotOwnerRef.current === owner) return;
         if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
           setMicrocycles(cached);
@@ -133,6 +201,22 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     };
     void hydrateAndEvict();
   }, [user, resolvePlanOwnerId]);
+
+  useEffect(() => {
+    if (!user || accountRole(user) !== 'COACH') return;
+    const revalidateOnReconnect = () => {
+      if (!navigator.onLine || !activeAthleteId) return;
+      reloadGen.current += 1;
+      liveFetchedRef.current = false;
+      snapshotOwnerRef.current = null;
+      setMicrocycles([]);
+      void reloadMicrocycles(activeAthleteId).catch((error) => {
+        console.warn('Could not revalidate the selected athlete after reconnecting:', error);
+      });
+    };
+    window.addEventListener('online', revalidateOnReconnect);
+    return () => window.removeEventListener('online', revalidateOnReconnect);
+  }, [user, activeAthleteId, reloadMicrocycles]);
 
   useEffect(() => {
     if (!user) return;
@@ -151,7 +235,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (!owner) return;
     if (!liveFetchedRef.current) return;
     if (snapshotOwnerRef.current !== owner) return;
+    const gen = reloadGen.current;
     saveSnapshot(microcycleSnapshotKey(owner), microcycles)
+      .then(() => {
+        if (gen !== reloadGen.current) return clearSnapshot(microcycleSnapshotKey(owner));
+        return undefined;
+      })
       .catch(err => console.error('Failed to write IndexedDB microcycles snapshot:', err));
   }, [microcycles, planAthleteId, user]);
 

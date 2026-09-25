@@ -16,11 +16,12 @@ Persistent context for Cursor agents. Keep this short and aligned with `architec
 - **Stack**: React 19 (TypeScript/Vite 6), Tailwind v4, FastAPI (Python), SQLite (SQLAlchemy). Docs that still say React 18 are stale. Visual program (shipped): Cal.com tokens, light default + dark toggle — `.cursor/rules/cal-theme.mdc`. Next product slices: session console — `.cursor/rules/session-console.mdc`. Nested cards follow the product tree (no depth quota). Training numbers = Inter tabular-nums, not JetBrains.
 - **Hybrid state**: IndexedDB for mutation queues and snapshots; LocalStorage only for `al_*` UI prefs — never workout trees. Sidebar collapse is `al_sidebar_collapsed`. Global sync-queue chrome is a **corner overlay** (not an in-flow bar) — `.cursor/rules/sync-queue-overlay.mdc`. Do not hide offline / rejected / conflict.
 - **Data integrity**: Numeric columns for weights/reps/RPE. Sessions bound to `YYYY-MM-DD`.
-- **Navigation**: Hash routes `#/calendar|sessions|insights|integrations|security`. Left sidebar owns nav. Coaches pick a linked athlete from an unlabeled email switcher; athletes have one plan and do not see it. Multiple athletes = separate accounts + coach code on Security, not profiles in the switcher. `#/roster` and `?view=roster` land on calendar with the switcher open (coach).
+- **Navigation**: Hash routes `#/calendar|sessions|insights|roster|integrations|security`. Left sidebar owns nav. Coaches use Roster's Active athletes list and Past athletes snapshot archive; only active links appear in the global athlete switcher. Athletes have one plan and see neither control. Each athlete registers a separate account and links by coach code in Security. `#/athletes` and `?view=athletes` redirect to `#/roster`; `?view=roster` opens Roster.
 
 ## 3. Product Model (current focus)
 
-- **Athlete-owned plan space**: Training data belongs to the athlete. A linked coach gets shared full write; unlink revokes coach access only — the plan stays.
+- **Athlete-owned plan space**: Training data belongs to the athlete. A linked coach gets shared full write. Unlink ends all live-plan access but captures a frozen, read-only snapshot of sessions during that link; later activity and edits stay private. The athlete's plan stays.
+- **Athlete identity**: Optional display name is athlete-managed. Linked coaches see and search by display name and full email; email is the fallback.
 - **Coach code**: Coach publishes a code; athlete enters it to link. Not email-as-code.
 - **Session-first**: Session (workout on a date) is the primary entity. Block/Week are optional grouping labels (block prefixes week). Assign or change labels anytime; unlabeled sessions are allowed.
 - **No demo seed**: Empty athletes start empty. Never auto-inject sample microcycles on fetch/push.

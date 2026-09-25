@@ -1,5 +1,5 @@
 import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
-import { getSnapshot, saveSnapshot, microcycleSnapshotKey } from './db';
+import { getSnapshot, saveSnapshot, clearSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
@@ -7,6 +7,38 @@ import type { AnalyticsCatalog, CardConfig, QueryResult, SavedCard } from '../in
 import type { CopyMode } from '../features/plan/copyClipboard';
 
 const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
+
+export type RosterAthlete = {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  activeMicrocycles: number;
+};
+
+export type PastAthlete = {
+  relationshipId: number;
+  athleteId: string;
+  email: string;
+  displayName?: string | null;
+  linkedAt: string | null;
+  endedAt: string | null;
+  archiveAvailable: boolean;
+};
+
+export type CoachingHistorySnapshot = {
+  relationshipId: number;
+  fromDate: string;
+  throughDate: string;
+  athlete: { id: string; email: string; displayName?: string | null };
+  microcycles: MicrocycleData[];
+};
+
+export class ApiRequestError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
 
 /**
  * Recalculates metrics for a workout: exercise volumes, top single labels, and day's overall tonnage.
@@ -127,13 +159,20 @@ export const apiService = {
       try {
         const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
         const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
-        if (!response.ok) throw new Error('API server returned error status');
+        if (!response.ok) {
+          if (response.status === 403 && athleteId) {
+            await clearSnapshot(microcycleSnapshotKey(athleteId)).catch(() => undefined);
+          }
+          const errData = await response.json().catch(() => ({}));
+          throw new ApiRequestError(apiErrorMessage(errData, 'Could not load this athlete plan.'), response.status);
+        }
         const data = await response.json();
         if (athleteId) {
           await saveOfflineMicrocycles(data, athleteId);
         }
         return data;
       } catch (err) {
+        if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) throw err;
         if (!allowOffline) {
           throw err instanceof Error ? err : new Error('Failed to load plan');
         }
@@ -306,6 +345,8 @@ export const apiService = {
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.user.role);
     setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user.displayName) setUiPref(UI_KEYS.displayName, data.user.displayName);
+    else removeUiPref(UI_KEYS.displayName);
     if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
     return data;
   },
@@ -319,6 +360,8 @@ export const apiService = {
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.user.role);
     setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user.displayName) setUiPref(UI_KEYS.displayName, data.user.displayName);
+    else removeUiPref(UI_KEYS.displayName);
     setUiPref(UI_KEYS.userId, String(data.user.id));
     return data;
   },
@@ -334,6 +377,8 @@ export const apiService = {
     const data = await response.json();
     if (data.user?.role) setUiPref(UI_KEYS.role, data.user.role);
     if (data.user?.email) setUiPref(UI_KEYS.email, data.user.email);
+    if (data.user?.displayName) setUiPref(UI_KEYS.displayName, data.user.displayName);
+    else removeUiPref(UI_KEYS.displayName);
     if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
     return data;
   },
@@ -352,6 +397,8 @@ export const apiService = {
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.role || data.user?.role);
     setUiPref(UI_KEYS.email, data.email || data.user?.email);
+    if (data.displayName || data.user?.displayName) setUiPref(UI_KEYS.displayName, data.displayName || data.user?.displayName);
+    else removeUiPref(UI_KEYS.displayName);
     const userId = data.id || data.user?.id;
     if (userId) setUiPref(UI_KEYS.userId, String(userId));
     return data;
@@ -375,10 +422,71 @@ export const apiService = {
     };
   },
 
-  async fetchRoster() {
+  async fetchRoster(): Promise<RosterAthlete[]> {
     const response = await fetch(`${BACKEND_URL}/api/coach/roster`, { headers: getHeaders(), credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch roster');
-    return await response.json();
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new ApiRequestError(errData.detail || 'Failed to fetch roster', response.status);
+    }
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  async updateProfile(displayName: string): Promise<{ id: string; email: string; role: string; displayName: string | null }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ displayName }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new ApiRequestError(errData.detail || 'Failed to update profile', response.status);
+    }
+    return response.json();
+  },
+
+  async unlinkAthlete(athleteId: string): Promise<{ status: string; message: string; cacheCleared: boolean }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/link/${encodeURIComponent(athleteId)}`, {
+      method: 'DELETE', credentials: 'include', headers: getHeaders(),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new ApiRequestError(errData.detail || 'Failed to unlink athlete', response.status);
+    }
+    const data = await response.json();
+    let cacheCleared = true;
+    try {
+      await clearSnapshot(microcycleSnapshotKey(athleteId));
+    } catch {
+      cacheCleared = false;
+    }
+    window.dispatchEvent(new CustomEvent('coach-athlete-unlinked', { detail: { athleteId } }));
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('adaptive-lifting-access');
+      channel.postMessage({ type: 'coach-athlete-unlinked', athleteId });
+      channel.close();
+    }
+    return { ...data, cacheCleared };
+  },
+
+  async fetchPastAthletes(): Promise<PastAthlete[]> {
+    const response = await fetch(`${BACKEND_URL}/api/coach/roster/history`, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new ApiRequestError(errData.detail || 'Failed to load past athletes', response.status);
+    }
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  async fetchCoachingHistory(relationshipId: number): Promise<CoachingHistorySnapshot> {
+    const response = await fetch(`${BACKEND_URL}/api/coach/roster/history/${relationshipId}`, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new ApiRequestError(errData.detail || 'Failed to load workout history', response.status);
+    }
+    return response.json();
   },
 
   /**

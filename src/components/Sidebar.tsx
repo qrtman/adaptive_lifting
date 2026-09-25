@@ -1,4 +1,4 @@
-import { Calendar, BarChart3, Link2, Settings, List, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react';
+import { Calendar, BarChart3, Link2, Settings, List, Users, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import type { ThemePreference } from '../theme/themePref';
@@ -9,6 +9,7 @@ const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
   { mode: 'calendar', label: 'Calendar', testId: 'nav-calendar' },
   { mode: 'sessions', label: 'Sessions', testId: 'nav-sessions' },
   { mode: 'insights', label: 'Insights', testId: 'nav-insights' },
+  { mode: 'roster', label: 'Roster', testId: 'nav-roster' },
 ];
 
 const OPS: { mode: DashboardMode; label: string; testId?: string }[] = [
@@ -20,6 +21,7 @@ const ICONS: Record<DashboardMode, typeof Calendar> = {
   calendar: Calendar,
   sessions: List,
   insights: BarChart3,
+  roster: Users,
   integrations: Link2,
   security: Settings,
 };
@@ -81,6 +83,7 @@ export const Sidebar = ({
   onToggleTheme: () => void;
 }) => {
   const { user, roleMode, signOut } = useAuth();
+  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const email = (user?.email as string | undefined) || getUiPref(UI_KEYS.email) || 'Signed in';
   const widthClass = collapsed ? 'w-[60px] min-w-[60px] max-w-[60px] px-1' : 'w-[240px] min-w-[240px] max-w-[240px] px-3';
 
@@ -117,7 +120,7 @@ export const Sidebar = ({
 
       <nav className="flex-1 flex flex-col gap-[var(--cal-space-md)] overflow-y-auto">
         <div className="flex flex-col gap-0.5">
-          {PRIMARY.map((item) => (
+          {PRIMARY.filter((item) => item.mode !== 'roster' || isCoach).map((item) => (
             <NavButton
               key={item.mode}
               {...item}

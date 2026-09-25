@@ -16,6 +16,8 @@ from .database import (
     ExerciseSet,
     User,
     CoachingRelationship,
+    CoachingHistorySnapshot,
+    AuditEvent,
     InviteCode,
     DayNote,
 )
@@ -143,6 +145,11 @@ def migrate_db():
     except Exception:
         db.rollback()
     try:
+        db.execute(text("ALTER TABLE users ADD COLUMN display_name VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
         db.execute(text("ALTER TABLE exercise_sets ADD COLUMN intensity_type VARCHAR"))
         db.commit()
     except Exception:
@@ -159,6 +166,52 @@ def migrate_db():
         db.rollback()
     finally:
         db.close()
+
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as connection:
+            indexes = connection.exec_driver_sql("PRAGMA index_list('coaching_relationships')").fetchall()
+            has_global_athlete_unique = False
+            for index in indexes:
+                index_data = index._mapping
+                if not bool(index_data["unique"]) or bool(index_data["partial"]):
+                    continue
+                columns = connection.exec_driver_sql(
+                    f"PRAGMA index_info('{index_data['name']}')"
+                ).fetchall()
+                if [column._mapping["name"] for column in columns] == ["athlete_id"]:
+                    has_global_athlete_unique = True
+                    break
+            if has_global_athlete_unique:
+                connection.exec_driver_sql("""
+                    CREATE TABLE coaching_relationships_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        coach_id VARCHAR NOT NULL REFERENCES users(id),
+                        athlete_id VARCHAR NOT NULL REFERENCES users(id),
+                        created_at DATETIME,
+                        ended_at DATETIME,
+                        updated_at DATETIME,
+                        deleted_at DATETIME
+                    )
+                """)
+                connection.exec_driver_sql("""
+                    INSERT INTO coaching_relationships_history
+                        (id, coach_id, athlete_id, created_at, ended_at, updated_at, deleted_at)
+                    SELECT id, coach_id, athlete_id, created_at, ended_at, updated_at, deleted_at
+                    FROM coaching_relationships
+                """)
+                connection.exec_driver_sql("DROP TABLE coaching_relationships")
+                connection.exec_driver_sql("ALTER TABLE coaching_relationships_history RENAME TO coaching_relationships")
+            connection.exec_driver_sql("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_coaching_relationships_active_athlete
+                ON coaching_relationships (athlete_id) WHERE ended_at IS NULL
+            """)
+    elif engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE coaching_relationships DROP CONSTRAINT IF EXISTS coaching_relationships_athlete_id_key"))
+            connection.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_coaching_relationships_active_athlete
+                ON coaching_relationships (athlete_id) WHERE ended_at IS NULL
+            """))
 
     from .database import migrate_accessories_to_exercises, SessionLocal as MigrationSession
     migrate_session = MigrationSession()
@@ -247,7 +300,7 @@ def start_session(response: Response, user: User) -> dict:
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {"id": user.id, "email": user.email, "role": user.role},
+        "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name},
     }
 
 
@@ -318,6 +371,10 @@ class RegisterRequest(BaseModel):
     password: str
     role: str
 
+
+class UpdateProfileRequest(BaseModel):
+    displayName: Optional[str] = None
+
 class GoogleLoginRequest(BaseModel):
     token: str
     role: Optional[str] = "ATHLETE"
@@ -353,7 +410,7 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
         secure=COOKIE_SECURE
     )
     
-    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name}}
 
 
 @app.post("/api/dev/login/{role}")
@@ -418,7 +475,7 @@ def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depe
         secure=COOKIE_SECURE
     )
     
-    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name}}
 
 @app.post("/api/auth/logout")
 def logout(response: Response, request: Request, db: Session = Depends(get_db)):
@@ -579,6 +636,8 @@ def format_exercise(e: Exercise) -> dict:
 def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
+        if not is_live(w):
+            continue
         exercises_list = [
             format_exercise(e)
             for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
@@ -615,6 +674,55 @@ def hash_coach_code(code: str) -> str:
 
 def active_coaching_query(db: Session):
     return db.query(CoachingRelationship).filter(CoachingRelationship.ended_at.is_(None))
+
+
+def relationship_audit_event(actor: User, rel: CoachingRelationship, event_type: str) -> AuditEvent:
+    import json
+    return AuditEvent(
+        id=str(uuid.uuid4()),
+        actor_user_id=actor.id,
+        event_type=event_type,
+        resource_type="CoachingRelationship",
+        resource_id=str(rel.id),
+        created_at=datetime.utcnow(),
+        metadata_json=json.dumps({"relationship_id": rel.id, "coach_id": rel.coach_id, "athlete_id": rel.athlete_id}),
+    )
+
+
+def create_coaching_history_snapshot(db: Session, rel: CoachingRelationship, ended_at: datetime) -> CoachingHistorySnapshot:
+    import json
+    athlete = db.query(User).filter(User.id == rel.athlete_id).first()
+    start_date = (rel.created_at or ended_at).date().isoformat()
+    end_date = ended_at.date().isoformat()
+    microcycles = db.query(Microcycle).filter(
+        Microcycle.owner_id == rel.athlete_id,
+        Microcycle.deleted_at.is_(None),
+    ).order_by(Microcycle.id).all()
+    archived_microcycles = []
+    for microcycle in microcycles:
+        formatted = format_microcycle(microcycle)
+        formatted["workouts"] = [
+            workout for workout in formatted["workouts"]
+            if start_date <= workout["date"] <= end_date
+        ]
+        if formatted["workouts"]:
+            archived_microcycles.append(formatted)
+    snapshot_payload = {
+        "relationshipId": rel.id,
+        "fromDate": start_date,
+        "throughDate": end_date,
+        "athlete": {
+            "id": rel.athlete_id,
+            "email": athlete.email if athlete else "",
+            "displayName": athlete.display_name if athlete else None,
+        },
+        "microcycles": archived_microcycles,
+    }
+    return CoachingHistorySnapshot(
+        relationship_id=rel.id,
+        snapshot_at=ended_at,
+        snapshot_json=json.dumps(snapshot_payload),
+    )
 
 
 def assert_plan_access(db: Session, current_user: User, athlete_id: str) -> str:
@@ -737,8 +845,20 @@ def register_user(req: RegisterRequest, response: Response, db: Session = Depend
         "role": user.role,
         "email": user.email,
         "id": user.id,
-        "user": {"id": user.id, "email": user.email, "role": user.role},
+        "displayName": user.display_name,
+        "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name},
     }
+
+
+@app.patch("/api/auth/profile")
+def update_auth_profile(req: UpdateProfileRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    display_name = (req.displayName or "").strip()
+    if len(display_name) > 80:
+        raise HTTPException(status_code=422, detail="Display name must be 80 characters or fewer")
+    current_user.display_name = display_name or None
+    db.commit()
+    db.refresh(current_user)
+    return {"id": current_user.id, "email": current_user.email, "role": current_user.role, "displayName": current_user.display_name}
 
 @app.post("/api/auth/coach-code")
 def create_coach_code(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -797,17 +917,19 @@ def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_us
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")
 
-    # One row per athlete (unique athlete_id): reactivate or retarget after unlink.
-    prior = db.query(CoachingRelationship).filter(
-        CoachingRelationship.athlete_id == current_user.id,
-    ).first()
-    if prior:
-        prior.coach_id = coach.id
-        prior.ended_at = None
-        link = prior
-    else:
-        link = CoachingRelationship(coach_id=coach.id, athlete_id=current_user.id)
-        db.add(link)
+    consumed_at = datetime.utcnow()
+    consumed = db.query(InviteCode).filter(
+        InviteCode.id == invite.id,
+        InviteCode.used_at.is_(None),
+        InviteCode.expires_at > consumed_at,
+    ).update({InviteCode.used_at: consumed_at}, synchronize_session=False)
+    if consumed != 1:
+        raise HTTPException(status_code=404, detail="Invalid or expired coach code")
+
+    link = CoachingRelationship(coach_id=coach.id, athlete_id=current_user.id, created_at=datetime.utcnow())
+    db.add(link)
+    db.flush()
+    db.add(relationship_audit_event(current_user, link, "ATHLETE_LINKED"))
     db.commit()
     return {"status": "success", "message": f"Successfully linked to coach {coach.email}"}
 
@@ -823,7 +945,10 @@ def unlink_coach(db: Session = Depends(get_db), current_user: User = Depends(get
         raise HTTPException(status_code=403, detail="Not authorized")
     if not rel:
         raise HTTPException(status_code=404, detail="No active coaching link")
-    rel.ended_at = datetime.utcnow()
+    ended_at = datetime.utcnow()
+    rel.ended_at = ended_at
+    db.add(create_coaching_history_snapshot(db, rel, ended_at))
+    db.add(relationship_audit_event(current_user, rel, "ATHLETE_UNLINKED"))
     db.commit()
     return {"status": "success", "message": "Unlinked. Athlete plan remains in athlete space."}
 
@@ -838,7 +963,10 @@ def unlink_athlete(athlete_id: str, db: Session = Depends(get_db), current_user:
     ).first()
     if not rel:
         raise HTTPException(status_code=404, detail="No active coaching link")
-    rel.ended_at = datetime.utcnow()
+    ended_at = datetime.utcnow()
+    rel.ended_at = ended_at
+    db.add(create_coaching_history_snapshot(db, rel, ended_at))
+    db.add(relationship_audit_event(current_user, rel, "COACH_UNLINKED_ATHLETE"))
     db.commit()
     return {"status": "success", "message": "Unlinked. Athlete plan remains in athlete space."}
 
@@ -857,9 +985,65 @@ def get_roster(db: Session = Depends(get_db), current_user: User = Depends(get_c
             athletes.append({
                 "id": athlete.id, 
                 "email": athlete.email,
+                "displayName": athlete.display_name,
                 "activeMicrocycles": len(microcycles)
             })
     return athletes
+
+
+@app.get("/api/coach/roster/history")
+def get_roster_history(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import json
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    relationships = db.query(CoachingRelationship).filter(
+        CoachingRelationship.coach_id == current_user.id,
+        CoachingRelationship.ended_at.is_not(None),
+    ).order_by(CoachingRelationship.ended_at.desc()).all()
+    history = []
+    for rel in relationships:
+        snapshot = db.query(CoachingHistorySnapshot).filter(
+            CoachingHistorySnapshot.relationship_id == rel.id
+        ).first()
+        payload = json.loads(snapshot.snapshot_json) if snapshot else None
+        athlete = payload.get("athlete", {}) if payload else {}
+        if not payload:
+            current_athlete = db.query(User).filter(User.id == rel.athlete_id).first()
+            athlete = {
+                "id": rel.athlete_id,
+                "email": current_athlete.email if current_athlete else "",
+                "displayName": current_athlete.display_name if current_athlete else None,
+            }
+        history.append({
+            "relationshipId": rel.id,
+            "athleteId": rel.athlete_id,
+            "email": athlete.get("email", ""),
+            "displayName": athlete.get("displayName"),
+            "linkedAt": rel.created_at.isoformat() if rel.created_at else None,
+            "endedAt": rel.ended_at.isoformat() if rel.ended_at else None,
+            "archiveAvailable": payload is not None,
+        })
+    return history
+
+
+@app.get("/api/coach/roster/history/{relationship_id}")
+def get_roster_history_snapshot(relationship_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import json
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    rel = db.query(CoachingRelationship).filter(
+        CoachingRelationship.id == relationship_id,
+        CoachingRelationship.coach_id == current_user.id,
+        CoachingRelationship.ended_at.is_not(None),
+    ).first()
+    if not rel:
+        raise HTTPException(status_code=404, detail="Past athlete history not found")
+    snapshot = db.query(CoachingHistorySnapshot).filter(
+        CoachingHistorySnapshot.relationship_id == rel.id
+    ).first()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="History snapshot is unavailable for this past link")
+    return json.loads(snapshot.snapshot_json)
 
 @app.post("/api/coach/push-program")
 def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -943,7 +1127,7 @@ def athlete_fatigue_summary(db: Session, current_user: User, athlete_id: Optiona
     target_id = athlete_id if athlete_id else current_user.id
     
     if current_user.role == "COACH":
-        rel = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id, CoachingRelationship.athlete_id == target_id).first()
+        rel = active_coaching_query(db).filter(CoachingRelationship.coach_id == current_user.id, CoachingRelationship.athlete_id == target_id).first()
         if not rel:
             raise HTTPException(status_code=403, detail="Not authorized to view this athlete")
     elif current_user.role == "ATHLETE" and target_id != current_user.id:
@@ -1056,7 +1240,7 @@ def export_csv(
     import io
     
     if current_user.role == "COACH":
-        relationships = db.query(CoachingRelationship).filter(
+        relationships = active_coaching_query(db).filter(
             CoachingRelationship.coach_id == current_user.id
         ).all()
         athlete_ids = [rel.athlete_id for rel in relationships]
@@ -1178,7 +1362,7 @@ def get_ai_advisor(
     # 4.1 RBAC Enforcement
     target_id = athlete_id if athlete_id else current_user.id
     if current_user.role == "COACH":
-        rel = db.query(CoachingRelationship).filter(
+        rel = active_coaching_query(db).filter(
             CoachingRelationship.coach_id == current_user.id,
             CoachingRelationship.athlete_id == target_id
         ).first()
@@ -1375,36 +1559,28 @@ def revoke_session(id: str, db: Session = Depends(get_db), current_user: User = 
 
 @app.get("/api/security/audit-events")
 def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    import json
-    from .database import AuditEvent, CoachingRelationship
+    from .database import AuditEvent
     if current_user.role == "COACH":
         relationships = db.query(CoachingRelationship).filter(
-            CoachingRelationship.coach_id == current_user.id,
-            CoachingRelationship.ended_at.is_(None)
+            CoachingRelationship.coach_id == current_user.id
         ).all()
-        athlete_ids = [r.athlete_id for r in relationships]
-        allowed_ids = athlete_ids + [current_user.id]
-        events = db.query(AuditEvent).filter(
-            (AuditEvent.actor_user_id.in_(allowed_ids)) | (AuditEvent.actor_user_id.is_(None))
-        ).order_by(AuditEvent.created_at.desc()).limit(100).all()
+        relationship_ids = [str(r.id) for r in relationships]
+        own_events = db.query(AuditEvent).filter(
+            AuditEvent.actor_user_id == current_user.id
+        ).all()
+        relationship_events = []
+        if relationship_ids:
+            relationship_events = db.query(AuditEvent).filter(
+                AuditEvent.resource_type == "CoachingRelationship",
+                AuditEvent.resource_id.in_(relationship_ids),
+                AuditEvent.event_type.in_(("ATHLETE_LINKED", "ATHLETE_UNLINKED", "COACH_UNLINKED_ATHLETE")),
+            ).all()
+        events_by_id = {event.id: event for event in (*own_events, *relationship_events)}
+        events = sorted(events_by_id.values(), key=lambda event: event.created_at or datetime.min, reverse=True)[:100]
     else:
         events = db.query(AuditEvent).filter(
             AuditEvent.actor_user_id == current_user.id
         ).order_by(AuditEvent.created_at.desc()).limit(100).all()
-        
-    if not events:
-        dummy_event = AuditEvent(
-            id=str(uuid.uuid4()),
-            actor_user_id=current_user.id,
-            event_type="SYNC_INIT",
-            resource_type="WorkoutTree",
-            resource_id="root",
-            created_at=datetime.utcnow() - timedelta(minutes=5),
-            metadata_json=json.dumps({"info": "Secured client session initialized", "client_ip": "127.0.0.1"})
-        )
-        db.add(dummy_event)
-        db.commit()
-        events = [dummy_event]
         
     return [{
         "id": e.id,

@@ -10,6 +10,7 @@ import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
+import { RosterView } from './components/RosterView';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
@@ -72,6 +73,7 @@ export default function App() {
   const [initialLocation] = useState(() => parseAppLocation());
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
+    if (initialLocation.mode === 'roster') return 'dashboard';
     const saved = getUiPref(UI_KEYS.appView);
     return saved === 'session' ? 'session' : 'dashboard';
   });
@@ -292,6 +294,8 @@ export default function App() {
                   />
                 ) : dashboardMode === 'insights' ? (
                   <InsightsView />
+                ) : dashboardMode === 'roster' ? (
+                  <RosterView onNavigate={handleNavigate} />
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
                 ) : (

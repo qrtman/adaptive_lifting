@@ -55,7 +55,7 @@ Do not build:
 - **No marketing landing page** as the first screen.
 - **No decorative hero section** or generic SaaS filler banners.
 - **Nested cards allowed** along the product tree (Block → Week → Session; day → session → lifts). No dummy extra wraps. See `.cursor/scopes/cal-theme/10-nested-cards.md`. Still no decorative hero or gradient orbs.
-- **No gradient orb, bokeh, or abstract decorative backgrounds** (violates the dark aesthetic).
+- **No gradient orb, bokeh, or abstract decorative backgrounds.**
 - **No freeform text parsing** for prescriptions, set logging, or Sheets import.
 - **No Google Sheets bidirectional editing** (Sheets is strictly one-way export/publish).
 - **No Telegram chat commands** as the primary mobile UI (Mini App WebView is canonical).
@@ -68,7 +68,7 @@ Do not build:
 Every authenticated PWA screen must include:
 
 - Current athlete or account context.
-- **Coach athlete switcher** when role is coach: changing athlete reloads Calendar and Sessions for that athlete's plan space.
+- **Coach Roster workspace and athlete switcher**: coaches use Roster to find and manage linked athletes; the global selector quickly scopes Calendar, Sessions, and Insights.
 - Environment label when not production.
 - Online/offline indicator.
 - Sync queue count.
@@ -85,7 +85,7 @@ If implementation context is missing, assume:
 | Units | kg canonical, kg display unless user preference says otherwise |
 | Theme | Light default + Dark toggle (`al_theme`). Cal.com token language — `.cursor/rules/cal-theme.mdc` |
 | Mobile first screen | Today's active workout |
-| Coach first screen | Dashboard with athlete switcher that drives Calendar and Sessions |
+| Coach navigation | Calendar, Sessions, Insights, and a dedicated Roster workspace with Active and Past athletes; the athlete switcher remains available for active scope changes |
 | Empty athlete plan | Show empty Calendar/Sessions states — never inject demo weeks |
 | Session create | Date required; Block/Week labels optional anytime |
 | Athlete link | Enter coach code (not email); unlink keeps plan |
@@ -114,9 +114,11 @@ The design system follows three product principles:
 | Coach desktop PWA | Coach | Program design, athlete monitoring, analytics, exports, integrations | Dense, scannable, keyboard/mouse efficient; athlete switcher scopes Calendar/Sessions |
 | Athlete mobile PWA | Athlete | Later: gym logging on a phone | Deferred. Current athletes use the same web session screen as coaches. |
 | Calendar workspace | Coach / Athlete | Date-first session timeline | Cal light/dark skin: hairline 7-col month grid, nested session/note cards, lift-filter dialog (multiple chips per category / pattern / tier; OR within a row, AND across rows; stored fields). Session chips show name, Day/Week/Block, and a short lift-code line (no kg×reps@RPE). Hover actions fill a reserved in-flow dock (do not grow the day on hover; do not cover session/note cards; do not overflow to a neighbor). No accent inset ring around the day cell — quiet fill + dock, 180ms; today is the date numeral only. Week row may grow at rest when chips plus that dock need room. Session/note chips rest flat (surface-card + hairline); the chip under the pointer uses `--cal-shadow-lift`. Saved notes render as a distinct day card at rest. Copy to then click the destination day on the same calendar. |
-| Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Name is the large session title; Day · Week · Block + tonnage + Edit are muted meta. Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Finished sessions are read-only until Open. |
+| Web session screen | Coach / Athlete | Add, name, reorder, prescribe, and log lifts | Name is the large session title; Day · Week · Block + tonnage + Edit are muted meta. Lifts render in `lexo_rank` order. Up/Down persist rank. Bar/tempo/ROM/gear open from Edit lift, not always-open chips. Completed sessions remain editable; Complete is a status label, not a lock. There is no Open/reopen step. |
 | Sessions workspace | Coach / Athlete | Group/filter by optional Block/Week labels | Ungrouped bucket for unlabeled sessions. Each card leads with **Name**, then Day · date (Block/Week live on the group headers). Every set is a Plan vs Log row — not set 0 only, not `150×5@6 150×5@6` unlabeled. Edit opens a dialog for Name, then Day/Block/Week as ComboBoxes (Name list never includes Day slots) |
+| Roster | Coach | Find active athletes, unlink, and inspect past-link snapshots | Active and Past athletes are separate views. Past sessions are read-only snapshots frozen at unlink. |
 | Coach code / link | Coach / Athlete | Athlete enters coach code to grant shared write | Show code + copy for coach; enter-code + unlink (plan stays) for athlete |
+| Athlete profile | Athlete | Set or clear an optional display name | Self-edited in Security; linked coaches see name and full email |
 | Telegram Mini App + bot | Athlete / Coach | Later: Telegram-native logging and alerts | Deferred until the web constructor is done. Do not gate current session UI on Mini App. |
 | Google Sheets publish flow | Coach | One-way reporting/export to Sheets | Must clearly communicate that Sheets is not canonical |
 | Staging/admin runtime views | Operator / Coach-owner | Connection health, webhook/OAuth status, backup status | Quiet operational dashboard, not marketing UI |
@@ -234,22 +236,22 @@ The layout scales systematically, adapting touch target sizing and information d
 
 | Breakpoint | Targeted Form Factor | Column Strategy | Interaction & Padding Specifications |
 | :--- | :--- | :--- | :--- |
-| **`< 360px`** | Ultra-Compact Mobile (e.g. iPhone SE) | 1-Column strict vertical stack. Sidebar collapses into bottom drawer sheets. | Logger digits set to `text-3xl`. Gaps locked to `--space-1`. **Tap targets set to 48px min height**. Steppers expand to full column width. |
-| **`360px - 479px`** | Standard Mobile / Telegram WebView | Tabbed exercise scrolling track. Active set builder on top; log history below. | Dynamic bottom navigation bar. Touch zones min 44px with `--space-2` gaps. swipe tabs use visual friction dampeners. |
-| **`480px - 767px`** | Landscape Mobile / Large Handsets | 2-Column horizontal split grid. Left: Stepper controller. Right: Set list. | Gaps set to `--space-3`. Scroll paths contained within target columns. |
-| **`768px - 1199px`** | Tablet / Laptop Screens | 3-Column structural microcycle calendar cards. Floating side drawer toggle. | Sidebar collapses into visual icons strip. Mouse targets min 32px. Grid padding locked to `--space-2`. |
-| **`>= 1200px`** | High-Density Coach Dashboard | Master 240px persistent left sidebar, sticky headers, right logs feed panel. | Hover borders active. Pointer targets min 28px. High-density data grid padding set to `--space-2`. |
+| **`< 360px`** | Compact mobile | Single-column app layout with touch-safe session controls. | Keep the active session and its controls usable without horizontal page overflow. |
+| **`360px - 479px`** | Mobile | Responsive app layout; session details adapt to the narrow viewport. | Touch targets are at least 44px; avoid requiring swipe-only navigation. |
+| **`480px - 767px`** | Large mobile | Responsive session layout sized to the available width. | Keep plan, log, and sync states readable and operable by touch. |
+| **`768px - 1199px`** | Tablet / compact desktop | Responsive workspace layout with a collapsible navigation sidebar. | Calendar and session content reflow to the available width. |
+| **`>= 1200px`** | Desktop | Dense coach workspace with persistent navigation and a responsive content area. | Support pointer and keyboard interaction; retain visible focus states. |
 
 ### 5.2 Dynamic Space Reclamation & Viewport Budgeting (The Collapsible Primitive)
 
-To maintain optimal information density and prevent severe text overlapping under high physical and operational workloads, the design system utilizes a mathematical space-reclaiming model.
+Layouts use the available viewport and reflow content when the navigation sidebar collapses.
 
 #### 5.2.1 Core Space Reclamation Primitive (The Sidebar Rule)
-"Collapsing/hiding the persistent 240px sidebar reclaims horizontal real estate, allowing core workspaces (like the Calendar Grid & Microcycle View) to expand to 100% viewport width and prevent high-density column compression."
+Collapsing the navigation sidebar gives the active workspace more room. It must not create a fixed minimum width that causes horizontal overflow.
 
 #### 5.2.2 Primitive Classifications
 * **Persistent Panels**: Structural containers locked to a specific width at designated breakpoints. (e.g., Left Sidebar is persistent at 240px width on desktop viewports `>= 1200px` by default).
-* **Toggleable/Collapsible Panels**: Structural containers that the user can expand or collapse on-demand to shift visual focus. (e.g., Left Sidebar toggles between `240px` and `0px` or a compact `60px` icon track; Right Drawer Rail collapses from `320px` to `0px`; Periodization Readiness Wave lanes collapse to `0px` height).
+* **Toggleable/Collapsible Panels**: The navigation sidebar may collapse to give the active workspace more room. Other panels are specified by the feature that uses them.
 * **Dynamic Space Reclamation**: A programmatic layout behavior where collapsing any Toggleable Panel recalculates available horizontal viewport budgets and reallocates the reclaimed space instantly to the primary core workspace.
 * **Viewport Budget (min-width rules)**: The hard visual boundary below which a container cannot be compressed without triggering column truncation, optical fatigue, or overflow errors.
 
@@ -274,7 +276,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 
 ```
 +--------------------------------------------------------------------------------------------------+
-| Top Navigation: Athlete Switcher Dropdown | Mesocycle Manager Tab | SSE Telemetry Pulse | User   |
+| Top Navigation: Athlete Scope | Environment / Sync Status | User |
 +-------------------+------------------------------------------------------------------------------+
 | Persistent Sidebar| Top KPI Strip: Squat Max (kg) | Bench Max (kg) | Deadlift Max (kg) | ACWR    |
 | [240px width]     |------------------------------------------------------------------------------|
@@ -282,6 +284,7 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 | - Calendar        |                                                                              |
 | - Sessions        |   [Structured Builder Card | Meet Day Planner Table | Telemetry Streams]     |
 | - Insights        |                                                                              |
+| - Roster (Coach)  |                                                                              |
 | - Integrations    | Right Drawer Rail: Writer Locks status | Tombstone Conflict Review Panel     |
 | - Security        |                                                                              |
 +-------------------+------------------------------------------------------------------------------+
@@ -356,7 +359,8 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
 * **Workspace Links Navigation Group:** Navigation items highlighted in `--ok-blue` border tags when active:
   * **Calendar:** Date-first month grid for the scoped athlete plan.
   * **Sessions:** List grouped by Block/Week labels when present. Cards lead with Name and show every set as Plan vs Log.
-  * **Insights:** Composable saved cards (server-canonical metrics). Athlete roster is not a workspace. Coaches pick a linked athlete from the unlabeled email switcher above this list. Athletes do not see a switcher.
+  * **Insights:** Composable saved cards (server-canonical metrics). Coaches pick a linked athlete from the global switcher above this list.
+  * **Roster (coaches):** Search and manage linked athletes, then open an athlete plan. Athletes do not see Roster or the switcher.
 * **Operations & Integrations Navigation Group:**
   * **Sheets Publisher:** Controls one-way spreadsheet target mappings.
   * **Telegram Mini App:** Links Telegram adapter connections.
@@ -366,339 +370,31 @@ The desktop console is a high-density, keyboard-efficient workspace designed for
   * **Local Database Status:** Verification badge displaying IndexedDB hydration status: `[✓] IndexedDB hydrated`.
   * **Force Sync Trigger:** High-contrast, borders-only button `[ FORCE FULL SYNC ]` allowing immediate manual sync overrides if browser sandbox limits automatic timing loops.
 
-#### 6.1.2 Desktop Calendar Grid & Mesocycle Planning Cards Layout Spec
+#### 6.1.2 Calendar workspace
 
-##### 6.1.2.1 Microcycle View Layout Spec
+The Calendar is a date-first month view of dated sessions. A session may be unlabeled or carry optional Block and Week labels; the calendar does not require microcycle or Mon–Sun training containers. Show the real month and year, with no placeholder mesocycle or microcycle banners.
 
-##### Dimensional Constraints
-* **Minimum Workspace Width**: `960px` total horizontal container budget to prevent column compression. Day columns have a hard absolute `min-width: 130px`.
-* **Day Column Width**: Evaluated dynamically as `1fr` across standard viewports.
-* **Padding & Margins**: Calendar grid outer container is locked to `--space-4` (16px) margins. Interior workout cells use `--space-2` (8px) card padding for extreme density visual clarity.
+- Render a seven-column calendar grid that adapts to the available viewport. Preserve usable session content at mobile widths; do not impose desktop minimum widths that cause page overflow.
+- Session chips show the session name, Day/Week/Block metadata, and short lift codes. Do not put prescribed set strings or training analytics in the chips. Chips rest flat and gain the defined lift treatment on pointer hover.
+- A day has a reserved action dock for **New session**, **Copy to** when it contains a session, and **Notes**. Showing actions must not resize the day on hover, cover session or note cards, or spill into a neighboring day. Today is indicated by its date numeral, not an inset cell ring.
+- Saved notes appear as separate day cards, including on days without sessions. Notes belong to the calendar date and athlete plan.
+- Clicking a session opens the session screen. Copying preserves relative date gaps and offers plan-only or plan-plus-logged-sets copies. The destination calendar date sets the copied session's first date.
+- Calendar and Sessions share a lift-filter dialog. It matches stored lift category, movement pattern, and tier fields; choices combine with OR within a field and AND across fields.
+- Coach Calendar follows the active athlete switcher. Provide loading, empty, error, permission-denied, rejected, and locked states where applicable. Empty plans remain empty.
 
-##### Spatial Allocation
-* **Grid Layout Model**: CSS Grid layout: `display: grid; grid-template-columns: repeat(7, 1fr); column-gap: var(--space-3)` (`12px`).
-* **Header Allocation**: Nav header takes a fixed `48px` vertical footprint. Day headers use `24px` height.
-* **Internal Card Structure**: Structured vertical flex stack mapping exercises and set rows, with LexoRank reorder handles absolute-positioned inline.
+#### 6.1.3 Coach Roster workspace and athlete switcher
 
-##### State Transitions (Default vs. Maximized)
-* **Default State**: With 240px sidebar expanded, day columns operate at their minimum usable width threshold on 1200px viewports (`(1200 - 240) / 7 = 137px`). Day cards show condensed summaries.
-* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Core workspace expands to 100% viewport width (`1200px` or wider). Day columns expand to `170px` each, unlocking deep planned-vs-executed details without visual wrapping.
+Coaches have a dedicated **Roster** workspace for finding and managing linked athletes as their roster grows. The Active athletes view is searchable by athlete display name and full email, shows the name first and email as a secondary identifier, and opens the live athlete plan. Coaches can unlink an active athlete after a confirmation that explains access ends and the athlete keeps the plan. Do not create athlete subprofiles inside the coach account.
 
-```
-+=====================================================================================================================================================+
-| Calendar Header: [ Month: OCTOBER 2023 ] [ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]      View Mode: [ MONTH ] [ MICRO ]* [x] Expand All Sets    |
-+=====================================================================================================================================================+
-| DAY 01 (Expanded Column)*     | DAY 02 (Oct 3)    | DAY 03 (Oct 4)    | DAY 04 (Oct 5)    | DAY 05 (Oct 6)    | DAY 06 (Active)*  | DAY 07 (Oct 8)  |
-+-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| [✓] D1: SQUAT DOMINANT        | [✓] D2: H. PUSH   | [ ] REST DAY      | [✓] D3: HINGE     | [ ] REST DAY      | [~] D4: ACC FLOW  | [ ] UNPLANNED   |
-|                               |                   |                   |                   |                   |                   |                 |
-|  :: High Bar Squat [v]        |  :: Bench Press[>]| (Rest Interval:   |  :: Deadlift [>]  | (Rest Interval:   |  :: Leg Press [v] | (No workouts    |
-|     [✓] rx: 140.0kg x 5 @ 7.5 |     3x5 @ 100.0kg |  Passive recovery |     3x3 @ 180.0kg |  Passive recovery |     [✓] rx: 120kg |  scheduled)     |
-|         140.0kg x 5 @ 7.5 RPE |  :: OHP [>]       |  and tissue       |  :: RDL [>]       |  and tissue       |         120kg x 10|                 |
-|     [✓] rx: 140.0kg x 5 @ 8.0 |     3x8 @ 50.0kg  |  reconstitution)  |     3x8 @ 100.0kg |  reconstitution)  |     [ ] rx: 120kg |                 |
-|         142.5kg x 5 @ 8.0 RPE |                   |                   |                   |                   |         - pending -                 |
-|     [ ] rx: 140.0kg x 5 @ 8.0 |                   |                   |                   |                   |                   |                 |
-|         - pending execution - |                   |                   |                   |                   |                   |                 |
-|                               |                   |                   |                   |                   |                   |                 |
-| Vol: 12,450.0 kg              | Vol: 5,400.0 kg   |                   | Vol: 8,820.0 kg   |                   | [ LIVE TELEMETRY ]|                 |
-|  (Δ: +1,200.0kg / +10.6%)*    |                   |                   |                   |                   | Progress: [=====>]|                 |
-| INOL: 0.85 (Optimal)          | INOL: 0.62 (Opt)  |                   | INOL: 1.12 (Caut) |                   | Status: In Progress|                 |
-| Peak e1RM: 161.5 kg           |                   |                   |                   |                   |                   |                 |
-|  (Δ: +2.5kg / +1.6%)*         |                   |                   |                   |                   |                   |                 |
-| Status: Completed             | Status: Completed |                   | Status: Completed |                   | Status: In Progress|                 |
-| [✓] Lock Engaged              | [✓] Lock Engaged  |                   | [✓] Lock Engaged  |                   | [ RE-OPEN ]       |                 |
-+-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| <======= Drag Constraint Boundaries: Workout Card Drag-and-Drop Operations Allowed Only Within This Active Microcycle Zone ========> |
-+=====================================================================================================================================================+
-```
+The Past athletes view lists ended relationships separately and opens a read-only snapshot captured when unlinking. It shows sessions dated during that relationship through the unlink date. The snapshot is frozen; later logs, edits, notes, analytics, and sessions are unavailable to the former coach. Past athletes never become active scope choices.
 
-* **Interactive Calendar Grid Controls:**
-  * **Unified Sub-Header Navigation Panel:** Renders current active Month, Microcycle sequence progression metrics (`[ Mesocycle: MESO_02 ] [ Microcycle: 04 / 06 ]` matching rolling CNS fatigue schedules), responsive View Mode toggle keys (`[ MONTH ]` and `[ MICRO ]`), and a prominent manual `[ SYNC LOGS ]` trigger button.
-  * **Expand All Sets (All Days) Global Toggle:** A visual checkbox option `[x] Expand All Sets` located in the header. Checking this toggle transitions **every** daily card and exercise block across the entire microcycle into their expanded planned-vs-executed set stack at once, allowing complete high-density session review without clicking individual tabs.
-  * **Day hover overlay:** Hovering a day shows a compact action overlay (`New session`, `Copy to` when that day has a session, `Notes`) in a reserved in-flow dock. It must not change the in-flow height of the day container. A hovered day stays the same height as at rest. Do not draw an accent inset ring around the day cell (hover or today). Today is the accent date numeral only. Hover fill is quiet `surface-soft` at 180ms, with ~100ms intent before the dock. Copy-to destination rings stay.
-  * **Day notes:** Notes are keyed by calendar date + athlete plan, not weekday. A saved note appears as a distinct card on that day at rest (including empty days with no session). Sibling of session cards under the Day — not nested inside a session chip. Coach Calendar notes follow the athlete switcher.
-  * **Day Column Expander Icons:** Each scheduled exercise inside a day card features a dedicated inline expander handle (`[>]` for collapsed, `[v]` for expanded) to show that coaches can optionally expand and collapse specific exercise blocks on any day individually (e.g. `:: Bench Press [>]` on DAY 02 vs. `:: Leg Press [v]` on DAY 06).
-* **Workout Cards Sizing & Functional States:**
-  * **Planned Workout State:** Standard card styling mapping structured exercises sorted strictly by lexical rank, detailing planned sets, target loads, volume computations, and estimated fatigue footprints.
-  * **Completed Workout State:** Session may show a Complete status label. Plan and log stay fully editable. No Open control and no SESSION LOCKED banner.
-  * **Missed Workout State:** Renders with a distinct red boundary treatment `--ok-red` (`hsl(0, 84%, 60%)`) and bold warning metadata text `"Missed Session"` if a planned training day passes the hydration window without any recorded sets.
-  * **In-Progress Workout State:** Displays an active, pulsing telemetry label (`[ LIVE TELEMETRY ]`), a dense horizontal completion progress bar tracking logged sets against planned sets, and direct hover options to sync or pause the telemetry feed.
-* **Vertical Stack Planned vs. Executed (Actual) Set Styling Rules:**
-  * **Top line (Prescription):** Displayed using a dimmed status text color (`hsl(0, 0%, 50%)`) and a smaller font size (`text-xs` / `12px`), prefixed with `rx:` to represent the programmed target:
-    `[✓] rx: 140.0 kg x 5 @ 8.0`
-  * **Bottom line (Executed Actual):** Rendered in a bold, high-contrast style (`text-sm` / `14px`) using the standard foreground color directly below it, aligned with the status checkbox:
-    `    142.5 kg x 5 @ 8.0 RPE`
-  * **Pending sets:** If a set has not been logged yet, it renders only the top prescription line followed by a light pending indicator:
-    `    - pending execution -`
-* **Interactive Microcycle Difference Indicators (Deltas):**
-  * When a coach or athlete taps/presses the `Vol (Tonnage)` or `Peak e1RM` metrics within a day card, the card expands its layout to reveal high-contrast progressive overload difference badges (`Δ` delta lines) displaying absolute and percentage changes compared to the previous microcycle:
-    * **Tonnage Delta:** Tapping `Vol` reveals a secondary metrics row displaying the absolute (kg) and percentage (%) change relative to the same session in the previous microcycle:
-      `Vol: 12,450.0 kg`
-      ` (Δ: +1,200.0 kg / +10.6%)`
-    * **e1RM Peak Delta:** Displays the absolute and percentage peak e1RM delta compared to the previous microcycle:
-      `Peak e1RM: 161.5 kg`
-      ` (Δ: +2.5 kg / +1.6%)`
-    * **Color Badging Rules:** Delta rows are styled using highly readable HSL green (`hsl(142, 70%, 45%)`) for positive progressions, or HSL amber (`hsl(38, 92%, 50%)`) for intentional deload drops.
-* **LexoRank & Drag-and-Drop Operations Rules:**
-  * **Fractional Indexing drag Handles:** Each scheduled exercise row within a planning card displays a vertical monospaced drag grip (`::`). Dragging an exercise vertically within the card recomputes its specific `lexo_rank` property on the client, preserving order sequence during offline synchronization conflicts without rewriting neighboring row records.
-  * **Microcycle drag Boundary constraint Lock:** Drag-and-drop actions on full workout cards are permitted strictly within the horizontal bounds of the active microcycle zone. Dragging cards across microcycle boundaries is blocked visually and programmatically to protect fatigue curves (ACWR, INOL) from logical corruption. Attempting an out-of-bounds drag triggers an immediate red border flash, and the card optimistically returns to its origin block upon release.
-  * **Keyboard Reorder Hotkeys:** Power users can highlight any card or exercise handle and press `Ctrl+Up` / `Ctrl+Down` (vertical reordering) or `Ctrl+Left` / `Ctrl+Right` (horizontal daily shifting) as a high-velocity alternative to mouse dragging.
+The sidebar `AthleteScopeSelector` remains available as the fast global scope switch on Calendar, Sessions, and Insights. Selecting an active athlete in Roster sets the active athlete and opens that athlete's Calendar. Athletes do not see Roster or the switcher; each athlete has one plan. Each athlete registers a separate account; the coach generates a coach code in Security and the athlete enters it there. Roster may link to Security for coach-code onboarding; it must not replace that flow. Athlete-managed optional display names are edited in Security; linked coaches see and search by both name and full email.
 
-##### 6.1.2.2 Month View Layout Spec
+Roster has loading, empty, error, and permission-denied states for active and past lists, plus loading/error/empty states for archived history. The active empty state explains that athletes join with a coach code and links to Security. Search and selection remain keyboard accessible. Archived sessions are read-only and identify the unlink-time cutoff. Keep training analytics in Insights. Do not show Live / Queue / Offline under the selector (sync is the corner overlay, see section 10.3). Push-program acknowledgement remains a Plan actions item on the selector.
 
-##### Dimensional Constraints
-* **Minimum Workspace Width**: `1024px` to prevent multi-week overlapping rows. Individual calendar day cards have a hard absolute `min-width: 120px`.
-* **Microcycle Banner Height**: Persistent horizontal strips locked to `32px` height to prevent vertical workspace crowding.
-* **Outer Padding**: Grid tracks locked to `--space-4` (16px). Day cards have a `--space-2` (8px) padding block.
-
-##### Spatial Allocation
-* **Grid Layout Model**: CSS Grid: `display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background-color: var(--ok-border);`.
-* **Horizontal Banners**: Custom Row-Span banner overlay layout that spans dynamically across calendar week boundaries to represent split/wrapping microcycles.
-* **Movement Specificity**: Compact text layout representing categories and estimated maximum metrics.
-
-##### State Transitions (Default vs. Maximized)
-* **Default State**: Standard view with active sidebar layout. Day cards hide trailing historical overlays to fit compact viewport allocations.
-* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Reclaimed width expands day cards, allowing simultaneous visualization of target e1RM, INOL stress scores, actual volumes, and flow connector ribbons without column truncation.
-
-The Month View provides a high-density macrocycle calendar grid representing rolled-up training microcycles stacked vertically to review program adherence and cumulative progressive overload indices at a glance. It integrates a dedicated **Horizontal Microcycle Capsule Banner** layer, positioning the microcycle as an interactive, first-class planning object that dynamically spans across calendar days, preserving the standard 7-day Monday-to-Sunday calendar grid layout without column distortion.
-
-Additionally, it incorporates the **Asymmetric Adaptive Track Lane** and **Flow Connector Ribbon** model horizontally to seamlessly handle split and wrapping microcycles (such as 8-day cycles) that span across standard calendar week boundaries.
-
-```
-+=====================================================================================================================================================+
-| Calendar Header: [ Month: OCTOBER 2023 ] [ Mesocycle: MESO_02 ]                             View Mode: [ MONTH ]* [ MICRO ]         [ SYNC LOGS ]    |
-+=====================================================================================================================================================+
-| MON                 | TUE                 | WED                 | THU                 | FRI                 | SAT                 | SUN                 |
-+=====================================================================================================================================================+
-| [✓] MICRO 04 (ACC) Tonnage: 29,890 kg [⚙][⇡]                | [ ] MICRO 05 (TRN) - 8d Cycle [Part 1] Tonnage: 32,500 kg ===>                       |
-+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+
-| 02 Oct              | 03 Oct              | 04 Oct              | 05 Oct              | 06 Oct              | 07 Oct (Today)*     | 08 Oct              |
-|  [✓] D1: SQUAT DOM  |  [✓] D2: H. PUSH    |  [ ] REST DAY       |  [ ] D1: SQUAT DOM  |  [ ] D2: H. PUSH    |  [ ] REST DAY       |  [ ] D3: HINGE/PULL |
-|  Vol: 12,450 kg     |  Vol: 5,400 kg      |                     |  tVol: 12,450 kg    |  tVol: 5,400 kg     |                     |  tVol: 8,800 kg     |
-|  INOL: 0.85 (Opt)   |  INOL: 0.65 (Low)   |                     |  tINOL: 0.85 (Opt)  |  tINOL: 0.70 (Low)  |                     |  tINOL: 0.90 (High) |
-|  SQ: 210 kg e1RM    |  BP: 145 kg e1RM    |                     |  SQ: 215 kg Target  |  BP: 150 kg Target  |                     |  DL: 245 kg Target  |
-+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+
-| ===> [ ] MICRO 05 (TRN) - [Part 2] (Cont. from 05 Oct) [⚙][⇡] [v]   | [ ] MICRO 06 (PEAKING / DELOAD) Tonnage: 14,200 kg [⚙][⇡] [v]                       |
-+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+---------------------+
-| 09 Oct              | 10 Oct              | 11 Oct              | 12 Oct              | 13 Oct              | 14 Oct              | 15 Oct              |
-|  [ ] REST DAY       |  [ ] D4: ACC FLOW   |  [ ] REST DAY       |  [ ] D5: ACC FLOW*  |  [ ] D1: DELOAD SQ  |  [ ] D2: DELOAD PU  |  [ ] REST DAY       |
-|                     |  tVol: 9,200 kg     |                     |  tVol: 10,500 kg    |  tVol: 4,500 kg     |  tVol: 3,200 kg     |                     |
-|                     |  tINOL: 0.75 (Mod)  |                     |  tINOL: 0.80 (Mod)  |  tINOL: 0.40 (Low)  |  tINOL: 0.35 (Low)  |                     |
-|                     |  BP: 135 kg Target  |                     |  SQ: 195 kg Target  |  SQ: 140 kg Target  |  BP: 95 kg Target   |                     |
-+=====================+=====================+=====================+=====================+=====================+=====================+=====================+
-| <======= Drag Constraint Boundaries: Workout Card Drag-and-Drop Operations Allowed Only Within the Same Asymmetric Microcycle Track Lane ========> |
-+=====================================================================================================================================================+
-```
-
-* **High-Density Month View Grid Alignment & Horizontal Banners:**
-  * Displays a 7-column calendar grid mapping calendar days Monday to Sunday. 
-  * Training blocks are stacked vertically as horizontal rows, using **Horizontal Microcycle Capsule Banners** injected directly above day card groups inside each row.
-  * Shaded backgrounds are applied to days belonging to completed blocks or rest days to enhance visual parsing.
-* **Microcycle Capsule First-Class Controls:**
-  * **Row-Level Collapse Toggle (`[v] Collapse` / `[^] Expand`)**: Click in a banner to collapse all day cards grouped by that specific microcycle, saving vertical workspace.
-  * **Tuning Settings Trigger (`[⚙]`)**: Opens a modal dialog to apply week-specific relative volume adjustments, fatigue limitations, or custom coaching notes.
-  * **Publish Target Trigger (`[⇡]`)**: Flushes and publishes this specific microcycle's logged set details directly to the linked Google Sheets target.
-* **Flow Connector Ribbons (Wrapping Microcycle Support):**
-  * Spans and links microcycles seamlessly across standard week boundaries (e.g. `MICRO 05` wrapping from Thursday of Week 1 to Thursday of Week 2) using standard flow connector arrows (`==>`) at the edges of the banners.
-* **Linked Hover Highlighting:**
-  * Hovering or focusing on any day or banner segment of a split microcycle triggers a synchronized outline focus highlight on **both wrapped segments** across the calendar rows simultaneously, consolidating tonnage and stress indicators.
-* **High-Density Compact Session Diagnostics:**
-  * Workout days display compact, high-density S&C indicators detailing workout name, state (`[✓]` completed, `[ ]` planned, `[~]` in progress, or `REST DAY`).
-  * Completed sessions showcase actual tonnage (`Vol`), actual stress (`INOL`), and primary estimated 1RM benchmark updates (e.g. `SQ: 210 kg e1RM`).
-  * Planned/future sessions showcase target stress profiles, including target tonnage (`tVol`), target stress (`tINOL`), and target movement intensities (e.g. `BP: 150 kg Target`), giving coaches immediate visual feedback across microcycles.
-* **Row-Level Horizontal Drag Boundary Lock (Architecture Section 7.6):**
-  * Tapping and dragging a workout card is permitted horizontal and vertically **only within the same colored microcycle track lane**, wrapping across week rows if necessary. Dragging across track lanes to another microcycle is blocked client-side, triggering a red warning card flash and optimistic snapback on release.
-* **Microcycle Performance Deltas Tooltip:**
-  * Clicking or hovering over any completed day block reveals a high-contrast floating modal showing rolling **Tonnage** and **e1RM deltas** relative to the same session in the previous microcycle (e.g. `Vol Delta: +1,200.0 kg / +10.6%`), using HSL green for progression and amber for load decreases.
-
-##### 6.1.2.3 Periodization Readiness Wave & Training Spacing Layout Spec
-
-##### Dimensional Constraints
-* **Minimum Width**: `960px` to match the Day columns grid spacing overhead.
-* **Height**: Default height is `180px` total (`60px` per lane for Squat, Bench Press, and Deadlift channels).
-* **Padding & Margins**: Vertical padding locked to `--space-2` (8px) per lane.
-
-##### Spatial Allocation
-* **Layout Model**: Flex column stack (`display: flex; flex-direction: column; gap: var(--space-1)`).
-* **Track Grid**: Matches the 7-day columns width strictly using absolute matching container offsets (`repeat(7, 1fr)`).
-
-##### State Transitions (Default vs. Maximized)
-* **Default State**: In standard view with sidebar expanded, all three movement channels are visible, taking `180px` vertical footprint.
-* **Maximized State**: Collapsing one or more inactive track lanes (e.g. unchecking SQ and DL filters) collapses their track heights to `0px` instantly, reclaiming `120px` of vertical workspace for the calendar day cards.
-
-To visualize the immediate biological fatigue impact of scheduled workouts and optimize load timing, the calendar features an integrated, continuous **Periodization Readiness Wave Rail** spanning directly underneath the daily microcycle columns. 
-
-Because localized fatigue channels (SQ, BP, DL) and systemic CNS fatigue interact dynamically, these tracks are co-plotted onto **a single unified field-like graph** representing both movement-specific supercompensation peaks and the composite systemic fatigue undercurrent. 
-
-Coaches can toggle checkboxes in the header strip (`Channels Visibility: [x] SQ | [x] BP | [x] DL`) to dynamically overlay or isolate specific movement curves within the unified graph panel, maximizing vertical visual budget:
-
-```
-+=====================================================================================================================================================+
-| Microcycle 04 Calendar Grid & Unified CNS Readiness Wave                                                                                             |
-+-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| DAY 01: SQUAT DOMINANT        | DAY 02: H. PUSH   | DAY 03: REST DAY  | DAY 04: HINGE/PULL| DAY 05: REST DAY  | DAY 06: ACC FLOW  | DAY 07: UNPLANNED|
-| Tonnage: 12,450.0 kg (High)   | Tonnage: 5,400.0kg| Recovery Interval | Tonnage: 8,820.0kg| Recovery Interval | Tonnage: 3,200.0kg| Rest day         |
-| Status:  Completed [✓]        | Status: Completed | Passive Rest Day  | Status: Completed | Passive Rest Day  | Status: In Prog   |                  |
-+-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| Unified Systemic & Localized Readiness Wave (Co-plotted CNS Fatigue vs. Movement-Specific Supercompensation curves):                               |
-|                                                                                                                                                     |
-| Curves Legend: [S] Squat (SQ)  [B] Bench Press (BP)  [D] Deadlift (DL)  [=] Systemic CNS Fatigue Floor (Composite limit)                            |
-|                                                                                                                                                     |
-| e1RM % Capacity                                                                                                                                     |
-|  110% |                              [B]*                                [S]*                                                               |
-|       |                               B                                   S                                                                 |
-|  100% |-------[B]--------------------/-\-----------[D]-------------------/-\-----------[S]-------------------------------------------[B]-----------  |
-|       |      /   \                  /   \         /   \                 /   \             /   \                                         /   \           |
-|   90% |     /     \     [S]        /     \       /     \               /     \           /     \                                       /     \          |
-|       |    S       \   /   \      /       \     D       \             /       \         /       \   [D]*                                  /       \         |
-|   80% |===========D=\=/=====S====/=========\===/=========\===========/=========\=======/=========\=/===\=============================D=/=========\=======|
-|       |   [ FATIGUED ]     [ RECOVERED ]      [ FATIGUED ]          [ RECOVERED ]     [ PEAK READINESS ]*            [ RECOVERED ]                  |
-|   70% |   (S & D Redline)                     (D Redline)                             (SQ Peak e1RM attempt)                                        |
-+=====================================================================================================================================================+
-```
-
-##### 6.1.2.4 Collapsed Readiness Lanes Layout Spec
-
-##### Dimensional Constraints
-* **Minimum Width**: `960px` to match the Day columns grid spacing overhead.
-* **Height**: Unified graph height: `80px` (Expanded with overlays). Collapsed height: `0px` (if all filters are unchecked).
-* **Padding & Margins**: Base container padding locked to `--space-2` (8px).
-
-##### Spatial Allocation
-* **Layout Model**: Single unified SVG or HTML5 Canvas element. Dynamic CSS class selectors control visibility of individual curve overlays (`.curve-sq`, `.curve-bp`, `.curve-dl`).
-* **Track Grid**: Shared horizontal axis maps strictly to the 7-day columns.
-
-##### State Transitions (Default vs. Maximized)
-* **Default State**: Standard view with all three movement-specific readiness curves and the Systemic CNS Fatigue Floor co-plotted together.
-* **Maximized State (Active Series Filtering)**: Unchecking movement filters hides their specific curve elements dynamically from the shared chart grid. This keeps the visual field completely clean (e.g. showing strictly Bench Press and Systemic Floor) while preserving the persistent `80px` height footprint to prevent optical jitter and layout shifts.
-
-When the coach unchecks specific movement filters (e.g. unchecking SQ and DL to focus exclusively on upper-body planning), the active lines are dynamically hidden from the unified field graph, leaving only the focused curve visible:
-
-```
-+=====================================================================================================================================================+
-| Microcycle 04 Calendar Grid & Unified CNS Readiness Wave                                                                                             |
-+-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| DAY 01: SQUAT DOMINANT        | DAY 02: H. PUSH   | DAY 03: REST DAY  | DAY 04: HINGE/PULL| DAY 05: REST DAY  | DAY 06: ACC FLOW  | DAY 07: UNPLANNED|
-| Tonnage: 12,450.0 kg (High)   | Tonnage: 5,400.0kg| Recovery Interval | Tonnage: 8,820.0kg| Recovery Interval | Tonnage: 3,200.0kg| Rest day         |
-| Status:  Completed [✓]        | Status: Completed | Passive Rest Day  | Status: Completed | Passive Rest Day  | Status: In Prog   |                  |
-+-------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+-----------------+
-| Unified Systemic & Localized Readiness Wave (Active Series Filtering: SQ & DL hidden):                                                             |
-|                                                                                                                                                     |
-| Curves Legend: [ ] Squat (SQ)  [x] Bench Press (BP)  [ ] Deadlift (DL)  [x] Systemic CNS Fatigue Floor (Composite limit)                            |
-|                                                                                                                                                     |
-| e1RM % Capacity                                                                                                                                     |
-|  110% |                              [B]*                                                                                                           |
-|       |                               B                                                                                                             |
-|  100% |-------[B]--------------------/-\--------------------------------------------------------------------------------------------- [B]-----------  |
-|       |      /   \                  /   \                                                                                           /   \           |
-|   90% |     /     \                /     \                                                                                         /     \          |
-|       |    /       \              /       \                                                                                       /       \         |
-|   80% |====================================\=====================================================================================/=================|
-|       |   [ RECOVERED ]    [ PEAK READINESS ]*    [ FATIGUED ]          [ RECOVERED ]     [ RECOVERED ]                  [ RECOVERED ]                  |
-+=====================================================================================================================================================+
-```
-
-* **Training Timing Spacing Rules & Order of Workouts:**
-  * **The 48-Hour Recovery Window**: Heavy compound lifts (Competition Squat and Competition Deadlift) must be spaced by a minimum of 48 hours of recovery (passive rest or accessory flow) to prevent fatigue sum accumulation (redline overlap).
-  * **Optimal Sequence Placement**: High-tonnage sessions are followed strictly by Rest Days or low-intensity Acceleration Flow accessory sessions to allow the Readiness curve to rebound cleanly into the supercompensation zone before the next progressive overload shock cycle.
-  * **Readiness Wave Diagnostics (Movement-Specific Tapering)**:
-    * **Local Muscular Supercompensation Peak (Green Highlight / `[PEAK]*`)**: Movement-specific readiness rises above baseline. Characterized by high local motor unit recruitment thresholds and minimal local muscle soreness. Ideal timing to schedule heavy singles or e1RM peak tests for that specific movement category.
-    * **Local Nervous System Fatigue Valley (`fatigued`)**: Movement-specific readiness deeply depressed below baseline due to recent heavy spinal or upper-body loading cycles. Cap top sets at RPE 8.0, reduce backdown sets by -10% for that exercise to allow targeted localized recovery.
-
-#### 6.1.3 Coach athlete switcher (relocated roster)
-
-The former Athletes Roster workspace is **not** a top-level tab. Coaches pick a linked athlete from an unlabeled email switcher in the left sidebar (`AthleteScopeSelector`, `data-testid="athlete-scope-selector"`). Athletes do not see this control — each athlete has one plan. There is no profile factory in the switcher: each athlete registers an account, the coach generates a code on Security, and the athlete enters it. Empty coach list: `Select athlete…`; open list copy `No linked athletes.` plus a Security path for the coach code. Do not label the control **Athlete plan**, do not hint **Your plan** / **Linked**, and do not print Live / Queue / Offline under it (sync is the corner overlay, §10.3). Coach code generate/link remains on Security. Push-program acknowledgement is a Plan actions item on the selector. Deep links `#/roster`, `#/athletes`, and `?view=roster` redirect to `#/calendar?panel=athlete-scope`.
+`#/roster` and `?view=roster` open the Roster workspace. Legacy `#/athletes` and `?view=athletes` redirect to `#/roster`. `panel=athlete-scope` continues to open the quick selector on Calendar.
 
 Insights (formerly a hardcoded three-lift tonnage/e1RM strip) is a dedicated workspace of user-composed cards. Card configuration is a structured inspector form. Results come from `POST /api/analytics/query`; the client does not compute RTS metrics for cards. Pattern-scoped cards use the stored `movement_pattern` on each exercise row.
-
-The historical dual-pane roster console below is retained only as a record of the old layout; do not restore it as a tab.
-
-##### 6.1.3.1 Active Roster & Onboarding View (historical)
-
-##### Dimensional Constraints
-* **Minimum Workspace Width**: `1200px` for side-by-side pane rendering.
-* **Left Roster List Pane Width**: Mapped strictly to `320px` (`min-width: 320px; max-width: 320px`).
-* **Detailed Analytics Pane Width**: Dynamic flex width sizing to consume the remaining horizontal workspace.
-* **Padding & Margins**: Container margins locked to `--space-4` (16px). Quadrant diagnostic cards use `--space-3` (12px) padding boundaries.
-
-##### Spatial Allocation
-* **Layout Model**: Flex row layout (`display: flex; flex-direction: row; align-items: stretch;`).
-* **Detailed Analytics Layout**: CSS Grid for 6 distinct diagnostic quadrants: `display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3);` for top rows, and custom split rows for distributions and plots.
-* **Borders**: Split line is mapped to a `1px solid var(--ok-border)` (`hsl(0, 0%, 16%)`) color.
-
-##### State Transitions (Default vs. Maximized)
-* **Default State**: Both left sidebar, athlete roster pane, and detailed analytics quadrants are displayed side-by-side. The 6-quadrant container utilizes a restricted `calc(100vw - 560px)` horizontal footprint, placing cards in compressed layouts.
-* **Maximized State (Dynamic Space Reclamation)**: Left sidebar collapses to `60px` or `0px`. This reclaims `180px` or `240px` of horizontal layout budget. The 6-quadrant container expands dynamically to `calc(100vw - 320px)` or more, increasing grid sizes and resolving any text overlapping inside DOTS, ARI, and ACWR panels.
-
-The Athletes Roster workspace functions as the primary operational console for coaches to audit real-time athlete telemetry, evaluate systemic training stress profiles, and deploy autoregulated powerlifting programming. The dual-pane layout integrates inbound athlete connection states, roster metadata, and high-density performance diagnostics (DOTS coefficients, Relative Intensity curves, Acute-to-Chronic Workload Ratios, and Attempt Selection projections).
-
-##### 6.1.3.1 Active Roster & Onboarding View
-
-```
-+======================================================================================================================+
-| [K] ADAPTIVE LIFTING | [ Calendar Grid ]  [✓] Athletes Roster [ 3 Alerts ]*  [ Analytics Engine ]       [ COACH ROLE ]|
-+======================+===============================================================================================+
-|                      |                                                                                               |
-| Monitored Athlete:   |  COACH ATHLETES ROSTER WORKSPACE                                                              |
-| +------------------+ |  Manage linked athletes, review active programs, and deploy training microcycles.            |
-| | (o) John Doe     | |                                                                                               |
-| | [✓] SSE Active   | |  +-----------------------------------------------------------------------------------------+  |
-| +------------------+ |  | ACTIVE ROSTER OVERVIEW                                                            [ 3 ] |  |
-|                      |  +-----------------------------------------------------------------------------------------+  |
-| Primary Workspaces:  |  | [o] athlete1@example.com   [2 Active Blocks]                           [ VIEW OVERVIEW ]|  |
-| [ ] Calendar Grid    |  | [o] athlete2@example.com   [4 Active Blocks] - (High Fatigue Alert ⚠️)          [ VIEW OVERVIEW ]|  |
-| [✓] Athletes Roster  |  | [o] athlete3@example.com   [1 Active Block]                            [ VIEW OVERVIEW ]|  |
-| [ ] Analytics        |  +-----------------------------------------------------------------------------------------+  |
-|                      |                                                                                               |
-| Operations:          |  +-----------------------------------------------------------------------------------------+  |
-| [ ] Sheets Publisher |  | ONBOARDING TOOLKIT                                                                      |  |
-| [ ] Telegram Link    |  +-----------------------------------------------------------------------------------------+  |
-| [ ] Security Audit   |  | Your Coach Link Code: [ coach_doe_secure_2026                 ]            [ COPY LINK ]|  |
-|                      |  +-----------------------------------------------------------------------------------------+  |
-| System Metrics:      |                                                                                               |
-| Env: [ STAGING ]     |                                                                                               |
-+======================+===============================================================================================+
-```
-
-##### 6.1.3.2 Athlete Detailed Analytics & Attempt Selection View
-
-```
-+======================================================================================================================+
-| Monitored Athlete:   |  ATHLETE OVERVIEW: [ athlete2@example.com ]                                                  |
-| +------------------+ |  Current Phase: Hypertrophy Block (4 Weeks)                             [ DEPLOY / PUSH LIFT ]|
-| | (o) John Doe     | |                                                                                               |
-| | [✓] SSE Active   | |  +--------------------------+  +--------------------------+  +------------------------------+ |
-| +------------------+ |  | QUADRANT 1: DOTS COEFFICIENT|  | QUADRANT 2: WEEKLY ARI   |  | QUADRANT 3: ACWR WORKLOAD    | |
-|                      |  |   512.45 Points          |  |   78.6% Relative Int.    |  |   ACWR: 1.25                 | |
-| Primary Workspaces:  |  |   (Elite Standard)       |  |   (Optimal Progression)  |  |   [ OPTIMAL ZONE - GREEN ]   | |
-| [ ] Calendar Grid    |  +--------------------------+  +--------------------------+  +------------------------------+ |
-| [✓] Athletes Roster  |                                                                                               |
-| [ ] Analytics        |  +------------------------------------------+  +--------------------------------------------+ |
-|                      |  | QUADRANT 4: WEEKLY NL DISTRIBUTION       |  | QUADRANT 5: FATIGUE ENGINE (INOL VS e1RM)  | |
-| Operations:          |  |   Comp [████████████████████░░] 70%      |  |  INOL (L)                  e1RM (R)        | |
-| [ ] Sheets Publisher |  |   Vari [████████░░░░░░░░░░░░░░] 30%      |  |   2.0 +     \        /     + 280 kg        | |
-| [ ] Telegram Link    |  |   Acce [████░░░░░░░░░░░░░░░░░░] 15%      |  |   1.0 +      \      /      + 260 kg        | |
-| [ ] Security Audit   |  +------------------------------------------+  +--------------------------------------------+ |
-|                      |                                                                                               |
-| System Metrics:      |  +-----------------------------------------------------------------------------------------+  |
-| Env: [ STAGING ]     |  | QUADRANT 6: INTERACTIVE COMPETITIVE ATTEMPT PLANNER                                     |  |
-|                      |  +-----------------------------------------------------------------------------------------+  |
-|                      |  | 1st Attempt Opener: [ 220 kg ]  Lift Profile: [ Squat / Deadlift ]                       |  |
-|                      |  | Suggested 2nd Attempt Range: 236.5 kg - 242.0 kg  | 3rd Attempt Stat Ceiling: 266.2 kg      |  |
-|                      |  +-----------------------------------------------------------------------------------------+  |
-+======================+===============================================================================================+
-```
-
-* **Interactive Roster Controls & High-Density Diagnostic Quadrants:**
-  * **Unified Navigation Header:** Switches active dashboard routes between the macrocycle Calendar Grid, the Athletes Roster workspace (with real-time pending alert badging), and the Analytics Engine.
-  * **Onboarding Link Clipboard Copier:** Secure token generator `[ COPY LINK ]` that copies the coach's routing identifier for one-click athlete association.
-  * **Drill-down Athlete Performance Console:** Clicking any athlete row hydrates a high-density, six-quadrant diagnostic dashboard:
-    * **DOTS Coefficient Card:** Dynamically computes and displays the athlete's bodyweight-to-strength index (replacing outdated Wilks or IPF points) using verified platform maximums.
-    * **Weekly ARI (Average Relative Intensity):** Evaluates the true intensity footprint of the programmed microcycle relative to current 1RM profiles (rather than absolute raw weights), monitoring CNS load alignment.
-    * **ACWR (Acute-to-Chronic Workload Ratio):** Real-time fatigue pacing engine calculating rolling 7-day tonnage (acute) against the 28-day rolling baseline (chronic). Flags training zones: Under-training (<0.8), Sweet Spot (0.8–1.3), High Fatigue (1.3–1.5), or Injury Redline (>1.5).
-    * **Weekly NL (Number of Lifts) Distribution:** Visualizes volume allocation across the three structural tiers: Competition Lifts (Comp), Variations (Vari), and Accessories (Acce) to check specificity targets.
-    * **Fatigue Engine Co-plot (INOL vs. e1RM):** Renders dynamic dual-axis graphs mapping cumulative weekly INOL stress indexes against Brzycki/RPE-compensated estimated 1RM trajectories to catch overtraining plateaus.
-    * **Interactive Competitive Attempt Planner:** A standard platform strategy tool. Coaches input a targeted 1st attempt (opener) at ~90–92% of projected max; the planner dynamically generates statistically optimal second attempt increments (~96–98%) and projects absolute third attempt platform ceilings (~100–102%) using customized squat/deadlift and bench press coefficient curves.
 
 ### 6.2 Workout Builder & Structured Prescription Editor
 
@@ -780,10 +476,6 @@ The desktop Workout Builder uses a **two-pane split dialog layout** to allow coa
 * **Layout Model**: HTML `<table>` or CSS grid (`display: grid; grid-template-columns: 1.5fr repeat(5, 1fr); gap: 1px; background-color: var(--ok-border);`).
 * **Columns split**: Opener Target, 2nd Attempt Projection, 2nd Target override, 3rd Attempt Projection, and 3rd Target override.
 * **Inputs**: Dynamic input fields inside "Target" columns centered and sized dynamically to `--space-6` (24px) vertical footprint.
-
-##### State Transitions (Default vs. Maximized)
-* **Default State**: Displayed embedded inside the primary Roster Workspace Detailed Pane. Columns utilize standard `100px` widths.
-* **Maximized State (Dynamic Space Reclamation)**: Collapsing the Left Sidebar expands the parent pane by `240px`. The Attempt table columns stretch dynamically, allowing font size highlights (`text-base` vs `text-sm`) and larger margins for plate indicators.
 
 Coaches and athletes collaborate on competition day selections using the highly interactive **Meet Day Planner Grid**:
 
@@ -1828,12 +1520,14 @@ Every React component must strictly satisfy these data parameters and lifecycle 
 | Component | Required Props/Data | Required States | Required Actions | Spatial Layout Blueprint & Dimensional Budget |
 | :--- | :--- | :--- | :--- | :--- |
 | `AppShell` | `user`, `role`, `environment`, `syncStatus`, `route` | loading, authenticated, session revoked, offline | navigate, logout, open settings | Mapped to **Section 6.1.1**. Persistent left sidebar (`240px` expanded, `60px` collapsed to icon strip, or `0px` hidden). Full-width workspace scaling to reclaim horizontal real estate on collapse. |
-| `MetricCard` | `label`, `value`, `unit`, `delta`, `riskState` | loading, empty, normal, warning, critical | open detail when clickable | Mapped to **Section 6.1.3.2 & 6.5**. Flex columns CSS Grid (`repeat(3, 1fr)`). Spacing padding locked to `--space-3` (12px). |
-| `RiskBadge` | `state`, `label`, `icon`, `description` | neutral, success, warning, danger | tooltip on desktop | Mapped to **Section 6.1.3.2**. Inline label + icon status container. Margin `--space-1` (4px). Color WCAG AA/AAA guidelines. |
-| `WorkoutCalendar` | `microcycles`, `workouts`, `locks`, `activeAthlete` | loading, empty, dragging, rejected, locked | create workout, move within boundary | Mapped to **Section 6.1.2**. 7-Column CSS Grid. Min-width budget: `960px` (Microcycle View), `1024px` (Month View) to prevent card truncation. |
-| `WorkoutLockBanner` | `holder`, `expiresAt`, `canRelease` | locked by me, locked by other, expired | release | Mapped to **Section 6.1.2.1 & 10.1**. Overlay alert block for concurrent `WorkoutLock` only — never for completed-session copy. Full cell width width block, height dynamic. |
+| `MetricCard` | `label`, `value`, `unit`, `delta`, `riskState` | loading, empty, normal, warning, critical | open detail when clickable | Mapped to **Section 6.5**. Flex columns CSS Grid (`repeat(3, 1fr)`). Spacing padding locked to `--space-3` (12px). |
+| `RiskBadge` | `state`, `label`, `icon`, `description` | neutral, success, warning, danger | tooltip on desktop | Mapped to **Section 6.5**. Inline label + icon status container. Margin `--space-1` (4px). Color WCAG AA/AAA guidelines. |
+| `WorkoutCalendar` | dated sessions, locks, active athlete | loading, empty, rejected, locked | create session, open session, copy, add note, filter | Mapped to **Section 6.1.2**. Date-first seven-column month grid that adapts to the viewport. |
+| `RosterView` | active roster, past relationship summaries, selected frozen snapshot, role | loading, empty, error, permission denied, active, history loading, history empty, history error | search both identity fields, open active plan, confirm unlink, open read-only snapshot | Mapped to **Section 6.1.3**. Active and Past athletes tabs; former-coach history is visibly read-only and frozen at unlink. |
+| `AthleteProfilePanel` | current athlete profile, save state | loading, ready, saving, saved, error | save or clear optional display name | Mapped to **Security**. Full email remains visible to linked coaches and is the name fallback. |
+| `WorkoutLockBanner` | `holder`, `expiresAt`, `canRelease` | locked by me, locked by other, expired | release | Mapped to **Section 10.1**. Overlay alert block for concurrent `WorkoutLock` only — never for completed-session copy. Full cell width width block, height dynamic. |
 | `PrescriptionEditor` | structured prescription JSON, exercise metadata | draft, valid, invalid, readonly | edit mode, validate, save | Mapped to **Section 6.2**. Centered overlay modal layout. Width: `90vw` (min `800px`, max `1200px`), height: `85dvh`. Transitions to `100%` viewport on compact screen dimensions. `MovementPatternSelect` is the structured pattern control (per exercise, not per set). |
-| `ExerciseReorderList` | ordered entities with `lexo_rank` | normal, dragging, syncing, conflict | reorder, undo local reorder | Mapped to **Section 6.1.2.1**. Drag-and-drop vertical list constrained strictly within active microcycle grid columns. |
+| `ExerciseReorderList` | ordered session lifts with `lexo_rank` | normal, saving, conflict | move up, move down, undo local reorder | Mapped to **Section 6.2**. Order is keyboard- and touch-operable. |
 | `SetLogPanel` | active set, previous sets, unit preference, sync state | hydrated, offline, pending, accepted, rejected, locked | log set, edit allowed fields, add note | Mapped to **Section 7.1**. Mobile vertical feed chronological card. Height: `40px` collapsed, `260px` expanded inline. Touch targets min `48px x 48px`, gaps `12px` to prevent fat-finger skews. |
 | `SyncQueueBadge` | queue counts by state | empty, pending, syncing, failed | open queue detail, retry failed | Mapped to **Section 7.1 & 10.1**. Header inline badge. Max-width `120px`, height `24px` compact. |
 | `ConflictReviewCard` | local value, server value, reason, permissions | reviewable, readonly, resolved | accept server, keep local as new mutation if allowed | Mapped to **Section 10.1**. Side-by-side comparison resolutions panel layout. Width: `640px` total (min `320px` per clashing lock pane). |
@@ -1928,7 +1622,8 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 
 ### 16.3 Coach Desktop Acceptance
 
-- [ ] Coach can switch active athlete; Calendar and Sessions reload for that athlete.
+- [ ] Coach can switch active athlete from the global selector; Calendar and Sessions reload for that athlete. Roster provides a searchable active-athlete list using display name + email, opens Calendar, and confirms coach-initiated unlink while stating the plan remains with the athlete.
+- [ ] Roster Past athletes exposes only a read-only unlink-time snapshot for each ended relationship. Later workout activity and edits do not appear; past athletes cannot become active scope.
 - [ ] Empty athlete plans show empty states — no demo microcycles.
 - [ ] Calendar month chrome is the real month name — no dummy mesocycle banners.
 - [ ] Calendar is date-first; Sessions groups by Block/Week labels when present, with an ungrouped bucket otherwise. Sessions cards lead with Name (not ISO date); Day · date are meta; every lift set shows Plan vs Log.
@@ -1946,6 +1641,7 @@ No glow should be required to understand state. Glow may be used sparingly on ac
 - [ ] Analytics use backend canonical labels: e1RM, INOL, ACWR, DOTS.
 - [ ] Export and Google Sheets publish flows are separate.
 - [ ] Audit/conflict access exists from the main shell or settings.
+- [ ] Athletes can set or clear an optional display name in Security. Linked coaches see and search by both the display name and full email.
 
 ### 16.4 Integration Acceptance
 

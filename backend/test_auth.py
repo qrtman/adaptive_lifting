@@ -1,7 +1,9 @@
 import uuid
+from datetime import datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from backend.database import AuditEvent, SessionLocal
 from backend.main import app
 
 
@@ -56,6 +58,9 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     )
     assert athlete1.status_code == 200
     athlete1_cookies = dict(athlete1.cookies)
+    named_profile = client.patch("/api/auth/profile", json={"displayName": "Athlete One"}, cookies=athlete1_cookies)
+    assert named_profile.status_code == 200
+    assert named_profile.json()["displayName"] == "Athlete One"
 
     athlete2 = client.post(
         "/api/auth/register",
@@ -83,6 +88,24 @@ def test_coach_code_link_unlink_keeps_empty_plan():
         cookies=athlete1_cookies,
     )
     assert link.status_code == 200
+    audit_db = SessionLocal()
+    try:
+        audit_db.add(AuditEvent(
+            id=f"private-{suffix}",
+            actor_user_id=athlete1.json()["id"],
+            event_type="PRIVATE_ATHLETE_EVENT",
+            resource_type="PrivateResource",
+            resource_id=suffix,
+        ))
+        audit_db.commit()
+    finally:
+        audit_db.close()
+    reused_code = client.post(
+        "/api/auth/link",
+        json={"code": coach_code},
+        cookies=athlete2_cookies,
+    )
+    assert reused_code.status_code == 404
 
     athlete1_mcs = client.get("/api/microcycles", cookies=athlete1_cookies)
     assert athlete1_mcs.status_code == 200
@@ -94,7 +117,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
 
     created = client.post(
         "/api/sessions",
-        json={"date": "2026-09-11", "title": "Squat day", "blockLabel": "Block2", "weekLabel": "Week3"},
+        json={"date": datetime.utcnow().date().isoformat(), "title": "Squat day", "blockLabel": "Block2", "weekLabel": "Week3"},
         cookies=athlete1_cookies,
     )
     assert created.status_code == 200
@@ -111,6 +134,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     assert athlete2_email not in emails
 
     athlete_id = next(row["id"] for row in roster_data if row["email"] == athlete1_email)
+    assert next(row for row in roster_data if row["id"] == athlete_id)["displayName"] == "Athlete One"
     coach_mcs = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies)
     assert coach_mcs.status_code == 200
     assert session_id in _workout_ids(coach_mcs.json())
@@ -132,6 +156,17 @@ def test_coach_code_link_unlink_keeps_empty_plan():
 
     unlink = client.delete("/api/auth/link", cookies=athlete1_cookies)
     assert unlink.status_code == 200
+    athlete_audit = client.get("/api/security/audit-events", cookies=athlete1_cookies)
+    assert athlete_audit.status_code == 200
+    assert any(event["event_type"] == "ATHLETE_UNLINKED" for event in athlete_audit.json())
+
+    post_unlink = client.post(
+        "/api/sessions",
+        json={"date": (datetime.utcnow().date() + timedelta(days=1)).isoformat(), "title": "Solo day"},
+        cookies=athlete1_cookies,
+    )
+    assert post_unlink.status_code == 200
+    post_unlink_session_id = post_unlink.json()["id"]
 
     roster_after = client.get("/api/coach/roster", cookies=coach_cookies)
     assert athlete1_email not in [row["email"] for row in roster_after.json()]
@@ -145,10 +180,71 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     )
     assert lost_write.status_code == 403
 
+    past_links = client.get("/api/coach/roster/history", cookies=coach_cookies)
+    assert past_links.status_code == 200
+    assert len(past_links.json()) == 1
+    relationship_id = past_links.json()[0]["relationshipId"]
+    assert past_links.json()[0]["archiveAvailable"] is True
+    coach_audit = client.get("/api/security/audit-events", cookies=coach_cookies).json()
+    coach_event_types = [event["event_type"] for event in coach_audit]
+    assert "ATHLETE_LINKED" in coach_event_types
+    assert "ATHLETE_UNLINKED" in coach_event_types
+    assert "PRIVATE_ATHLETE_EVENT" not in coach_event_types
+    snapshot = client.get(f"/api/coach/roster/history/{relationship_id}", cookies=coach_cookies)
+    assert snapshot.status_code == 200
+    snapshot_session_ids = _workout_ids(snapshot.json()["microcycles"])
+    assert session_id in snapshot_session_ids
+    assert post_unlink_session_id not in snapshot_session_ids
+
+    renamed = client.patch("/api/auth/profile", json={"displayName": "Updated Later"}, cookies=athlete1_cookies)
+    assert renamed.status_code == 200
+    assert renamed.json()["displayName"] == "Updated Later"
+    frozen_snapshot = client.get(f"/api/coach/roster/history/{relationship_id}", cookies=coach_cookies).json()
+    assert frozen_snapshot["athlete"]["displayName"] == "Athlete One"
+
+    # Relinking creates a new relationship; the former coach keeps only the old snapshot.
+    new_code = client.post("/api/auth/coach-code", cookies=outsider_cookies).json()["code"]
+    relink = client.post("/api/auth/link", json={"code": new_code}, cookies=athlete1_cookies)
+    assert relink.status_code == 200
+    new_roster = client.get("/api/coach/roster", cookies=outsider_cookies).json()
+    assert next(row for row in new_roster if row["id"] == athlete_id)["displayName"] == "Updated Later"
+    assert client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies).status_code == 403
+    assert client.get(f"/api/coach/roster/history/{relationship_id}", cookies=outsider_cookies).status_code == 404
+
     # Plan stays in athlete space after unlink
     athlete1_after = client.get("/api/microcycles", cookies=athlete1_cookies)
     assert athlete1_after.status_code == 200
     assert session_id in _workout_ids(athlete1_after.json())
+    assert post_unlink_session_id in _workout_ids(athlete1_after.json())
+
+
+def test_coach_can_unlink_and_get_read_only_snapshot():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    coach = client.post(
+        "/api/auth/register",
+        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
+    )
+    athlete = client.post(
+        "/api/auth/register",
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    coach_cookies = dict(coach.cookies)
+    athlete_cookies = dict(athlete.cookies)
+    code = client.post("/api/auth/coach-code", cookies=coach_cookies).json()["code"]
+    assert client.post("/api/auth/link", json={"code": code}, cookies=athlete_cookies).status_code == 200
+    roster = client.get("/api/coach/roster", cookies=coach_cookies).json()
+    athlete_id = roster[0]["id"]
+
+    unlink = client.delete(f"/api/auth/link/{athlete_id}", cookies=coach_cookies)
+    assert unlink.status_code == 200
+    coach_audit = client.get("/api/security/audit-events", cookies=coach_cookies)
+    assert any(event["event_type"] == "COACH_UNLINKED_ATHLETE" for event in coach_audit.json())
+    assert client.get("/api/coach/roster", cookies=coach_cookies).json() == []
+    history = client.get("/api/coach/roster/history", cookies=coach_cookies).json()
+    assert len(history) == 1
+    assert history[0]["archiveAvailable"] is True
+    assert client.get(f"/api/coach/roster/history/{history[0]['relationshipId']}", cookies=coach_cookies).status_code == 200
 
 
 def test_coach_create_session_requires_linked_athlete():

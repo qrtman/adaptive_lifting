@@ -1,6 +1,6 @@
 import { UI_KEYS, getUiPref } from './storage/uiPrefs';
 
-export const WORKSPACE_MODES = ['calendar', 'sessions', 'insights'] as const;
+export const WORKSPACE_MODES = ['calendar', 'sessions', 'insights', 'roster'] as const;
 export const OPS_MODES = ['integrations', 'security'] as const;
 export const DASHBOARD_MODES = [...WORKSPACE_MODES, ...OPS_MODES] as const;
 
@@ -19,8 +19,7 @@ export type AppLocation = {
 const MODE_SET = new Set<string>(DASHBOARD_MODES);
 
 const LEGACY_REDIRECTS: Record<string, { mode: DashboardMode; panel: NavPanel | null }> = {
-  roster: { mode: 'calendar', panel: 'athlete-scope' },
-  athletes: { mode: 'calendar', panel: 'athlete-scope' },
+  athletes: { mode: 'roster', panel: null },
   analytics: { mode: 'insights', panel: null },
 };
 

@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint, Index
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 from .accessory_migration import expand_legacy_accessory_sets
@@ -25,14 +25,31 @@ class User(Base, TimestampMixin):
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="ATHLETE") # 'COACH' or 'ATHLETE'
     subscription_status = Column(String, nullable=True, default="active")
+    display_name = Column(String, nullable=True)
 
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"
     id = Column(Integer, primary_key=True, autoincrement=True)
     coach_id = Column(String, ForeignKey("users.id"), nullable=False)
-    athlete_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True)
+    athlete_id = Column(String, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
+
+
+Index(
+    "uq_coaching_relationships_active_athlete",
+    CoachingRelationship.athlete_id,
+    unique=True,
+    sqlite_where=CoachingRelationship.ended_at.is_(None),
+    postgresql_where=CoachingRelationship.ended_at.is_(None),
+)
+
+
+class CoachingHistorySnapshot(Base):
+    __tablename__ = "coaching_history_snapshots"
+    relationship_id = Column(Integer, ForeignKey("coaching_relationships.id"), primary_key=True)
+    snapshot_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    snapshot_json = Column(String, nullable=False)
 
 class Mesocycle(Base, TimestampMixin):
     __tablename__ = "mesocycles"

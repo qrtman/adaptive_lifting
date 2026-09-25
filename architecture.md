@@ -55,7 +55,7 @@ Understanding the RTS methodology is essential for working with this system. All
 | **Week label** | Optional grouping label on sessions (e.g. `Week3`). May be used alone or under a Block. Not a forced Mon–Sun calendar container. |
 | **Microcycle** | Soft week grouping used for UI aggregation when Week labels are present. Not a hard Mon–Sun container and not required before creating a session. |
 | **Session** | First-class dated workout (`YYYY-MM-DD`) with exercises and sets. May be unlabeled or carry Block/Week labels anytime. |
-| **Athlete plan space** | Canonical ownership boundary for all training data. Linked coaches share full write; unlink removes access only. |
+| **Athlete plan space** | Canonical ownership boundary for all training data. Linked coaches share full write; unlink ends live access and preserves only a frozen workout snapshot for the former coach. |
 | **Coach code** | Shareable code published by a coach; athletes enter it to grant access. Not the coach email. |
 | **Tier** | Exercise classification: **Comp** (competition lift), **Variation** (close derivative), **Accessory** (isolation/bodybuilding). |
 | **Lift Category** | Movement pattern classifier: Squat, Bench, Deadlift, or Other. Used for INOL grouping and export gating. |
@@ -213,8 +213,9 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 
 | Entity | Key | Core Attributes | Relationships |
 | :--- | :--- | :--- | :--- |
-| **User** | `id` (UUID) | `email`, `role`, `subscription_status` | Owns athlete plan space when role is athlete; coaches publish InviteCodes and participate in CoachingRelationships |
-| **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | Athlete grants coach shared write on athlete plan space; `ended_at` unlinks without deleting plan data |
+| **User** | `id` (UUID) | `email`, optional `display_name`, `role`, `subscription_status` | Owns athlete plan space when role is athlete; coaches publish InviteCodes and participate in CoachingRelationships |
+| **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | One row per link period; at most one active relationship per athlete |
+| **CoachingHistorySnapshot** | `relationship_id` (Int) | `snapshot_at`, `snapshot_json` | Immutable read-only copy of workouts dated during the relationship, captured when it ends; excludes later activity and edits |
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
 | **Microcycle** | `id` (String) | `weekName`, `focus`, `status`, `owner_id`, optional `mesocycle_id` | Soft week aggregation for labeled sessions; owned by athlete; not required before first session |
 | **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
@@ -900,19 +901,21 @@ sequenceDiagram
 
 Authorization is enforced before service execution and again at repository query boundaries:
 
-- Coach-scoped reads/writes must join through an active `CoachingRelationship` (`ended_at IS NULL`) and target the athlete plan `owner_id`.
+- Coach live-plan reads/writes must join through an active `CoachingRelationship` (`ended_at IS NULL`) and target the athlete plan `owner_id`.
 - Athlete-scoped reads/writes must use the authenticated athlete as `owner_id`.
-- Ended relationships lose all coach access immediately; athlete-owned rows remain.
+- Ended relationships immediately lose access to the live plan, sessions, notes, analytics, and new activity. The former coach may read only that relationship's unlink-time `CoachingHistorySnapshot`; snapshot routes never read current athlete-owned rows.
+- Coach cached plans are not hydrated on an offline launch. When an open coach client reconnects, it clears the cached live view and revalidates the active athlete before showing the plan again. A device that remains disconnected cannot receive a remote unlink and may retain data fetched while the link was active until it reconnects.
+- A snapshot is captured in the unlink transaction and contains only sessions dated from that relationship's `created_at` through its `ended_at` date. Later edits, logs, and new sessions are not reflected.
 - Export endpoints must record an `AuditEvent` with filters, row count, and actor.
 - SSE subscriptions must validate access to the workout before opening the stream and again before replaying missed events.
 
 ### 9.3 Coach-Athlete Linking
 
-Athletes link to coaches via `CoachingRelationship`. An athlete may have at most one active coach.
+Athletes link to coaches via `CoachingRelationship`. An athlete may have at most one active coach. Ended relationship rows are retained; relinking creates a new row. A unique partial index on active `athlete_id` values enforces the single-active-coach rule.
 
 - **Coach code**: Coach generates a shareable code (`InviteCode`). Athletes enter that code — never coach email.
 - **Link**: `POST /api/auth/link` (or `/api/auth/link-athlete`) with the coach code creates the relationship and grants shared full write on the athlete plan space.
-- **Unlink**: Athlete (or coach) ends the relationship by setting `ended_at`. Plan data stays in athlete space; coach loses access.
+- **Unlink**: Athlete (or coach) ends the relationship by setting `ended_at`, writing an audit event, and capturing a read-only snapshot for the former coach. Plan data stays in athlete space. The snapshot includes sessions dated during the link period as of unlink time; all access to the live plan and later activity ends immediately.
 - Codes are stored as salted hashes. Prefer short-lived single-use codes; rotatable durable coach codes are allowed if hashed and revocable.
 
 ### 9.4 Biometric Ingestion & Privacy
@@ -920,7 +923,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 - **Hardware Integrations:** The architecture explicitly supports external ingestion pathways (Apple HealthKit / Google Fit API) for `hrv`, `readiness`, and `athlete_bw` to reduce friction.
 - **Consent Boundary:** Biometric ingestion is opt-in per athlete and can be disconnected without deleting the training log.
 - **Raw Data Policy:** The system stores daily normalized values only, not raw vendor payloads or minute-level biometric streams.
-- **Right to Erasure:** Athletes have a one-click "Delete Account" feature that cascades through `CoachingRelationship`, permanently dropping tombstones from the DB for GDPR/CCPA compliance.
+- **Right to Erasure:** Athletes have a one-click "Delete Account" feature that removes `CoachingRelationship` rows and their `CoachingHistorySnapshot` copies, permanently dropping tombstones from the DB for GDPR/CCPA compliance.
 - **Audit Pseudonymization:** Security audit rows are retained for abuse prevention but user-identifying fields are pseudonymized during account erasure.
 - **Data Minimization:** Only performance-correlated biometric data is stored. No granular location tracking or irrelevant PII is ingested.
 
@@ -929,7 +932,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 - **Logout:** Clears the auth cookie server-side and invalidates the current session identifier.
 - **Password Change:** Revokes all active sessions for the account and requires re-login on every device.
 - **Invite Codes:** Stored as salted hashes, expire after 15 minutes, and are single-use.
-- **Audit Events:** Login, logout, failed login, athlete link, athlete unlink, export, and account deletion events are written to an append-only audit log.
+- **Audit Events:** Login, logout, failed login, athlete link, athlete unlink, coach-initiated unlink, export, and account deletion events are written to an append-only audit log. Relationship events identify the relationship and participants but never include raw coach codes or workout contents.
 
 ### 9.6 Cookie, JWT, and CSRF Contract
 
@@ -949,14 +952,18 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Create account (coach or athlete) | Public |
 | `POST` | `/api/auth/login` | Authenticate, issue JWT | Public |
+| `PATCH` | `/api/auth/profile` | Update own optional athlete display name | Coach / Athlete (athlete name shown to linked coaches) |
 | `POST` | `/api/auth/logout` | Revoke current session and clear auth cookie | Coach / Athlete |
 | `GET` | `/api/auth/sessions` | List active device sessions | Coach / Athlete |
 | `DELETE` | `/api/auth/sessions/{id}` | Revoke a device session | Coach / Athlete |
 | `POST` | `/api/auth/coach-code` | Generate or rotate coach code | Coach |
 | `GET` | `/api/auth/coach-code` | Show current coach code metadata (not raw hash) | Coach |
 | `POST` | `/api/auth/link` | Athlete enters coach code to link | Athlete |
-| `DELETE` | `/api/auth/link` | Unlink coach; athlete plan remains | Athlete (or Coach) |
-| `GET` | `/api/coach/roster` | List linked athletes | Coach |
+| `DELETE` | `/api/auth/link` | Athlete unlinks; captures relationship snapshot; athlete plan remains | Athlete |
+| `DELETE` | `/api/auth/link/{athlete_id}` | Coach unlinks; captures relationship snapshot; athlete plan remains | Coach |
+| `GET` | `/api/coach/roster` | List active linked athletes with display name and email | Coach |
+| `GET` | `/api/coach/roster/history` | List ended relationships and snapshot availability | Coach (former links only) |
+| `GET` | `/api/coach/roster/history/{relationship_id}` | Read the immutable workout snapshot for one ended relationship | Coach who held that relationship |
 | `GET` | `/api/microcycles?athlete_id=` | Retrieve periodization tree for athlete plan space (empty array if none; never auto-seed) | Coach / Athlete |
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
 | `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
@@ -1295,13 +1302,13 @@ Code layout is flat `src/components/*` (not `layout/` / `calendar/` / `sessions/
 
 The PWA has no react-router. Workspaces are hash routes written by `src/navigation.ts`:
 
-- `#/calendar`, `#/sessions`, `#/insights`, `#/integrations`, `#/security`
+- `#/calendar`, `#/sessions`, `#/insights`, `#/roster`, `#/integrations`, `#/security`
 - Optional query: `athlete=<id>`, `panel=athlete-scope`
-- Legacy `#/roster`, `#/athletes`, `?view=roster` redirect to calendar and open the sidebar athlete-plan selector
+- Legacy `#/athletes` and `?view=athletes` redirect to the Roster workspace; `?view=roster` opens it directly
 - Legacy `#/analytics` redirects to Insights
 - Telegram Mini App still enters at `/?tg_auth=true`; if `view=` is present it is resolved through the same redirect table
 
-Left sidebar is the single home for navigation and athlete plan scope. Athlete Roster is not a top-level tab. Coach code generate/link stays on Security. Sidebar collapsed state is `al_sidebar_collapsed` (UI pref only).
+The left sidebar owns workspace navigation and the coach's global athlete scope selector. Roster is a coach-only workspace with separate Active athletes and Past athletes views. Active links can be opened or ended from Roster; ended links open only their frozen snapshot. The selector remains the fast scope switch for active athletes on Calendar, Sessions, and Insights. Coach code generation and athlete code entry stay on Security. Sidebar collapsed state is `al_sidebar_collapsed` (UI pref only).
 
 Insights cards are saved per user (`InsightCard`) and executed against the currently scoped athlete plan space. Card *results* are not persisted; the client caches the last query payload in IndexedDB (`insight_result:{id}`) and marks it stale when served from cache or while offline.
 

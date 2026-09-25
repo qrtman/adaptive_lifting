@@ -25,7 +25,10 @@ def ensure_demo_accounts(db, password_hasher) -> None:
         db.add(athlete)
     db.flush()
 
-    link = db.query(CoachingRelationship).filter(CoachingRelationship.athlete_id == athlete.id).first()
+    link = db.query(CoachingRelationship).filter(
+        CoachingRelationship.athlete_id == athlete.id,
+        CoachingRelationship.ended_at.is_(None),
+    ).first()
     if not link:
         db.add(CoachingRelationship(coach_id=coach.id, athlete_id=athlete.id))
 

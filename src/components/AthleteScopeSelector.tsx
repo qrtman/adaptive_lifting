@@ -9,12 +9,14 @@ import { ATHLETE_SEARCH_THRESHOLD } from '../navigation';
 export type RosterAthlete = {
   id: string;
   email: string;
+  displayName?: string | null;
   activeMicrocycles?: number;
 };
 
 type ScopeItem = {
   id: string;
   label: string;
+  email: string;
 };
 
 export function AthleteScopeSelector({
@@ -80,7 +82,7 @@ export function AthleteScopeSelector({
   }, [forceOpen, onOpened]);
 
   const items: ScopeItem[] = useMemo(
-    () => roster.map((athlete) => ({ id: athlete.id, label: athlete.email })),
+    () => roster.map((athlete) => ({ id: athlete.id, label: athlete.displayName?.trim() || athlete.email, email: athlete.email })),
     [roster],
   );
 
@@ -88,7 +90,7 @@ export function AthleteScopeSelector({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((item) => item.label.toLowerCase().includes(q));
+    return items.filter((item) => item.label.toLowerCase().includes(q) || item.email.toLowerCase().includes(q));
   }, [items, query]);
 
   const selected = items.find((item) => item.id === activeAthleteId);
@@ -185,7 +187,8 @@ export function AthleteScopeSelector({
                   : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]'
               }`}
             >
-              {item.label}
+              <span className="block truncate">{item.label}</span>
+              {item.label !== item.email && <span className="block truncate text-[10px] text-[var(--cal-muted)]">{item.email}</span>}
             </button>
           ))}
     </div>

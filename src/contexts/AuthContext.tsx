@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: getUiPref(UI_KEYS.userId),
         role: storedRole,
         email: getUiPref(UI_KEYS.email),
+        displayName: getUiPref(UI_KEYS.displayName),
       };
     }
     const stored = getUiPref(UI_KEYS.roleMode);
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       removeUiPref(UI_KEYS.roleMode);
       removeUiPref(UI_KEYS.role);
       removeUiPref(UI_KEYS.email);
+      removeUiPref(UI_KEYS.displayName);
       removeUiPref(UI_KEYS.userId);
       removeUiPref(UI_KEYS.activeAthleteId);
       setUser(null);
@@ -73,6 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (nextUser?.email) {
       setUiPref(UI_KEYS.email, nextUser.email);
     }
+    if (nextUser?.displayName) {
+      setUiPref(UI_KEYS.displayName, nextUser.displayName);
+    } else if (nextUser?.displayName === null || nextUser?.displayName === '') {
+      removeUiPref(UI_KEYS.displayName);
+    }
     if (nextUser?.id) {
       setUiPref(UI_KEYS.userId, String(nextUser.id));
     }
@@ -84,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     removeUiPref(UI_KEYS.roleMode);
     removeUiPref(UI_KEYS.role);
     removeUiPref(UI_KEYS.email);
+    removeUiPref(UI_KEYS.displayName);
     removeUiPref(UI_KEYS.userId);
     removeUiPref(UI_KEYS.activeAthleteId);
     setUser(null);

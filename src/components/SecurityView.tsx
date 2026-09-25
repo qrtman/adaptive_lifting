@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, RefreshCw, FileJson, CheckCircle2
 } from 'lucide-react';
 import { CoachLinkPanel } from './CoachLinkPanel';
+import { AthleteProfilePanel } from './AthleteProfilePanel';
 
 interface ClientDevice {
   id: string;
@@ -159,6 +160,7 @@ export const SecurityView: React.FC = () => {
       </div>
 
       <CoachLinkPanel />
+      <AthleteProfilePanel />
 
       {successAlert && (
         <div className="mb-4 bg-[color-mix(in_srgb,var(--cal-success)_10%,transparent)] border border-[color-mix(in_srgb,var(--cal-success)_20%,transparent)] p-3 rounded-[var(--cal-radius-lg)] flex items-center gap-3">
