@@ -65,11 +65,21 @@ async def live_workout_events(
     owner_id = session_owner_id(db, workout)
     if not owner_id:
         raise HTTPException(status_code=404, detail="Workout not found")
-    assert_plan_access(db, current_user, owner_id)
+    # Keep the live route's missing/forbidden response indistinguishable so
+    # guessed workout IDs cannot be enumerated through the stream endpoint.
+    try:
+        assert_plan_access(db, current_user, owner_id)
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            raise HTTPException(status_code=404, detail="Workout not found") from exc
+        raise
     auth_session_id = getattr(request.state, "auth_session_id", None)
     if not auth_session_id:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
-        
+
+    # The stream generator opens short-lived sessions of its own. Release the
+    # request dependency's connection before StreamingResponse starts.
+    db.close()
     return StreamingResponse(
         get_events(workout_id, current_user.id, auth_session_id, last_event_id),
         media_type="text/event-stream"

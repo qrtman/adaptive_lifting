@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import jwt
 from fastapi.testclient import TestClient
 
-from backend.database import AuditEvent, IntegrationConnection, Session as AuthSession, SessionLocal, User, Workout
+from backend.database import AuditEvent, CoachingRelationship, DomainEvent, IntegrationConnection, Session as AuthSession, SessionLocal, User, Workout
 from backend import main as auth_main
 from backend.main import app
 from backend.sse_broadcaster import get_events
@@ -202,6 +202,66 @@ def test_live_workout_events_require_active_authentication():
     client = TestClient(app)
     response = client.get("/api/workouts/not-a-workout/live")
     assert response.status_code == 401
+
+
+def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from_other_users():
+    owner_client = TestClient(app)
+    owner_id, owner_token = _register_auth_user(owner_client, "sse-owner")
+    coach_client = TestClient(app)
+    coach_email = f"sse-coach-{uuid.uuid4().hex}@example.com"
+    coach_response = coach_client.post(
+        "/api/auth/register",
+        json={"email": coach_email, "password": "password123", "role": "COACH"},
+    )
+    assert coach_response.status_code == 200
+    coach_id = coach_response.json()["user"]["id"]
+    coach_token = coach_response.cookies.get("session_id")
+    outsider_client = TestClient(app)
+    _, outsider_token = _register_auth_user(outsider_client, "sse-outsider")
+
+    workout_id = str(uuid.uuid4())
+    event_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(Workout(
+            id=workout_id,
+            date="2026-09-25",
+            dayLabel="2026-09-25",
+            title="Private SSE workout",
+            color="#fff",
+            status="IN_PROGRESS",
+            owner_id=owner_id,
+        ))
+        db.add(CoachingRelationship(coach_id=coach_id, athlete_id=owner_id))
+        db.add(DomainEvent(
+            id=event_id,
+            workout_id=workout_id,
+            event_type="SET_LOGGED",
+            payload_json='{"private":"workout event"}',
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    url = f"/api/workouts/{workout_id}/live"
+    # Existing and nonexistent IDs have identical status and body for an
+    # authenticated but unrelated user, preventing ID enumeration.
+    unrelated = TestClient(app, cookies={"session_id": outsider_token})
+    denied = unrelated.get(url)
+    missing = unrelated.get("/api/workouts/not-a-workout/live")
+    assert denied.status_code == missing.status_code == 404
+    assert denied.json() == missing.json()
+
+    # Browser EventSource sends the same-origin HttpOnly cookie automatically.
+    # Both the owner and an actively linked coach can receive authorized events.
+    for token in (owner_token, coach_token):
+        authorized = TestClient(app, cookies={"session_id": token})
+        with authorized.stream("GET", url) as response:
+            assert response.status_code == 200
+            lines = iter(response.iter_lines())
+            assert next(lines) == f"id: {event_id}"
+            assert next(lines) == "event: SET_LOGGED"
+            assert next(lines) == 'data: {"private":"workout event"}'
 
 
 def test_open_live_workout_stream_stops_after_session_revocation(monkeypatch):
