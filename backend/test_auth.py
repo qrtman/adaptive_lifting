@@ -1,10 +1,14 @@
+import asyncio
 import uuid
 from datetime import datetime, timedelta
 
+import jwt
 from fastapi.testclient import TestClient
 
-from backend.database import AuditEvent, SessionLocal
+from backend.database import AuditEvent, IntegrationConnection, Session as AuthSession, SessionLocal, User, Workout
+from backend import main as auth_main
 from backend.main import app
+from backend.sse_broadcaster import get_events
 
 
 def test_register_and_login_set_session_cookie():
@@ -24,6 +28,226 @@ def test_register_and_login_set_session_cookie():
     assert login_response.status_code == 200
     assert "session_id" in login_response.cookies
     assert login_response.cookies.get("session_id")
+
+
+def _register_auth_user(client, prefix="auth"):
+    email = f"{prefix}-{uuid.uuid4().hex}@example.com"
+    response = client.post(
+        "/api/auth/register",
+        json={"email": email, "password": "password123", "role": "ATHLETE"},
+    )
+    assert response.status_code == 200
+    return response.json()["user"]["id"], response.cookies.get("session_id")
+
+
+def _make_test_token(user_id, session_id, exp=None):
+    payload = {"sub": user_id, "role": "ATHLETE", "session_id": session_id}
+    payload["exp"] = exp or datetime.utcnow() + timedelta(minutes=5)
+    return jwt.encode(payload, auth_main.SECRET_KEY, algorithm=auth_main.ALGORITHM)
+
+
+def _add_auth_session(user_id, session_id=None, expires_at=None):
+    session_id = session_id or str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(AuthSession(
+            id=session_id,
+            user_id=user_id,
+            jwt_id=session_id,
+            expires_at=expires_at or datetime.utcnow() + timedelta(minutes=5),
+        ))
+        db.commit()
+    finally:
+        db.close()
+    return session_id
+
+
+def test_active_session_token_authenticates_and_parallel_sessions_survive_logout():
+    client = TestClient(app)
+    user_id, first_token = _register_auth_user(client)
+    # Create a second independent session for this same account.
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        email = user.email
+    finally:
+        db.close()
+    second_login = client.post(
+        "/api/auth/login", data={"username": email, "password": "password123"}
+    )
+    assert second_login.status_code == 200
+    second_token = second_login.cookies.get("session_id")
+
+    client.cookies.clear()
+    assert client.get("/api/security/sessions", headers={"Authorization": f"Bearer {first_token}"}).status_code == 200
+    assert client.post(
+        "/api/auth/logout", headers={"Authorization": f"Bearer {first_token}"}
+    ).status_code == 200
+    client.cookies.clear()
+    assert client.get("/api/security/sessions", headers={"Authorization": f"Bearer {first_token}"}).status_code == 401
+    assert client.get("/api/security/sessions", headers={"Authorization": f"Bearer {second_token}"}).status_code == 200
+
+
+def test_auth_rejects_malformed_expired_missing_session_and_user_mismatch_tokens():
+    client = TestClient(app)
+    user_id, _ = _register_auth_user(client)
+    session_id = _add_auth_session(user_id)
+    other_user_id, _ = _register_auth_user(client)
+    other_session_id = _add_auth_session(other_user_id)
+    client.cookies.clear()
+
+    tokens = [
+        "malformed.token.value",
+        _make_test_token(user_id, session_id, datetime.utcnow() - timedelta(seconds=1)),
+        jwt.encode(
+            {"sub": user_id, "role": "ATHLETE", "session_id": session_id},
+            auth_main.SECRET_KEY,
+            algorithm=auth_main.ALGORITHM,
+        ),
+        _make_test_token(user_id, str(uuid.uuid4())),
+        _make_test_token(user_id, other_session_id),
+        _make_test_token(user_id, ""),
+    ]
+    for token in tokens:
+        response = client.get("/api/security/sessions", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 401
+
+    expired_session_id = _add_auth_session(
+        user_id, expires_at=datetime.utcnow() - timedelta(seconds=1)
+    )
+    response = client.get(
+        "/api/security/sessions",
+        headers={"Authorization": f"Bearer {_make_test_token(user_id, expired_session_id)}"},
+    )
+    assert response.status_code == 401
+
+
+def test_revoked_session_fails_immediately():
+    client = TestClient(app)
+    user_id, token = _register_auth_user(client)
+    db = SessionLocal()
+    try:
+        session = db.query(AuthSession).filter(AuthSession.user_id == user_id).first()
+        session.revoked_at = datetime.utcnow()
+        db.commit()
+    finally:
+        db.close()
+
+    client.cookies.clear()
+    response = client.get("/api/security/sessions", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+
+
+def test_session_management_revocation_invalidates_target_session():
+    client = TestClient(app)
+    _, token = _register_auth_user(client)
+    payload = auth_main.decode_access_token(token)
+    session_id = payload["session_id"]
+
+    revoked = client.delete(
+        f"/api/security/sessions/{session_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert revoked.status_code == 200
+    client.cookies.clear()
+    assert client.get(
+        "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 401
+
+
+def test_deleted_user_cannot_authenticate():
+    client = TestClient(app)
+    user_id, token = _register_auth_user(client)
+    db = SessionLocal()
+    try:
+        db.query(User).filter(User.id == user_id).update({User.deleted_at: datetime.utcnow()})
+        db.commit()
+    finally:
+        db.close()
+
+    client.cookies.clear()
+    assert client.get(
+        "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 401
+
+
+def test_telegram_miniapp_login_issues_revocable_session():
+    client = TestClient(app)
+    user_id, _ = _register_auth_user(client)
+    db = SessionLocal()
+    try:
+        db.add(IntegrationConnection(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            provider="telegram",
+            external_account_id="99999",
+            status="active",
+            scopes="miniapp,bot",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    login = client.post("/api/integrations/telegram/miniapp/session", json={"initData": "mock_init_data"})
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    assert "session_id" in login.cookies
+    client.cookies.clear()
+    assert client.get(
+        "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 200
+
+
+def test_live_workout_events_require_active_authentication():
+    client = TestClient(app)
+    response = client.get("/api/workouts/not-a-workout/live")
+    assert response.status_code == 401
+
+
+def test_open_live_workout_stream_stops_after_session_revocation(monkeypatch):
+    client = TestClient(app)
+    user_id, token = _register_auth_user(client)
+    session_id = auth_main.decode_access_token(token)["session_id"]
+    workout_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(Workout(
+            id=workout_id,
+            date="2026-09-25",
+            dayLabel="2026-09-25",
+            title="Auth stream test",
+            color="#fff",
+            status="PLANNED",
+            owner_id=user_id,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    real_sleep = asyncio.sleep
+
+    async def fast_sleep(_seconds):
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+
+    async def check_stream_revocation():
+        stream = get_events(workout_id, user_id, session_id)
+        assert await stream.__anext__() == ": heartbeat\n\n"
+        revoke_db = SessionLocal()
+        try:
+            auth_session = revoke_db.query(AuthSession).filter(AuthSession.id == session_id).first()
+            auth_session.revoked_at = datetime.utcnow()
+            revoke_db.commit()
+        finally:
+            revoke_db.close()
+        try:
+            await stream.__anext__()
+            assert False, "revoked stream should have closed"
+        except StopAsyncIteration:
+            pass
+
+    asyncio.run(check_stream_revocation())
 
 
 def _workout_ids(tree):

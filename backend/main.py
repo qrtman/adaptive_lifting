@@ -353,21 +353,34 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
     try:
         payload = decode_access_token(token)
+        if not isinstance(payload, dict) or payload.get("exp") is None:
+            raise credentials_exception
         user_id: str = payload.get("sub")
-        if user_id is None:
+        session_id = payload.get("session_id")
+        if not isinstance(user_id, str) or not user_id or not isinstance(session_id, str) or not session_id:
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
-        
-    user = db.query(User).filter(User.id == user_id).first()
+
+    from .database import Session as DBSession
+    auth_session = db.query(DBSession).filter(DBSession.id == session_id).first()
+    if (
+        auth_session is None
+        or auth_session.user_id != user_id
+        or auth_session.jwt_id != session_id
+        or auth_session.revoked_at is not None
+        or auth_session.expires_at <= datetime.utcnow()
+    ):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
     if user is None:
         raise credentials_exception
+    request.state.auth_session_id = session_id
     return user
 
-from .sse_broadcaster import router as sse_router
 from .integrations import router as integrations_router
 from .analytics_router import create_analytics_router
-app.include_router(sse_router)
 app.include_router(integrations_router)
 app.include_router(create_analytics_router(get_current_user))
 
@@ -487,13 +500,22 @@ def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depe
 @app.post("/api/auth/logout")
 def logout(response: Response, request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("session_id")
+    if not token:
+        authorization = request.headers.get("Authorization", "")
+        if authorization.startswith("Bearer "):
+            token = authorization[len("Bearer "):].strip()
     if token:
         try:
             payload = decode_access_token(token)
             session_id = payload.get("session_id")
-            if session_id:
+            user_id = payload.get("sub")
+            if session_id and user_id:
                 from .database import Session as DBSession
-                sess = db.query(DBSession).filter(DBSession.id == session_id).first()
+                sess = db.query(DBSession).filter(
+                    DBSession.id == session_id,
+                    DBSession.user_id == user_id,
+                    DBSession.jwt_id == session_id,
+                ).first()
                 if sess:
                     sess.revoked_at = datetime.utcnow()
                     db.commit()
@@ -1725,6 +1747,11 @@ def session_owner_id(db: Session, workout: Workout) -> Optional[str]:
         mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
         return mc.owner_id if mc else None
     return None
+
+
+# This router needs the plan authorization helpers above at import time.
+from .sse_broadcaster import router as sse_router
+app.include_router(sse_router)
 
 
 def shift_iso_date(iso: str, days: int) -> str:

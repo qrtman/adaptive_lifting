@@ -10,7 +10,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Header, Response
 from sqlalchemy.orm import Session
 try:
     from cryptography.fernet import Fernet
@@ -24,7 +24,7 @@ from .database import (
     IntegrationOutbox, WebhookEvent, SheetPublication, Workout, 
     Microcycle, Exercise, ExerciseSet, CoachingRelationship
 )
-from .main import get_current_user
+from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
 
 router = APIRouter()
@@ -118,7 +118,7 @@ def generate_telegram_link_token(current_user: User = Depends(get_current_user),
     return {"token": token, "bot_username": "AdaptiveLiftingBot"}
 
 @router.post("/api/integrations/telegram/miniapp/session")
-def telegram_miniapp_session(req: dict, db: Session = Depends(get_db)):
+def telegram_miniapp_session(req: dict, response: Response, db: Session = Depends(get_db)):
     initData = req.get("initData")
     linkToken = req.get("linkToken")
     
@@ -183,16 +183,12 @@ def telegram_miniapp_session(req: dict, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="User account missing")
             
-    # Success: Issue JWT Session token
-    from .main import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.id, "role": user.role}, expires_delta=access_token_expires
-    )
-    
+    # Use the same revocable server-side session and cookie as other login paths.
+    auth_payload = start_session(response, user)
+
     return {
         "status": "success",
-        "access_token": access_token,
+        "access_token": auth_payload["access_token"],
         "user": {"id": user.id, "email": user.email, "role": user.role, "tg_username": tg_user.get("username")}
     }
 
