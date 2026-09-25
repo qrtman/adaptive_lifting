@@ -62,6 +62,11 @@ class User(Base, TimestampMixin):
     role = Column(String, nullable=False, default="ATHLETE") # 'COACH' or 'ATHLETE'
     subscription_status = Column(String, nullable=True, default="active")
     display_name = Column(String, nullable=True)
+    # Stable Google OpenID subject. Nullable for password-only accounts.
+    google_sub = Column(String, nullable=True)
+
+
+Index("uq_users_google_sub", User.google_sub, unique=True)
 
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"
@@ -329,7 +334,7 @@ class SheetPublication(Base, TimestampMixin):
     last_published_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False)
 
-def migrate_accessories_to_exercises(db):
+def migrate_accessories_to_exercises(db, commit=True):
     now = datetime.datetime.utcnow()
     rows = db.query(Accessory).filter(Accessory.deleted_at.is_(None)).all()
     for acc in rows:
@@ -372,11 +377,14 @@ def migrate_accessories_to_exercises(db):
                     exercise_id=exercise.id,
                 ))
         acc.deleted_at = now
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
 
-# Create tables
 def init_db():
+    """Test-only schema fixture helper; never call from application startup."""
     Base.metadata.create_all(bind=engine)
 
 def get_db():

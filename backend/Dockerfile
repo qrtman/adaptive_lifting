@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && useradd --system --gid app --home-dir /app app \
     && mkdir -p /data \
     && chown app:app /data
+COPY alembic.ini ./alembic.ini
 COPY backend ./backend
 USER app
 EXPOSE 8000

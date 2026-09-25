@@ -54,175 +54,6 @@ from .exercise_patterns import PATTERNS, pattern_for
 from .accessory_migration import coerce_float, coerce_int
 
 from sqlalchemy import text
-# Make sure SQLite tables exist on launch
-init_db()
-
-def migrate_db():
-    from .database import SessionLocal
-    db = SessionLocal()
-    try:
-        db.execute(text("ALTER TABLE microcycles ADD COLUMN owner_id VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN velocity FLOAT"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN readiness INTEGER"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN hrv FLOAT"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN athlete_bw FLOAT"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN tier VARCHAR DEFAULT 'Comp'"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN lift_category VARCHAR DEFAULT 'Squat'"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN movement_pattern VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN lift_note VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        from .exercise_patterns import pattern_for
-        rows = db.execute(text("SELECT id, title, lift_category, movement_pattern FROM exercises")).fetchall()
-        for row in rows:
-            if row[3]:
-                continue
-            db.execute(
-                text("UPDATE exercises SET movement_pattern = :pattern WHERE id = :id"),
-                {"pattern": pattern_for(row[1], row[2]), "id": row[0]},
-            )
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("""
-            UPDATE exercises
-            SET variation = title
-            WHERE (title = 'Squat' AND variation IN ('Competition', 'Competition Squat'))
-               OR (title = 'Bench' AND variation IN ('Competition', 'Competition Bench'))
-               OR (title = 'Deadlift' AND variation IN ('Competition', 'Competition Deadlift'))
-        """))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN block_label VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN week_label VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN owner_id VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE users ADD COLUMN display_name VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN intensity_type VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN scope VARCHAR DEFAULT 'both'"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts MODIFY microcycle_id VARCHAR NULL"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
-
-    if engine.dialect.name == "sqlite":
-        with engine.begin() as connection:
-            indexes = connection.exec_driver_sql("PRAGMA index_list('coaching_relationships')").fetchall()
-            has_global_athlete_unique = False
-            for index in indexes:
-                index_data = index._mapping
-                if not bool(index_data["unique"]) or bool(index_data["partial"]):
-                    continue
-                columns = connection.exec_driver_sql(
-                    f"PRAGMA index_info('{index_data['name']}')"
-                ).fetchall()
-                if [column._mapping["name"] for column in columns] == ["athlete_id"]:
-                    has_global_athlete_unique = True
-                    break
-            if has_global_athlete_unique:
-                connection.exec_driver_sql("""
-                    CREATE TABLE coaching_relationships_history (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        coach_id VARCHAR NOT NULL REFERENCES users(id),
-                        athlete_id VARCHAR NOT NULL REFERENCES users(id),
-                        created_at DATETIME,
-                        ended_at DATETIME,
-                        updated_at DATETIME,
-                        deleted_at DATETIME
-                    )
-                """)
-                connection.exec_driver_sql("""
-                    INSERT INTO coaching_relationships_history
-                        (id, coach_id, athlete_id, created_at, ended_at, updated_at, deleted_at)
-                    SELECT id, coach_id, athlete_id, created_at, ended_at, updated_at, deleted_at
-                    FROM coaching_relationships
-                """)
-                connection.exec_driver_sql("DROP TABLE coaching_relationships")
-                connection.exec_driver_sql("ALTER TABLE coaching_relationships_history RENAME TO coaching_relationships")
-            connection.exec_driver_sql("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_coaching_relationships_active_athlete
-                ON coaching_relationships (athlete_id) WHERE ended_at IS NULL
-            """)
-    elif engine.dialect.name == "postgresql":
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE coaching_relationships DROP CONSTRAINT IF EXISTS coaching_relationships_athlete_id_key"))
-            connection.execute(text("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_coaching_relationships_active_athlete
-                ON coaching_relationships (athlete_id) WHERE ended_at IS NULL
-            """))
-
-    from .database import migrate_accessories_to_exercises, SessionLocal as MigrationSession
-    migrate_session = MigrationSession()
-    try:
-        migrate_accessories_to_exercises(migrate_session)
-    except Exception:
-        migrate_session.rollback()
-    finally:
-        migrate_session.close()
-
-migrate_db()
 
 app = FastAPI(title="Adaptive Lifting Backend", version="1.0.0")
 
@@ -235,6 +66,22 @@ def health_check():
 
 @app.on_event("startup")
 def on_startup():
+    # Fail closed when an operator has not applied the checked-in revisions.
+    # Startup verifies migration state only; it never applies schema changes.
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    alembic_config = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    expected_revision = ScriptDirectory.from_config(alembic_config).get_current_head()
+    with engine.connect() as connection:
+        current_revision = MigrationContext.configure(connection).get_current_revision()
+    if current_revision != expected_revision:
+        raise RuntimeError(
+            f"Database migration required (current={current_revision!r}, expected={expected_revision!r}); "
+            "run `alembic -c alembic.ini upgrade head` before starting the application."
+        )
+
     from .integrations import start_background_worker
     start_background_worker()
 
