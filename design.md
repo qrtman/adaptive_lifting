@@ -646,7 +646,7 @@ The Volume & Intensity Profile tab provides a specialized visual breakdown of se
 +==================================================================================================+
 | Analytics Engine: [ Monitored Athlete: John Doe ]            Time Range: [ 1M ] [ 3M ]* [ 6M ]   |
 +--------------------------------------------------------------------------------------------------+
-| Diagnostic Tabs: [ CNS Stress ] [ Strength Peaks ] [ Volume & Intensity ]* [ AI Coach ]           |
+| Diagnostic Tabs: [ CNS Stress ] [ Strength Peaks ] [ Volume & Intensity ]*                       |
 +-----------------------------------------------------------------+--------------------------------+
 | Tonnage & RPE Zone Volume Distribution Chart                    | Load Distribution (% e1RM):    |
 |                                                                 |                                |
@@ -735,43 +735,6 @@ To prevent high-density strength data from cluttering the main console, coaches 
 | [16:15:22] Token rotation executed. Previous session revoked safely.                            |
 +==================================================================================================+
 ```
-
-### 6.7 AI Coach Analysis Panel Layout Spec
-
-##### Dimensional Constraints
-* **Minimum Width**: `480px`, max-width `800px` to keep readabilities tight.
-* **Height**: Flex bounds matching content height (`360px` standard target).
-* **Padding & Margins**: Container padding set to `--space-4` (16px).
-
-##### Spatial Allocation
-* **Layout Model**: Flex column container with centered content block.
-* **Divisions**: Header (Athlete & Loader), Body (Diagnostic response & recommendations), and Footer actions.
-
-##### State Transitions (Default vs. Maximized)
-* **Default State**: standard view centered floating card.
-* **Maximized State (Dynamic Space Reclamation)**: Sidebar collapses. Reclaimed width stretches layout boundaries, expanding loading spinners and adjusting inline action button scales.
-
-```
-+==================================================================================================+
-| AI Coach Diagnostics: Neural Autoregulation Engine                                                |
-+--------------------------------------------------------------------------------------------------+
-| Current Monitored Athlete: John Doe                                                             |
-| Performance Analysis Trigger:                                                                    |
-| [ DECOMPRESSING NEURAL CORE... ] (Pulsing blue text loader, hsl(217, 91%, 60%))                  |
-+--------------------------------------------------------------------------------------------------+
-| AI Diagnostic Summary Response:                                                                  |
-| * Squat e1RM has stabilized at 185.0 kg over the last 14 days, demonstrating fatigue-resistant    |
-|   adaptation curves.                                                                             |
-| * Bench Press INOL is currently at 1.14 (Caution zone), indicating high cumulative fatigue.      |
-|                                                                                                  |
-| AI Autoregulation Prescription Recommendation:                                                   |
-| > "Decrease Bench Press target volume by 5% in the next microcycle to recover optimal INOL."      |
-|                                                                                                  |
-| [ APPLY PRESCRIPTION ADJUSTMENT ]                   [ RE-EVALUATE ATHLETE PROFILE ]              |
-+==================================================================================================+
-```
-
----
 
 ## 7. Athlete Mobile Gym Logging Experience
 
@@ -1324,8 +1287,7 @@ The application UI handles API errors with prescriptive user feedback and struct
 
 - **`401 Unauthorized / 403 Forbidden` (RBAC Violation):** Immediately triggers the `AUTH_SESSION_REVOKED` overlay. Unsynced local mutations in IndexedDB are strictly preserved in local storage. User is prompted to re-authenticate.
 - **`409 Conflict / WORKOUT_LOCKED`:** Displays the persistent `WorkoutLockBanner` in the workout details pane, explaining that edit rights currently reside with another writer. Inputs transition to read-only until the lock expires or is released. `COMPLETED` session status is not a lock and must not use this banner.
-- **`503 Service Unavailable`:** Standard API gateway key missing or server error. Displays a dark red-bordered alert container: `"AI Autoregulation gateway temporarily unconfigured. Please define GEMINI_API_KEY on the server."`
-- **`502 Bad Gateway`:** Model gateway timeout. Displays a non-intrusive alert strip with a prominent **Retry** button to re-trigger the AI calculation.
+- **`503 Service Unavailable`:** Temporary service outage or unavailable backend dependency. Displays a dark red-bordered alert container with a concise retry path.
 
 #### 10.2.1 HTTP Error Overlay Panels Layout Specs
 
@@ -1360,29 +1322,17 @@ The application UI handles API errors with prescriptive user feedback and struct
 +==================================================================================================+
 ```
 
-##### 10.2.1.2 503 Service Unavailable / Gateway Error Panel
+##### 10.2.1.2 503 Service Unavailable Error Panel
 
 ```
 +==================================================================================================+
 | [!] SERVICE GATEWAY UNCONFIGURED (HTTP 503 Service Unavailable)                                  |
 +--------------------------------------------------------------------------------------------------+
-| Warning: AI Autoregulation gateway is temporarily unconfigured or unreachable.                   |
+| Warning: The requested service is temporarily unavailable.                                       |
 |                                                                                                  |
-| Error details: "GEMINI_API_KEY environment variable is missing on the host server."             |
+| Error details: "Please retry after the service has recovered."                                  |
 |                                                                                                  |
 |                   [ RETRY GATEWAY CONNECTION ]        [ DISMISS ALERT ]                          |
-+==================================================================================================+
-```
-
-##### 10.2.1.3 502 Bad Gateway Alert Strip Spec
-
-```
-+==================================================================================================+
-| [!] MODEL AUTOREGULATION GATEWAY TIMEOUT (HTTP 502 Bad Gateway)                                  |
-+--------------------------------------------------------------------------------------------------+
-| Warning: AI calculations timed out. Standby or retry gateway connection.                         |
-|                                                                                                  |
-|                   [ RETRY CALCULATION ]          [ CLOSE ALERT ]                                 |
 +==================================================================================================+
 ```
 

@@ -1,4 +1,4 @@
-import { MicrocycleData, AICoachResponse, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
+import { MicrocycleData, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
 import { getSnapshot, saveSnapshot, clearSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM } from './mathEngine';
@@ -262,20 +262,6 @@ export const apiService = {
     
     await saveOfflineMicrocycles(data);
     return data;
-  },
-
-  /**
-   * Fetches the secure AI-driven auto-regulation coaching prescriptions.
-   */
-  async fetchAICoachPrescription(athleteId?: string): Promise<AICoachResponse> {
-    const baseUrl = BACKEND_URL || '';
-    const url = athleteId ? `${baseUrl}/api/analytics/ai-advisor?athlete_id=${athleteId}` : `${baseUrl}/api/analytics/ai-advisor`;
-    const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => ({}));
-      throw new Error(errorPayload?.detail || 'Failed to generate AI recommendations.');
-    }
-    return await response.json();
   },
 
   /**

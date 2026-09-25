@@ -2,6 +2,8 @@ import asyncio
 import hashlib
 import hmac
 import json
+import sys
+from types import ModuleType
 import time
 import uuid
 import urllib.parse
@@ -34,6 +36,152 @@ def test_register_and_login_set_session_cookie():
     assert login_response.status_code == 200
     assert "session_id" in login_response.cookies
     assert login_response.cookies.get("session_id")
+
+
+def _google_claims(subject="google-subject-1", email="google-user@example.com", verified=True):
+    return {
+        "sub": subject,
+        "email": email,
+        "email_verified": verified,
+        "iss": "https://accounts.google.com",
+        "aud": "test-google-client-id",
+        "exp": 4_102_444_800,
+    }
+
+
+def test_google_login_verifies_id_token_and_creates_coach(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    subject = f"google-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject))
+    response = TestClient(app).post(
+        "/api/auth/google", json={"token": "valid-id-token", "role": "ATHLETE", "email": "attacker@example.com"}
+    )
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == "google-user@example.com"
+    assert response.json()["user"]["role"] == "COACH"
+    assert response.cookies.get("session_id")
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.google_sub == subject).one()
+        assert user.email == "google-user@example.com"
+    finally:
+        db.close()
+
+
+def test_google_login_links_existing_user_only_with_verified_google_email(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    user_id = str(uuid.uuid4())
+    email = f"google-existing-{uuid.uuid4().hex}@example.com"
+    db = SessionLocal()
+    try:
+        db.add(User(id=user_id, email=email, hashed_password="password-hash", role="ATHLETE"))
+        db.commit()
+    finally:
+        db.close()
+    subject = f"google-existing-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
+    client = TestClient(app)
+    response = client.post("/api/auth/google", json={"token": "valid-id-token"})
+    assert response.status_code == 200
+    assert response.json()["user"]["id"] == user_id
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter(User.id == user_id).one().google_sub == subject
+    finally:
+        db.close()
+
+
+def test_google_login_rejects_unverified_email_and_deleted_account(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(verified=False))
+    client = TestClient(app)
+    assert client.post("/api/auth/google", json={"token": "valid-signature-unverified-email"}).status_code == 401
+
+    user_id = str(uuid.uuid4())
+    email = f"google-deleted-{uuid.uuid4().hex}@example.com"
+    db = SessionLocal()
+    try:
+        db.add(User(id=user_id, email=email, hashed_password="password-hash", role="ATHLETE", deleted_at=datetime.utcnow()))
+        db.commit()
+    finally:
+        db.close()
+    subject = f"google-deleted-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
+    assert client.post("/api/auth/google", json={"token": "valid-token"}).status_code == 403
+
+
+def test_google_login_rejects_duplicate_subject_and_mock_token(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    email = f"google-conflict-{uuid.uuid4().hex}@example.com"
+    subject = f"google-existing-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=f"incoming-{subject}", email=email))
+    db = SessionLocal()
+    try:
+        db.add(User(id=str(uuid.uuid4()), email=email, hashed_password="x", role="COACH", google_sub=subject))
+        db.commit()
+    finally:
+        db.close()
+    client = TestClient(app)
+    response = client.post("/api/auth/google", json={"token": "valid-token"})
+    assert response.status_code == 409
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: (_ for _ in ()).throw(ValueError("invalid token")))
+    assert client.post("/api/auth/google", json={"token": "mock_google_token_google-user"}).status_code == 401
+
+
+def test_google_login_requires_configuration_and_rejects_invalid_token_categories(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda *args: (_ for _ in ()).throw(AssertionError("must not verify without config")))
+    missing = client.post("/api/auth/google", json={"token": "anything"})
+    assert missing.status_code == 503
+    assert "GOOGLE_CLIENT_ID" in missing.json()["detail"]
+
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    for category in ("bad signature", "wrong audience", "expired"):
+        monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id, category=category: (_ for _ in ()).throw(ValueError(category)))
+        assert client.post("/api/auth/google", json={"token": f"invalid-{category}"}).status_code == 401
+
+
+def test_google_login_calls_google_auth_verifier_with_server_audience(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "server-client-id")
+    google = ModuleType("google")
+    google.__path__ = []
+    auth = ModuleType("google.auth")
+    auth.__path__ = []
+    transport = ModuleType("google.auth.transport")
+    transport.__path__ = []
+    transport_requests = ModuleType("google.auth.transport.requests")
+    transport_requests.Request = lambda: "google-verification-request"
+    oauth2 = ModuleType("google.oauth2")
+    oauth2.__path__ = []
+    id_token = ModuleType("google.oauth2.id_token")
+    calls = []
+    test_email = f"google-wrapper-{uuid.uuid4().hex}@example.com"
+
+    def google_verifier(token, request, audience):
+        calls.append((token, request, audience))
+        if token in {"forged-signature", "wrong-audience", "expired-token"}:
+            raise ValueError("Google rejected token")
+        return _google_claims(subject=f"verified-{uuid.uuid4().hex}", email=test_email)
+
+    id_token.verify_oauth2_token = google_verifier
+    for name, module in {
+        "google": google,
+        "google.auth": auth,
+        "google.auth.transport": transport,
+        "google.auth.transport.requests": transport_requests,
+        "google.oauth2": oauth2,
+        "google.oauth2.id_token": id_token,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    client = TestClient(app)
+    valid = client.post("/api/auth/google", json={"token": "cryptographically-verified-by-library"})
+    assert valid.status_code == 200
+    for token in ("forged-signature", "wrong-audience", "expired-token"):
+        assert client.post("/api/auth/google", json={"token": token}).status_code == 401
+    assert all(call[1] == "google-verification-request" for call in calls)
+    assert all(call[2] == "server-client-id" for call in calls)
 
 
 def _register_auth_user(client, prefix="auth"):

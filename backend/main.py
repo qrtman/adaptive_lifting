@@ -10,7 +10,6 @@ from sqlalchemy.exc import IntegrityError
 from .database import (
     engine,
     get_db,
-    init_db,
     Mesocycle,
     Microcycle,
     Workout,
@@ -1248,159 +1247,6 @@ def export_json(
         headers={"Content-Disposition": "attachment; filename=adaptive_lifting_export.json"}
     )
 
-@app.get("/api/analytics/ai-advisor")
-def get_ai_advisor(
-    athlete_id: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    import requests
-    import json
-    import re
-    
-    # 4.1 RBAC Enforcement
-    target_id = athlete_id if athlete_id else current_user.id
-    if current_user.role == "COACH":
-        rel = active_coaching_query(db).filter(
-            CoachingRelationship.coach_id == current_user.id,
-            CoachingRelationship.athlete_id == target_id
-        ).first()
-        if not rel:
-            raise HTTPException(status_code=403, detail="Unauthorized coach request.")
-    elif current_user.role == "ATHLETE" and target_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Unauthorized athlete request.")
-
-    # 4.2 Secure Environment Key Validation
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="AI Autoregulation gateway temporarily unconfigured. Please define GEMINI_API_KEY on the server."
-        )
-
-    # 4.3 Pre-Aggregation Engine (Reducing Token Footprint)
-    mcs = db.query(Microcycle).filter(Microcycle.owner_id == target_id).all()
-    mc_ids = [mc.id for mc in mcs]
-    workouts = db.query(Workout).filter(Workout.microcycle_id.in_(mc_ids)).all()
-    
-    # Compile performance peaks and stats
-    squat_max = 0.0
-    bench_max = 0.0
-    deadlift_max = 0.0
-    latest_bw = 100.0
-    
-    # Gather trailing workout trends
-    scraped_trends = []
-    for w in sorted(workouts, key=lambda x: x.date)[-5:]: # Limit to last 5 workouts to minimize token footprint
-        workout_sets = []
-        for e in w.exercises:
-            for s in e.sets:
-                wt = coerce_float(s.actual) or 0.0
-                rp = coerce_int(s.reps) or 0
-                rpe = coerce_float(s.executedRpe) or 0.0
-                if wt > 0.0 and rp > 0:
-                    e1rm = calculate_e1rm(wt, rp, rpe)
-                    if e.lift_category == "Squat" and e1rm > squat_max: squat_max = e1rm
-                    if e.lift_category == "Bench" and e1rm > bench_max: bench_max = e1rm
-                    if e.lift_category == "Deadlift" and e1rm > deadlift_max: deadlift_max = e1rm
-                    workout_sets.append({
-                        "exercise": e.title,
-                        "weight": wt,
-                        "reps": rp,
-                        "rpe": rpe,
-                        "e1rm": round(e1rm, 1)
-                    })
-        scraped_trends.append({"date": w.date, "tonnage": w.tonnage, "logged": workout_sets})
-
-    # Pull precalculated ACWR & INOL splits from standard trends endpoint logic
-    trends_payload = athlete_fatigue_summary(db, current_user, target_id)
-    fatigue = trends_payload["fatigue_metrics"]
-    
-    scraped_payload = {
-        "athlete": {
-            "gender": "MALE",
-            "bodyweight": trends_payload["current_bw"],
-            "dots_score": trends_payload["dots_score"]
-        },
-        "fatigue_metrics": {
-            "weekly_inol_squat": fatigue["weekly_inol_squat"],
-            "weekly_inol_bench": fatigue["weekly_inol_bench"],
-            "weekly_inol_deadlift": fatigue["weekly_inol_deadlift"],
-            "acute_chronic_ratio": fatigue["acute_chronic_ratio"],
-            "average_relative_intensity_pct": fatigue["average_relative_intensity_pct"]
-        },
-        "recent_history": scraped_trends
-    }
-
-    # 4.4 Target System Prompt Construction
-    system_prompt = f"""
-You are an Elite Powerlifting Coach acting strictly under Mike Tuchscherer's Reactive Training Systems (RTS) autoregulation principles.
-Your task is to analyze the athlete's training metrics and rolling fatigue ratios, and output a highly personalized periodization diagnostic.
-
-You MUST respond strictly in raw JSON matching the following schema. Do NOT include markdown tags, explanation headers, or raw text wraps. Only output valid, parseable JSON.
-
-Athlete Profile:
-{json.dumps(scraped_payload)}
-
-Schema:
-{{
-  "cns_readiness": {{
-    "status": "Functional Adaptation" | "Neural Fatigue Suppression" | "Detraining",
-    "score": number (0-100),
-    "analysis": "Exactly two sentences explaining the acute chronic workload ratio."
-  }},
-  "movement_diagnostics": {{
-    "squat_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }},
-    "bench_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }},
-    "deadlift_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }}
-  }},
-  "microcycle_prescription": {{
-    "loading_strategy": "Maintain Baseline" | "Escalate Tonnage (+10%)" | "Load Drop Downsets (-5%)" | "Deload Decompression (-20%)",
-    "tactical_guidance": "Actionable RTS periodization pacing adjustments",
-    "suggested_rpe_cap": number
-  }},
-  "attempt_feedback": {{
-    "opener_feasibility": "Conservative" | "Optimal" | "High-Risk",
-    "coaching_notes": "Expert analysis of opener relative to peak strength curves"
-  }}
-}}
-"""
-
-    # 4.5 Execute Model Gateway Query
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        res = requests.post(url, json={
-            "contents": [{"parts": [{"text": system_prompt}]}]
-        }, timeout=12)
-
-        if res.status_code != 200:
-            raise HTTPException(status_code=502, detail="Failed to communicate with Google model gateway.")
-            
-        raw_result = res.json()
-        raw_text = raw_result['candidates'][0]['content']['parts'][0]['text']
-        
-        # 4.6 Strict Sanitization
-        cleaned_text = raw_text.strip()
-        if cleaned_text.startswith("```"):
-            cleaned_text = re.sub(r"^```(json)?\n", "", cleaned_text)
-            cleaned_text = re.sub(r"\n```$", "", cleaned_text)
-        cleaned_text = cleaned_text.strip()
-        
-        # Validate JSON structure
-        parsed_data = json.loads(cleaned_text)
-        if "cns_readiness" not in parsed_data or "microcycle_prescription" not in parsed_data:
-            raise ValueError("Schema structure failed validation.")
-            
-        return parsed_data
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Neural processing exception: {str(e)}"
-        )
-
-
-
 @app.post("/api/workouts/{id}/sync")
 def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return resolve_sync_payload(db, payload, current_user.id)
@@ -2163,4 +2009,5 @@ def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get
         updated.append(sid)
     db.commit()
     return {"status": "success", "updated": updated}
+
 

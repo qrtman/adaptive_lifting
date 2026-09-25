@@ -1333,7 +1333,7 @@ Designed for coaches who need to import data into existing spreadsheet workflows
 
 ### 14.2 Hierarchical JSON Export
 
-For deep analysis or AI model ingestion, the full microcycle tree is exportable as nested JSON:
+For deep analysis and external auditing, the full microcycle tree is exportable as nested JSON:
 
 ```
 Microcycle -> Workouts[] -> Exercises[] -> Sets[]
@@ -1422,7 +1422,7 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 - Frontend: `npm run dev` (Vite dev server with HMR)
 - Backend: `uvicorn backend.main:app --reload`
-- Database: SQLite file created automatically on first boot
+- Database: SQLite file initialized by the explicit Alembic migration command before first boot
 
 ### 15.2 Target Runtime Topology
 
@@ -1465,7 +1465,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 | :--- | :--- |
 | **JWT Secrets** | Must be loaded from `JWT_SECRET_CURRENT` and optional `JWT_SECRET_PREVIOUS`, never hardcoded |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
-| **Database Migrations** | Transition from inline `ALTER TABLE` to Alembic for versioned schema evolution |
+| **Database Migrations** | Alembic revisions run explicitly before startup; startup verifies the recorded revision and fails if pending |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
 | **Backup** | SQLite file can be backed up via simple file copy on a cron schedule |
 | **Scaling** | SQLite is appropriate for single-coach deployments. Multi-tenant SaaS would require PostgreSQL migration |
@@ -1584,7 +1584,6 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | **Later** | SaaS Multi-Tenancy | PostgreSQL migration, Stripe billing, coach subscription tiers |
 | **Later** | Program Template Marketplace | Coaches can sell pre-written periodization blocks |
 | **Later** | Google Sheets Import Review | Optional controlled import workflow with validation, preview, and explicit coach approval |
-| **Later** | AI Training Recommendations | Use exported JSON to feed ML models for auto-regulation suggestions |
 
 ---
 
