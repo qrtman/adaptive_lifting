@@ -26,6 +26,16 @@ This project requires a dual-process spin-up (Vite + FastAPI).
   ```
 * **Runs on**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
+Vite proxies browser requests under `/api` to `http://localhost:8000`, so the
+frontend uses the same `/api/...` URLs in development and production. To proxy
+to a different local backend, set `API_PROXY_TARGET` before `npm run dev`.
+Production should serve the frontend and route `/api` on the same public origin
+to FastAPI (for example, `https://lifting.example.com/api/...`). No frontend
+backend URL is required at build time. `VITE_BACKEND_URL` is an optional
+override for a deliberately separate API origin; that setup needs credentialed
+CORS and compatible cookie domain/SameSite/Secure settings. Avoid setting it
+unless the deployment requires cross-origin API calls.
+
 ---
 
 ## Tests
