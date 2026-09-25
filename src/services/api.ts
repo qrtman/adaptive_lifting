@@ -5,8 +5,9 @@ import { calculateE1RM } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 import type { AnalyticsCatalog, CardConfig, QueryResult, SavedCard } from '../insights/types';
 import type { CopyMode } from '../features/plan/copyClipboard';
+import { API_BASE_URL } from './apiBase';
 
-const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = API_BASE_URL;
 
 export type RosterAthlete = {
   id: string;
@@ -493,7 +494,7 @@ export const apiService = {
    * Triggers a fetch call to download the CSV export blob.
    */
   async downloadExportCSV(liftCategory?: string, tier?: string): Promise<Blob> {
-    const baseUrl = BACKEND_URL || 'http://localhost:8000';
+    const baseUrl = BACKEND_URL;
     let url = `${baseUrl}/api/export/csv`;
     const params = [];
     if (liftCategory) params.push(`lift_category=${encodeURIComponent(liftCategory)}`);
@@ -509,7 +510,7 @@ export const apiService = {
    * Triggers a fetch call to download the JSON export blob.
    */
   async downloadExportJSON(): Promise<Blob> {
-    const baseUrl = BACKEND_URL || 'http://localhost:8000';
+    const baseUrl = BACKEND_URL;
     const url = `${baseUrl}/api/export/json`;
     const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw new Error('JSON export download failed');

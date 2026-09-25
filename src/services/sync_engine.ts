@@ -1,12 +1,13 @@
 import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
+import { API_BASE_URL } from './apiBase';
 
 let syncTimeout: number | null = null;
 let insightSyncTimeout: number | null = null;
 const SYNC_DEBOUNCE_MS = 2000;
 
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = API_BASE_URL;
 
 export const LOCK_SYNC_CODES = new Set(['WORKOUT_LOCKED']);
 

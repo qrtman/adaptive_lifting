@@ -1508,6 +1508,39 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 - **Pure serverless:** Deferred because SQLite persistent storage, long-lived SSE connections, and background outbox jobs are awkward in stateless function runtimes.
 - **Kubernetes:** Deferred until multi-tenant SaaS scale or multiple independently scalable services justify the operational overhead.
 
+### 15.9 Included Docker Compose Deployment
+
+The repository's production deployment uses the root `docker-compose.yml`. The `web` service builds and serves the Vite frontend through Caddy, which obtains and renews HTTPS certificates for `APP_DOMAIN` and proxies `/api/*` to the private `api` service. Only Caddy publishes host ports (80/tcp, 443/tcp, and 443/udp). The API has no host-published port.
+
+The API uses the persistent `app_data` volume at `/data` and SQLite at `/data/adaptive-lifting.sqlite`. SQLite connections enable WAL, foreign keys, and a 30-second busy timeout. The current integration outbox worker starts as a daemon thread from FastAPI startup, so the API runs exactly one Uvicorn worker and there is no separate worker service. Do not scale the API replicas with this worker topology. If a standalone worker entrypoint is introduced later, move the worker out of API startup before adding that service.
+
+On a Linux host, install Docker Engine with the Compose plugin, point `APP_DOMAIN` DNS at the host, allow inbound 80/443, and prepare private secrets:
+
+```sh
+cp .env.production.example .env.production
+chmod 600 .env.production
+```
+
+Set `APP_DOMAIN`, `APP_URL`, a unique random `JWT_SECRET_CURRENT`, and a stable random `INTEGRATION_ENCRYPTION_KEY`. Configure integration credentials when those integrations are enabled. Start or update with:
+
+```sh
+docker compose --env-file .env.production up -d --build
+```
+
+The same environment file is passed only to the API for application configuration; Compose interpolation gives Caddy only `APP_DOMAIN`. It is excluded from the Docker build context and must not be copied into an image. Check status with `docker compose ps` and logs with `docker compose logs -f api web`. The API health check is `/api/health`; Caddy's internal-only health check is `http://127.0.0.1:8080/healthz`.
+
+Back up SQLite using its online backup API, then encrypt and copy the result off-host. Run this from the deployment directory on a Linux host with GPG installed and the backup operator's public key imported. Set `BACKUP_GPG_RECIPIENT` to that key's email or fingerprint:
+
+```sh
+mkdir -p backups
+export BACKUP_GPG_RECIPIENT='backup-operator@example.com'
+docker compose exec -T api python -c "import sqlite3; src=sqlite3.connect('/data/adaptive-lifting.sqlite'); dst=sqlite3.connect('/tmp/adaptive-lifting-backup.sqlite'); src.backup(dst); dst.close(); src.close()"
+docker compose exec -T api cat /tmp/adaptive-lifting-backup.sqlite | gpg --encrypt --recipient "$BACKUP_GPG_RECIPIENT" --output "backups/adaptive-lifting-$(date -u +%Y%m%dT%H%M%SZ).sqlite.gpg"
+docker compose exec -T api rm -f /tmp/adaptive-lifting-backup.sqlite
+```
+
+Copy encrypted backups to a separate host or object store and retain at least 14 daily points. Periodically decrypt a copy into a staging deployment and verify application startup and expected records. This procedure is manual; the Compose setup does not schedule or upload backups.
+
 ---
 
 ## 16. Performance Budget & Targets

@@ -226,6 +226,13 @@ migrate_db()
 
 app = FastAPI(title="Adaptive Lifting Backend", version="1.0.0")
 
+
+@app.get("/api/health", include_in_schema=False)
+def health_check():
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    return {"status": "ok"}
+
 @app.on_event("startup")
 def on_startup():
     from .integrations import start_background_worker
