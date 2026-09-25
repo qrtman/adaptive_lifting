@@ -1,4 +1,5 @@
 import os
+import base64
 import uuid
 import hmac
 import hashlib
@@ -11,6 +12,12 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
+try:
+    from cryptography.fernet import Fernet
+except Exception as exc:
+    raise RuntimeError(
+        "cryptography is required for integration credential encryption"
+    ) from exc
 
 from .database import (
     get_db, User, IntegrationConnection, IntegrationCredential, 
@@ -34,38 +41,19 @@ APP_URL = os.environ.get("APP_URL", "http://localhost:5173")
 PENDING_LINK_TOKENS = {}
 
 # --- Security Encryption / Decryption Helpers ---
-def encrypt_data(data: str, key: str) -> str:
+def _fernet_for_key(key: str) -> Fernet:
     try:
-        from cryptography.fernet import Fernet
-        import base64
         f_key = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
-        fernet = Fernet(f_key)
-        return fernet.encrypt(data.encode()).decode()
-    except Exception:
-        # Fallback compile-proof cipher (XOR with sha256 hash)
-        import base64
-        key_bytes = hashlib.sha256(key.encode()).digest()
-        data_bytes = data.encode()
-        out = bytearray()
-        for i, b in enumerate(data_bytes):
-            out.append(b ^ key_bytes[i % len(key_bytes)])
-        return base64.b64encode(out).decode()
+        return Fernet(f_key)
+    except Exception as exc:
+        raise RuntimeError("Integration credential encryption could not initialize") from exc
+
+
+def encrypt_data(data: str, key: str) -> str:
+    return _fernet_for_key(key).encrypt(data.encode()).decode()
 
 def decrypt_data(token: str, key: str) -> str:
-    try:
-        from cryptography.fernet import Fernet
-        import base64
-        f_key = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
-        fernet = Fernet(f_key)
-        return fernet.decrypt(token.encode()).decode()
-    except Exception:
-        import base64
-        key_bytes = hashlib.sha256(key.encode()).digest()
-        data_bytes = base64.b64decode(token.encode())
-        out = bytearray()
-        for i, b in enumerate(data_bytes):
-            out.append(b ^ key_bytes[i % len(key_bytes)])
-        return out.decode()
+    return _fernet_for_key(key).decrypt(token.encode()).decode()
 
 # --- Telegram Helper Functions ---
 def verify_telegram_init_data(init_data: str, bot_token: str) -> dict:
