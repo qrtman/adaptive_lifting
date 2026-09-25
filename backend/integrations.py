@@ -30,7 +30,7 @@ from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_d
 router = APIRouter()
 
 # --- Config & Keys ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "mock_bot_token")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "mock_webhook_secret")
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "mock_client_id")
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "mock_client_secret")
@@ -56,34 +56,63 @@ def decrypt_data(token: str, key: str) -> str:
     return _fernet_for_key(key).decrypt(token.encode()).decode()
 
 # --- Telegram Helper Functions ---
+TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = 5 * 60
+TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS = 30
+
+
 def verify_telegram_init_data(init_data: str, bot_token: str) -> dict:
-    if bot_token == "mock_bot_token" or init_data.startswith("mock_"):
-        # Local development / fallback testing bypass
-        return {
-            "id": 99999,
-            "first_name": "Mock Athlete",
-            "username": "mock_athlete",
-            "role": "ATHLETE"
-        }
+    """Verify Telegram WebApp initData and return its authenticated user object.
+
+    We accept data up to five minutes old and tolerate clocks up to 30 seconds
+    ahead. The freshness limit narrows the replay window but is not one-time
+    replay prevention.
+    """
+    if (
+        not isinstance(init_data, str) or not init_data
+        or not isinstance(bot_token, str) or not bot_token.strip()
+        or bot_token == "mock_bot_token"
+    ):
+        raise ValueError("Invalid Telegram authentication")
     try:
-        parsed = dict(urllib.parse.parse_qsl(init_data))
-        if "hash" not in parsed:
-            raise ValueError("Missing hash parameter")
-        
-        received_hash = parsed.pop("hash")
-        sorted_params = sorted(parsed.items())
-        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted_params)
-        
-        # Calculate key as HMAC-SHA256 of bot_token keyed by "WebAppData"
+        pairs = urllib.parse.parse_qsl(init_data, keep_blank_values=True, strict_parsing=True)
+        if not pairs:
+            raise ValueError
+        # Duplicate keys make the signed representation ambiguous across parsers.
+        if len({key for key, _ in pairs}) != len(pairs):
+            raise ValueError
+        parsed = dict(pairs)
+        received_hash = parsed.pop("hash", None)
+        if not received_hash or len(received_hash) != 64:
+            raise ValueError
+        try:
+            bytes.fromhex(received_hash)
+        except ValueError:
+            raise ValueError
+        data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(parsed.items()))
         secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
         calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
-        
-        if calculated_hash != received_hash:
-            raise ValueError("Hash mismatch")
-            
-        return json.loads(parsed.get("user", "{}"))
-    except Exception as e:
-        raise ValueError(f"Invalid Telegram authentication: {str(e)}")
+        if not hmac.compare_digest(calculated_hash, received_hash.lower()):
+            raise ValueError
+
+        auth_date_raw = parsed.get("auth_date")
+        if not auth_date_raw or not auth_date_raw.isascii() or not auth_date_raw.isdecimal():
+            raise ValueError
+        auth_date = int(auth_date_raw)
+        now = int(time.time())
+        age = now - auth_date
+        if age < -TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS or age > TELEGRAM_INIT_DATA_MAX_AGE_SECONDS:
+            raise ValueError
+
+        user_raw = parsed.get("user")
+        if not user_raw:
+            raise ValueError
+        user = json.loads(user_raw)
+        if not isinstance(user, dict) or isinstance(user.get("id"), bool) or not isinstance(user.get("id"), int) or user["id"] <= 0:
+            raise ValueError
+        return user
+    except (TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+        # Never include initData or the bot token in errors or logs.
+        raise ValueError("Invalid Telegram authentication") from None
 
 def send_telegram_message(chat_id: int, text: str, reply_markup: dict = None) -> bool:
     if TELEGRAM_BOT_TOKEN == "mock_bot_token":

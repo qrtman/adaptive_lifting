@@ -1,5 +1,10 @@
 import asyncio
+import hashlib
+import hmac
+import json
+import time
 import uuid
+import urllib.parse
 from datetime import datetime, timedelta
 
 import jwt
@@ -9,6 +14,7 @@ from backend.database import AuditEvent, CoachingRelationship, DomainEvent, Inte
 from backend import main as auth_main
 from backend.main import app
 from backend.sse_broadcaster import get_events
+from backend import integrations as telegram_integrations
 
 
 def test_register_and_login_set_session_cookie():
@@ -171,7 +177,21 @@ def test_deleted_user_cannot_authenticate():
     ).status_code == 401
 
 
-def test_telegram_miniapp_login_issues_revocable_session():
+def _signed_telegram_init_data(bot_token, telegram_user_id):
+    params = {
+        "auth_date": str(int(time.time())),
+        "query_id": "test-query-id",
+        "user": json.dumps({"id": telegram_user_id, "first_name": "Test Athlete"}),
+    }
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(params.items()))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    params["hash"] = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    return urllib.parse.urlencode(params)
+
+
+def test_telegram_miniapp_login_issues_revocable_session(monkeypatch):
+    bot_token = "123456789:test-bot-token"
+    monkeypatch.setattr(telegram_integrations, "TELEGRAM_BOT_TOKEN", bot_token)
     client = TestClient(app)
     user_id, _ = _register_auth_user(client)
     db = SessionLocal()
@@ -188,7 +208,8 @@ def test_telegram_miniapp_login_issues_revocable_session():
     finally:
         db.close()
 
-    login = client.post("/api/integrations/telegram/miniapp/session", json={"initData": "mock_init_data"})
+    init_data = _signed_telegram_init_data(bot_token, 99999)
+    login = client.post("/api/integrations/telegram/miniapp/session", json={"initData": init_data})
     assert login.status_code == 200
     token = login.json()["access_token"]
     assert "session_id" in login.cookies
@@ -196,6 +217,14 @@ def test_telegram_miniapp_login_issues_revocable_session():
     assert client.get(
         "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
     ).status_code == 200
+
+
+def test_telegram_miniapp_login_rejects_mock_input_with_real_bot_token(monkeypatch):
+    monkeypatch.setattr(telegram_integrations, "TELEGRAM_BOT_TOKEN", "123456789:real-bot-token")
+    response = TestClient(app).post(
+        "/api/integrations/telegram/miniapp/session", json={"initData": "mock_init_data"}
+    )
+    assert response.status_code == 401
 
 
 def test_live_workout_events_require_active_authentication():
