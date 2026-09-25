@@ -5,6 +5,8 @@ from typing import List, Optional
 import os
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from .database import (
     engine,
     get_db,
@@ -244,7 +246,15 @@ class UpdateProfileRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     token: str
-    role: Optional[str] = "ATHLETE"
+    # The application role is not asserted by the Google identity token.
+
+
+def verify_google_id_token(token: str, client_id: str) -> dict:
+    """Verify a Google ID token's signature and standard OIDC claims."""
+    from google.auth.transport.requests import Request as GoogleRequest
+    from google.oauth2 import id_token
+
+    return id_token.verify_oauth2_token(token, GoogleRequest(), audience=client_id)
 
 @app.post("/api/auth/login")
 def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -297,52 +307,65 @@ def development_login(role: str, response: Response, db: Session = Depends(get_d
 
 @app.post("/api/auth/google")
 def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
-    # Mocking Google Token Verification
-    # In production, use google.oauth2.id_token.verify_oauth2_token
-    if not req.token.startswith("mock_google_token_"):
-        raise HTTPException(status_code=400, detail="Invalid Google token")
-    
-    email = req.token.replace("mock_google_token_", "") + "@gmail.com"
-    user = db.query(User).filter(User.email == email).first()
-    
-    if not user:
-        # Auto-register
-        user = User(
-            id=str(uuid.uuid4()),
-            email=email,
-            hashed_password=get_password_hash(str(uuid.uuid4())), # random password
-            role=req.role
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    session_id = str(uuid.uuid4())
-    from .database import Session as DBSession
-    db_session = DBSession(
-        id=session_id,
-        user_id=user.id,
-        jwt_id=session_id,
-        expires_at=datetime.utcnow() + access_token_expires
-    )
-    db.add(db_session)
-    db.commit()
-    
-    access_token = create_access_token(
-        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
-    )
-    
-    response.set_cookie(
-        key="session_id",
-        value=access_token,
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        secure=COOKIE_SECURE
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name}}
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google login is not configured (GOOGLE_CLIENT_ID is required)")
+
+    try:
+        claims = verify_google_id_token(req.token, client_id)
+    except Exception:
+        # Invalid signature, issuer, audience, expiry, malformed token, or
+        # provider certificate-fetch failure all fail closed as auth errors.
+        raise HTTPException(status_code=401, detail="Invalid Google ID token")
+
+    # verify_oauth2_token validates signature, issuer, audience, and expiry.
+    subject = claims.get("sub") if isinstance(claims, dict) else None
+    email = claims.get("email") if isinstance(claims, dict) else None
+    if (
+        not isinstance(subject, str) or not subject.strip()
+        or not isinstance(email, str) or not email.strip()
+        or claims.get("email_verified") is not True
+    ):
+        raise HTTPException(status_code=401, detail="Google account must have a verified email and subject")
+
+    subject = subject.strip()
+    email = email.strip().lower()
+    subject_user = db.query(User).filter(User.google_sub == subject).one_or_none()
+    if subject_user is not None:
+        if subject_user.deleted_at is not None:
+            raise HTTPException(status_code=403, detail="This account is unavailable")
+        user = subject_user
+    else:
+        # Link only to a non-deleted account matching Google's verified email.
+        matching_users = db.query(User).filter(func.lower(User.email) == email).all()
+        if len(matching_users) > 1:
+            raise HTTPException(status_code=409, detail="Multiple local accounts match this Google email")
+        user = matching_users[0] if matching_users else None
+        if user is not None:
+            if user.deleted_at is not None:
+                raise HTTPException(status_code=403, detail="This account is unavailable")
+            if user.google_sub is not None and user.google_sub != subject:
+                raise HTTPException(status_code=409, detail="Google identity is already linked to another account")
+            user.google_sub = subject
+        else:
+            # App authorization roles are not taken from browser input.
+            user = User(
+                id=str(uuid.uuid4()),
+                email=email,
+                hashed_password=get_password_hash(str(uuid.uuid4())),
+                role="COACH",
+                google_sub=subject,
+            )
+            db.add(user)
+
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Google identity or email is already linked")
+
+    return start_session(response, user)
 
 @app.post("/api/auth/logout")
 def logout(response: Response, request: Request, db: Session = Depends(get_db)):
