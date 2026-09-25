@@ -7,18 +7,46 @@ from .accessory_migration import expand_legacy_accessory_sets
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.sqlite")
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 30})
+def create_database_engine(database_url):
+    if not database_url.startswith("sqlite"):
+        return create_engine(database_url)
 
-    @event.listens_for(engine, "connect")
+    database_engine = create_engine(
+        database_url,
+        connect_args={"check_same_thread": False, "timeout": 5},
+    )
+
+    # Connection-local settings must be applied whenever the pool creates a
+    # DBAPI connection. WAL persists for a database file, so initialize it once
+    # per pool instead of changing journal mode while connections are active.
+    @event.listens_for(database_engine, "connect")
     def configure_sqlite_connection(connection, _record):
         cursor = connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA busy_timeout=30000")
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
-else:
-    engine = create_engine(DATABASE_URL)
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA busy_timeout=5000")
+        finally:
+            cursor.close()
+
+    sqlite_database = database_engine.url.database
+    is_memory_database = (
+        sqlite_database in (None, "", ":memory:")
+        or sqlite_database.startswith("file::memory:")
+        or database_engine.url.query.get("mode") == "memory"
+    )
+    if not is_memory_database:
+        @event.listens_for(database_engine, "first_connect")
+        def enable_sqlite_wal(connection, _record):
+            cursor = connection.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+            finally:
+                cursor.close()
+
+    return database_engine
+
+
+engine = create_database_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
