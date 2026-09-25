@@ -63,4 +63,4 @@ def test_non_sqlite_engine_does_not_receive_sqlite_pragmas(monkeypatch):
     result = create_database_engine("postgresql://user:pass@localhost/example")
 
     assert result is not None
-    assert calls == [("postgresql://user:pass@localhost/example", {})]
+    assert calls == [("postgresql://user:pass@localhost/example", {"pool_pre_ping": True})]

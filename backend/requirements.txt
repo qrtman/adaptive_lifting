@@ -13,3 +13,4 @@ requests==2.34.2
 cryptography==50.0.1
 google-auth==2.58.1
 alembic==1.16.5
+psycopg[binary]==3.2.12

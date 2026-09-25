@@ -16,7 +16,7 @@ from .analytics_service import run_query
 from .database import InsightCard, User, get_db
 from .exercise_patterns import PATTERNS
 from .math_utils import MATH_VERSION
-from .sync_service import SyncPayload, assert_math_version
+from .sync_service import SyncPayload, assert_math_version, ensure_client_device
 
 router = APIRouter(tags=["analytics"])
 
@@ -155,6 +155,7 @@ def create_analytics_router(get_current_user):
         from .database import SyncMutation
 
         assert_math_version(payload)
+        device_id = ensure_client_device(db, payload.client_device_id, current_user.id)
         accepted = []
         rejected = []
         for change in payload.changes:
@@ -162,7 +163,7 @@ def create_analytics_router(get_current_user):
                 rejected.append(change.mutation_id)
                 continue
             existing = db.query(SyncMutation).filter(
-                SyncMutation.client_device_id == payload.client_device_id,
+                SyncMutation.client_device_id == device_id,
                 SyncMutation.mutation_id == change.mutation_id,
             ).first()
             if existing:
@@ -208,7 +209,7 @@ def create_analytics_router(get_current_user):
                 row.updated_at = datetime.utcnow()
             db.add(SyncMutation(
                 mutation_id=change.mutation_id,
-                client_device_id=payload.client_device_id,
+                client_device_id=device_id,
                 entity_type="InsightCard",
                 entity_id=change.id,
                 field_path="ALL",

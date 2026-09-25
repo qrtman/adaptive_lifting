@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
@@ -7,6 +7,8 @@ const fieldClass =
   'w-full min-h-12 bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] py-3 pl-10 pr-3 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus:outline-none focus:border-[var(--cal-accent)] focus:ring-1 focus:ring-[var(--cal-accent)]';
 
 export const LoginView = () => {
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const googleButton = useRef<HTMLDivElement>(null);
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,16 +29,10 @@ export const LoginView = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (token: string) => {
     setLoading(true);
     setError(null);
     try {
-      const mockEmail = prompt('Enter mock Google email (e.g. coach):', 'coach');
-      if (!mockEmail) {
-        setLoading(false);
-        return;
-      }
-      const token = `mock_google_token_${mockEmail.split('@')[0]}`;
       const data = await apiService.googleLogin(token, 'COACH');
       signIn(data.user);
     } catch (err: any) {
@@ -45,6 +41,37 @@ export const LoginView = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!googleClientId) return;
+    type GoogleIdentity = {
+      accounts: { id: {
+        initialize: (options: { client_id: string; callback: (result: { credential: string }) => void }) => void;
+        renderButton: (element: HTMLElement, options: { theme: string; size: string; width: number }) => void;
+      } };
+    };
+    const browser = window as Window & { google?: GoogleIdentity };
+    const renderButton = () => {
+      if (!browser.google || !googleButton.current) return;
+      browser.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: result => void handleGoogleLogin(result.credential),
+      });
+      googleButton.current.replaceChildren();
+      browser.google.accounts.id.renderButton(googleButton.current, { theme: 'outline', size: 'large', width: 320 });
+    };
+    if (browser.google) {
+      renderButton();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = renderButton;
+    script.onerror = () => setError('Google sign-in could not load');
+    document.head.appendChild(script);
+    return () => { script.onload = null; script.onerror = null; };
+  }, [googleClientId]);
 
   const handleDevelopmentLogin = async (role: 'COACH' | 'ATHLETE') => {
     setLoading(true);
@@ -121,14 +148,7 @@ export const LoginView = () => {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full min-h-12 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
-        >
-          Continue with Google
-        </button>
+        {googleClientId && <div ref={googleButton} aria-label="Continue with Google" />}
 
         {showDevelopmentLogin && (
           <div className="border-t border-[var(--cal-hairline)] pt-3">

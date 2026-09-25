@@ -9,8 +9,9 @@
 {$APP_DOMAIN} {
 	encode zstd gzip
 
-	handle /api/* {
-		reverse_proxy api:8000
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy api:{$API_PORT:8000}
 	}
 
 	handle {

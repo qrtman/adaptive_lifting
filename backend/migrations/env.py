@@ -1,5 +1,4 @@
 from logging.config import fileConfig
-import os
 from alembic import context
 from backend.database import Base, DATABASE_URL
 import backend.database  # import all mapped tables
@@ -7,7 +6,7 @@ import backend.database  # import all mapped tables
 config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", os.environ.get("DATABASE_URL", DATABASE_URL).replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 target_metadata = Base.metadata
 
 def run_migrations_offline():

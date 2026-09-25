@@ -3,13 +3,25 @@ from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, F
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 from .accessory_migration import expand_legacy_accessory_sets
+from .runtime_config import apply_dotenv, is_production_like
 
+apply_dotenv()
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.sqlite")
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    if is_production_like():
+        raise RuntimeError("DATABASE_URL is required in production; use persistent PostgreSQL or a durable database volume")
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+if is_production_like() and not DATABASE_URL.startswith("postgresql+psycopg://"):
+    raise RuntimeError("Production DATABASE_URL must use persistent PostgreSQL (postgresql+psycopg://)")
 
 def create_database_engine(database_url):
     if not database_url.startswith("sqlite"):
-        return create_engine(database_url)
+        return create_engine(database_url, pool_pre_ping=True)
 
     database_engine = create_engine(
         database_url,

@@ -16,6 +16,7 @@ from backend.database import AuditEvent, CoachingRelationship, DomainEvent, Inte
 from backend import main as auth_main
 from backend.main import app
 from backend.sse_broadcaster import get_events
+from backend import sse_broadcaster
 from backend import integrations as telegram_integrations
 
 
@@ -74,13 +75,15 @@ def test_google_login_links_existing_user_only_with_verified_google_email(monkey
     email = f"google-existing-{uuid.uuid4().hex}@example.com"
     db = SessionLocal()
     try:
-        db.add(User(id=user_id, email=email, hashed_password="password-hash", role="ATHLETE"))
+        db.add(User(id=user_id, email=email, hashed_password=auth_main.get_password_hash("password123"), role="ATHLETE"))
         db.commit()
     finally:
         db.close()
     subject = f"google-existing-subject-{uuid.uuid4().hex}"
     monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
     client = TestClient(app)
+    assert client.post("/api/auth/google", json={"token": "valid-id-token"}).status_code == 409
+    assert client.post("/api/auth/login", data={"username": email, "password": "password123"}).status_code == 200
     response = client.post("/api/auth/google", json={"token": "valid-id-token"})
     assert response.status_code == 200
     assert response.json()["user"]["id"] == user_id
@@ -381,7 +384,7 @@ def test_live_workout_events_require_active_authentication():
     assert response.status_code == 401
 
 
-def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from_other_users():
+def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from_other_users(monkeypatch):
     owner_client = TestClient(app)
     owner_id, owner_token = _register_auth_user(owner_client, "sse-owner")
     coach_client = TestClient(app)
@@ -410,6 +413,7 @@ def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from
             owner_id=owner_id,
         ))
         db.add(CoachingRelationship(coach_id=coach_id, athlete_id=owner_id))
+        db.flush()
         db.add(DomainEvent(
             id=event_id,
             workout_id=workout_id,
@@ -431,6 +435,16 @@ def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from
 
     # Browser EventSource sends the same-origin HttpOnly cookie automatically.
     # Both the owner and an actively linked coach can receive authorized events.
+    # TestClient buffers streaming responses, so end the generator after its
+    # first real event instead of waiting forever for SSE heartbeats.
+    async def first_event(*args):
+        stream = get_events(*args)
+        try:
+            yield await anext(stream)
+        finally:
+            await stream.aclose()
+
+    monkeypatch.setattr(sse_broadcaster, "get_events", first_event)
     for token in (owner_token, coach_token):
         authorized = TestClient(app, cookies={"session_id": token})
         with authorized.stream("GET", url) as response:
@@ -1553,6 +1567,23 @@ def test_athlete_sees_coach_created_session_on_own_id_fetch():
     explicit = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=athlete_cookies)
     assert explicit.status_code == 200
     assert session_id in _workout_ids(explicit.json())
+
+
+def test_sync_workout_requires_plan_access_and_matching_url():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    owner = client.post("/api/auth/register", json={"email": f"owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
+    stranger = client.post("/api/auth/register", json={"email": f"stranger-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
+    session = client.post("/api/sessions", json={"date": "2026-09-12", "title": "Private"}, cookies=dict(owner.cookies)).json()
+    payload = {
+        "schema_version": 1,
+        "client_device_id": f"dev-{suffix}",
+        "workout_id": session["id"],
+        "last_updated_at": "2026-09-12T00:00:00Z",
+        "changes": [],
+    }
+    assert client.post(f"/api/workouts/{session['id']}/sync", json=payload, cookies=dict(stranger.cookies)).status_code == 403
+    assert client.post("/api/workouts/other-session/sync", json=payload, cookies=dict(owner.cookies)).status_code == 400
 
 
 def test_sync_mixed_workout_payload_rejects_foreign_entities():

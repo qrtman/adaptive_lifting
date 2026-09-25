@@ -30,10 +30,12 @@ from .runtime_config import (
     development_login_enabled,
     load_cors_allowed_origins,
     load_jwt_secrets,
+    validate_production_settings,
 )
 from .dev_seed import DEMO_ATHLETE_EMAIL, DEMO_COACH_EMAIL, ensure_demo_accounts
 
 apply_dotenv()
+validate_production_settings()
 SECRET_KEY, JWT_SECRET_PREVIOUS = load_jwt_secrets()
 CORS_ALLOWED_ORIGINS = load_cors_allowed_origins()
 COOKIE_SECURE = cookie_secure_flag()
@@ -90,6 +92,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from .request_security import install_request_security
+install_request_security(app, CORS_ALLOWED_ORIGINS)
 
 # --- Security Setup ---
 import bcrypt
@@ -301,7 +306,7 @@ def development_login(role: str, response: Response, db: Session = Depends(get_d
     return start_session(response, user)
 
 @app.post("/api/auth/google")
-def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
+def google_login(req: GoogleLoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     if not client_id:
         raise HTTPException(status_code=503, detail="Google login is not configured (GOOGLE_CLIENT_ID is required)")
@@ -341,6 +346,14 @@ def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depe
                 raise HTTPException(status_code=403, detail="This account is unavailable")
             if user.google_sub is not None and user.google_sub != subject:
                 raise HTTPException(status_code=409, detail="Google identity is already linked to another account")
+            # Matching email alone must not merge authentication methods: a
+            # password account may have been registered by someone else first.
+            try:
+                authenticated_user = get_current_user(request, db)
+            except HTTPException:
+                raise HTTPException(status_code=409, detail="Sign in with your password before linking Google")
+            if authenticated_user.id != user.id:
+                raise HTTPException(status_code=409, detail="Sign in to the matching account before linking Google")
             user.google_sub = subject
         else:
             # App authorization roles are not taken from browser input.
@@ -384,9 +397,9 @@ def logout(response: Response, request: Request, db: Session = Depends(get_db)):
                 if sess:
                     sess.revoked_at = datetime.utcnow()
                     db.commit()
-        except Exception:
+        except (jwt.PyJWTError, AttributeError, TypeError):
             pass
-    response.delete_cookie(key="session_id")
+    response.delete_cookie(key="session_id", secure=COOKIE_SECURE, httponly=True, samesite="lax")
     return {"status": "success"}
 
 
@@ -1245,6 +1258,9 @@ def export_json(
 
 @app.post("/api/workouts/{id}/sync")
 def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if payload.workout_id != id:
+        raise HTTPException(status_code=400, detail="Workout URL and payload do not match")
+    require_session_for_write(db, current_user, id)
     return resolve_sync_payload(db, payload, current_user.id)
 
 @app.get("/api/security/devices")

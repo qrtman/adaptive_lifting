@@ -125,7 +125,7 @@ graph TD
     end
 
     subgraph Data ["Persistence"]
-        DB[("SQLite Database")]
+        DB[("PostgreSQL production / SQLite local")]
     end
 
     subgraph External ["External Platforms"]
@@ -885,7 +885,7 @@ sequenceDiagram
 - **Mechanism:** JSON Web Tokens (JWT) with `HS256` signing
 - **Token Lifetime:** 7 days
 - **Storage:** `HttpOnly` cookies (mitigates XSS token theft)
-- **CSRF Protection:** CSRF tokens required on all mutating endpoints (`POST`, `PUT`, `DELETE`).
+- **CSRF Protection:** Production browser mutations require an explicitly allowed Origin (or Referer); cookie writes without either are rejected.
 - **Rate Limiting:** IP-based throttling on `/api/auth/login` to prevent brute-force credential stuffing.
 
 ### 9.2 Role-Based Access Control (RBAC) Matrix
@@ -939,7 +939,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 - **JWT Claims:** Tokens include `sub`, `role`, `session_id`, `jti`, `iat`, and `exp`. Authorization never trusts client-provided role values outside the signed token.
 - **Revocation Check:** Every authenticated request validates that `session_id` exists and is not revoked in the `Session` table.
 - **Cookie Attributes:** Auth cookies are `HttpOnly`, `Secure`, and `SameSite=Lax` in production.
-- **CSRF Token:** Mutating requests must include a CSRF token header that matches a non-HttpOnly CSRF cookie scoped to the same session.
+- **CSRF Enforcement:** Production mutations validate Origin/Referer against the explicit frontend allowlist. Non-browser clients use Bearer authentication without cookies.
 - **Secret Rotation:** JWT secrets are versioned with a `kid`; old keys remain valid only until their issued tokens expire.
 
 ---
@@ -1252,7 +1252,7 @@ Shared formula fixtures live in `tests/math_vectors.json` (`math_version` plus e
 | **Offline Storage** | IndexedDB | Durable structured storage for mutation queues and cached workout trees |
 | **Backend API** | FastAPI (Python 3.10+) | Async-native, auto-generated OpenAPI docs, Pydantic validation |
 | **ORM** | SQLAlchemy | Mature, flexible, excellent migration ecosystem |
-| **Database** | SQLite | Zero-config, single-file, appropriate for single-coach deployments |
+| **Database** | PostgreSQL production / SQLite local | Persistent production storage with zero-config local development |
 | **Auth** | PyJWT + bcrypt | Industry-standard JWT signing with secure password hashing |
 | **Telegram Integration** | Telegram Mini App + Bot Webhooks | Low-friction Telegram-native surface for workout logging, summaries, and coach alerts |
 | **Google Sheets Integration** | Google OAuth + Sheets API | Coach-controlled spreadsheet publishing without making Sheets canonical |
@@ -1426,13 +1426,13 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 ### 15.2 Target Runtime Topology
 
-The initial production deployment target is a **single Dockerized Linux VPS/VM** with persistent disk, public HTTPS, and scheduled backups. This is the simplest runtime that supports SQLite, SSE, Telegram Mini App sessions, Telegram webhooks, Google OAuth callbacks, and background integration jobs without prematurely adopting multi-service infrastructure.
+The production deployment target is a Dockerized Linux host with public HTTPS, a persistent PostgreSQL database, and scheduled database backups. The API and integration worker remain long-running services for SSE, webhooks, OAuth callbacks, and background jobs.
 
 ```mermaid
 graph TD
     DNS["DNS<br/>app.example.com"] --> Proxy["Caddy / Nginx<br/>TLS + Static PWA + Reverse Proxy"]
     Proxy --> API["FastAPI App<br/>Uvicorn/Gunicorn"]
-    API --> DB[("SQLite WAL<br/>Persistent Volume")]
+    API --> DB[("Persistent PostgreSQL")]
     API --> Worker["Background Worker<br/>Outbox / Backups / Scheduled Sheets Publish"]
     Worker --> DB
     Worker --> Backup["Encrypted Backup Target<br/>Object Storage or Remote Disk"]
@@ -1445,7 +1445,7 @@ graph TD
 | Reverse proxy | Caddy or Nginx container | TLS termination, gzip/brotli, static PWA serving, API reverse proxy, webhook endpoint exposure. |
 | Backend API | FastAPI container | Auth, sync, analytics, SSE, integrations, OpenAPI. |
 | Worker | Same image as backend, separate process | Integration outbox retries, scheduled Google Sheets publication, backup orchestration, cleanup jobs. |
-| Database | SQLite file on persistent volume | Canonical production data for single-coach/small-team deployments. |
+| Database | Persistent PostgreSQL | Canonical production data. SQLite remains available for local development. |
 | Frontend | Static Vite build served by proxy | PWA shell, asset cache, IndexedDB offline client. |
 | Backups | Encrypted remote target | Nightly database snapshots and restore drill inputs. |
 
@@ -1457,7 +1457,7 @@ graph TD
 | Staging | Same Docker Compose topology as production | OAuth/webhook validation, migration testing, backup restore drills. |
 | Production | Single VPS/VM Docker Compose topology | Real users, persistent volume, HTTPS, encrypted backups. |
 
-Staging and production must use different Telegram bots, Google OAuth clients, database files, JWT secrets, webhook secrets, and backup buckets/paths.
+Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths.
 
 ### 15.4 Production Considerations
 
@@ -1467,12 +1467,12 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 | **CORS Origins** | Restrict to specific frontend domain(s) |
 | **Database Migrations** | Alembic revisions run explicitly before startup; startup verifies the recorded revision and fails if pending |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
-| **Backup** | SQLite file can be backed up via simple file copy on a cron schedule |
-| **Scaling** | SQLite is appropriate for single-coach deployments. Multi-tenant SaaS would require PostgreSQL migration |
+| **Backup** | PostgreSQL backups must be scheduled, retained, and restore-tested |
+| **Scaling** | PostgreSQL is the production database; API and worker use the same `DATABASE_URL` |
 
 ### 15.5 Backup & Restore Contract
 
-- **Backup Cadence:** Nightly encrypted database backup with at least 14 retained restore points.
+- **Backup Cadence:** Nightly encrypted PostgreSQL backup with at least 14 retained restore points.
 - **Restore Drill:** Restore must be tested against a staging environment before relying on the backup strategy in production.
 - **Export Safety:** CSV/JSON exports are generated from a read-only transaction to avoid mixing partially updated workout data.
 - **Disaster Recovery Target:** For single-coach deployments, target RPO <= 24 hours and RTO <= 4 hours.
@@ -1483,36 +1483,41 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 | :--- | :--- | :--- |
 | `JWT_SECRET_CURRENT` | Yes | Current JWT signing key. |
 | `JWT_SECRET_PREVIOUS` | No | Previous key retained during rotation. |
-| `DATABASE_URL` | Yes | SQLite file path in initial deployments; PostgreSQL URL after SaaS migration. |
+| `APP_ENV` | Yes | `production` on deployed services. |
+| `APP_URL` | Yes | Public HTTPS origin for callbacks and Mini App links. |
+| `DATABASE_URL` | Yes | Persistent PostgreSQL URL in production; local SQLite is the development default. |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated production frontend origins. |
 | `COOKIE_SECURE` | Yes | Must be `true` outside local development. |
+| `PORT` | No | Backend listener port; defaults to 8000 and is passed to Caddy. |
 | `SENTRY_DSN` | No | Client/server error reporting endpoint. |
 | `BACKUP_ENCRYPTION_KEY` | Production | Encrypts database backups. |
 | `TELEGRAM_BOT_TOKEN` | Telegram enabled | Bot token used for outbound Telegram API calls. |
 | `TELEGRAM_WEBHOOK_SECRET` | Telegram enabled | Secret used to verify Telegram webhook requests. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Sheets enabled | Google OAuth client identifier. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Sheets enabled | Google OAuth client secret. |
-| `INTEGRATION_ENCRYPTION_KEY` | Integrations enabled | Encrypts provider credentials at rest. |
+| `INTEGRATION_ENCRYPTION_KEY` | Yes | Stable secret that encrypts provider credentials at rest. |
+| `GOOGLE_CLIENT_ID` | Google login enabled | OAuth web client ID used to verify ID tokens. |
+| `VITE_GOOGLE_CLIENT_ID` | Google login enabled | Matching public client ID baked into the frontend build. |
 
-### 15.7 SQLite Operating Mode
+### 15.7 Local SQLite Operating Mode
 
-- **WAL Mode:** Production SQLite runs with write-ahead logging enabled to improve reader/writer concurrency.
+- **WAL Mode:** Local SQLite uses write-ahead logging to improve reader/writer concurrency.
 - **Busy Timeout:** Connections use a bounded busy timeout so temporary write contention retries before returning `503`.
 - **Foreign Keys:** `PRAGMA foreign_keys = ON` is mandatory for every connection.
 - **Migration Gate:** Application startup fails if database migrations are pending or partially applied.
-- **Upgrade Boundary:** Sustained write-lock contention, coach count above 50, or multi-tenant billing requirements trigger PostgreSQL migration planning.
+- **Upgrade Boundary:** Production uses PostgreSQL; SQLite remains for local development and supported legacy installations.
 
 ### 15.8 Deployment Non-Goals
 
 - **Static-only hosting:** Not sufficient because Telegram Mini App session verification, Telegram webhooks, Google OAuth callbacks, SSE, auth cookies, and sync require a backend.
-- **Pure serverless:** Deferred because SQLite persistent storage, long-lived SSE connections, and background outbox jobs are awkward in stateless function runtimes.
+- **Pure serverless:** Deferred because long-lived SSE connections and background outbox jobs need long-running processes.
 - **Kubernetes:** Deferred until multi-tenant SaaS scale or multiple independently scalable services justify the operational overhead.
 
 ### 15.9 Included Docker Compose Deployment
 
 The repository's production deployment uses the root `docker-compose.yml`. The `web` service builds and serves the Vite frontend through Caddy, which obtains and renews HTTPS certificates for `APP_DOMAIN` and proxies `/api/*` to the private `api` service. Only Caddy publishes host ports (80/tcp, 443/tcp, and 443/udp). The API has no host-published port.
 
-The API and standalone integration worker share the persistent `app_data` volume at `/data` and SQLite at `/data/adaptive-lifting.sqlite`. SQLite connections enable WAL, foreign keys, and a 5-second busy timeout. The worker runs as a separate Compose service using `python -m backend.worker`; API replicas do not start integration consumers.
+The API and standalone integration worker connect to the same persistent PostgreSQL database through `DATABASE_URL`. The worker runs as a separate Compose service using `python -m backend.worker`; API replicas do not start integration consumers. The one-shot `migrate` service applies Alembic revisions and must succeed before the API starts.
 
 On a Linux host, install Docker Engine with the Compose plugin, point `APP_DOMAIN` DNS at the host, allow inbound 80/443, and prepare private secrets:
 
@@ -1521,25 +1526,23 @@ cp .env.production.example .env.production
 chmod 600 .env.production
 ```
 
-Set `APP_DOMAIN`, `APP_URL`, a unique random `JWT_SECRET_CURRENT`, and a stable random `INTEGRATION_ENCRYPTION_KEY`. Configure integration credentials when those integrations are enabled. Start or update with:
+Set `APP_DOMAIN`, `APP_URL`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, a unique random `JWT_SECRET_CURRENT`, and a stable random `INTEGRATION_ENCRYPTION_KEY`. Keep `APP_ENV=production` and `COOKIE_SECURE=true`; configure integration credentials when enabled. Start or update with:
 
 ```sh
-docker compose --env-file .env.production up -d --build
+docker compose --env-file .env.production build
+docker compose --env-file .env.production up -d
 ```
 
-The same environment file is passed to the API and worker for application configuration; Compose interpolation gives Caddy only `APP_DOMAIN`. It is excluded from the Docker build context and must not be copied into an image. Check status with `docker compose ps` and logs with `docker compose logs -f api worker web`. The API health check is `/api/health`; Caddy's internal-only health check is `http://127.0.0.1:8080/healthz`.
+For updates, back up PostgreSQL, stop `api` and `worker`, build images, run `docker compose --env-file .env.production run --rm migrate`, and then start the stack. This keeps old application writers off the database while schema changes are applied.
 
-Back up SQLite using its online backup API, then encrypt and copy the result off-host. Run this from the deployment directory on a Linux host with GPG installed and the backup operator's public key imported. Set `BACKUP_GPG_RECIPIENT` to that key's email or fingerprint:
+The same environment file is passed to the migration, API, and worker services. Caddy receives only `APP_DOMAIN` and the API port. The environment file is excluded from Docker build contexts. Check status with `docker compose ps` and logs with `docker compose logs -f migrate api worker web`. The API health check is `/api/health`; Caddy's internal health check is `http://127.0.0.1:8080/healthz`.
 
-```sh
-mkdir -p backups
-export BACKUP_GPG_RECIPIENT='backup-operator@example.com'
-docker compose exec -T api python -c "import sqlite3; src=sqlite3.connect('/data/adaptive-lifting.sqlite'); dst=sqlite3.connect('/tmp/adaptive-lifting-backup.sqlite'); src.backup(dst); dst.close(); src.close()"
-docker compose exec -T api cat /tmp/adaptive-lifting-backup.sqlite | gpg --encrypt --recipient "$BACKUP_GPG_RECIPIENT" --output "backups/adaptive-lifting-$(date -u +%Y%m%dT%H%M%SZ).sqlite.gpg"
-docker compose exec -T api rm -f /tmp/adaptive-lifting-backup.sqlite
-```
+Schedule PostgreSQL backups using the database provider or `pg_dump`, keep them off the application host, and restore a copy to staging periodically. The Compose setup does not schedule or upload backups.
 
-Copy encrypted backups to a separate host or object store and retain at least 14 daily points. Periodically decrypt a copy into a staging deployment and verify application startup and expected records. This procedure is manual; the Compose setup does not schedule or upload backups.
+See README.md for tested dump/restore commands, encryption-key retention, and
+rollback to a new empty database. Production rejects SQLite URLs. PostgreSQL
+connections use pool pre-ping to recover stale connections after database restarts.
+Sync field allowlists prohibit ownership, ID, parent and relationship reassignment.
 
 ---
 
@@ -1571,7 +1574,7 @@ Initial performance targets assume:
 | Sets per exercise | 1-8 |
 | Offline mutation burst | Up to 250 queued mutations per device |
 
-If any dimension is exceeded by more than 2x in production telemetry, the team must revisit pagination, query indexes, and the SQLite/PostgreSQL boundary.
+If any dimension is exceeded by more than 2x in production telemetry, the team must revisit pagination and query indexes.
 
 ---
 
@@ -1581,7 +1584,7 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | :--- | :--- | :--- |
 | **Next** | CSV/Excel Export | Implement the `/api/export/csv` endpoint with e1RM and INOL columns |
 | **Medium** | ACWR Time-Series Chart | Rolling 28-day workload ratio visualization with risk zone shading |
-| **Later** | SaaS Multi-Tenancy | PostgreSQL migration, Stripe billing, coach subscription tiers |
+| **Later** | SaaS Multi-Tenancy | Stripe billing, coach subscription tiers, tenant isolation |
 | **Later** | Program Template Marketplace | Coaches can sell pre-written periodization blocks |
 | **Later** | Google Sheets Import Review | Optional controlled import workflow with validation, preview, and explicit coach approval |
 
@@ -1599,13 +1602,13 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | Drop leftover Obsidian / Iron Box LocalStorage workout keys | Accepted | Early placeholders stored workout trees in LocalStorage. Canonical offline store is IndexedDB only. |
 | Keep backend math canonical while duplicating formulas on frontend | Accepted | Athletes need instant feedback, but persisted analytics must be server-authoritative. |
 | Enforce microcycle boundary locks on client and server | Accepted for labeled week groups only | Unlabeled sessions move by date. Do not invent Mon–Sun week boxes. |
-| Start with SQLite for deployment simplicity | Accepted | The initial target is single-coach or small-team deployment; PostgreSQL migration is reserved for multi-tenant SaaS. |
+| Use PostgreSQL for production persistence | Accepted | Production hosts may have ephemeral application filesystems; SQLite remains available for local development. |
 | Use mutation IDs for offline sync idempotency | Accepted | Mobile reconnects and retries must not duplicate set logs or inflate workload metrics. |
 | Store lifecycle statuses as enums | Accepted | Analytics, filtering, and exports need stable machine values independent of UI copy. Mesocycle and microcycle stop at `COMPLETED`; workout uses `PLANNED`, `IN_PROGRESS`, `COMPLETED`, and `MISSED`. |
 | Use session-backed JWT revocation | Accepted | Logout, device revocation, and password changes require server-side session invalidation. |
 | Store canonical weights in kilograms | Accepted | Formula parity and export consistency require one storage unit regardless of display preference. |
 | Emit SSE from committed domain events | Accepted | Live telemetry must never show data that later rolls back. |
-| Enable SQLite WAL in production | Accepted | Read-heavy dashboard views need better concurrency while preserving deployment simplicity. |
+| Enable SQLite WAL locally | Accepted | Read-heavy dashboard views benefit from better SQLite concurrency during development. |
 | Treat accessory work as Exercise + ExerciseSet with `tier = Accessory` | Accepted | Isolation movements need the same per-set logging, numeric fields, INOL/tonnage, and sync path as competition lifts. |
 | Start Google Sheets as one-way publish | Accepted | Spreadsheet cells are weakly typed and should not become canonical training data without an explicit import review workflow. |
-| Deploy initial production on one Dockerized VPS/VM | Accepted | SQLite, SSE, Telegram Mini App sessions, webhooks, OAuth callbacks, background jobs, and persistent backups need a long-running host with durable disk. |
+| Deploy production behind Caddy with persistent PostgreSQL | Accepted | SSE, Telegram Mini App sessions, webhooks, OAuth callbacks, and background jobs need long-running services; database persistence is independent of application filesystems. |

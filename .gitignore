@@ -14,7 +14,24 @@ blob-report/
 __pycache__/
 *.pyc
 .venv/
+.venv*/
 .nodeenv/
 
 *.sqlite
 backend/database.sqlite
+*.sqlite-*
+*.sqlite3*
+*.db
+*.db-*
+*.dump
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+credentials*.json
+*service-account*.json
+.vs/
+backups/
+secrets/
+certs/

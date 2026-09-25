@@ -26,6 +26,7 @@ from .database import (
 )
 from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
+from .runtime_config import is_production_like
 
 router = APIRouter()
 
@@ -137,9 +138,8 @@ def send_telegram_message(chat_id: int, text: str, reply_markup: dict = None) ->
 
 @router.post("/api/integrations/telegram/link-token")
 def generate_telegram_link_token(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Generate 8-character numeric link token
-    import random
-    token = "".join(random.choices("0123456789", k=8))
+    # This bearer token grants account access; it must resist guessing.
+    token = secrets.token_urlsafe(32)
     PENDING_LINK_TOKENS[token] = {
         "user_id": current_user.id,
         "expires_at": datetime.utcnow() + timedelta(minutes=10)
@@ -250,7 +250,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
     # Verify webhook secret token if configured
     env_name = (os.environ.get("APP_ENV") or os.environ.get("ENV") or "").strip().lower()
     production_like = env_name in {"production", "staging", "prod"} or os.environ.get("COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
-    if TELEGRAM_WEBHOOK_SECRET == "mock_webhook_secret" and production_like:
+    if production_like and (not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET or TELEGRAM_WEBHOOK_SECRET == "mock_webhook_secret"):
         raise HTTPException(status_code=503, detail="Telegram webhook secret is not configured")
     if TELEGRAM_WEBHOOK_SECRET != "mock_webhook_secret":
         if x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
@@ -456,6 +456,8 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
 def get_sheets_auth_url(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != "COACH":
         raise HTTPException(status_code=403, detail="Google Sheets is available to coaches")
+    if is_production_like() and GOOGLE_OAUTH_CLIENT_ID in ("", "mock_client_id"):
+        raise HTTPException(status_code=503, detail="Google Sheets is not configured")
     # Keep only a hash in storage; the bearer value is opaque, random, and short-lived.
     now = datetime.utcnow()
     db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
@@ -484,6 +486,8 @@ def get_sheets_auth_url(current_user: User = Depends(get_current_user), db: Sess
 @router.get("/api/integrations/google-sheets/callback")
 def sheets_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
     # Exchange authorization code for tokens
+    if is_production_like() and GOOGLE_OAUTH_CLIENT_ID in ("", "mock_client_id"):
+        raise HTTPException(status_code=503, detail="Google Sheets is not configured")
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing authorization parameters")
 

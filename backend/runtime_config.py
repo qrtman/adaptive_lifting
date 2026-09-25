@@ -49,10 +49,10 @@ def load_jwt_secrets() -> Tuple[str, Optional[str]]:
         raise RuntimeError(
             "JWT_SECRET_CURRENT is required. Set it in the environment; hardcoded JWT secrets are forbidden."
         )
-    if is_production_like() and current.lower() in _PLACEHOLDER_SECRETS:
-        raise RuntimeError(
-            "JWT_SECRET_CURRENT must not use a development placeholder outside local development."
-        )
+    if is_production_like():
+        for name, value in (("JWT_SECRET_CURRENT", current), ("JWT_SECRET_PREVIOUS", previous)):
+            if value and (value.lower() in _PLACEHOLDER_SECRETS or value.lower().startswith(("replace-", "dev-only-", "mock_")) or len(value) < 32):
+                raise RuntimeError(f"{name} must be a unique secret of at least 32 characters in production, not a placeholder.")
     if previous and previous == current:
         previous = None
     return current, previous
@@ -77,6 +77,33 @@ def cookie_secure_flag() -> bool:
     if raw in {"0", "false", "no"}:
         return False
     return is_production_like()
+
+
+def validate_production_settings() -> None:
+    if not is_production_like():
+        return
+    if not cookie_secure_flag():
+        raise RuntimeError("COOKIE_SECURE must be true in production")
+    origins = load_cors_allowed_origins()
+    if any(not origin.startswith("https://") for origin in origins):
+        raise RuntimeError("CORS_ALLOWED_ORIGINS must use HTTPS in production")
+    app_url = os.environ.get("APP_URL", "").strip().rstrip("/")
+    if not app_url.startswith("https://"):
+        raise RuntimeError("APP_URL must be an HTTPS origin in production")
+    key = os.environ.get("INTEGRATION_ENCRYPTION_KEY", "").strip()
+    if len(key) < 32 or key.startswith(("dev-only-", "replace-")):
+        raise RuntimeError("INTEGRATION_ENCRYPTION_KEY must be a stable secret of at least 32 characters in production")
+    if os.environ.get("TELEGRAM_BOT_TOKEN", "").strip():
+        webhook_secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
+        if len(webhook_secret) < 32 or webhook_secret.startswith(("mock_", "replace-")):
+            raise RuntimeError("TELEGRAM_WEBHOOK_SECRET must be configured when Telegram is enabled")
+    sheets_id = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+    sheets_secret = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+    if sheets_id and (sheets_id.startswith(("mock_", "replace-")) or not sheets_secret or sheets_secret.startswith(("mock_", "replace-"))):
+        raise RuntimeError("GOOGLE_OAUTH_CLIENT_SECRET must be configured when Google Sheets is enabled")
+    google_login_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    if google_login_id.startswith(("mock_", "replace-")):
+        raise RuntimeError("GOOGLE_CLIENT_ID must be a real OAuth web client ID when Google login is enabled")
 
 
 def development_login_enabled() -> bool:
