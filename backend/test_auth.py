@@ -267,6 +267,40 @@ def test_registration_role_is_server_controlled_and_cli_promotes_after_reauthent
     assert "No account found" in capsys.readouterr().err
 
 
+def test_login_and_coach_cli_find_legacy_mixed_case_email(capsys):
+    from backend.manage_user import main as manage_user_main
+
+    email = f"Legacy-{uuid.uuid4().hex}@Example.com"
+    user_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(User(
+            id=user_id,
+            email=email,
+            hashed_password=auth_main.get_password_hash("password123"),
+            role="ATHLETE",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    client = TestClient(app)
+    signed_in = client.post(
+        "/api/auth/login",
+        data={"username": email.lower(), "password": "password123"},
+    )
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["id"] == user_id
+
+    assert manage_user_main(["promote-coach", email.lower()]) == 0
+    assert "Promoted" in capsys.readouterr().out
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter(User.id == user_id).one().role == "COACH"
+    finally:
+        db.close()
+
+
 def _make_test_token(user_id, session_id, exp=None):
     payload = {"sub": user_id, "role": "ATHLETE", "session_id": session_id}
     payload["exp"] = exp or datetime.utcnow() + timedelta(minutes=5)

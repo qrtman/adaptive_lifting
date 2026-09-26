@@ -5,6 +5,8 @@ import json
 import sys
 import uuid
 
+from sqlalchemy import func
+
 from .database import AuditEvent, SessionLocal, User
 
 
@@ -12,7 +14,7 @@ def promote_coach(email: str) -> int:
     normalized_email = email.strip().lower()
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == normalized_email).one_or_none()
+        user = db.query(User).filter(func.lower(User.email) == normalized_email).one_or_none()
         if user is None:
             print(f"No account found for {normalized_email}.", file=sys.stderr)
             return 1
