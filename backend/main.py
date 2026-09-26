@@ -240,6 +240,8 @@ from .analytics_router import create_analytics_router
 app.include_router(integrations_router)
 app.include_router(create_analytics_router(get_current_user))
 app.include_router(stripe_billing_router)
+from .billing.stripe_checkout import create_billing_router
+app.include_router(create_billing_router(get_current_user))
 
 # --- Pydantic Schemas for Requests ---
 

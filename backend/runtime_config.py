@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple
+from urllib.parse import urlsplit
 
 JWT_KID_CURRENT = "current"
 JWT_KID_PREVIOUS = "previous"
@@ -105,6 +106,11 @@ def validate_production_settings() -> None:
     if google_login_id.startswith(("mock_", "replace-")):
         raise RuntimeError("GOOGLE_CLIENT_ID must be a real OAuth web client ID when Google login is enabled")
     if stripe_billing_enabled():
+        parsed_app_url = urlsplit(app_url)
+        if (parsed_app_url.scheme != "https" or not parsed_app_url.netloc or
+                parsed_app_url.path or parsed_app_url.query or parsed_app_url.fragment or
+                parsed_app_url.username or parsed_app_url.password):
+            raise RuntimeError("APP_URL must be a single HTTPS origin when Stripe billing is enabled")
         if not os.environ.get("STRIPE_SECRET_KEY", "").strip():
             raise RuntimeError("STRIPE_SECRET_KEY is required when Stripe billing is enabled")
         if not os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip():

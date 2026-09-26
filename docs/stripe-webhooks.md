@@ -81,3 +81,17 @@ Apply schema changes before deploying the API:
 ```bash
 alembic -c alembic.ini upgrade head
 ```
+
+## Hosted Checkout and Customer Portal
+
+Create three **recurring** Stripe Prices for Starter, Pro, and Unlimited in the same Stripe account and mode as `STRIPE_SECRET_KEY`. Set their IDs in `STRIPE_PRICE_COACH_STARTER`, `STRIPE_PRICE_COACH_PRO`, and `STRIPE_PRICE_COACH_UNLIMITED`. Beta is a manual grant and has no purchasable Price. Enable `STRIPE_BILLING_ENABLED`, set `APP_URL` to the exact frontend origin, and configure the signed webhook above before opening billing to customers. The account Security screen retrieves Price amount, currency, and interval from Stripe through `GET /api/billing/plans`; these values are display data only.
+
+An authenticated workspace OWNER chooses an internal plan key. The server maps it to the configured Price, reuses or creates a Stripe Customer with a workspace-based idempotency key, persists the trusted `BillingCustomer` mapping, then creates one subscription-mode hosted Checkout Session. A browser-generated UUID is reused on network retries and included with workspace and plan in the Checkout idempotency key. Existing current Stripe subscriptions, including incomplete and past-due states, block another Checkout. `EXPIRED` rows and `CANCELED` rows whose period ended allow a new attempt. A manual beta or founder grant does not block purchase. If Stripe creates a Customer but local persistence fails catastrophically, the stable Stripe idempotency key lets a retry recover that Customer; an orphan Customer is still possible if the workspace identity changes or Stripe's idempotency retention expires.
+
+Checkout returns to the fixed Security route under `APP_URL` with `billing=success` or `billing=cancelled`. Portal returns with `billing=portal-return`. The success page polls `/api/account/access` briefly and offers manual refresh if synchronization takes longer. Neither redirect nor Checkout Session completion grants access. The signed `customer.subscription.*` webhook updates the local Subscription, and the existing resolver applies capabilities. Portal returns likewise refresh account access without changing local Subscription state.
+
+In Stripe Dashboard, enable the Customer Portal for subscription viewing, payment method updates, invoices, cancellation at period end, and reactivation. If Portal plan switching is enabled, restrict its catalog to the three configured coaching Prices. Portal changes arrive through the same `customer.subscription.updated/deleted` webhook path. Do not add unrelated items or add-ons to coaching subscriptions: the webhook adapter requires exactly one recognized recurring coaching Price item. No card data or provider secret is handled by the frontend.
+
+The Checkout and Portal routes require an authenticated coach with server-controlled `OWNER` workspace membership. They pass through the application's production Origin/Referer guard for cookie writes. The webhook uses Stripe signature authentication and has no browser session requirement.
+
+PostgreSQL migration verification is still required before a paid production launch. Use a disposable PostgreSQL 16 database to test fresh upgrade, existing-schema upgrade, newest downgrade/upgrade, and the customer, subscription, webhook uniqueness and foreign-key constraints. SQLite migration tests alone do not establish PostgreSQL deployment readiness.

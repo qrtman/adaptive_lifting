@@ -28,6 +28,16 @@ ALLOWED_SUBSCRIPTION_STATUSES = tuple(status.value for status in SubscriptionSta
 DEFAULT_PAST_DUE_GRACE_DAYS = 3
 
 
+def has_current_stripe_subscription(db, workspace_id: str, now: datetime | None = None) -> bool:
+    """Block a second Checkout until every Stripe subscription is terminal."""
+    now = _utc_naive(now or datetime.utcnow())
+    rows = db.query(Subscription).filter_by(workspace_id=workspace_id, provider="stripe").all()
+    return any(row.status != SubscriptionStatus.EXPIRED.value and not (
+        row.status == SubscriptionStatus.CANCELED.value and
+        row.current_period_end is not None and _utc_naive(row.current_period_end) <= now
+    ) for row in rows)
+
+
 def _utc_naive(value: datetime | None) -> datetime | None:
     if value is None:
         return None

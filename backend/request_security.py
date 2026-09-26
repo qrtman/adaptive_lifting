@@ -13,6 +13,7 @@ def install_request_security(app, allowed_origins):
     auth_paths = {
         "/api/auth/login", "/api/auth/register", "/api/auth/google",
         "/api/integrations/telegram/miniapp/session",
+        "/api/billing/stripe/checkout-session", "/api/billing/stripe/portal-session",
     }
 
     @app.middleware("http")

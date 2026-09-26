@@ -58,6 +58,11 @@ def stripe_price_plan_map(environ=None) -> dict[str, str]:
     return {price_id: plan_key for price_id, plan_key in configured if price_id}
 
 
+def stripe_plan_price_map(environ=None) -> dict[str, str]:
+    """Checkout's reverse lookup uses the same trusted configuration as webhooks."""
+    return {plan: price for price, plan in stripe_price_plan_map(environ).items()}
+
+
 def normalize_stripe_status(status: str) -> str:
     if not isinstance(status, str) or status not in STRIPE_STATUS_MAP:
         raise StripeEventError("Unsupported Stripe subscription status")

@@ -54,7 +54,11 @@ export type WorkspaceAccess = {
     cancelAtPeriodEnd?: boolean;
   } | null;
   usage: { activeAthletes: number; maxActiveAthletes: number | null } | null;
+  billingSubscription?: { planKey: string; status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
+  canStartCheckout?: boolean;
 };
+
+export type BillingPlan = { planKey: string; name: string; unitAmount: number; currency: string; interval: string; intervalCount: number; maxActiveAthletes: number | null };
 
 export type SaaSErrorCode = 'WORKSPACE_ACCESS_REQUIRED' | 'FEATURE_NOT_INCLUDED' | 'ATHLETE_LIMIT_REACHED';
 
@@ -203,6 +207,25 @@ function apiErrorMessage(errData: unknown, fallback: string): string {
 // --- Dual-Driver Service Layer Exports ---
 
 export const apiService = {
+  async fetchBillingPlans(): Promise<BillingPlan[]> {
+    const response = await fetch(`${BACKEND_URL}/api/billing/plans`, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) throw await apiRequestError(response, 'Could not load billing plans.');
+    return (await response.json() as { plans: BillingPlan[] }).plans;
+  },
+  async createCheckoutSession(planKey: string, requestId: string): Promise<string> {
+    const response = await fetch(`${BACKEND_URL}/api/billing/stripe/checkout-session`, {
+      method: 'POST', headers: getHeaders(), credentials: 'include', body: JSON.stringify({ planKey, requestId }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'Could not start checkout.');
+    return (await response.json() as { url: string }).url;
+  },
+  async createPortalSession(): Promise<string> {
+    const response = await fetch(`${BACKEND_URL}/api/billing/stripe/portal-session`, {
+      method: 'POST', headers: getHeaders(), credentials: 'include',
+    });
+    if (!response.ok) throw await apiRequestError(response, 'Could not open billing management.');
+    return (await response.json() as { url: string }).url;
+  },
   async fetchAccountAccess(): Promise<WorkspaceAccess> {
     const response = await fetch(`${BACKEND_URL}/api/account/access`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw await apiRequestError(response, 'Could not load coaching access status.');

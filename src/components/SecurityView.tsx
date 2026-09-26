@@ -6,6 +6,7 @@ import {
 import { CoachLinkPanel } from './CoachLinkPanel';
 import { AthleteProfilePanel } from './AthleteProfilePanel';
 import { CoachAccessStatus } from './CoachAccessStatus';
+import { CoachBillingPanel } from './CoachBillingPanel';
 import { API_BASE_URL } from '../services/apiBase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -165,6 +166,7 @@ export const SecurityView: React.FC = () => {
 
       <CoachLinkPanel />
       <CoachAccessStatus />
+      <CoachBillingPanel />
       <AthleteProfilePanel />
 
       {String(user?.role || '').toUpperCase() === 'ATHLETE' && (

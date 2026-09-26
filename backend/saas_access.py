@@ -9,6 +9,7 @@ from .entitlements import (
     resolve_workspace_entitlements,
 )
 from .workspaces import ensure_default_workspace_for_coach, get_active_athlete_count
+from .subscriptions import has_current_stripe_subscription
 
 
 CAPABILITY_FEATURES = {
@@ -47,6 +48,16 @@ def require_coach_workspace(db: Session, current_user: User):
     workspace = get_coach_workspace(db, current_user)
     if workspace is None:
         _access_required()
+    return workspace
+
+
+def require_workspace_billing_owner(db: Session, current_user: User):
+    """Billing requires the server-controlled owner membership, never a client role."""
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail={"code": "BILLING_OWNER_REQUIRED", "message": "Workspace owner access is required for billing."})
+    workspace = get_coach_workspace(db, current_user)
+    if workspace is None:
+        raise HTTPException(status_code=403, detail={"code": "BILLING_OWNER_REQUIRED", "message": "Workspace owner access is required for billing."})
     return workspace
 
 
@@ -142,6 +153,12 @@ def build_account_access_state(db: Session, current_user: User) -> dict:
         subscription = db.query(Subscription).filter(
             Subscription.workspace_id == workspace.id,
         ).order_by(Subscription.updated_at.desc(), Subscription.id).first()
+    # Billing controls need the Stripe lifecycle even when a more permissive
+    # manual grant wins. Never use this display field for entitlement checks.
+    stripe_subscription = db.query(Subscription).filter(
+        Subscription.workspace_id == workspace.id,
+        Subscription.provider == "stripe",
+    ).order_by(Subscription.updated_at.desc(), Subscription.id).first()
     entitlement_data = {
         "active": entitlements.active,
         "planKey": entitlements.plan_key,
@@ -169,6 +186,13 @@ def build_account_access_state(db: Session, current_user: User) -> dict:
             "status": "ACTIVE",
             "expiresAt": grant.expires_at.isoformat() if grant.expires_at else None,
         } if grant else None)),
+        "billingSubscription": ({
+            "planKey": stripe_subscription.plan_key,
+            "status": stripe_subscription.status,
+            "currentPeriodEnd": stripe_subscription.current_period_end.isoformat() if stripe_subscription.current_period_end else None,
+            "cancelAtPeriodEnd": bool(stripe_subscription.cancel_at_period_end),
+        } if stripe_subscription else None),
+        "canStartCheckout": not has_current_stripe_subscription(db, workspace.id),
         "usage": {
             "activeAthletes": get_active_athlete_count(db, workspace),
             "maxActiveAthletes": entitlements.max_active_athletes,
