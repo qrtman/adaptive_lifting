@@ -5,6 +5,7 @@ import './index.css';
 import { SyncProvider } from './contexts/SyncContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { PeriodizationProvider } from './contexts/PeriodizationContext';
+import { AccessProvider } from './contexts/AccessContext';
 import { migrateAndPurgeLegacyStorage } from './storage/uiPrefs';
 
 migrateAndPurgeLegacyStorage();
@@ -22,11 +23,13 @@ createRoot(document.getElementById('root')!).render(
 
   <StrictMode>
     <AuthProvider>
-      <PeriodizationProvider>
-        <SyncProvider>
-          <App />
-        </SyncProvider>
-      </PeriodizationProvider>
+      <AccessProvider>
+        <PeriodizationProvider>
+          <SyncProvider>
+            <App />
+          </SyncProvider>
+        </PeriodizationProvider>
+      </AccessProvider>
     </AuthProvider>
   </StrictMode>,
 );

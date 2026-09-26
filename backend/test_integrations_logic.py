@@ -13,7 +13,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 
-from backend.database import Base, IntegrationOutbox, OAuthState, User, IntegrationConnection
+from backend.database import Base, CoachingRelationship, IntegrationOutbox, OAuthState, User, IntegrationConnection
+from backend.entitlements import grant_workspace_access
+from backend.workspaces import ensure_default_workspace_for_coach
 from backend.integrations import encrypt_data, decrypt_data, verify_telegram_init_data, INTEGRATION_ENCRYPTION_KEY
 from backend import integrations
 from backend.main import app
@@ -135,6 +137,10 @@ def oauth_client():
     user_b = User(id="oauth-user-b", email="oauth-b@example.com", hashed_password="x", role="COACH")
     db.add_all([user_a, user_b])
     db.commit()
+    for user, plan in ((user_a, "coach_beta"), (user_b, "coach_starter")):
+        workspace = ensure_default_workspace_for_coach(db, user)
+        grant_workspace_access(db, workspace, plan, no_expiry=True, reason="test-fixture")
+    db.commit()
     current = {"user": user_a}
 
     def override_db():
@@ -183,6 +189,41 @@ def test_google_oauth_rejects_forged_and_missing_state(oauth_client):
     assert client.get("/api/integrations/google-sheets/callback", params={"code": "x", "state": "forged"}).status_code == 400
     assert client.get("/api/integrations/google-sheets/callback", params={"code": "x"}).status_code == 400
     assert db.query(IntegrationConnection).count() == 0
+
+
+def test_google_sheets_requires_integration_capability(oauth_client):
+    client, db, current, _user_a, user_b = oauth_client
+    current["user"] = user_b
+    response = client.get("/api/integrations/google-sheets/auth-url")
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "FEATURE_NOT_INCLUDED",
+        "feature": "integrations",
+        "message": "This coaching plan does not include integrations.",
+    }
+    assert db.query(OAuthState).count() == 0
+
+
+def test_google_sheets_publishing_keeps_relationship_authorization(oauth_client):
+    client, db, current, user_a, user_b = oauth_client
+    athlete = User(id="sheets-athlete", email="sheets-athlete@example.com", hashed_password="x", role="ATHLETE")
+    db.add(athlete)
+    db.commit()
+    current["user"] = user_b
+    db.add(CoachingRelationship(coach_id=user_b.id, athlete_id=athlete.id))
+    db.commit()
+    limited = client.post("/api/integrations/google-sheets/publish", json={
+        "athlete_id": athlete.id, "mesocycle_id": "meso-test",
+    })
+    assert limited.status_code == 403
+    assert limited.json()["detail"]["code"] == "FEATURE_NOT_INCLUDED"
+
+    current["user"] = user_a
+    unrelated = client.post("/api/integrations/google-sheets/publish", json={
+        "athlete_id": athlete.id, "mesocycle_id": "meso-test",
+    })
+    assert unrelated.status_code == 403
+    assert "No active relationship" in unrelated.json()["detail"]
 
 
 def test_google_oauth_rejects_expired_and_wrong_provider_state(oauth_client):

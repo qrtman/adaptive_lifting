@@ -27,6 +27,7 @@ from .database import (
 from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
 from .runtime_config import is_production_like
+from .saas_access import require_integrations_access
 
 router = APIRouter()
 
@@ -456,6 +457,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
 def get_sheets_auth_url(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != "COACH":
         raise HTTPException(status_code=403, detail="Google Sheets is available to coaches")
+    require_integrations_access(db, current_user)
     if is_production_like() and GOOGLE_OAUTH_CLIENT_ID in ("", "mock_client_id"):
         raise HTTPException(status_code=503, detail="Google Sheets is not configured")
     # Keep only a hash in storage; the bearer value is opaque, random, and short-lived.
@@ -509,6 +511,9 @@ def sheets_callback(code: str, state: Optional[str] = None, db: Session = Depend
         db.delete(state_record)
         db.commit()
         raise HTTPException(status_code=400, detail="OAuth state user is unavailable")
+    callback_user = db.query(User).filter(User.id == user_id).one()
+    if callback_user.role == "COACH":
+        require_integrations_access(db, callback_user)
     # A conditional DELETE makes consumption atomic across concurrent callbacks.
     consumed = db.query(OAuthState).filter(
         OAuthState.state_hash == state_hash,
@@ -689,6 +694,8 @@ def publish_to_sheets(req: dict, current_user: User = Depends(get_current_user),
     
     if not rel:
         raise HTTPException(status_code=403, detail="Unauthorized: No active relationship with this athlete")
+
+    require_integrations_access(db, current_user)
         
     conn = db.query(IntegrationConnection).filter(
         IntegrationConnection.user_id == current_user.id,

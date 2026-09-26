@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { WorkoutData } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { shouldDisableCoachAction } from '../services/accessUi';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useSync } from '../contexts/SyncContext';
-import { getRecentBlock, getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import { getRecentBlock } from '../storage/uiPrefs';
 import { LiftFilter } from './LiftFilter';
 import {
   exercisePassesFilter,
@@ -79,6 +81,7 @@ function SessionCard({
   workout,
   active,
   canCopy,
+  canEdit,
   selected,
   filter,
   mode,
@@ -93,6 +96,7 @@ function SessionCard({
   workout: WorkoutData;
   active: boolean;
   canCopy: boolean;
+  canEdit: boolean;
   selected: boolean;
   filter: LiftFilterState;
   mode: DisplayMode;
@@ -257,7 +261,9 @@ function SessionCard({
           type="button"
           data-testid={`sessions-edit-${workout.id}`}
           onClick={onEdit}
-          className="h-7 px-2 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
+          disabled={!canEdit}
+          title={!canEdit ? 'Active coaching access is required to edit athlete programming.' : undefined}
+          className="h-7 px-2 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
         >
           Edit
         </button>
@@ -265,7 +271,9 @@ function SessionCard({
           type="button"
           data-testid={`sessions-delete-${workout.id}`}
           onClick={onDelete}
-          className="h-7 px-2 text-[11px] text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)]"
+          disabled={!canEdit}
+          title={!canEdit ? 'Active coaching access is required to edit athlete programming.' : undefined}
+          className="h-7 px-2 text-[11px] text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
         >
           Delete
         </button>
@@ -395,7 +403,8 @@ export function SessionsView({
   const [headerOffset, setHeaderOffset] = useState(0);
   const [blockSelection, setBlockSelection] = useState<{ athleteId: string | null; key: string } | null>(null);
   const { user } = useAuth();
-  const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
+  const { canProgram } = useAccountAccess();
+  const isCoach = String(user?.role || '').toUpperCase() === 'COACH';
 
   const allSessions = useMemo(() => {
     const entries: SessionEntry[] = [];
@@ -454,7 +463,8 @@ export function SessionsView({
 
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   const [showNewSession, setShowNewSession] = useState(false);
-  const canCopy = isOnline && !showCoachSelectAthlete;
+  const coachCanProgram = !shouldDisableCoachAction(isCoach, canProgram);
+  const canCopy = isOnline && !showCoachSelectAthlete && coachCanProgram;
 
   useEffect(() => {
     expectedScrollRef.current.clear();
@@ -561,6 +571,7 @@ export function SessionsView({
       workout={workout}
       active={activeWorkoutId === workout.id}
       canCopy={canCopy}
+      canEdit={coachCanProgram}
       selected={selectedIds.has(workout.id)}
       filter={filter}
       mode={displayMode}
@@ -628,10 +639,13 @@ export function SessionsView({
                   type="button"
                   data-testid="sessions-add"
                   onClick={() => setShowNewSession(true)}
-                  className="h-8 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-accent)] text-white text-[11px] font-semibold hover:opacity-90 transition-opacity"
+                  disabled={!coachCanProgram}
+                  title={!coachCanProgram ? 'Active coaching access is required to create athlete programming.' : undefined}
+                  className="h-8 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-accent)] text-white text-[11px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
                 >
                   Add session
                 </button>
+                {isCoach && canProgram === false && <span className="text-[10px] text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</span>}
                 {selectedIds.size > 0 ? (
                   <button
                     type="button"

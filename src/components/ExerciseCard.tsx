@@ -112,6 +112,7 @@ export const ExerciseCard = ({
   onMinimizedChange,
   dragControls,
   locked = false,
+  canEditPlan = true,
   roleMode: _roleMode = 'coach',
   initialMinimized = true
 }: { 
@@ -132,6 +133,7 @@ export const ExerciseCard = ({
   onMinimizedChange?: (minimized: boolean) => void,
   dragControls?: DragControls,
   locked?: boolean,
+  canEditPlan?: boolean,
   roleMode?: 'coach' | 'athlete',
   initialMinimized?: boolean,
   key?: string,
@@ -625,6 +627,7 @@ export const ExerciseCard = ({
                       type="button"
                       data-testid="plan-suggest"
                       onClick={() => updateSet(selectedPlanEntry.index, { plannedWeight: selectedPlanOffer, isAuto: false })}
+                      disabled={locked || !canEditPlan}
                       className="h-5 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-1.5 text-[10px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
                     >
                       Use
@@ -710,13 +713,13 @@ export const ExerciseCard = ({
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
-                        locked={locked}
+                        locked={locked || !canEditPlan}
                         onCommit={(pct) => commitDropPercent(planIndex, pct)}
                         grid={bindGrid(laneIndex, 0)}
                       />
                     )}
                   </td>
-                    {hasPlan ? (!locked ? (
+                    {hasPlan ? (!locked && canEditPlan ? (
                       <PrescriptionEditor
                             reps={set.plannedReps}
                             intensityType={set.intensity_type || "RPE"}
@@ -751,7 +754,7 @@ export const ExerciseCard = ({
                     {hasPlan ? (<>
                     <button
                       type="button"
-                      disabled={locked || !hasPlan}
+                      disabled={locked || !canEditPlan || !hasPlan}
                       onClick={() => duplicateSet(planIndex, 'plan')}
                       className={actionButton}
                       aria-label={`Copy plan set ${laneIndex + 1}`}
@@ -762,7 +765,7 @@ export const ExerciseCard = ({
                     </button>
                     <button
                       type="button"
-                      disabled={locked || !hasPlan}
+                      disabled={locked || !canEditPlan || !hasPlan}
                       onClick={() => deleteSet(planIndex, 'plan')}
                       className={actionButton}
                       aria-label={`Delete plan set ${laneIndex + 1}`}
@@ -777,7 +780,7 @@ export const ExerciseCard = ({
                     {hasPlan ? (
                     <button
                       type="button"
-                      disabled={locked}
+                      disabled={locked || !canEditPlan}
                       onClick={() => syncTarget(planIndex, laneIndex)}
                       className="h-5 w-4 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
@@ -904,6 +907,7 @@ export const ExerciseCard = ({
                   aria-label="+ Plan set"
                   onClick={() => addSet('plan')}
                   title={`Add a blank plan set to ${title}`}
+                  disabled={!canEditPlan}
                   className={addSetButton}
                 >
                   <Plus size={12} strokeWidth={2} aria-hidden="true" />

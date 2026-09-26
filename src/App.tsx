@@ -14,6 +14,8 @@ import { RosterView } from './components/RosterView';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
+import { useAccountAccess } from './contexts/AccessContext';
+import { shouldDisableCoachAction } from './services/accessUi';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
@@ -28,9 +30,10 @@ import { splitWorkoutExercises, type LiftMetaPatch } from './types';
 type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
   value: string;
   reorderContainerRef: RefObject<HTMLDivElement | null>;
+  canReorder?: boolean;
 };
 
-function SortableExerciseCard({ value, reorderContainerRef, ...props }: SortableExerciseCardProps) {
+function SortableExerciseCard({ value, reorderContainerRef, canReorder = true, ...props }: SortableExerciseCardProps) {
   const dragControls = useDragControls();
   const [minimized, setMinimized] = useState(props.initialMinimized ?? true);
 
@@ -50,7 +53,7 @@ function SortableExerciseCard({ value, reorderContainerRef, ...props }: Sortable
         {...props}
         initialMinimized={minimized}
         onMinimizedChange={setMinimized}
-        dragControls={dragControls}
+        dragControls={canReorder ? dragControls : undefined}
       />
     </Reorder.Item>
   );
@@ -58,6 +61,8 @@ function SortableExerciseCard({ value, reorderContainerRef, ...props }: Sortable
 
 export default function App() {
   const { user } = useAuth();
+  const { canProgram } = useAccountAccess();
+  const coachCanProgram = !shouldDisableCoachAction(String(user?.role || '').toUpperCase() === 'COACH', canProgram);
   const {
     activeWorkoutId,
     setActiveWorkoutId,
@@ -231,7 +236,7 @@ export default function App() {
   };
 
   const handleReorderLifts = async (orderedMainIds: string[]) => {
-    if (!activeWorkout) return;
+    if (!activeWorkout || !coachCanProgram) return;
     setMainLiftOrder(orderedMainIds);
     const mainIds = new Set(workoutExercises?.main.map((exercise) => exercise.id) ?? []);
     let nextMainIndex = 0;
@@ -342,7 +347,9 @@ export default function App() {
                               type="button"
                               data-testid="session-edit"
                               onClick={() => setEditSessionOpen(true)}
-                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+                              disabled={!coachCanProgram}
+                              title={!coachCanProgram ? 'Active coaching access is required to edit athlete programming.' : undefined}
+                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                             >
                               Edit
                             </button>
@@ -383,7 +390,7 @@ export default function App() {
                       axis="y"
                       ref={reorderContainerRef}
                       values={orderedMainExercises.map((exercise) => exercise.id)}
-                      onReorder={(next) => void handleReorderLifts(next)}
+                      onReorder={(next) => { if (coachCanProgram) void handleReorderLifts(next); }}
                     >
                     {orderedMainExercises.map((ex) => {
                       return (
@@ -391,6 +398,7 @@ export default function App() {
                         key={ex.id}
                         value={ex.id}
                         reorderContainerRef={reorderContainerRef}
+                        canReorder={coachCanProgram}
                         id={ex.id}
                         title={ex.title}
                         variation={ex.variation}
@@ -400,9 +408,10 @@ export default function App() {
                         movementPattern={ex.movementPattern}
                         liftNote={ex.liftNote}
                         initialSets={ex.sets}
+                        canEditPlan={coachCanProgram}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
-                        onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
-                        onRemove={() => handleRemoveLift(ex.id)}
+                        onUpdateMeta={coachCanProgram ? (patch) => handleUpdateLift(ex.id, patch) : undefined}
+                        onRemove={coachCanProgram ? () => handleRemoveLift(ex.id) : undefined}
                       />
                     );
                     })}
@@ -411,14 +420,16 @@ export default function App() {
                     <AccessoryLedger
                       exercises={workoutExercises?.accessories ?? []}
                       onUpdateSets={updateExerciseSets}
-                      onUpdateMeta={handleUpdateLift}
-                      onRemove={handleRemoveLift}
+                      canEditPlan={coachCanProgram}
+                      onUpdateMeta={coachCanProgram ? handleUpdateLift : undefined}
+                      onRemove={coachCanProgram ? handleRemoveLift : undefined}
                     />
 
-                    <AddLiftBar
-                      sessionId={activeWorkout.id}
-                      onAdded={() => reloadMicrocycles(planAthleteId)}
-                    />
+                    {coachCanProgram ? (
+                      <AddLiftBar sessionId={activeWorkout.id} onAdded={() => reloadMicrocycles(planAthleteId)} />
+                    ) : (
+                      <p className="px-2 py-3 text-xs text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</p>
+                    )}
                   </div>
                   {editSessionOpen && (
                     <EditSessionDialog

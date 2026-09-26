@@ -33,6 +33,12 @@ from .runtime_config import (
     validate_production_settings,
 )
 from .dev_seed import DEMO_ATHLETE_EMAIL, DEMO_COACH_EMAIL, ensure_demo_accounts
+from .saas_access import (
+    build_account_access_state,
+    require_active_coach_access,
+    require_athlete_capacity,
+    require_programming_access,
+)
 
 apply_dotenv()
 validate_production_settings()
@@ -768,10 +774,16 @@ def update_auth_profile(req: UpdateProfileRequest, db: Session = Depends(get_db)
     db.refresh(current_user)
     return {"id": current_user.id, "email": current_user.email, "role": current_user.role, "displayName": current_user.display_name}
 
+
+@app.get("/api/account/access")
+def get_account_access(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return build_account_access_state(db, current_user)
+
 @app.post("/api/auth/coach-code")
 def create_coach_code(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "COACH":
         raise HTTPException(status_code=403, detail="Only coaches can create coach codes")
+    require_active_coach_access(db, current_user)
     # Rotate: expire previous unused codes for this coach
     for old in db.query(InviteCode).filter(InviteCode.coach_id == current_user.id, InviteCode.used_at.is_(None)).all():
         old.used_at = datetime.utcnow()
@@ -824,6 +836,8 @@ def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_us
     existing_link = active_coaching_query(db).filter(CoachingRelationship.athlete_id == current_user.id).first()
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")
+
+    require_athlete_capacity(db, coach)
 
     consumed_at = datetime.utcnow()
     consumed = db.query(InviteCode).filter(
@@ -966,6 +980,8 @@ def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current
     if not rel or rel.ended_at is not None:
         raise HTTPException(status_code=403, detail="Not authorized to push to this athlete")
 
+    require_programming_access(db, current_user)
+
     # Plans stay athlete-owned and empty unless sessions are created explicitly.
     # Demo seed injection is intentionally removed.
     return {
@@ -1001,7 +1017,8 @@ def get_microcycles(
 
 @app.post("/api/sets/log")
 def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    require_session_for_write(db, current_user, req.workoutId)
+    # Execution logging remains available; programming access gates plan edits.
+    require_session_for_write(db, current_user, req.workoutId, require_programming=False)
     s = db.query(ExerciseSet).filter(ExerciseSet.id == req.setId).first()
     if not s or not is_live(s):
         raise HTTPException(status_code=404, detail="Target set not found")
@@ -1458,7 +1475,7 @@ def reindex_exercises(ordered) -> None:
         exercise.lexo_rank = f"a{index}"
 
 
-def require_session_for_write(db: Session, current_user: User, session_id: str) -> Workout:
+def require_session_for_write(db: Session, current_user: User, session_id: str, require_programming: bool = True) -> Workout:
     workout = db.query(Workout).filter(Workout.id == session_id).first()
     if not workout:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -1466,6 +1483,8 @@ def require_session_for_write(db: Session, current_user: User, session_id: str) 
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    if require_programming:
+        require_programming_access(db, current_user)
     if workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Session not found")
     return workout
@@ -1612,6 +1631,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
         sources.append(workout)
 
     assert_plan_access(db, current_user, owner_id)
+    require_programming_access(db, current_user)
 
     created = []
     for source in sources:
@@ -1646,6 +1666,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
 def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     athlete_id = resolve_athlete_id(current_user, req.athleteId)
     assert_plan_access(db, current_user, athlete_id)
+    require_programming_access(db, current_user)
     session_date = require_iso_date(req.date)
     block_label = optional_label(req.blockLabel)
     week_label = optional_label(req.weekLabel)
@@ -1944,6 +1965,7 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    require_programming_access(db, current_user)
     if workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -1994,6 +2016,7 @@ def delete_session(session_id: str, db: Session = Depends(get_db), current_user:
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    require_programming_access(db, current_user)
     if workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Session not found")
     workout.deleted_at = datetime.utcnow()
@@ -2017,6 +2040,7 @@ def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get
         if not owner_id:
             continue
         assert_plan_access(db, current_user, owner_id)
+        require_programming_access(db, current_user)
         if req.clearBlock:
             workout.block_label = None
         elif req.blockLabel is not None:

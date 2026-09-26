@@ -3,6 +3,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.test_support import register_coach
 
 
 def _register(client, email, role):
@@ -19,7 +20,7 @@ def test_day_notes_keyed_by_date_and_athlete_plan():
     suffix = uuid.uuid4().hex[:8]
     athlete = _register(client, f"ath-{suffix}@example.com", "ATHLETE")
     other = _register(client, f"oth-{suffix}@example.com", "ATHLETE")
-    coach = _register(client, f"coach-{suffix}@example.com", "COACH")
+    coach = dict(register_coach(client, f"coach-{suffix}@example.com").cookies)
 
     missing_date = client.put(
         "/api/day-notes",

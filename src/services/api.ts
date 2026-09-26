@@ -34,11 +34,63 @@ export type CoachingHistorySnapshot = {
   microcycles: MicrocycleData[];
 };
 
+export type WorkspaceAccess = {
+  workspace: { id: string; name: string } | null;
+  membershipRole: 'OWNER' | 'COACH' | 'STAFF' | null;
+  entitlements: {
+    active: boolean;
+    planKey: string | null;
+    maxActiveAthletes: number | null;
+    canProgram: boolean;
+    canUseAnalytics: boolean;
+    canUseIntegrations: boolean;
+  } | null;
+  grant: { source: string; startsAt?: string | null; expiresAt?: string | null } | null;
+  accessSource?: {
+    type: 'grant' | 'subscription';
+    status: string;
+    expiresAt?: string | null;
+    currentPeriodEnd?: string | null;
+    cancelAtPeriodEnd?: boolean;
+  } | null;
+  usage: { activeAthletes: number; maxActiveAthletes: number | null } | null;
+};
+
+export type SaaSErrorCode = 'WORKSPACE_ACCESS_REQUIRED' | 'FEATURE_NOT_INCLUDED' | 'ATHLETE_LIMIT_REACHED';
+
 export class ApiRequestError extends Error {
-  constructor(message: string, public readonly status: number) {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: SaaSErrorCode | string,
+    public readonly feature?: string,
+    public readonly activeAthletes?: number,
+    public readonly maxActiveAthletes?: number,
+  ) {
     super(message);
     this.name = 'ApiRequestError';
   }
+}
+
+export async function apiRequestError(response: Response, fallback: string): Promise<ApiRequestError> {
+  const data = await response.json().catch(() => ({}));
+  const detail = data && typeof data === 'object' ? (data as { detail?: unknown }).detail : undefined;
+  const structured = detail && typeof detail === 'object' ? detail as Record<string, unknown> : null;
+  const code = typeof structured?.code === 'string' ? structured.code : undefined;
+  const message = structured && typeof structured.message === 'string'
+    ? structured.message
+    : apiErrorMessage(data, fallback);
+  if (code === 'WORKSPACE_ACCESS_REQUIRED' || code === 'FEATURE_NOT_INCLUDED' || code === 'ATHLETE_LIMIT_REACHED') {
+    window.dispatchEvent(new CustomEvent('saas-access-error', { detail: { code } }));
+  }
+  return new ApiRequestError(
+    message,
+    response.status,
+    code,
+    typeof structured?.feature === 'string' ? structured.feature : undefined,
+    typeof structured?.activeAthletes === 'number' ? structured.activeAthletes : undefined,
+    typeof structured?.maxActiveAthletes === 'number' ? structured.maxActiveAthletes : undefined,
+  );
 }
 
 /**
@@ -151,6 +203,12 @@ function apiErrorMessage(errData: unknown, fallback: string): string {
 // --- Dual-Driver Service Layer Exports ---
 
 export const apiService = {
+  async fetchAccountAccess(): Promise<WorkspaceAccess> {
+    const response = await fetch(`${BACKEND_URL}/api/account/access`, { headers: getHeaders(), credentials: 'include' });
+    if (!response.ok) throw await apiRequestError(response, 'Could not load coaching access status.');
+    return await response.json() as WorkspaceAccess;
+  },
+
   /**
    * Fetches the complete microcycle training data.
    */
@@ -399,8 +457,7 @@ export const apiService = {
       body: JSON.stringify({ athleteId, template })
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to push program');
+      throw await apiRequestError(response, 'Failed to push program');
     }
     const data = await response.json();
     return {
@@ -521,8 +578,7 @@ export const apiService = {
       credentials: 'include',
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to create coach code');
+      throw await apiRequestError(response, 'Failed to create coach code');
     }
     return await response.json();
   },
@@ -547,8 +603,7 @@ export const apiService = {
       body: JSON.stringify({ code }),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to link coach');
+      throw await apiRequestError(response, 'Failed to link coach');
     }
     return await response.json();
   },
@@ -589,8 +644,7 @@ export const apiService = {
       }),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(errData, 'Failed to create session'));
+      throw await apiRequestError(response, 'Failed to create session');
     }
     return await response.json();
   },
@@ -613,8 +667,7 @@ export const apiService = {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to update session');
+      throw await apiRequestError(response, 'Failed to update session');
     }
     return await response.json();
   },
@@ -641,8 +694,7 @@ export const apiService = {
       }),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to update session labels');
+      throw await apiRequestError(response, 'Failed to update session labels');
     }
     return await response.json();
   },
@@ -673,8 +725,7 @@ export const apiService = {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to copy week');
+      throw await apiRequestError(response, 'Failed to copy week');
     }
     return await response.json();
   },
@@ -744,8 +795,7 @@ export const apiService = {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to add lift');
+      throw await apiRequestError(response, 'Failed to add lift');
     }
     return await response.json();
   },
@@ -792,8 +842,7 @@ export const apiService = {
       }),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to save sets');
+      throw await apiRequestError(response, 'Failed to save sets');
     }
     return await response.json();
   },
@@ -815,8 +864,7 @@ export const apiService = {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to update lift');
+      throw await apiRequestError(response, 'Failed to update lift');
     }
     return await response.json();
   },
@@ -827,8 +875,7 @@ export const apiService = {
       credentials: 'include',
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to remove lift');
+      throw await apiRequestError(response, 'Failed to remove lift');
     }
     return await response.json();
   },
@@ -839,8 +886,7 @@ export const apiService = {
       credentials: 'include',
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to delete session');
+      throw await apiRequestError(response, 'Failed to delete session');
     }
     return await response.json();
   },
@@ -859,8 +905,7 @@ export const apiService = {
       body: JSON.stringify({ config, athlete_id: athleteId || undefined }),
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(errData, 'Analytics query failed'));
+      throw await apiRequestError(response, 'Analytics query failed');
     }
     return await response.json() as QueryResult;
   },

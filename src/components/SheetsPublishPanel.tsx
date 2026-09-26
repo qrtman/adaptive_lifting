@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { API_BASE_URL } from '../services/apiBase';
+import { useAuth } from '../contexts/AuthContext';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { apiRequestError } from '../services/api';
+import { saasErrorMessage } from '../services/saasErrors';
 import { 
   FileSpreadsheet, CheckCircle2, XCircle, RefreshCw, 
   Trash2, Send, ExternalLink, Calendar, CheckSquare, Square, ChevronDown 
@@ -15,6 +19,9 @@ interface OutboxJob {
 }
 
 export const SheetsPublishPanel: React.FC = () => {
+  const { user } = useAuth();
+  const { canUseIntegrations } = useAccountAccess();
+  const integrationBlocked = String(user?.role || '').toUpperCase() === 'COACH' && canUseIntegrations === false;
   const [status, setStatus] = useState<'idle' | 'loading' | 'disconnected' | 'connected' | 'error'>('idle');
   const [roster, setRoster] = useState<any[]>([]);
   const [selectedAthlete, setSelectedAthlete] = useState<string>('');
@@ -72,7 +79,7 @@ export const SheetsPublishPanel: React.FC = () => {
     setErrorMsg(null);
     try {
       const res = await fetch(`${API_BASE_URL}/api/integrations/google-sheets/auth-url`, {
-        headers: { 'credentials': 'include' }
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -81,12 +88,12 @@ export const SheetsPublishPanel: React.FC = () => {
           window.open(data.auth_url, '_blank', 'width=600,height=700');
         }
       } else {
-        throw new Error("OAuth authorization request rejected by backend");
+        throw await apiRequestError(res, 'OAuth authorization request rejected by backend');
       }
     } catch (e: any) {
       console.error(e);
       setStatus('error');
-      setErrorMsg("Unable to retrieve authorization link. Ensure keys are configured.");
+      setErrorMsg(saasErrorMessage(e) || "Unable to retrieve authorization link. Ensure keys are configured.");
     }
   };
 
@@ -126,9 +133,9 @@ export const SheetsPublishPanel: React.FC = () => {
       
       const res = await fetch(`${API_BASE_URL}/api/integrations/google-sheets/publish`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 
           'Content-Type': 'application/json',
-          'credentials': 'include'
         },
         body: JSON.stringify({
           athlete_id: selectedAthlete,
@@ -143,12 +150,11 @@ export const SheetsPublishPanel: React.FC = () => {
         fetchStatusAndJobs(true);
         alert("Mesocycle publication job successfully queued to Outbox!");
       } else {
-        const err = await res.json();
-        throw new Error(err.detail || "Server rejected queue request");
+        throw await apiRequestError(res, 'Server rejected queue request');
       }
     } catch (e: any) {
       console.error(e);
-      alert(`Publishing failed: ${e.message}`);
+      alert(saasErrorMessage(e) || `Publishing failed: ${e.message}`);
     } finally {
       setIsPublishing(false);
     }
@@ -233,6 +239,7 @@ export const SheetsPublishPanel: React.FC = () => {
 
       {status === 'disconnected' && (
         <div className="mt-4 space-y-4">
+          {integrationBlocked && <p className="text-xs text-gray-400" role="note">This coaching plan does not include Google Sheets integrations.</p>}
           <div className="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-gray-400">
             <p className="font-bold text-white mb-2">Spreadsheet Publishing Rule Constraints:</p>
             <ul className="list-disc list-inside space-y-1 pl-1 text-xs">
@@ -243,6 +250,8 @@ export const SheetsPublishPanel: React.FC = () => {
           </div>
           <button 
             onClick={connectOAuth}
+            disabled={integrationBlocked}
+            title={integrationBlocked ? 'This coaching plan does not include Google Sheets integrations.' : undefined}
             className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/15 rounded-lg font-bold text-sm transition-all flex items-center gap-2 cursor-pointer"
           >
             <FileSpreadsheet size={16} className="text-mac-green" />
@@ -314,9 +323,11 @@ export const SheetsPublishPanel: React.FC = () => {
 
           {/* Action Row */}
           <div className="flex flex-wrap items-center justify-between gap-4">
+            {integrationBlocked && <p className="w-full text-xs text-gray-400" role="note">This coaching plan does not include Google Sheets integrations. You can still review or disconnect the existing connection.</p>}
             <button 
               onClick={publishActiveMesocycle}
-              disabled={isPublishing || selectedTabs.length === 0}
+              disabled={isPublishing || selectedTabs.length === 0 || integrationBlocked}
+              title={integrationBlocked ? 'This coaching plan does not include Google Sheets integrations.' : undefined}
               className="px-5 py-2.5 bg-[#34C759] hover:bg-green-600 text-white rounded-lg font-bold text-sm transition-all shadow-md shadow-green-500/10 cursor-pointer disabled:opacity-50 flex items-center gap-2"
             >
               {isPublishing ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}

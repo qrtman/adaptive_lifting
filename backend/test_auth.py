@@ -18,6 +18,7 @@ from backend.main import app
 from backend.sse_broadcaster import get_events
 from backend import sse_broadcaster
 from backend import integrations as telegram_integrations
+from backend.test_support import register_coach
 
 
 def test_register_and_login_set_session_cookie():
@@ -219,12 +220,7 @@ def _register_auth_user(client, prefix="auth"):
 
 
 def _register_coach(client, email):
-    registered = client.post("/api/auth/register", json={"email": email, "password": "password123"})
-    assert registered.status_code == 200
-    from backend.manage_user import promote_coach
-    assert promote_coach(email) == 0
-    client.cookies.clear()
-    return client.post("/api/auth/login", data={"username": email, "password": "password123"})
+    return register_coach(client, email)
 
 
 def test_registration_role_is_server_controlled_and_cli_promotes_after_reauthentication(capsys):
@@ -244,6 +240,9 @@ def test_registration_role_is_server_controlled_and_cli_promotes_after_reauthent
 
     assert manage_user_main(["promote-coach", f"  {email.upper()} "]) == 0
     assert "Promoted" in capsys.readouterr().out
+    from backend.manage_user import grant_coach_access
+    assert grant_coach_access(email, "coach_beta", no_expiry=True, reason="test-fixture") == 0
+    capsys.readouterr()
     client.cookies.clear()
     signed_in = client.post("/api/auth/login", data={"username": email, "password": "password123"})
     assert signed_in.status_code == 200

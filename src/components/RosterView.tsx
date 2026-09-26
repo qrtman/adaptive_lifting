@@ -5,6 +5,8 @@ import { usePeriodization } from '../contexts/PeriodizationContext';
 import type { DashboardMode } from '../navigation';
 import { ApiRequestError, apiService, type CoachingHistorySnapshot, type PastAthlete, type RosterAthlete } from '../services/api';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { formatAthleteUsage } from '../services/accessUi';
 
 type RosterViewState = 'loading' | 'ready' | 'error' | 'permission-denied';
 
@@ -16,6 +18,7 @@ function utcDate(value: string | null): string {
 
 export function RosterView({ onNavigate }: { onNavigate: (mode: DashboardMode) => void }) {
   const { user } = useAuth();
+  const { access, refreshAccess } = useAccountAccess();
   const { activeAthleteId, setActiveAthleteId, setMicrocycles, setActiveWorkoutId, setActiveMicrocycleId } = usePeriodization();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const [athletes, setAthletes] = useState<RosterAthlete[]>([]);
@@ -97,6 +100,7 @@ export function RosterView({ onNavigate }: { onNavigate: (mode: DashboardMode) =
     setErrorMessage('');
     try {
       const result = await apiService.unlinkAthlete(athlete.id);
+      void refreshAccess();
       setAthletes((current) => current.filter((item) => item.id !== athlete.id));
       if (activeAthleteId === athlete.id) {
         setMicrocycles([]);
@@ -142,6 +146,7 @@ export function RosterView({ onNavigate }: { onNavigate: (mode: DashboardMode) =
           <div>
             <h1 id="roster-title" className="text-lg font-semibold tracking-tight text-[var(--cal-ink)]">Roster</h1>
             <p className="mt-1 text-sm text-[var(--cal-muted)]">Find a linked athlete and open their plan.</p>
+            {isCoach && access?.entitlements?.active && access.usage && <p className="mt-1 text-xs text-[var(--cal-muted)]" data-testid="roster-access-usage">{formatAthleteUsage(access.usage.activeAthletes, access.usage.maxActiveAthletes)}</p>}
           </div>
           {isCoach && viewState === 'ready' && tab === 'active' && (
             <button type="button" className={buttonClass} onClick={() => void loadRoster()} disabled={viewState === 'loading'}>

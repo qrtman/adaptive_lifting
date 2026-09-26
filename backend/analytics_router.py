@@ -17,6 +17,7 @@ from .database import InsightCard, User, get_db
 from .exercise_patterns import PATTERNS
 from .math_utils import MATH_VERSION
 from .sync_service import SyncPayload, assert_math_version, ensure_client_device
+from .saas_access import require_analytics_access
 
 router = APIRouter(tags=["analytics"])
 
@@ -67,6 +68,8 @@ def create_analytics_router(get_current_user):
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ):
+        if current_user.role == "COACH":
+            require_analytics_access(db, current_user)
         return run_query(db, current_user, req)
 
     @router.get("/api/insight-cards", response_model=List[SavedCard])

@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint, Index, event
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint, CheckConstraint, Index, event
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 from .accessory_migration import expand_legacy_accessory_sets
@@ -72,6 +72,7 @@ class User(Base, TimestampMixin):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="ATHLETE") # 'COACH' or 'ATHLETE'
+    # Legacy compatibility only; future SaaS authorization uses workspace grants.
     subscription_status = Column(String, nullable=True, default="active")
     display_name = Column(String, nullable=True)
     # Stable Google OpenID subject. Nullable for password-only accounts.
@@ -79,6 +80,80 @@ class User(Base, TimestampMixin):
 
 
 Index("uq_users_google_sub", User.google_sub, unique=True)
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("owner_user_id", name="uq_workspaces_owner_user_id"),
+        Index("ix_workspaces_owner_user_id", "owner_user_id"),
+    )
+
+
+class WorkspaceMember(Base):
+    __tablename__ = "workspace_members"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_members_workspace_user"),
+        CheckConstraint("role IN ('OWNER', 'COACH', 'STAFF')", name="ck_workspace_members_role"),
+        Index("ix_workspace_members_workspace_id", "workspace_id"),
+        Index("ix_workspace_members_user_id", "user_id"),
+    )
+
+
+class AccessGrant(Base):
+    __tablename__ = "access_grants"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    plan_key = Column(String, nullable=False)
+    source = Column(String, nullable=False)
+    starts_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    reason = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        Index("ix_access_grants_workspace_id", "workspace_id"),
+        Index("ix_access_grants_created_by_user_id", "created_by_user_id"),
+    )
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    provider_customer_id = Column(String, nullable=True)
+    provider_subscription_id = Column(String, nullable=False)
+    plan_key = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    canceled_at = Column(DateTime, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_subscription_id", name="uq_subscriptions_provider_subscription"),
+        CheckConstraint(
+            "status IN ('TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'EXPIRED', 'INCOMPLETE')",
+            name="ck_subscriptions_status",
+        ),
+        Index("ix_subscriptions_workspace_id", "workspace_id"),
+        Index("ix_subscriptions_provider_customer_id", "provider_customer_id"),
+        Index("ix_subscriptions_status", "status"),
+    )
 
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"

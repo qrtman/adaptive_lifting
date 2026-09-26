@@ -9,6 +9,7 @@ export const AccessoryLedger = ({
   onUpdateMeta,
   onRemove,
   locked = false,
+  canEditPlan = true,
   roleMode = 'athlete'
 }: {
   exercises: ExerciseData[],
@@ -16,6 +17,7 @@ export const AccessoryLedger = ({
   onUpdateMeta?: (exerciseId: string, patch: LiftMetaPatch) => void | Promise<void>,
   onRemove?: (exerciseId: string) => void | Promise<void>,
   locked?: boolean,
+  canEditPlan?: boolean,
   roleMode?: 'coach' | 'athlete'
 }) => {
   const [open, setOpen] = useState(true);
@@ -88,6 +90,7 @@ export const AccessoryLedger = ({
                   onUpdateMeta={onUpdateMeta ? (patch) => onUpdateMeta(exercise.id, patch) : undefined}
                   onRemove={onRemove ? () => onRemove(exercise.id) : undefined}
                   locked={locked}
+                  canEditPlan={canEditPlan}
                   roleMode={roleMode}
                   initialMinimized={false}
                 />

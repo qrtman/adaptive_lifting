@@ -8,12 +8,13 @@ from backend.analytics_schemas import CardConfig
 from backend.database import Exercise, ExerciseSet, Microcycle, SessionLocal, Workout, init_db
 from backend.main import app
 from backend.math_utils import MATH_VERSION, calculate_e1rm
+from backend.test_support import register_coach
 
 
 def _auth_pair():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    coach = client.post("/api/auth/register", json={"email": f"c-{suffix}@ex.com", "password": "password123", "role": "COACH"})
+    coach = register_coach(client, f"c-{suffix}@ex.com")
     athlete = client.post("/api/auth/register", json={"email": f"a-{suffix}@ex.com", "password": "password123", "role": "ATHLETE"})
     code = client.post("/api/auth/coach-code", cookies=dict(coach.cookies)).json()["code"]
     client.post("/api/auth/link-athlete", json={"code": code}, cookies=dict(athlete.cookies))
@@ -265,9 +266,7 @@ def test_heatmap_and_empty_and_overlapping_periods():
 
 def test_unlinked_coach_cannot_query_athlete():
     client, _coach_cookies, _athlete_cookies, athlete_id = _auth_pair()
-    other_coach = client.post("/api/auth/register", json={
-        "email": f"c2-{uuid.uuid4().hex[:6]}@ex.com", "password": "password123", "role": "COACH",
-    })
+    other_coach = register_coach(client, f"c2-{uuid.uuid4().hex[:6]}@ex.com")
     blocked = client.post("/api/analytics/query", json={
         "athlete_id": athlete_id,
         "config": {

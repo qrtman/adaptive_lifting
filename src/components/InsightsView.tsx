@@ -8,6 +8,9 @@ import { ChartFor } from '../insights/charts';
 import { CardBuilder } from '../insights/CardBuilder';
 import type { AnalyticsCatalog, CardConfig, CachedResult, SavedCard } from '../insights/types';
 import { insightResultIsStale } from '../insights/types';
+import { useAuth } from '../contexts/AuthContext';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { saasErrorMessage } from '../services/saasErrors';
 
 const blankConfig = (): CardConfig => ({
   metrics: ['tonnage'],
@@ -30,6 +33,10 @@ function resultKey(cardId: string) {
 }
 
 export function InsightsView() {
+  const { user } = useAuth();
+  const { canUseAnalytics } = useAccountAccess();
+  const isCoach = String(user?.role || '').toUpperCase() === 'COACH';
+  const analyticsBlocked = isCoach && canUseAnalytics === false;
   const { planAthleteId } = usePeriodization();
   const { isOnline } = useSync();
   const [cards, setCards] = useState<SavedCard[]>([]);
@@ -68,16 +75,22 @@ export function InsightsView() {
       await applyCache();
       return;
     }
+    if (analyticsBlocked) {
+      await applyCache();
+      return;
+    }
     try {
       const payload = await apiService.queryInsightCard(card.config, planAthleteId);
       const cached: CachedResult = { result: payload, fetchedAt: new Date().toISOString() };
       setResults((prev) => ({ ...prev, [card.id]: cached }));
       setStaleIds((prev) => ({ ...prev, [card.id]: false }));
       await saveSnapshot(cacheId, cached);
-    } catch {
+    } catch (err) {
+      const message = saasErrorMessage(err);
+      if (message) setError(message);
       await applyCache();
     }
-  }, [planAthleteId]);
+  }, [planAthleteId, analyticsBlocked]);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,11 +173,14 @@ export function InsightsView() {
             type="button"
             data-testid="insights-add-card"
             onClick={openNew}
+            disabled={analyticsBlocked}
+            title={analyticsBlocked ? 'This coaching plan does not include analytics.' : undefined}
             className="h-7 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-strong)] text-[var(--cal-ink)] text-[11px] font-medium hover:opacity-90 transition-opacity"
           >
             Add card
           </button>
         </div>
+        {analyticsBlocked && <p className="mb-2 px-1 text-xs text-[var(--cal-muted)]" role="note">This coaching plan does not include analytics. Previously saved results remain available.</p>}
         {loading && <p className="text-xs text-[var(--cal-muted)] px-[var(--cal-space-xxs)]">Loading…</p>}
         {error && <p className="text-xs text-[var(--cal-error)] px-[var(--cal-space-xxs)]">{error}</p>}
         {!loading && cards.length === 0 && (
