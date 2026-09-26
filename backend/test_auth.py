@@ -25,14 +25,16 @@ def test_register_and_login_set_session_cookie():
     email = f"coach-{uuid.uuid4().hex[:10]}@example.com"
     register_response = client.post(
         "/api/auth/register",
-        json={"email": email, "password": "password123", "role": "COACH"},
+        json={"email": f"  {email.upper()}  ", "password": "password123", "role": "COACH"},
     )
     assert register_response.status_code == 200
+    assert register_response.json()["user"]["role"] == "ATHLETE"
+    assert register_response.json()["user"]["email"] == email
     assert "session_id" in register_response.cookies
 
     login_response = client.post(
         "/api/auth/login",
-        data={"username": email, "password": "password123"},
+        data={"username": f"  {email.upper()} ", "password": "password123"},
     )
     assert login_response.status_code == 200
     assert "session_id" in login_response.cookies
@@ -50,7 +52,7 @@ def _google_claims(subject="google-subject-1", email="google-user@example.com", 
     }
 
 
-def test_google_login_verifies_id_token_and_creates_coach(monkeypatch):
+def test_google_login_verifies_id_token_and_creates_athlete(monkeypatch):
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
     subject = f"google-subject-{uuid.uuid4().hex}"
     monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject))
@@ -59,14 +61,33 @@ def test_google_login_verifies_id_token_and_creates_coach(monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["user"]["email"] == "google-user@example.com"
-    assert response.json()["user"]["role"] == "COACH"
+    assert response.json()["user"]["role"] == "ATHLETE"
     assert response.cookies.get("session_id")
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.google_sub == subject).one()
         assert user.email == "google-user@example.com"
+        assert user.role == "ATHLETE"
     finally:
         db.close()
+
+
+def test_google_login_preserves_existing_google_linked_coach(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    subject = f"google-coach-subject-{uuid.uuid4().hex}"
+    email = f"google-coach-{uuid.uuid4().hex}@example.com"
+    db = SessionLocal()
+    try:
+        user = User(id=str(uuid.uuid4()), email=email, hashed_password="x", role="COACH", google_sub=subject)
+        db.add(user)
+        db.commit()
+    finally:
+        db.close()
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
+
+    response = TestClient(app).post("/api/auth/google", json={"token": "valid-id-token"})
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "COACH"
 
 
 def test_google_login_links_existing_user_only_with_verified_google_email(monkeypatch):
@@ -191,10 +212,59 @@ def _register_auth_user(client, prefix="auth"):
     email = f"{prefix}-{uuid.uuid4().hex}@example.com"
     response = client.post(
         "/api/auth/register",
-        json={"email": email, "password": "password123", "role": "ATHLETE"},
+        json={"email": email, "password": "password123"},
     )
     assert response.status_code == 200
     return response.json()["user"]["id"], response.cookies.get("session_id")
+
+
+def _register_coach(client, email):
+    registered = client.post("/api/auth/register", json={"email": email, "password": "password123"})
+    assert registered.status_code == 200
+    from backend.manage_user import promote_coach
+    assert promote_coach(email) == 0
+    client.cookies.clear()
+    return client.post("/api/auth/login", data={"username": email, "password": "password123"})
+
+
+def test_registration_role_is_server_controlled_and_cli_promotes_after_reauthentication(capsys):
+    from backend.manage_user import main as manage_user_main
+
+    client = TestClient(app)
+    email = f"manual-coach-{uuid.uuid4().hex}@example.com"
+    created = client.post("/api/auth/register", json={
+        "email": email,
+        "password": "password123",
+        "role": "COACH",
+    })
+    assert created.status_code == 200
+    assert created.json()["user"]["role"] == "ATHLETE"
+    assert client.post("/api/auth/coach-code", cookies=created.cookies).status_code == 403
+    assert client.get("/api/coach/roster", cookies=created.cookies).status_code == 403
+
+    assert manage_user_main(["promote-coach", f"  {email.upper()} "]) == 0
+    assert "Promoted" in capsys.readouterr().out
+    client.cookies.clear()
+    signed_in = client.post("/api/auth/login", data={"username": email, "password": "password123"})
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["role"] == "COACH"
+    assert client.post("/api/auth/coach-code").status_code == 200
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).one()
+        event = db.query(AuditEvent).filter(
+            AuditEvent.event_type == "COACH_PROMOTED",
+            AuditEvent.resource_id == user.id,
+        ).one()
+        assert event.resource_type == "User"
+    finally:
+        db.close()
+
+    assert manage_user_main(["promote-coach", email]) == 0
+    assert "already a coach" in capsys.readouterr().out
+    assert manage_user_main(["promote-coach", "missing-user@example.com"]) == 1
+    assert "No account found" in capsys.readouterr().err
 
 
 def _make_test_token(user_id, session_id, exp=None):
@@ -389,10 +459,7 @@ def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from
     owner_id, owner_token = _register_auth_user(owner_client, "sse-owner")
     coach_client = TestClient(app)
     coach_email = f"sse-coach-{uuid.uuid4().hex}@example.com"
-    coach_response = coach_client.post(
-        "/api/auth/register",
-        json={"email": coach_email, "password": "password123", "role": "COACH"},
-    )
+    coach_response = _register_coach(coach_client, coach_email)
     assert coach_response.status_code == 200
     coach_id = coach_response.json()["user"]["id"]
     coach_token = coach_response.cookies.get("session_id")
@@ -513,17 +580,11 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     athlete1_email = f"athlete1-{suffix}@example.com"
     athlete2_email = f"athlete2-{suffix}@example.com"
 
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": coach_email, "password": "password123", "role": "COACH"},
-    )
+    coach = _register_coach(client, coach_email)
     assert coach.status_code == 200
     coach_cookies = dict(coach.cookies)
 
-    outsider = client.post(
-        "/api/auth/register",
-        json={"email": outsider_email, "password": "password123", "role": "COACH"},
-    )
+    outsider = _register_coach(client, outsider_email)
     assert outsider.status_code == 200
     outsider_cookies = dict(outsider.cookies)
 
@@ -696,10 +757,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
 def test_coach_can_unlink_and_get_read_only_snapshot():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
-    )
+    coach = _register_coach(client, f"coach-{suffix}@example.com")
     athlete = client.post(
         "/api/auth/register",
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
@@ -725,10 +783,7 @@ def test_coach_can_unlink_and_get_read_only_snapshot():
 def test_coach_create_session_requires_linked_athlete():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
-    )
+    coach = _register_coach(client, f"coach-{suffix}@example.com")
     athlete = client.post(
         "/api/auth/register",
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
@@ -1587,10 +1642,7 @@ def test_name_lift_variation():
 def test_athlete_sees_coach_created_session_on_own_id_fetch():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
-    )
+    coach = _register_coach(client, f"coach-{suffix}@example.com")
     athlete = client.post(
         "/api/auth/register",
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
