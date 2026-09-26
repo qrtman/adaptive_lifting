@@ -6,6 +6,7 @@ import {
 import { CoachLinkPanel } from './CoachLinkPanel';
 import { AthleteProfilePanel } from './AthleteProfilePanel';
 import { API_BASE_URL } from '../services/apiBase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ClientDevice {
   id: string;
@@ -31,6 +32,7 @@ interface AuditEvent {
 }
 
 export const SecurityView: React.FC = () => {
+  const { user } = useAuth();
   const [devices, setDevices] = useState<ClientDevice[]>([]);
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
@@ -162,6 +164,15 @@ export const SecurityView: React.FC = () => {
 
       <CoachLinkPanel />
       <AthleteProfilePanel />
+
+      {String(user?.role || '').toUpperCase() === 'ATHLETE' && (
+        <section className="mb-6 cal-nested-card">
+          <h2 className="text-sm font-medium text-[var(--cal-ink)]">Request coach access</h2>
+          <p className="mt-1 text-xs text-[var(--cal-muted)]">
+            Coach accounts can manage athlete rosters and training plans. Coach access requires manual approval. Contact the application owner to request access.
+          </p>
+        </section>
+      )}
 
       {successAlert && (
         <div className="mb-4 bg-[color-mix(in_srgb,var(--cal-success)_10%,transparent)] border border-[color-mix(in_srgb,var(--cal-success)_20%,transparent)] p-3 rounded-[var(--cal-radius-lg)] flex items-center gap-3">

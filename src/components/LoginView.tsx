@@ -10,17 +10,25 @@ export const LoginView = () => {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const googleButton = useRef<HTMLDivElement>(null);
   const { signIn } = useAuth();
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await apiService.login(email, password);
+      const data = mode === 'signup'
+        ? await apiService.register(email, password)
+        : await apiService.login(email, password);
       signIn(data.user);
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -33,7 +41,7 @@ export const LoginView = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiService.googleLogin(token, 'COACH');
+      const data = await apiService.googleLogin(token);
       signIn(data.user);
     } catch (err: any) {
       setError(err.message || 'Google login failed');
@@ -97,7 +105,12 @@ export const LoginView = () => {
       >
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-[var(--cal-ink)]">Adaptive Lifting</h1>
-          <p className="text-sm text-[var(--cal-muted)] mt-1">Sign in</p>
+          <p className="text-sm text-[var(--cal-muted)] mt-1">{mode === 'signin' ? 'Sign in' : 'Create account'}</p>
+        </div>
+
+        <div className="grid grid-cols-2 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] p-1" role="tablist" aria-label="Authentication mode">
+          <button type="button" role="tab" aria-selected={mode === 'signin'} onClick={() => { setMode('signin'); setError(null); }} className={`min-h-10 rounded-[var(--cal-radius-md)] text-sm ${mode === 'signin' ? 'bg-[var(--cal-surface-strong)] text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}>Sign in</button>
+          <button type="button" role="tab" aria-selected={mode === 'signup'} onClick={() => { setMode('signup'); setError(null); }} className={`min-h-10 rounded-[var(--cal-radius-md)] text-sm ${mode === 'signup' ? 'bg-[var(--cal-surface-strong)] text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}>Create account</button>
         </div>
 
         {error && (
@@ -129,7 +142,7 @@ export const LoginView = () => {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cal-muted)]" size={16} />
               <input
                 type="password"
-                autoComplete="current-password"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 placeholder="Password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -139,12 +152,22 @@ export const LoginView = () => {
             </div>
           </label>
 
+          {mode === 'signup' && (
+            <label className="flex flex-col gap-1 text-xs text-[var(--cal-muted)]">
+              Confirm password
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cal-muted)]" size={16} />
+                <input type="password" autoComplete="new-password" placeholder="Confirm password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={fieldClass} required />
+              </div>
+            </label>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full min-h-12 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? (mode === 'signup' ? 'Creating account…' : 'Signing in…') : (mode === 'signup' ? 'Create account' : 'Sign in')}
           </button>
         </form>
 

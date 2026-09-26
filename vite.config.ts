@@ -14,7 +14,7 @@ export default defineConfig(() => {
     },
     test: {
       environment: 'node',
-      include: ['src/**/*.test.ts'],
+      include: ['src/**/*.test.{ts,tsx}'],
     },
     server: {
       // Disable HMR in hosted preview sessions with DISABLE_HMR=true.

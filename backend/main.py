@@ -238,7 +238,6 @@ app.include_router(create_analytics_router(get_current_user))
 class RegisterRequest(BaseModel):
     email: str
     password: str
-    role: str
 
 
 class UpdateProfileRequest(BaseModel):
@@ -258,7 +257,8 @@ def verify_google_id_token(token: str, client_id: str) -> dict:
 
 @app.post("/api/auth/login")
 def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
+    email = form_data.username.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
@@ -361,7 +361,7 @@ def google_login(req: GoogleLoginRequest, response: Response, request: Request, 
                 id=str(uuid.uuid4()),
                 email=email,
                 hashed_password=get_password_hash(str(uuid.uuid4())),
-                role="COACH",
+                role="ATHLETE",
                 google_sub=subject,
             )
             db.add(user)
@@ -709,14 +709,15 @@ from .sync_service import SyncPayload, resolve_sync_payload
 
 @app.post("/api/auth/register")
 def register_user(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == req.email).first():
+    email = req.email.strip().lower()
+    if db.query(User).filter(func.lower(User.email) == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
         
     user = User(
         id=str(uuid.uuid4()),
-        email=req.email,
+        email=email,
         hashed_password=get_password_hash(req.password),
-        role=req.role
+        role="ATHLETE",
     )
     db.add(user)
     db.commit()
@@ -2027,5 +2028,3 @@ def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get
         updated.append(sid)
     db.commit()
     return {"status": "success", "updated": updated}
-
-

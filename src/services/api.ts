@@ -353,12 +353,12 @@ export const apiService = {
     return data;
   },
 
-  async googleLogin(token: string, role = 'COACH') {
+  async googleLogin(token: string) {
     const response = await fetch(`${BACKEND_URL}/api/auth/google`, {
       method: 'POST',
       headers: getHeaders(),
       credentials: 'include',
-      body: JSON.stringify({ token, role }),
+      body: JSON.stringify({ token }),
     });
     if (!response.ok) throw new Error('Google authentication failed');
     const data = await response.json();
@@ -370,12 +370,12 @@ export const apiService = {
     return data;
   },
 
-  async register(email: string, password: string, role: string) {
+  async register(email: string, password: string) {
     const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
       method: 'POST',
       headers: getHeaders(),
       credentials: 'include',
-      body: JSON.stringify({ email, password, role })
+      body: JSON.stringify({ email, password })
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
