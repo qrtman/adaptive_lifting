@@ -1,5 +1,6 @@
 import os
 import sys
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -104,4 +105,31 @@ def test_production_rejects_insecure_cookie_and_placeholder_encryption_key(monke
     except RuntimeError as exc:
         assert "INTEGRATION_ENCRYPTION_KEY" in str(exc)
     monkeypatch.setenv("INTEGRATION_ENCRYPTION_KEY", "a-unique-stable-encryption-key-of-32-characters")
+    validate_production_settings()
+
+
+def test_stripe_config_is_optional_but_validated_when_enabled(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("APP_URL", "https://lift.example.com")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://lift.example.com")
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    monkeypatch.setenv("INTEGRATION_ENCRYPTION_KEY", "a-unique-stable-encryption-key-of-32-characters")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
+    monkeypatch.setenv("STRIPE_BILLING_ENABLED", "false")
+    validate_production_settings()
+
+    monkeypatch.setenv("STRIPE_BILLING_ENABLED", "true")
+    with pytest.raises(RuntimeError, match="STRIPE_SECRET_KEY"):
+        validate_production_settings()
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "configured-server-secret")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "configured-webhook-secret")
+    monkeypatch.setenv("STRIPE_PRICE_COACH_STARTER", "price_starter")
+    monkeypatch.setenv("STRIPE_PRICE_COACH_PRO", "price_pro")
+    monkeypatch.setenv("STRIPE_PRICE_COACH_UNLIMITED", "price_unlimited")
+    monkeypatch.setenv("STRIPE_EXPECT_LIVEMODE", "false")
+    with pytest.raises(RuntimeError, match="STRIPE_EXPECT_LIVEMODE"):
+        validate_production_settings()
+    monkeypatch.setenv("STRIPE_EXPECT_LIVEMODE", "true")
     validate_production_settings()

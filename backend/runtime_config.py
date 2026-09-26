@@ -104,6 +104,36 @@ def validate_production_settings() -> None:
     google_login_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     if google_login_id.startswith(("mock_", "replace-")):
         raise RuntimeError("GOOGLE_CLIENT_ID must be a real OAuth web client ID when Google login is enabled")
+    if stripe_billing_enabled():
+        if not os.environ.get("STRIPE_SECRET_KEY", "").strip():
+            raise RuntimeError("STRIPE_SECRET_KEY is required when Stripe billing is enabled")
+        if not os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip():
+            raise RuntimeError("STRIPE_WEBHOOK_SECRET is required when Stripe billing is enabled")
+        price_ids = [os.environ.get(name, "").strip() for name in STRIPE_PRICE_ENV_VARS]
+        if not all(price_ids) or len(set(price_ids)) != len(price_ids):
+            raise RuntimeError("All three unique Stripe coaching price IDs are required when Stripe billing is enabled")
+        if not stripe_expect_livemode():
+            raise RuntimeError("STRIPE_EXPECT_LIVEMODE must be true in production")
+
+
+STRIPE_PRICE_ENV_VARS = (
+    "STRIPE_PRICE_COACH_STARTER",
+    "STRIPE_PRICE_COACH_PRO",
+    "STRIPE_PRICE_COACH_UNLIMITED",
+)
+
+
+def stripe_billing_enabled() -> bool:
+    return os.environ.get("STRIPE_BILLING_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+
+
+def stripe_expect_livemode() -> bool:
+    raw = os.environ.get("STRIPE_EXPECT_LIVEMODE", "false").strip().lower()
+    if raw in {"1", "true", "yes"}:
+        return True
+    if raw in {"0", "false", "no", ""}:
+        return False
+    raise RuntimeError("STRIPE_EXPECT_LIVEMODE must be a boolean")
 
 
 def development_login_enabled() -> bool:

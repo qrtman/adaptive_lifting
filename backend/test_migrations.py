@@ -27,8 +27,8 @@ def test_fresh_database_migrates_repeats_and_starts(tmp_path):
     engine = create_engine(database_url)
     try:
         names = set(inspect(engine).get_table_names())
-        assert {"users", "workouts", "exercises", "exercise_sets", "oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "alembic_version"} <= names
-        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0006_subscriptions"
+        assert {"users", "workouts", "exercises", "exercise_sets", "oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "alembic_version"} <= names
+        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0007_billing_customer_mapping"
         assert "result" in {column["name"] for column in inspect(engine).get_columns("integration_outbox")}
         assert "google_sub" in {column["name"] for column in inspect(engine).get_columns("users")}
     finally:
@@ -68,6 +68,22 @@ def test_subscription_revision_downgrade_removes_only_subscription_table(tmp_pat
         engine.dispose()
 
 
+def test_billing_mapping_revision_downgrade_removes_only_new_structures(tmp_path):
+    _run_python(tmp_path, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head")
+    _run_python(tmp_path, "-m", "alembic", "-c", "alembic.ini", "downgrade", "0006_subscriptions")
+    engine = create_engine(f"sqlite:///{(tmp_path / 'app.sqlite').as_posix()}")
+    try:
+        inspector = inspect(engine)
+        names = set(inspector.get_table_names())
+        assert "billing_customers" not in names
+        assert "subscriptions" in names
+        columns = {column["name"] for column in inspector.get_columns("subscriptions")}
+        assert not {"provider_event_created_at", "provider_event_id"} & columns
+        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0006_subscriptions"
+    finally:
+        engine.dispose()
+
+
 def test_legacy_database_upgrade_preserves_data_and_is_repeatable(tmp_path):
     database_url = f"sqlite:///{(tmp_path / 'app.sqlite').as_posix()}"
     environment = os.environ.copy()
@@ -80,6 +96,7 @@ Base.metadata.create_all(engine)
 with engine.begin() as c:
  c.exec_driver_sql('DROP TABLE access_grants')
  c.exec_driver_sql('DROP TABLE subscriptions')
+ c.exec_driver_sql('DROP TABLE billing_customers')
  c.exec_driver_sql('DROP TABLE workspace_members')
  c.exec_driver_sql('DROP TABLE workspaces')
  c.exec_driver_sql('DROP INDEX uq_coaching_relationships_active_athlete')
@@ -148,10 +165,11 @@ from backend.database import Base, User
 engine=create_engine(__import__('os').environ['DATABASE_URL'])
 Base.metadata.create_all(engine)
 with engine.begin() as connection:
- connection.exec_driver_sql('DROP TABLE access_grants')
- connection.exec_driver_sql('DROP TABLE subscriptions')
- connection.exec_driver_sql('DROP TABLE workspace_members')
- connection.exec_driver_sql('DROP TABLE workspaces')
+    connection.exec_driver_sql('DROP TABLE access_grants')
+    connection.exec_driver_sql('DROP TABLE subscriptions')
+    connection.exec_driver_sql('DROP TABLE billing_customers')
+    connection.exec_driver_sql('DROP TABLE workspace_members')
+    connection.exec_driver_sql('DROP TABLE workspaces')
 from sqlalchemy.orm import Session
 with Session(engine) as db:
  db.add(User(id='existing',email='existing@example.test',hashed_password='hash',role='ATHLETE'))
@@ -171,7 +189,7 @@ engine.dispose()
     try:
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT id FROM users WHERE id='existing'")) == "existing"
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0006_subscriptions"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0007_billing_customer_mapping"
             assert connection.scalar(text("SELECT google_sub FROM users WHERE id='existing'")) is None
     finally:
         engine.dispose()

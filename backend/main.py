@@ -39,6 +39,7 @@ from .saas_access import (
     require_athlete_capacity,
     require_programming_access,
 )
+from .billing.stripe_adapter import router as stripe_billing_router
 
 apply_dotenv()
 validate_production_settings()
@@ -238,6 +239,7 @@ from .integrations import router as integrations_router
 from .analytics_router import create_analytics_router
 app.include_router(integrations_router)
 app.include_router(create_analytics_router(get_current_user))
+app.include_router(stripe_billing_router)
 
 # --- Pydantic Schemas for Requests ---
 

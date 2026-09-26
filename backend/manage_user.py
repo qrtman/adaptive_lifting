@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
-from .database import AccessGrant, AuditEvent, SessionLocal, Subscription, User, Workspace, WorkspaceMember
+from .database import AccessGrant, AuditEvent, BillingCustomer, SessionLocal, Subscription, User, Workspace, WorkspaceMember
 from .entitlements import (
     PLAN_CONFIG,
     SUBSCRIPTION_PLAN_KEYS,
@@ -18,6 +18,7 @@ from .entitlements import (
 )
 from .workspaces import ensure_default_workspace_for_coach, get_active_athlete_count
 from .subscriptions import SubscriptionStatus, upsert_subscription
+from .billing_customers import link_billing_customer
 
 
 def _find_user(db, email):
@@ -155,6 +156,9 @@ def show_access(email: str) -> int:
         subscriptions = db.query(Subscription).filter(Subscription.workspace_id == workspace.id).order_by(
             Subscription.created_at.desc(), Subscription.id,
         ).all()
+        billing_customers = db.query(BillingCustomer).filter(
+            BillingCustomer.workspace_id == workspace.id,
+        ).order_by(BillingCustomer.provider).all()
         print("\nWorkspace:")
         print(f"  ID: {workspace.id}")
         print(f"  Name: {workspace.name}")
@@ -193,11 +197,51 @@ def show_access(email: str) -> int:
             period_end = subscription.current_period_end.isoformat() if subscription.current_period_end else "unknown"
             cancel = " · cancels at period end" if subscription.cancel_at_period_end else ""
             print(f"  {subscription.provider} · {subscription.plan_key} · {subscription.status} · period ends {period_end}{cancel}")
+        print("\nBilling customers:")
+        if not billing_customers:
+            print("  none")
+        for customer in billing_customers:
+            masked = f"{customer.provider_customer_id[:5]}…{customer.provider_customer_id[-4:]}" if len(customer.provider_customer_id) > 10 else customer.provider_customer_id
+            print(f"  {customer.provider}: {masked}")
         limit = "unlimited" if entitlements.max_active_athletes is None else entitlements.max_active_athletes
         print("\nAthletes:")
         print(f"  Active: {get_active_athlete_count(db, workspace)}")
         print(f"  Limit: {limit}")
         return 0
+    finally:
+        db.close()
+
+
+def link_billing_customer_for_user(email: str, provider: str, customer_id: str) -> int:
+    normalized_email = email.strip().lower()
+    db = SessionLocal()
+    try:
+        normalized_email, user = _find_user(db, email)
+        if user is None:
+            print(f"No account found for {normalized_email}.", file=sys.stderr)
+            return 1
+        if user.role != "COACH":
+            print("Billing customers can only be linked to a coach workspace.", file=sys.stderr)
+            return 1
+        workspace = ensure_default_workspace_for_coach(db, user)
+        mapping = link_billing_customer(
+            db, workspace_id=workspace.id, provider=provider,
+            provider_customer_id=customer_id,
+        )
+        db.commit()
+        masked = f"{mapping.provider_customer_id[:5]}…{mapping.provider_customer_id[-4:]}" if len(mapping.provider_customer_id) > 10 else mapping.provider_customer_id
+        print(f"Linked billing customer for {normalized_email}.")
+        print(f"Provider: {mapping.provider}")
+        print(f"Customer: {masked}")
+        print(f"Workspace: {workspace.id}")
+        return 0
+    except ValueError as exc:
+        db.rollback()
+        print(str(exc), file=sys.stderr)
+        return 1
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -286,6 +330,12 @@ def main(argv=None) -> int:
     test_subscription_parser.add_argument("--status", required=True, choices=[status.value for status in SubscriptionStatus])
     test_subscription_parser.add_argument("--period-days", "--days", dest="period_days", required=True, type=int)
     test_subscription_parser.add_argument("--cancel-at-period-end", action="store_true")
+    link_customer_parser = subparsers.add_parser(
+        "link-billing-customer", help="Link an external billing customer to a coach workspace",
+    )
+    link_customer_parser.add_argument("email", help="Email address of the coach account")
+    link_customer_parser.add_argument("--provider", required=True, choices=["stripe"])
+    link_customer_parser.add_argument("--customer-id", required=True, help="External provider customer ID")
     args = parser.parse_args(argv)
 
     if args.command == "promote-coach":
@@ -300,6 +350,8 @@ def main(argv=None) -> int:
     if args.command == "set-test-subscription":
         return set_test_subscription(args.email, args.plan, args.status, args.period_days,
                                      cancel_at_period_end=args.cancel_at_period_end)
+    if args.command == "link-billing-customer":
+        return link_billing_customer_for_user(args.email, args.provider, args.customer_id)
     return 2
 
 

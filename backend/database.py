@@ -142,6 +142,8 @@ class Subscription(Base):
     cancel_at_period_end = Column(Boolean, nullable=False, default=False)
     canceled_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
+    provider_event_created_at = Column(DateTime, nullable=True)
+    provider_event_id = Column(String, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     __table_args__ = (
@@ -153,6 +155,24 @@ class Subscription(Base):
         Index("ix_subscriptions_workspace_id", "workspace_id"),
         Index("ix_subscriptions_provider_customer_id", "provider_customer_id"),
         Index("ix_subscriptions_status", "status"),
+        Index("ix_subscriptions_provider_event_created_at", "provider_event_created_at"),
+    )
+
+
+class BillingCustomer(Base):
+    """Trusted provider customer-to-workspace association."""
+    __tablename__ = "billing_customers"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    provider_customer_id = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_customer_id", name="uq_billing_customers_provider_customer"),
+        UniqueConstraint("workspace_id", "provider", name="uq_billing_customers_workspace_provider"),
+        Index("ix_billing_customers_workspace_id", "workspace_id"),
+        Index("ix_billing_customers_provider_customer_id", "provider_customer_id"),
     )
 
 class CoachingRelationship(Base, TimestampMixin):
@@ -385,6 +405,8 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
     id = Column(String, primary_key=True, index=True)
     provider = Column(String, nullable=False)
+    # Globally unique provider event IDs are stronger than a provider+ID key;
+    # this also protects Stripe deliveries with a database-enforced identity.
     external_event_id = Column(String, nullable=False, unique=True)
     received_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)

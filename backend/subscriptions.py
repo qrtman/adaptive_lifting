@@ -91,15 +91,17 @@ def subscription_is_entitled(subscription: Subscription, now: datetime | None = 
 
 
 def _audit(db, event_type: str, subscription: Subscription, old_status: str | None,
-           actor_user_id: str | None):
+           old_plan: str | None, actor_user_id: str | None):
     db.add(AuditEvent(
         id=str(uuid.uuid4()), actor_user_id=actor_user_id,
         event_type=event_type, resource_type="Subscription", resource_id=subscription.id,
         metadata_json=json.dumps({
             "provider": subscription.provider,
             "plan_key": subscription.plan_key,
+            "old_plan_key": old_plan,
             "old_status": old_status,
             "new_status": subscription.status,
+            "provider_event_id": subscription.provider_event_id,
         }),
     ))
 
@@ -113,6 +115,8 @@ def upsert_subscription(db, *, workspace_id: str, provider: str,
                         provider_customer_id: str | None = None,
                         canceled_at: datetime | None = None,
                         ended_at: datetime | None = None,
+                        provider_event_created_at: datetime | None = None,
+                        provider_event_id: str | None = None,
                         actor_user_id: str | None = None,
                         now: datetime | None = None) -> Subscription:
     """Create or update a subscription by stable provider identity.
@@ -150,6 +154,10 @@ def upsert_subscription(db, *, workspace_id: str, provider: str,
     if (normalized["current_period_start"] is not None and normalized["current_period_end"] is not None
             and normalized["current_period_end"] < normalized["current_period_start"]):
         raise ValueError("Subscription period end must not be before its start")
+    event_created_at = _utc_naive(provider_event_created_at)
+    event_id = (provider_event_id or "").strip() or None
+    if (event_created_at is None) != (event_id is None):
+        raise ValueError("Provider event timestamp and ID must be supplied together")
     updated_at = _utc_naive(now or datetime.utcnow())
 
     try:
@@ -162,23 +170,47 @@ def upsert_subscription(db, *, workspace_id: str, provider: str,
             if created:
                 subscription = Subscription(id=str(uuid.uuid4()), **normalized)
                 db.add(subscription)
+                subscription.provider_event_created_at = event_created_at
+                subscription.provider_event_id = event_id
                 old_status = None
+                old_plan = None
+                state_changed = True
                 changed = True
             else:
                 if subscription.workspace_id != str(workspace_id):
                     raise ValueError("A provider subscription cannot be reassigned to another workspace")
+                if event_created_at is not None and subscription.provider_event_created_at is not None:
+                    previous_order = (
+                        _utc_naive(subscription.provider_event_created_at),
+                        subscription.provider_event_id or "",
+                    )
+                    incoming_order = (event_created_at, event_id)
+                    # Event IDs break same-second ties consistently. A lower
+                    # or equal pair is stale and leaves the row/audit untouched.
+                    if incoming_order <= previous_order:
+                        return subscription
+                old_plan = subscription.plan_key
                 old_status = subscription.status
-                changed = any(getattr(subscription, key) != value for key, value in normalized.items())
+                state_changed = any(getattr(subscription, key) != value for key, value in normalized.items())
+                changed = state_changed
+                if event_created_at is not None:
+                    changed = changed or (
+                        subscription.provider_event_created_at != event_created_at
+                        or subscription.provider_event_id != event_id
+                    )
                 for key, value in normalized.items():
                     setattr(subscription, key, value)
+                if event_created_at is not None:
+                    subscription.provider_event_created_at = event_created_at
+                    subscription.provider_event_id = event_id
                 if changed:
                     subscription.updated_at = updated_at
             db.flush()
-            if changed:
+            if changed and state_changed:
                 event_type = "SUBSCRIPTION_CREATED" if created else (
                     "SUBSCRIPTION_STATUS_CHANGED" if old_status != subscription.status else "SUBSCRIPTION_UPDATED"
                 )
-                _audit(db, event_type, subscription, old_status, actor_user_id)
+                _audit(db, event_type, subscription, old_status, old_plan, actor_user_id)
                 db.flush()
         return subscription
     except IntegrityError:
@@ -196,5 +228,6 @@ def upsert_subscription(db, *, workspace_id: str, provider: str,
             status=status, current_period_start=current_period_start,
             current_period_end=current_period_end, cancel_at_period_end=cancel_at_period_end,
             provider_customer_id=provider_customer_id, canceled_at=canceled_at,
-            ended_at=ended_at, actor_user_id=actor_user_id, now=now,
+            ended_at=ended_at, provider_event_created_at=provider_event_created_at,
+            provider_event_id=provider_event_id, actor_user_id=actor_user_id, now=now,
         )

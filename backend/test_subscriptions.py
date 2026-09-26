@@ -103,6 +103,7 @@ def test_subscription_upsert_is_idempotent_audited_and_updates_one_row():
         audit_metadata = json.loads(status_audit.metadata_json)
         assert audit_metadata == {
             "provider": "manual_test", "plan_key": "coach_starter",
+            "old_plan_key": "coach_pro", "provider_event_id": None,
             "old_status": "ACTIVE", "new_status": "PAST_DUE",
         }
         assert "customer-test" not in status_audit.metadata_json
