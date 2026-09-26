@@ -1465,6 +1465,8 @@ def require_session_for_write(db: Session, current_user: User, session_id: str) 
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    if workout.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Session not found")
     return workout
 
 
@@ -1941,6 +1943,8 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    if workout.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if req.date is not None:
         workout.date = req.date
@@ -1989,7 +1993,9 @@ def delete_session(session_id: str, db: Session = Depends(get_db), current_user:
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
-    db.delete(workout)
+    if workout.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    workout.deleted_at = datetime.utcnow()
     db.commit()
     return {"status": "success"}
 

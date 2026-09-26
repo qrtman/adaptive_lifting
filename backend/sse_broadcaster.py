@@ -24,7 +24,7 @@ async def get_events(workout_id: str, user_id: str, auth_session_id: str, last_e
             ).first()
             user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
             workout = db.query(Workout).filter(Workout.id == workout_id).first()
-            if not auth_session or not user or not workout:
+            if not auth_session or not user or not workout or workout.deleted_at is not None:
                 return
             owner_id = session_owner_id(db, workout)
             if not owner_id:
@@ -60,7 +60,7 @@ async def live_workout_events(
     current_user: User = Depends(get_current_user),
 ):
     workout = db.query(Workout).filter(Workout.id == workout_id).first()
-    if not workout:
+    if not workout or workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Workout not found")
     owner_id = session_owner_id(db, workout)
     if not owner_id:

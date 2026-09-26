@@ -844,6 +844,57 @@ def test_session_labels_anytime_and_new_athlete_starts_empty():
     assert removed.status_code == 200
 
 
+def test_deleting_synced_session_preserves_event_and_rejects_future_writes():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    owner = client.post(
+        "/api/auth/register",
+        json={"email": f"delete-owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    outsider = client.post(
+        "/api/auth/register",
+        json={"email": f"delete-outsider-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    owner_cookies = dict(owner.cookies)
+    outsider_cookies = dict(outsider.cookies)
+    created = client.post(
+        "/api/sessions", json={"date": "2026-09-26", "title": "Synced session"}, cookies=owner_cookies,
+    )
+    assert created.status_code == 200
+    session_id = created.json()["id"]
+    payload = {
+        "schema_version": 1,
+        "client_device_id": f"delete-device-{suffix}",
+        "workout_id": session_id,
+        "last_updated_at": "2026-09-26T00:00:00Z",
+        "changes": [],
+    }
+    assert client.post(f"/api/workouts/{session_id}/sync", json=payload, cookies=owner_cookies).status_code == 200
+
+    db = SessionLocal()
+    try:
+        event_id = db.query(DomainEvent.id).filter(DomainEvent.workout_id == session_id).scalar()
+        assert event_id is not None
+    finally:
+        db.close()
+
+    assert client.delete(f"/api/sessions/{session_id}", cookies=outsider_cookies).status_code == 403
+    assert client.delete(f"/api/sessions/{session_id}", cookies=owner_cookies).status_code == 200
+    assert client.delete(f"/api/sessions/{session_id}", cookies=owner_cookies).status_code == 404
+    assert client.patch(f"/api/sessions/{session_id}", json={"title": "Resurrected"}, cookies=owner_cookies).status_code == 404
+    assert client.post(f"/api/workouts/{session_id}/sync", json=payload, cookies=owner_cookies).status_code == 404
+    tree = client.get("/api/microcycles", cookies=owner_cookies)
+    assert all(w["id"] != session_id for mc in tree.json() for w in mc["workouts"])
+
+    db = SessionLocal()
+    try:
+        workout = db.query(Workout).filter(Workout.id == session_id).one()
+        assert workout.deleted_at is not None
+        assert db.query(DomainEvent.id).filter(DomainEvent.id == event_id, DomainEvent.workout_id == session_id).scalar() == event_id
+    finally:
+        db.close()
+
+
 def test_copy_week_shifts_dates_and_increments_week_label():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
