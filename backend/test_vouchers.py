@@ -194,6 +194,23 @@ def test_missing_voucher_secret_fails_closed_without_redeeming(monkeypatch):
         assert db.query(Voucher).filter_by(id=voucher_id).one().redeemed_at is None
 
 
+def test_api_shared_rate_limit_returns_safe_429(monkeypatch):
+    monkeypatch.setenv("VOUCHER_RATE_LIMIT_ENABLED", "true")
+    client = TestClient(app)
+    coach = register_coach(client, f"voucher-limit-{uuid.uuid4().hex}@example.com", with_access=False)
+    voucher_id, code = _issue(coach.json()["user"]["id"])
+    path = "/api/billing/vouchers/redeem"
+    for _ in range(5):
+        result = client.post(path, json={"code": _generate_code()})
+        assert result.status_code == 400, result.text
+    limited = client.post(path, json={"code": code})
+    assert limited.status_code == 429
+    assert limited.json()["detail"]["code"] == "VOUCHER_RATE_LIMITED"
+    assert code not in str(limited.json())
+    with SessionLocal() as db:
+        assert db.query(Voucher).filter_by(id=voucher_id).one().redeemed_at is None
+
+
 def test_same_plan_vouchers_append_from_latest_expiry():
     user_id = _coach()
     now = datetime.utcnow()
@@ -254,6 +271,12 @@ def test_operator_create_inspect_revoke_and_show_access(capsys):
     access = capsys.readouterr().out
     assert "Voucher history:" in access and "offline_payment" in access
     assert second_code not in access
+    assert manage_user_main(["billing-status", email]) == 0
+    diagnostics = capsys.readouterr().out
+    assert "Voucher secret fingerprint:" in diagnostics
+    assert "Failed Stripe webhook events:" in diagnostics
+    assert "Stale CREATING checkouts:" in diagnostics
+    assert "test-only-stable-voucher-hmac-key" not in diagnostics
 
 
 @pytest.mark.parametrize("stripe_plan,stripe_status,voucher_plan,founder_plan,expected", [

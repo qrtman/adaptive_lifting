@@ -13,6 +13,7 @@ const BILLING_MESSAGES: Record<string, string> = {
   BILLING_CHECKOUT_IN_PROGRESS: 'A checkout for another plan is already in progress. Complete or wait for that checkout to expire before starting another.',
   BILLING_CHECKOUT_REQUEST_CONFLICT: 'This checkout request cannot be reused for a different plan. Please try again.',
   VOUCHER_INVALID: 'Voucher is invalid or no longer available.',
+  VOUCHER_RATE_LIMITED: 'Too many voucher attempts. Try again later.',
   VOUCHER_UNAVAILABLE: 'Voucher redemption is currently unavailable.',
   VOUCHER_COACH_ACCOUNT_REQUIRED: 'A coach account is required to redeem vouchers.',
 };

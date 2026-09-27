@@ -3,7 +3,6 @@
 import hashlib
 import hmac
 import json
-import os
 import re
 import secrets
 import uuid
@@ -13,6 +12,7 @@ from sqlalchemy import or_, update
 
 from .database import AccessGrant, AuditEvent, User, Voucher, Workspace
 from .entitlements import PLAN_CONFIG, SUBSCRIPTION_PLAN_KEYS
+from .runtime_config import voucher_secret_bytes
 from .workspaces import ensure_default_workspace_for_coach
 
 VOUCHER_SOURCE = "offline_payment"
@@ -35,10 +35,10 @@ def _utc_naive(value):
 
 
 def _secret():
-    value = os.environ.get("VOUCHER_CODE_SECRET", "").encode("utf-8")
-    if len(value) < 32:
-        raise VoucherConfigurationError("VOUCHER_CODE_SECRET must contain at least 32 UTF-8 bytes")
-    return value
+    try:
+        return voucher_secret_bytes()
+    except RuntimeError as exc:
+        raise VoucherConfigurationError(str(exc)) from exc
 
 
 def normalize_code(code):

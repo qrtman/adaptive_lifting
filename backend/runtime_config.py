@@ -1,3 +1,4 @@
+import hashlib
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -12,6 +13,13 @@ _PLACEHOLDER_SECRETS = frozenset({
     "secret",
     "jwt-secret",
 })
+
+
+def _obvious_placeholder(value: str) -> bool:
+    lowered = value.strip().lower()
+    return lowered in _PLACEHOLDER_SECRETS or lowered.startswith(
+        ("replace", "dev-only", "mock_", "example", "sample", "changeme")
+    )
 
 
 def apply_dotenv() -> None:
@@ -85,6 +93,7 @@ def validate_production_settings() -> None:
         return
     if not cookie_secure_flag():
         raise RuntimeError("COOKIE_SECURE must be true in production")
+    load_jwt_secrets()
     origins = load_cors_allowed_origins()
     if any(not origin.startswith("https://") for origin in origins):
         raise RuntimeError("CORS_ALLOWED_ORIGINS must use HTTPS in production")
@@ -111,15 +120,23 @@ def validate_production_settings() -> None:
                 parsed_app_url.path or parsed_app_url.query or parsed_app_url.fragment or
                 parsed_app_url.username or parsed_app_url.password):
             raise RuntimeError("APP_URL must be a single HTTPS origin when Stripe billing is enabled")
-        if not os.environ.get("STRIPE_SECRET_KEY", "").strip():
+        stripe_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+        if not stripe_key or _obvious_placeholder(stripe_key):
             raise RuntimeError("STRIPE_SECRET_KEY is required when Stripe billing is enabled")
-        if not os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip():
+        webhook_key = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+        if not webhook_key or _obvious_placeholder(webhook_key):
             raise RuntimeError("STRIPE_WEBHOOK_SECRET is required when Stripe billing is enabled")
         price_ids = [os.environ.get(name, "").strip() for name in STRIPE_PRICE_ENV_VARS]
-        if not all(price_ids) or len(set(price_ids)) != len(price_ids):
+        if not all(price_ids) or any(_obvious_placeholder(item) for item in price_ids) or len(set(price_ids)) != len(price_ids):
             raise RuntimeError("All three unique Stripe coaching price IDs are required when Stripe billing is enabled")
-        if not stripe_expect_livemode():
+        environment_name = (os.environ.get("APP_ENV") or os.environ.get("ENV") or "").strip().lower()
+        if environment_name == "staging":
+            if stripe_expect_livemode():
+                raise RuntimeError("STRIPE_EXPECT_LIVEMODE must be false in staging")
+        elif not stripe_expect_livemode():
             raise RuntimeError("STRIPE_EXPECT_LIVEMODE must be true in production")
+    if voucher_billing_enabled():
+        voucher_secret_bytes()
 
 
 STRIPE_PRICE_ENV_VARS = (
@@ -140,6 +157,40 @@ def stripe_expect_livemode() -> bool:
     if raw in {"0", "false", "no", ""}:
         return False
     raise RuntimeError("STRIPE_EXPECT_LIVEMODE must be a boolean")
+
+
+def voucher_billing_enabled() -> bool:
+    """Production requires an explicit switch; local fixtures can use a set secret."""
+    raw = os.environ.get("VOUCHER_BILLING_ENABLED", "").strip().lower()
+    if raw in {"1", "true", "yes"}:
+        return True
+    if raw in {"0", "false", "no"}:
+        return False
+    if raw:
+        raise RuntimeError("VOUCHER_BILLING_ENABLED must be a boolean")
+    return not is_production_like() and bool(os.environ.get("VOUCHER_CODE_SECRET"))
+
+
+def voucher_secret_bytes() -> bytes:
+    """The dedicated, durable HMAC key for outstanding voucher codes."""
+    if not voucher_billing_enabled():
+        raise RuntimeError("Voucher billing is disabled")
+    value = os.environ.get("VOUCHER_CODE_SECRET", "")
+    material = value.encode("utf-8")
+    lowered = value.strip().lower()
+    if (len(material) < 32 or not lowered or (is_production_like() and (
+            _obvious_placeholder(lowered) or lowered.startswith("test-") or
+            len(set(material)) < 12))):
+        raise RuntimeError("VOUCHER_CODE_SECRET must be a dedicated random secret of at least 32 bytes, not a placeholder")
+    if value in {os.environ.get("JWT_SECRET_CURRENT"), os.environ.get("JWT_SECRET_PREVIOUS"),
+                 os.environ.get("INTEGRATION_ENCRYPTION_KEY"), os.environ.get("STRIPE_SECRET_KEY"),
+                 os.environ.get("STRIPE_WEBHOOK_SECRET")}:
+        raise RuntimeError("VOUCHER_CODE_SECRET must be independent of other secrets")
+    return material
+
+
+def voucher_secret_fingerprint() -> str:
+    return hashlib.sha256(voucher_secret_bytes()).hexdigest()[:12]
 
 
 def development_login_enabled() -> bool:

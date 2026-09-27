@@ -20,6 +20,7 @@ from backend.database import (
 )
 from backend.test_stripe_adapter import _event, _subscription_payload
 from backend.vouchers import VoucherInvalid, create_voucher, redeem_voucher
+from backend.voucher_rate_limit import record_voucher_attempt
 
 
 @pytest.fixture
@@ -228,3 +229,16 @@ def test_postgres_parallel_distinct_vouchers_preserve_stacked_days(pg):
                         key=lambda grant: grant.starts_at)
         assert grants[1].starts_at == grants[0].expires_at
         assert grants[1].expires_at - grants[0].starts_at == timedelta(days=60)
+
+
+def test_postgres_voucher_attempts_share_limit_across_connections(pg):
+    subject = uuid.uuid4().hex
+
+    def attempt(_):
+        with pg.begin() as db:
+            return record_voucher_attempt(db, user_id=subject, client_ip=f"ip-{subject}")
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        outcomes = list(pool.map(attempt, range(10)))
+    assert outcomes.count(True) == 5
+    assert outcomes.count(False) == 5

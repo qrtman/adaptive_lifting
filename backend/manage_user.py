@@ -2,13 +2,14 @@
 
 import argparse
 import json
+import logging
 import sys
 import uuid
 from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
-from .database import AccessGrant, AuditEvent, BillingCustomer, SessionLocal, Subscription, User, Voucher, Workspace, WorkspaceMember
+from .database import AccessGrant, AuditEvent, BillingCheckoutReservation, BillingCustomer, SessionLocal, Subscription, User, Voucher, WebhookEvent, Workspace, WorkspaceMember
 from .entitlements import (
     PLAN_CONFIG,
     SUBSCRIPTION_PLAN_KEYS,
@@ -20,6 +21,9 @@ from .workspaces import ensure_default_workspace_for_coach, get_active_athlete_c
 from .subscriptions import SubscriptionStatus, upsert_subscription
 from .billing_customers import link_billing_customer
 from .vouchers import VoucherConfigurationError, VoucherInvalid, create_voucher, inspect_voucher, revoke_voucher
+from .runtime_config import voucher_billing_enabled, voucher_secret_fingerprint
+
+logger = logging.getLogger(__name__)
 
 
 def _find_user(db, email):
@@ -226,6 +230,8 @@ def show_access(email: str) -> int:
             print(f"  Status: {checkout.status}")
             print(f"  Plan: {checkout.plan_key}")
             print(f"  Expires: {checkout.expires_at.isoformat() if checkout.expires_at else 'unknown'}")
+            if checkout.status == "CREATING" and checkout.updated_at and now - checkout.updated_at > timedelta(hours=23):
+                print("  Attention: stale CREATING; inspect Stripe before operator recovery")
         limit = "unlimited" if entitlements.max_active_athletes is None else entitlements.max_active_athletes
         print("\nAthletes:")
         print(f"  Active: {get_active_athlete_count(db, workspace)}")
@@ -285,6 +291,7 @@ def create_voucher_for_user(email, plan, days, payment_reference=None, voucher_v
             payment_reference=payment_reference, voucher_expires_at=deadline, notes=notes,
         )
         db.commit()
+        logger.info("voucher_created voucher_id=%s user_id=%s plan_key=%s", voucher.id, user.id, voucher.plan_key)
         print("Voucher created")
         print(f"Code: {code}")
         print(f"Plan: {voucher.plan_key}")
@@ -337,6 +344,7 @@ def revoke_voucher_by_code(code):
     try:
         row = revoke_voucher(db, code)
         db.commit()
+        logger.info("voucher_revoked voucher_id=%s", row.id)
         print(f"Voucher {row.code_prefix}-**** revoked.")
         return 0
     except (VoucherInvalid, VoucherConfigurationError, ValueError) as exc:
@@ -426,6 +434,8 @@ def main(argv=None) -> int:
     revoke_parser.add_argument("email", help="Email address of the existing account")
     show_parser = subparsers.add_parser("show-access", help="Show workspace and entitlement state")
     show_parser.add_argument("email", help="Email address of the existing account")
+    billing_parser = subparsers.add_parser("billing-status", help="Read-only billing and secret diagnostics")
+    billing_parser.add_argument("email", help="Email address of the existing account")
     test_subscription_parser = subparsers.add_parser(
         "set-test-subscription", help="Create or update a manual_test subscription for operator testing",
     )
@@ -461,6 +471,26 @@ def main(argv=None) -> int:
     if args.command == "revoke-coach-access":
         return revoke_coach_access(args.email)
     if args.command == "show-access":
+        return show_access(args.email)
+    if args.command == "billing-status":
+        print(f"Voucher billing: {'enabled' if voucher_billing_enabled() else 'disabled'}")
+        if voucher_billing_enabled():
+            try:
+                print(f"Voucher secret fingerprint: {voucher_secret_fingerprint()}")
+            except RuntimeError as exc:
+                print(f"Voucher secret: invalid ({exc})")
+                return 1
+        with SessionLocal() as diagnostics_db:
+            failed = diagnostics_db.query(func.count(WebhookEvent.id)).filter(
+                WebhookEvent.provider == "stripe", WebhookEvent.status == "FAILED",
+            ).scalar()
+            stale = diagnostics_db.query(func.count(BillingCheckoutReservation.id)).filter(
+                BillingCheckoutReservation.provider == "stripe",
+                BillingCheckoutReservation.status == "CREATING",
+                BillingCheckoutReservation.updated_at < datetime.utcnow() - timedelta(hours=23),
+            ).scalar()
+        print(f"Failed Stripe webhook events: {failed}")
+        print(f"Stale CREATING checkouts: {stale}")
         return show_access(args.email)
     if args.command == "set-test-subscription":
         return set_test_subscription(args.email, args.plan, args.status, args.period_days,

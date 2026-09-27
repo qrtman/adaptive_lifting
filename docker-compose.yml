@@ -7,9 +7,9 @@ services:
       dockerfile: backend/Dockerfile
     command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
     env_file:
-      - .env.production
+      - ${DEPLOY_ENV_FILE:-.env.production}
     environment:
-      APP_ENV: production
+      APP_ENV: ${DEPLOY_APP_ENV:-production}
     restart: "no"
 
   api:
@@ -20,9 +20,9 @@ services:
       dockerfile: backend/Dockerfile
     restart: unless-stopped
     env_file:
-      - .env.production
+      - ${DEPLOY_ENV_FILE:-.env.production}
     environment:
-      APP_ENV: production
+      APP_ENV: ${DEPLOY_APP_ENV:-production}
       PORT: ${PORT:-8000}
     depends_on:
       migrate:
@@ -45,9 +45,9 @@ services:
     command: ["python", "-m", "backend.worker"]
     restart: unless-stopped
     env_file:
-      - .env.production
+      - ${DEPLOY_ENV_FILE:-.env.production}
     environment:
-      APP_ENV: production
+      APP_ENV: ${DEPLOY_APP_ENV:-production}
     depends_on:
       api:
         condition: service_healthy
@@ -63,7 +63,7 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
     environment:
-      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in the deployment environment file}
       API_PORT: ${PORT:-8000}
     ports:
       - "80:80"

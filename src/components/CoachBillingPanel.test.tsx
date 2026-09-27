@@ -71,6 +71,7 @@ describe('CoachBillingPanel', () => {
   it.each([
     ['VOUCHER_INVALID', 'Voucher is invalid or no longer available.'],
     ['VOUCHER_UNAVAILABLE', 'Voucher redemption is currently unavailable.'],
+    ['VOUCHER_RATE_LIMITED', 'Too many voucher attempts. Try again later.'],
   ])('shows safe %s redemption errors', async (code, message) => {
     api.redeemVoucher.mockRejectedValueOnce({ code });
     await render();

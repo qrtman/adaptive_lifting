@@ -222,6 +222,20 @@ class Voucher(Base):
         Index("ix_vouchers_code_prefix", "code_prefix"),
     )
 
+
+class VoucherRedemptionLimit(Base):
+    """Shared rolling fixed-window counters for voucher redemption attempts."""
+    __tablename__ = "voucher_redemption_limits"
+    subject_hash = Column(String, primary_key=True)
+    minute_started_at = Column(DateTime, nullable=False)
+    minute_count = Column(Integer, nullable=False)
+    hour_started_at = Column(DateTime, nullable=False)
+    hour_count = Column(Integer, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        CheckConstraint("minute_count >= 0 AND hour_count >= 0", name="ck_voucher_limit_counts"),
+    )
+
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"
     id = Column(Integer, primary_key=True, autoincrement=True)
