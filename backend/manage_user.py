@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
-from .database import AccessGrant, AuditEvent, BillingCustomer, SessionLocal, Subscription, User, Workspace, WorkspaceMember
+from .database import AccessGrant, AuditEvent, BillingCustomer, SessionLocal, Subscription, User, Voucher, Workspace, WorkspaceMember
 from .entitlements import (
     PLAN_CONFIG,
     SUBSCRIPTION_PLAN_KEYS,
@@ -19,6 +19,7 @@ from .entitlements import (
 from .workspaces import ensure_default_workspace_for_coach, get_active_athlete_count
 from .subscriptions import SubscriptionStatus, upsert_subscription
 from .billing_customers import link_billing_customer
+from .vouchers import VoucherConfigurationError, VoucherInvalid, create_voucher, inspect_voucher, revoke_voucher
 
 
 def _find_user(db, email):
@@ -194,6 +195,17 @@ def show_access(email: str) -> int:
             expiry = grant.expires_at.isoformat() if grant.expires_at else "never"
             print(f"  {grant.plan_key} · {grant.source} · {state} · expires {expiry}")
 
+        vouchers = db.query(Voucher).filter(Voucher.redeemed_by_user_id == user.id).order_by(
+            Voucher.redeemed_at.desc(), Voucher.id,
+        ).all()
+        print("\nVoucher history:")
+        if not vouchers:
+            print("  none")
+        for voucher in vouchers:
+            print(f"  {voucher.code_prefix or 'VCH'}-**** · {voucher.plan_key} · redeemed {voucher.redeemed_at.isoformat()}")
+            if voucher.payment_reference:
+                print(f"  Payment reference: {voucher.payment_reference}")
+
         print("\nSubscriptions:")
         if not subscriptions:
             print("  none")
@@ -247,6 +259,87 @@ def link_billing_customer_for_user(email: str, provider: str, customer_id: str) 
         print(f"Workspace: {workspace.id}")
         return 0
     except ValueError as exc:
+        db.rollback()
+        print(str(exc), file=sys.stderr)
+        return 1
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def create_voucher_for_user(email, plan, days, payment_reference=None, voucher_valid_days=None, notes=None):
+    db = SessionLocal()
+    try:
+        normalized_email, user = _find_user(db, email)
+        if user is None or user.role != "COACH":
+            print("Voucher recipient must be an existing coach account.", file=sys.stderr)
+            return 1
+        if voucher_valid_days is not None and voucher_valid_days <= 0:
+            print("Voucher validity must be a positive number of days.", file=sys.stderr)
+            return 1
+        deadline = datetime.utcnow() + timedelta(days=voucher_valid_days) if voucher_valid_days else None
+        voucher, code = create_voucher(
+            db, assigned_user=user, plan_key=plan, duration_days=days,
+            payment_reference=payment_reference, voucher_expires_at=deadline, notes=notes,
+        )
+        db.commit()
+        print("Voucher created")
+        print(f"Code: {code}")
+        print(f"Plan: {voucher.plan_key}")
+        print(f"Duration: {voucher.duration_days} days")
+        print(f"Assigned to: {normalized_email}")
+        print(f"Redeem before: {voucher.expires_at.isoformat() if voucher.expires_at else 'no deadline'}")
+        print(f"Reference: {voucher.payment_reference or 'none'}")
+        print("The voucher code is shown only once.")
+        return 0
+    except (ValueError, VoucherConfigurationError) as exc:
+        db.rollback()
+        print(str(exc), file=sys.stderr)
+        return 1
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def show_voucher(code):
+    db = SessionLocal()
+    try:
+        row = inspect_voucher(db, code)
+        if row is None:
+            print("Voucher not found.", file=sys.stderr)
+            return 1
+        assigned = db.query(User).filter_by(id=row.assigned_user_id).one_or_none()
+        print(f"ID: {row.id}")
+        print(f"Prefix: {row.code_prefix}-****")
+        print(f"Plan: {row.plan_key}")
+        print(f"Duration: {row.duration_days} days")
+        print(f"Assigned to: {assigned.email if assigned else 'unknown'}")
+        print(f"Created: {row.created_at.isoformat()}")
+        print(f"Redeem before: {row.expires_at.isoformat() if row.expires_at else 'no deadline'}")
+        print(f"Redeemed: {'yes' if row.redeemed_at else 'no'}")
+        print(f"Redeemed at: {row.redeemed_at.isoformat() if row.redeemed_at else 'never'}")
+        print(f"Revoked: {'yes' if row.revoked_at else 'no'}")
+        print(f"Payment reference: {row.payment_reference or 'none'}")
+        return 0
+    except (VoucherInvalid, VoucherConfigurationError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    finally:
+        db.close()
+
+
+def revoke_voucher_by_code(code):
+    db = SessionLocal()
+    try:
+        row = revoke_voucher(db, code)
+        db.commit()
+        print(f"Voucher {row.code_prefix}-**** revoked.")
+        return 0
+    except (VoucherInvalid, VoucherConfigurationError, ValueError) as exc:
         db.rollback()
         print(str(exc), file=sys.stderr)
         return 1
@@ -347,6 +440,17 @@ def main(argv=None) -> int:
     link_customer_parser.add_argument("email", help="Email address of the coach account")
     link_customer_parser.add_argument("--provider", required=True, choices=["stripe"])
     link_customer_parser.add_argument("--customer-id", required=True, help="External provider customer ID")
+    create_voucher_parser = subparsers.add_parser("create-voucher", help="Issue an account-bound prepaid voucher after manual payment verification")
+    create_voucher_parser.add_argument("email", help="Existing coach account email")
+    create_voucher_parser.add_argument("--plan", required=True, choices=sorted(SUBSCRIPTION_PLAN_KEYS))
+    create_voucher_parser.add_argument("--days", required=True, type=int)
+    create_voucher_parser.add_argument("--payment-reference")
+    create_voucher_parser.add_argument("--voucher-valid-days", type=int)
+    create_voucher_parser.add_argument("--notes")
+    show_voucher_parser = subparsers.add_parser("show-voucher", help="Inspect voucher metadata by its code")
+    show_voucher_parser.add_argument("--code", required=True)
+    revoke_voucher_parser = subparsers.add_parser("revoke-voucher", help="Revoke an unredeemed voucher")
+    revoke_voucher_parser.add_argument("code")
     args = parser.parse_args(argv)
 
     if args.command == "promote-coach":
@@ -363,6 +467,13 @@ def main(argv=None) -> int:
                                      cancel_at_period_end=args.cancel_at_period_end)
     if args.command == "link-billing-customer":
         return link_billing_customer_for_user(args.email, args.provider, args.customer_id)
+    if args.command == "create-voucher":
+        return create_voucher_for_user(args.email, args.plan, args.days, args.payment_reference,
+                                       args.voucher_valid_days, args.notes)
+    if args.command == "show-voucher":
+        return show_voucher(args.code)
+    if args.command == "revoke-voucher":
+        return revoke_voucher_by_code(args.code)
     return 2
 
 

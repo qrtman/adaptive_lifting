@@ -49,7 +49,8 @@ export function CoachAccessStatus() {
     <section className="mb-6 cal-nested-card" data-testid="coach-access-status" aria-live="polite">
       <h2 className="flex items-center gap-2 text-sm font-medium text-[var(--cal-ink)]">
         {active ? <ShieldCheck size={16} className="text-[var(--cal-success)]" aria-hidden="true" /> : <ShieldAlert size={16} className="text-[var(--cal-warning)]" aria-hidden="true" />}
-        {active ? access?.grant?.source === 'beta' || entitlements?.planKey === 'coach_beta' ? 'Beta access' : 'Coaching access' : 'Coaching access inactive'}
+        {active ? access?.grant?.source === 'beta' || entitlements?.planKey === 'coach_beta' ? 'Beta access' :
+          access?.grant?.source === 'offline_payment' ? 'Prepaid coaching access' : 'Coaching access' : 'Coaching access inactive'}
       </h2>
       {active ? (
         <div className="mt-2 space-y-1 text-xs text-[var(--cal-muted)]">

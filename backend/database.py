@@ -197,6 +197,31 @@ class BillingCheckoutReservation(Base):
         Index("ix_checkout_workspace_id", "workspace_id"),
     )
 
+
+class Voucher(Base):
+    """Account-bound prepaid access code; plaintext is never persisted."""
+    __tablename__ = "vouchers"
+    id = Column(String, primary_key=True)
+    code_hash = Column(String, nullable=False, unique=True)
+    code_prefix = Column(String, nullable=True)
+    plan_key = Column(String, nullable=False)
+    duration_days = Column(Integer, nullable=False)
+    source = Column(String, nullable=False)
+    assigned_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    payment_reference = Column(String, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    redeemed_at = Column(DateTime, nullable=True)
+    redeemed_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    notes = Column(String, nullable=True)
+    __table_args__ = (
+        CheckConstraint("duration_days > 0", name="ck_vouchers_duration_positive"),
+        Index("ix_vouchers_assigned_user_id", "assigned_user_id"),
+        Index("ix_vouchers_code_prefix", "code_prefix"),
+    )
+
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"
     id = Column(Integer, primary_key=True, autoincrement=True)

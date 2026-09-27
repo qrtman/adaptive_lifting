@@ -8,7 +8,7 @@ const { state, api, navigation } = vi.hoisted(() => ({
   state: { current: null as any },
   api: {
     fetchBillingPlans: vi.fn(), createCheckoutSession: vi.fn(),
-    createPortalSession: vi.fn(), fetchAccountAccess: vi.fn(),
+    createPortalSession: vi.fn(), fetchAccountAccess: vi.fn(), redeemVoucher: vi.fn(),
   },
   navigation: vi.fn(),
 }));
@@ -23,6 +23,17 @@ const active = { workspace: { id: 'w1', name: 'Coach Coaching' }, membershipRole
   entitlements: { active: true, planKey: 'coach_beta' }, billingSubscription: null, canStartCheckout: true };
 
 async function render() { await act(async () => { root.render(<CoachBillingPanel />); }); }
+async function enterVoucher(code: string) {
+  const input = container.querySelector('#billing-voucher-code') as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, code);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+async function submitVoucher() {
+  const form = container.querySelector('form')!;
+  await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+}
 
 beforeEach(() => {
   window.history.replaceState(null, '', '/#/security');
@@ -34,11 +45,58 @@ beforeEach(() => {
   api.createCheckoutSession.mockReset().mockResolvedValue('https://checkout.stripe.com/c/pay/test');
   api.createPortalSession.mockReset().mockResolvedValue('https://billing.stripe.com/p/session/test');
   api.fetchAccountAccess.mockReset();
+  api.redeemVoucher.mockReset().mockResolvedValue({ status: 'redeemed', planKey: 'coach_pro', durationDays: 90 });
   navigation.mockReset();
 });
 afterEach(async () => { await act(async () => { root.unmount(); }); container.remove(); vi.useRealTimers(); });
 
 describe('CoachBillingPanel', () => {
+  it('shows coach voucher redemption and refreshes server access after success', async () => {
+    await render();
+    expect(container.textContent).toContain('Have a voucher?');
+    await enterVoucher('  VCH-EXAMPLE  ');
+    await submitVoucher();
+    expect(api.redeemVoucher).toHaveBeenCalledWith('VCH-EXAMPLE');
+    expect(state.current.refreshAccess).toHaveBeenCalled();
+    expect(container.textContent).toContain('Voucher redeemed. Pro access added for 90 days.');
+    expect((container.querySelector('#billing-voucher-code') as HTMLInputElement).value).toBe('');
+  });
+
+  it('hides voucher redemption from athletes', async () => {
+    state.current.isCoach = false;
+    await render();
+    expect(container.querySelector('#billing-voucher-code')).toBeNull();
+  });
+
+  it.each([
+    ['VOUCHER_INVALID', 'Voucher is invalid or no longer available.'],
+    ['VOUCHER_UNAVAILABLE', 'Voucher redemption is currently unavailable.'],
+  ])('shows safe %s redemption errors', async (code, message) => {
+    api.redeemVoucher.mockRejectedValueOnce({ code });
+    await render();
+    await enterVoucher('VCH-EXAMPLE');
+    await submitVoucher();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(message);
+    expect(state.current.refreshAccess).not.toHaveBeenCalled();
+  });
+
+  it('disables voucher submission while redemption is in flight', async () => {
+    api.redeemVoucher.mockReturnValue(new Promise(() => {}));
+    await render();
+    await enterVoucher('VCH-EXAMPLE');
+    await act(async () => { container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+    expect((container.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(api.redeemVoucher).toHaveBeenCalledOnce();
+  });
+
+  it('uses the shared error handler for an unknown voucher API failure', async () => {
+    api.redeemVoucher.mockRejectedValueOnce(new Error('Connection unavailable'));
+    await render();
+    await enterVoucher('VCH-EXAMPLE');
+    await submitVoucher();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Connection unavailable');
+  });
+
   it('renders server prices and starts a single owner checkout attempt', async () => {
     await render();
     expect(container.textContent).toContain('Starter');

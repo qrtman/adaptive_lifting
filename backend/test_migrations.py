@@ -27,8 +27,8 @@ def test_fresh_database_migrates_repeats_and_starts(tmp_path):
     engine = create_engine(database_url)
     try:
         names = set(inspect(engine).get_table_names())
-        assert {"users", "workouts", "exercises", "exercise_sets", "oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "billing_checkout_reservations", "alembic_version"} <= names
-        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0008_checkout_reservation"
+        assert {"users", "workouts", "exercises", "exercise_sets", "oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "billing_checkout_reservations", "vouchers", "alembic_version"} <= names
+        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0009_vouchers"
         assert "result" in {column["name"] for column in inspect(engine).get_columns("integration_outbox")}
         assert "google_sub" in {column["name"] for column in inspect(engine).get_columns("users")}
     finally:
@@ -102,6 +102,24 @@ def test_checkout_revision_downgrade_and_reupgrade(tmp_path):
         engine.dispose()
 
 
+def test_voucher_revision_downgrade_and_reupgrade(tmp_path):
+    _run_python(tmp_path, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head")
+    _run_python(tmp_path, "-m", "alembic", "-c", "alembic.ini", "downgrade", "0008_checkout_reservation")
+    engine = create_engine(f"sqlite:///{(tmp_path / 'app.sqlite').as_posix()}")
+    try:
+        names = set(inspect(engine).get_table_names())
+        assert "vouchers" not in names
+        assert "billing_checkout_reservations" in names
+    finally:
+        engine.dispose()
+    _run_python(tmp_path, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head")
+    engine = create_engine(f"sqlite:///{(tmp_path / 'app.sqlite').as_posix()}")
+    try:
+        assert "vouchers" in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+
+
 def test_legacy_database_upgrade_preserves_data_and_is_repeatable(tmp_path):
     database_url = f"sqlite:///{(tmp_path / 'app.sqlite').as_posix()}"
     environment = os.environ.copy()
@@ -114,6 +132,7 @@ Base.metadata.create_all(engine)
 with engine.begin() as c:
  c.exec_driver_sql('DROP TABLE access_grants')
  c.exec_driver_sql('DROP TABLE subscriptions')
+ c.exec_driver_sql('DROP TABLE vouchers')
  c.exec_driver_sql('DROP TABLE billing_checkout_reservations')
  c.exec_driver_sql('DROP TABLE billing_customers')
  c.exec_driver_sql('DROP TABLE workspace_members')
@@ -186,6 +205,7 @@ Base.metadata.create_all(engine)
 with engine.begin() as connection:
     connection.exec_driver_sql('DROP TABLE access_grants')
     connection.exec_driver_sql('DROP TABLE subscriptions')
+    connection.exec_driver_sql('DROP TABLE vouchers')
     connection.exec_driver_sql('DROP TABLE billing_checkout_reservations')
     connection.exec_driver_sql('DROP TABLE billing_customers')
     connection.exec_driver_sql('DROP TABLE workspace_members')
@@ -209,7 +229,7 @@ engine.dispose()
     try:
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT id FROM users WHERE id='existing'")) == "existing"
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0008_checkout_reservation"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0009_vouchers"
             assert connection.scalar(text("SELECT google_sub FROM users WHERE id='existing'")) is None
     finally:
         engine.dispose()

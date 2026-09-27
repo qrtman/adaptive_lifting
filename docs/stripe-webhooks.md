@@ -112,7 +112,24 @@ Use disposable PostgreSQL, with `DATABASE_URL` set to that database, and the app
 
 1. Empty database: `alembic -c alembic.ini upgrade head`. Inspect tables and unique/FK constraints, and try representative duplicate inserts.
 2. Second empty database: `alembic -c alembic.ini upgrade 0004_outbox_result`; insert a representative user; then `upgrade head` and verify the user survived.
-3. Run `downgrade 0007_billing_customer_mapping` followed by `upgrade head` on a disposable head database. Inspect the reservation table after each step.
+3. Run `downgrade 0008_checkout_reservation` followed by `upgrade head` on a disposable head database. Inspect the voucher table after each step. Test the earlier reservation downgrade separately when changing that revision.
 4. With independent database connections, attempt two claims for the same workspace and duplicate webhook event IDs. Confirm one Checkout slot and one effective webhook mutation. Verify a newer canceled subscription cannot be overwritten by an older active event.
 
 The production checklist is incomplete until these PostgreSQL checks pass. SQLite test results do not establish PostgreSQL readiness.
+
+## Manual/offline prepaid vouchers
+
+An operator verifies payment outside the application before issuing an account-bound voucher. This flow does not verify transfers automatically. A voucher redeems into an ordinary `AccessGrant` with `source=offline_payment`; it never creates or changes a Stripe Customer or Subscription. The unified entitlement resolver continues to choose the effective plan and capabilities from valid grants and subscriptions. `coach_beta` is excluded from paid vouchers.
+
+Set a stable `VOUCHER_CODE_SECRET` of at least 32 UTF-8 bytes in the API and operator CLI environments, and keep it backed up. Rotating or losing this key makes outstanding codes unverifiable. Without it, creation fails and redemption returns `VOUCHER_UNAVAILABLE`. Codes contain 100 random bits, use a keyed HMAC-SHA256 hash at rest, and are printed only by `create-voucher`. Neither the database, audit log, nor access endpoint stores or returns plaintext codes. Production's existing write-origin guard and 20-per-minute IP throttle include voucher redemption. Keep an edge rate limit in the launch configuration for distributed workers and shared IPs.
+
+```bash
+python -m backend.manage_user create-voucher coach@example.com --plan coach_pro --days 90 --payment-reference INV-2026-00142 --voucher-valid-days 30
+python -m backend.manage_user show-voucher --code VCH-XXXXX-XXXXX-XXXXX-XXXXX
+python -m backend.manage_user revoke-voucher VCH-XXXXX-XXXXX-XXXXX-XXXXX
+python -m backend.manage_user show-access coach@example.com
+```
+
+The recipient must already be a coach. Use a short invoice or reconciliation reference; do not put bank credentials, card details, or raw transfer details in the reference or notes. The voucher's `expires_at` is the **redemption deadline**; the resulting grant's `expires_at` is the **access end**. Redeeming another `offline_payment` voucher for the same plan appends a future grant from the latest valid same-plan expiry, preserving paid days. A different-plan voucher starts immediately and does not convert remaining days from another tier. Founder grants and Stripe subscriptions remain independent; the resolver selects the highest currently valid plan. Revoking an unredeemed voucher prevents redemption and preserves its history. A redeemed voucher cannot be revoked through this command; access-grant revocation is a separate operator action.
+
+Apply `0009_vouchers` before enabling redemption. On disposable PostgreSQL, verify fresh `upgrade head`, upgrade from `0008_checkout_reservation`, downgrade to `0008` and re-upgrade, uniqueness and foreign keys, and two concurrent redemptions of one code. Never run downgrade checks on production data.

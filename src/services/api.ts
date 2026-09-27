@@ -59,6 +59,7 @@ export type WorkspaceAccess = {
 };
 
 export type BillingPlan = { planKey: string; name: string; unitAmount: number; currency: string; interval: string; intervalCount: number; maxActiveAthletes: number | null };
+export type VoucherRedemption = { status: 'redeemed'; planKey: string; durationDays: number };
 
 export type SaaSErrorCode = 'WORKSPACE_ACCESS_REQUIRED' | 'FEATURE_NOT_INCLUDED' | 'ATHLETE_LIMIT_REACHED';
 
@@ -207,6 +208,13 @@ function apiErrorMessage(errData: unknown, fallback: string): string {
 // --- Dual-Driver Service Layer Exports ---
 
 export const apiService = {
+  async redeemVoucher(code: string): Promise<VoucherRedemption> {
+    const response = await fetch(`${BACKEND_URL}/api/billing/vouchers/redeem`, {
+      method: 'POST', headers: getHeaders(), credentials: 'include', body: JSON.stringify({ code }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'Could not redeem voucher.');
+    return await response.json() as VoucherRedemption;
+  },
   async fetchBillingPlans(): Promise<BillingPlan[]> {
     const response = await fetch(`${BACKEND_URL}/api/billing/plans`, { headers: getHeaders(), credentials: 'include' });
     if (!response.ok) throw await apiRequestError(response, 'Could not load billing plans.');

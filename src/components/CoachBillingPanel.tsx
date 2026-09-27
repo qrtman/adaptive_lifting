@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAccountAccess } from '../contexts/AccessContext';
 import { apiService, type BillingPlan } from '../services/api';
 import { openHostedBilling } from '../services/billingNavigation';
@@ -12,6 +12,9 @@ const BILLING_MESSAGES: Record<string, string> = {
   BILLING_PROVIDER_ERROR: 'The billing provider is temporarily unavailable. Please try again.',
   BILLING_CHECKOUT_IN_PROGRESS: 'A checkout for another plan is already in progress. Complete or wait for that checkout to expire before starting another.',
   BILLING_CHECKOUT_REQUEST_CONFLICT: 'This checkout request cannot be reused for a different plan. Please try again.',
+  VOUCHER_INVALID: 'Voucher is invalid or no longer available.',
+  VOUCHER_UNAVAILABLE: 'Voucher redemption is currently unavailable.',
+  VOUCHER_COACH_ACCOUNT_REQUIRED: 'A coach account is required to redeem vouchers.',
 };
 
 function errorMessage(error: unknown): string {
@@ -44,6 +47,8 @@ export function CoachBillingPanel() {
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
   const [returnState, setReturnState] = useState<'none' | 'syncing' | 'pending' | 'ready' | 'cancelled'>('none');
   const attempt = useRef<{ planKey: string; requestId: string; createdAt: number } | null>(null);
   const owner = isCoach && access?.membershipRole === 'OWNER';
@@ -115,6 +120,23 @@ export function CoachBillingPanel() {
     catch (err) { setError(errorMessage(err)); setBusy(false); inFlight.current = false; }
   };
 
+  const redeemVoucher = async (event: FormEvent) => {
+    event.preventDefault();
+    if (inFlight.current || !voucherCode.trim()) return;
+    inFlight.current = true;
+    setBusy(true); setError(null); setVoucherMessage(null);
+    try {
+      const result = await apiService.redeemVoucher(voucherCode.trim());
+      setVoucherCode('');
+      await refreshAccess();
+      setVoucherMessage(`Voucher redeemed. ${result.planKey.replace('coach_', '').replace(/^./, letter => letter.toUpperCase())} access added for ${result.durationDays} days.`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false); inFlight.current = false;
+    }
+  };
+
   const subscription = access.billingSubscription;
   return <section className="mb-6 cal-nested-card" aria-label="Billing">
     <h2 className="text-sm font-medium text-[var(--cal-ink)]">Billing</h2>
@@ -142,6 +164,19 @@ export function CoachBillingPanel() {
         </div>
       </>}
     </>}
+    <form className="mt-4 border-t border-[var(--cal-hairline)] pt-3" onSubmit={redeemVoucher}>
+      <label htmlFor="billing-voucher-code" className="text-xs font-medium">Have a voucher?</label>
+      <p className="mt-1 text-xs text-[var(--cal-muted)]">If you received a prepaid voucher, redeem it here.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input id="billing-voucher-code" type="text" value={voucherCode}
+          onChange={event => setVoucherCode(event.target.value)} disabled={busy}
+          autoComplete="off" autoCapitalize="characters" spellCheck={false}
+          placeholder="VCH-XXXXX-XXXXX-XXXXX-XXXXX"
+          className="min-w-0 flex-1 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface)] px-3 py-2 text-xs" />
+        <button type="submit" disabled={busy || !voucherCode.trim()} className="text-xs underline disabled:opacity-50">Redeem</button>
+      </div>
+    </form>
+    {voucherMessage && <p role="status" className="mt-2 text-xs">{voucherMessage}</p>}
     {error && <p role="alert" className="mt-2 text-xs text-[var(--cal-error)]">{error}</p>}
   </section>;
 }

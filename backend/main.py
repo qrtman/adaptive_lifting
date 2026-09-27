@@ -242,6 +242,8 @@ app.include_router(create_analytics_router(get_current_user))
 app.include_router(stripe_billing_router)
 from .billing.stripe_checkout import create_billing_router
 app.include_router(create_billing_router(get_current_user))
+from .billing.voucher_router import create_voucher_router
+app.include_router(create_voucher_router(get_current_user))
 
 # --- Pydantic Schemas for Requests ---
 

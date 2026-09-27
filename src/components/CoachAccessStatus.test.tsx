@@ -74,6 +74,23 @@ describe('CoachAccessStatus', () => {
     expect(container.textContent).not.toContain('provider');
   });
 
+  it('labels effective voucher access as prepaid rather than a subscription', async () => {
+    state.current = {
+      isCoach: true, status: 'resolved', error: null, refreshAccess: vi.fn(), access: {
+        workspace: { id: 'w1', name: 'Coach Coaching' }, membershipRole: 'OWNER',
+        entitlements: { active: true, planKey: 'coach_pro', maxActiveAthletes: 25, canProgram: true, canUseAnalytics: true, canUseIntegrations: true },
+        grant: { source: 'offline_payment', startsAt: '2026-09-28T00:00:00Z', expiresAt: '2026-12-27T00:00:00Z' },
+        accessSource: { type: 'grant', status: 'ACTIVE', expiresAt: '2026-12-27T00:00:00Z' },
+        usage: { activeAthletes: 3, maxActiveAthletes: 25 },
+      },
+    };
+    await render();
+    expect(container.textContent).toContain('Prepaid coaching access');
+    expect(container.textContent).toContain('Coach Pro');
+    expect(container.textContent).toContain('Access until:');
+    expect(container.textContent).not.toContain('Stripe');
+  });
+
   it('explains inactive access without replacing read-only coach access', async () => {
     state.current = { isCoach: true, status: 'resolved', error: null, refreshAccess: vi.fn(), access: {
       workspace: { id: 'w1', name: 'Coach Coaching' }, membershipRole: 'OWNER', entitlements: {

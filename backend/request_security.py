@@ -14,6 +14,7 @@ def install_request_security(app, allowed_origins):
         "/api/auth/login", "/api/auth/register", "/api/auth/google",
         "/api/integrations/telegram/miniapp/session",
         "/api/billing/stripe/checkout-session", "/api/billing/stripe/portal-session",
+        "/api/billing/vouchers/redeem",
     }
 
     @app.middleware("http")

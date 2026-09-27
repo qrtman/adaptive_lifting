@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -14,10 +15,11 @@ from backend.billing.checkout_reservations import ReservationConflict, claim_che
 from backend.billing.stripe_adapter import process_stripe_event
 from backend.billing_customers import link_billing_customer
 from backend.database import (
-    AuditEvent, BillingCheckoutReservation, BillingCustomer, Subscription, User,
+    AccessGrant, AuditEvent, BillingCheckoutReservation, BillingCustomer, Subscription, User, Voucher,
     WebhookEvent, Workspace, WorkspaceMember,
 )
 from backend.test_stripe_adapter import _event, _subscription_payload
+from backend.vouchers import VoucherInvalid, create_voucher, redeem_voucher
 
 
 @pytest.fixture
@@ -34,6 +36,7 @@ def pg(monkeypatch):
         "STRIPE_PRICE_COACH_UNLIMITED": "price_unlimited_test",
     }.items():
         monkeypatch.setenv(key, value)
+    monkeypatch.setenv("VOUCHER_CODE_SECRET", "test-only-stable-voucher-hmac-key-32-bytes")
     yield sessionmaker(bind=engine, autoflush=False)
     engine.dispose()
 
@@ -165,3 +168,63 @@ def test_postgres_webhook_duplicate_and_stale_order(pg):
         assert process_stripe_event(db, higher_tie) == "processed"
     with pg() as db:
         assert db.query(Subscription).filter_by(provider_customer_id=customer_id).one().status == "ACTIVE"
+
+
+def test_postgres_voucher_constraints_and_concurrent_redemption(pg):
+    with pg.begin() as db:
+        user_id = _workspace(db)
+        voucher, code = create_voucher(db, assigned_user=db.query(User).filter_by(id=user_id).one(),
+                                       plan_key="coach_pro", duration_days=90)
+        voucher_id, code_hash = voucher.id, voucher.code_hash
+    with pg.begin() as db:
+        with pytest.raises(IntegrityError):
+            with db.begin_nested():
+                db.add(Voucher(id=str(uuid.uuid4()), code_hash=code_hash, plan_key="coach_pro",
+                               duration_days=30, source="offline_payment", assigned_user_id=user_id))
+                db.flush()
+        with pytest.raises(IntegrityError):
+            with db.begin_nested():
+                db.add(Voucher(id=str(uuid.uuid4()), code_hash=str(uuid.uuid4()), plan_key="coach_pro",
+                               duration_days=30, source="offline_payment", assigned_user_id="missing-user"))
+                db.flush()
+
+    def redeem(_):
+        with pg() as db:
+            try:
+                redeem_voucher(db, code=code, user=db.query(User).filter_by(id=user_id).one())
+                time.sleep(0.1)
+                db.commit()
+                return "redeemed"
+            except VoucherInvalid:
+                db.rollback()
+                return "invalid"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(redeem, range(2))) == ["invalid", "redeemed"]
+    with pg() as db:
+        row = db.query(Voucher).filter_by(id=voucher_id).one()
+        assert row.redeemed_by_user_id == user_id
+        assert db.query(AccessGrant).filter_by(reason=f"voucher:{voucher_id}").count() == 1
+        assert db.query(AuditEvent).filter_by(event_type="VOUCHER_REDEEMED", resource_id=voucher_id).count() == 1
+
+
+def test_postgres_parallel_distinct_vouchers_preserve_stacked_days(pg):
+    with pg.begin() as db:
+        user_id = _workspace(db)
+        user = db.query(User).filter_by(id=user_id).one()
+        codes = [create_voucher(db, assigned_user=user, plan_key="coach_pro", duration_days=30)[1]
+                 for _ in range(2)]
+
+    def redeem(code):
+        with pg() as db:
+            _row, grant = redeem_voucher(db, code=code, user=db.query(User).filter_by(id=user_id).one())
+            db.commit()
+            return grant.id
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        grant_ids = list(pool.map(redeem, codes))
+    with pg() as db:
+        grants = sorted([db.query(AccessGrant).filter_by(id=grant_id).one() for grant_id in grant_ids],
+                        key=lambda grant: grant.starts_at)
+        assert grants[1].starts_at == grants[0].expires_at
+        assert grants[1].expires_at - grants[0].starts_at == timedelta(days=60)
