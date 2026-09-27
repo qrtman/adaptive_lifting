@@ -73,6 +73,15 @@ describe('CoachBillingPanel', () => {
     expect(api.createCheckoutSession.mock.calls[1][1]).toBe(api.createCheckoutSession.mock.calls[0][1]);
   });
 
+  it('explains when another plan already has an open checkout', async () => {
+    api.createCheckoutSession.mockRejectedValueOnce({ code: 'BILLING_CHECKOUT_IN_PROGRESS' });
+    await render();
+    const button = [...container.querySelectorAll('button')].find(el => el.textContent?.includes('Choose Starter'))!;
+    await act(async () => { button.click(); });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('A checkout for another plan is already in progress');
+    expect(navigation).not.toHaveBeenCalled();
+  });
+
   it('shows existing paid subscription management and no new plan', async () => {
     state.current.access = { ...active, canStartCheckout: false,
       billingSubscription: { planKey: 'coach_pro', status: 'ACTIVE', currentPeriodEnd: '2026-11-26T00:00:00Z', cancelAtPeriodEnd: true } };

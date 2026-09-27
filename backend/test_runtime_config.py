@@ -133,3 +133,8 @@ def test_stripe_config_is_optional_but_validated_when_enabled(monkeypatch):
         validate_production_settings()
     monkeypatch.setenv("STRIPE_EXPECT_LIVEMODE", "true")
     validate_production_settings()
+    for unsafe_origin in ("http://lift.example.com", "https://lift.example.com/path",
+                          "https://lift.example.com?next=evil.example", "https://user@lift.example.com"):
+        monkeypatch.setenv("APP_URL", unsafe_origin)
+        with pytest.raises(RuntimeError, match="APP_URL"):
+            validate_production_settings()

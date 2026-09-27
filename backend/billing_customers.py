@@ -37,6 +37,10 @@ def link_billing_customer(db, *, workspace_id: str, provider: str,
             raise ValueError("Billing customer is already linked to another workspace")
         return existing_customer
     if existing_workspace is not None:
+        # Under PostgreSQL READ COMMITTED another worker may commit between
+        # the customer lookup and this workspace lookup.
+        if existing_workspace.provider_customer_id == customer_key:
+            return existing_workspace
         raise ValueError("Workspace already has a billing customer for this provider")
 
     mapping = BillingCustomer(

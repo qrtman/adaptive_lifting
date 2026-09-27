@@ -175,6 +175,28 @@ class BillingCustomer(Base):
         Index("ix_billing_customers_provider_customer_id", "provider_customer_id"),
     )
 
+
+class BillingCheckoutReservation(Base):
+    """The current Checkout slot for one workspace and provider."""
+    __tablename__ = "billing_checkout_reservations"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    request_id = Column(String, nullable=False)
+    plan_key = Column(String, nullable=False)
+    provider_checkout_session_id = Column(String, nullable=True)
+    provider_checkout_url = Column(String, nullable=True)
+    status = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "provider", name="uq_checkout_workspace_provider"),
+        UniqueConstraint("provider", "request_id", name="uq_checkout_provider_request"),
+        CheckConstraint("status IN ('CREATING', 'OPEN', 'COMPLETED', 'EXPIRED', 'CANCELED', 'FAILED')", name="ck_checkout_status"),
+        Index("ix_checkout_workspace_id", "workspace_id"),
+    )
+
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"
     id = Column(Integer, primary_key=True, autoincrement=True)

@@ -94,4 +94,25 @@ In Stripe Dashboard, enable the Customer Portal for subscription viewing, paymen
 
 The Checkout and Portal routes require an authenticated coach with server-controlled `OWNER` workspace membership. They pass through the application's production Origin/Referer guard for cookie writes. The webhook uses Stripe signature authentication and has no browser session requirement.
 
-PostgreSQL migration verification is still required before a paid production launch. Use a disposable PostgreSQL 16 database to test fresh upgrade, existing-schema upgrade, newest downgrade/upgrade, and the customer, subscription, webhook uniqueness and foreign-key constraints. SQLite migration tests alone do not establish PostgreSQL deployment readiness.
+## Checkout reservation and retries
+
+`billing_checkout_reservations` has one current row per workspace and provider. A database write lock on the workspace serializes the initial claim and every replacement; unique constraints on `(workspace_id, provider)` and `(provider, request_id)` provide a second guard. The row moves through `CREATING → OPEN → COMPLETED`, or to `EXPIRED` / `FAILED`. Audit events retain the prior attempt's safe identifiers when the slot is reused. The Checkout URL is stored for owner-only request replay and never printed by `show-access` or exposed by `/api/account/access`.
+
+Stripe idempotency prevents duplicate retry of **one request**. The workspace reservation prevents **separate requests** from opening parallel subscription sessions. The same UUID and plan resume an open Checkout without another Stripe call; a different UUID for the same plan resumes the same URL. A different plan is rejected with `BILLING_CHECKOUT_IN_PROGRESS`, and reuse of a UUID for another plan is rejected with `BILLING_CHECKOUT_REQUEST_CONFLICT`.
+
+The provider's `expires_at` is persisted. On a later request, the server checks an expired local session with Stripe and calls `checkout.Session.expire` if still open. It replaces the slot only after Stripe confirms `expired`; a complete or unreachable session blocks replacement. The same UUID can retry a `CREATING` operation with its original Stripe key; another UUID can recover it after ten minutes, within a conservative 23-hour idempotency window. An ambiguous timeout leaves `CREATING` intact for that recovery. A definitive provider rejection marks `FAILED`. A successful Stripe create followed by a failed local update remains `CREATING`, so recovery repeats the same provider operation.
+
+Only a signed subscription webhook and trusted `BillingCustomer` mapping complete the reservation. The subscription Price mapping remains authoritative for plan and entitlement. A reservation plan mismatch records `CHECKOUT_RECONCILIATION_MISMATCH` while preserving the synchronized subscription. Browser `billing=success` only starts a bounded access refresh.
+
+## Deployment and PostgreSQL verification
+
+Before enabling production billing, configure the Stripe secret, signed webhook secret, three distinct recurring Price IDs, `STRIPE_EXPECT_LIVEMODE=true`, and a single HTTPS `APP_URL` origin. Ensure the endpoint receives `customer.subscription.*` events and the production Origin/Referer guard is configured for that origin. Apply migrations before starting the API. Do not use customer email, Checkout metadata, or browser redirects as an entitlement source.
+
+Use disposable PostgreSQL, with `DATABASE_URL` set to that database, and the application's actual Alembic command:
+
+1. Empty database: `alembic -c alembic.ini upgrade head`. Inspect tables and unique/FK constraints, and try representative duplicate inserts.
+2. Second empty database: `alembic -c alembic.ini upgrade 0004_outbox_result`; insert a representative user; then `upgrade head` and verify the user survived.
+3. Run `downgrade 0007_billing_customer_mapping` followed by `upgrade head` on a disposable head database. Inspect the reservation table after each step.
+4. With independent database connections, attempt two claims for the same workspace and duplicate webhook event IDs. Confirm one Checkout slot and one effective webhook mutation. Verify a newer canceled subscription cannot be overwritten by an older active event.
+
+The production checklist is incomplete until these PostgreSQL checks pass. SQLite test results do not establish PostgreSQL readiness.

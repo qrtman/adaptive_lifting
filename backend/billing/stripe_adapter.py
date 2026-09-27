@@ -14,6 +14,7 @@ from ..billing_customers import get_billing_customer
 from ..database import SessionLocal, WebhookEvent, get_db
 from ..runtime_config import stripe_billing_enabled, stripe_expect_livemode
 from ..subscriptions import SubscriptionStatus, upsert_subscription
+from .checkout_reservations import lock_workspace, reconcile_subscription_checkout
 
 
 logger = logging.getLogger(__name__)
@@ -213,6 +214,8 @@ def process_stripe_event(db: Session, event, *, now: datetime | None = None) -> 
     if customer is None:
         raise StripeEventError("Stripe customer is not linked to a workspace")
 
+    lock_workspace(db, customer.workspace_id)
+
     try:
         subscription = upsert_subscription(
             db,
@@ -229,6 +232,10 @@ def process_stripe_event(db: Session, event, *, now: datetime | None = None) -> 
     else:
         inbox.status = "PROCESSED"
         result = "processed"
+        if subscription.status not in {SubscriptionStatus.CANCELED.value, SubscriptionStatus.EXPIRED.value}:
+            reconcile_subscription_checkout(
+                db, workspace_id=customer.workspace_id, provider="stripe", plan_key=subscription.plan_key,
+            )
     inbox.processed_at = datetime.utcnow()
     logger.info(
         "Stripe webhook synchronized event_id=%s event_type=%s subscription_id=%s workspace_id=%s result=%s",

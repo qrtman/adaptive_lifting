@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.billing.stripe_checkout import ensure_stripe_customer_for_workspace
-from backend.database import BillingCustomer, SessionLocal, User, Workspace
+from backend.database import AuditEvent, BillingCheckoutReservation, BillingCustomer, SessionLocal, Subscription, User, Workspace
 from backend.main import app
 from backend.saas_access import build_account_access_state
 from backend.subscriptions import has_current_stripe_subscription, upsert_subscription
@@ -20,13 +20,20 @@ def billing(monkeypatch):
         "STRIPE_PRICE_COACH_UNLIMITED": "price_unlimited", "APP_URL": "http://localhost:3000",
     }.items():
         monkeypatch.setenv(key, value)
-    calls = {"customers": [], "checkouts": [], "portals": [], "prices": []}
+    calls = {"customers": [], "checkouts": [], "portals": [], "prices": [], "expired": [], "retrieved": []}
     def customer_create(**kwargs):
         calls["customers"].append(kwargs)
         return {"id": "cus_" + kwargs["idempotency_key"].split(":")[1].replace("-", "")}
     def checkout_create(**kwargs):
         calls["checkouts"].append(kwargs)
-        return {"url": "https://checkout.stripe.com/c/pay/test"}
+        return {"id": f"cs_test_{len(calls['checkouts'])}", "url": "https://checkout.stripe.com/c/pay/test",
+                "expires_at": int((datetime.utcnow() + timedelta(hours=24)).timestamp())}
+    def checkout_retrieve(session_id, **kwargs):
+        calls["retrieved"].append(session_id)
+        return {"id": session_id, "status": "open"}
+    def checkout_expire(session_id, **kwargs):
+        calls["expired"].append(session_id)
+        return {"id": session_id, "status": "expired"}
     def portal_create(**kwargs):
         calls["portals"].append(kwargs)
         return {"url": "https://billing.stripe.com/p/session/test"}
@@ -36,6 +43,8 @@ def billing(monkeypatch):
                 "currency": "usd", "recurring": {"interval": "month"}}
     monkeypatch.setattr("stripe.Customer.create", customer_create)
     monkeypatch.setattr("stripe.checkout.Session.create", checkout_create)
+    monkeypatch.setattr("stripe.checkout.Session.retrieve", checkout_retrieve)
+    monkeypatch.setattr("stripe.checkout.Session.expire", checkout_expire)
     monkeypatch.setattr("stripe.billing_portal.Session.create", portal_create)
     monkeypatch.setattr("stripe.Price.retrieve", price_retrieve)
     return calls
@@ -64,24 +73,23 @@ def add_subscription(email, status, *, days=30):
 def test_checkout_owner_server_price_customer_urls_and_idempotency(billing):
     client, email = coach_client()
     request_id = str(uuid.uuid4())
-    for plan, price in (("coach_starter", "price_starter"), ("coach_pro", "price_pro"),
-                        ("coach_unlimited", "price_unlimited")):
-        response = client.post("/api/billing/stripe/checkout-session", json={"planKey": plan, "requestId": request_id})
-        assert response.status_code == 200, response.text
-        assert response.json() == {"url": "https://checkout.stripe.com/c/pay/test"}
-        sent = billing["checkouts"][-1]
-        assert sent["mode"] == "subscription"
-        assert sent["customer"].startswith("cus_")
-        assert sent["line_items"] == [{"price": price, "quantity": 1}]
-        assert sent["success_url"] == "http://localhost:3000/?billing=success&session_id={CHECKOUT_SESSION_ID}#/security"
-        assert sent["cancel_url"] == "http://localhost:3000/?billing=cancelled#/security"
-        assert email not in sent["idempotency_key"]
+    response = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": request_id})
+    assert response.status_code == 200, response.text
+    assert response.json()["url"] == "https://checkout.stripe.com/c/pay/test"
+    sent = billing["checkouts"][-1]
+    assert sent["mode"] == "subscription"
+    assert sent["customer"].startswith("cus_")
+    assert sent["line_items"] == [{"price": "price_pro", "quantity": 1}]
+    assert sent["success_url"] == "http://localhost:3000/?billing=success&session_id={CHECKOUT_SESSION_ID}#/security"
+    assert sent["cancel_url"] == "http://localhost:3000/?billing=cancelled#/security"
+    assert email not in sent["idempotency_key"]
     repeated = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": request_id})
     assert repeated.status_code == 200
-    assert billing["checkouts"][-1]["idempotency_key"] == billing["checkouts"][1]["idempotency_key"]
+    assert repeated.json()["resumed"] is True
     changed = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": str(uuid.uuid4())})
     assert changed.status_code == 200
-    assert billing["checkouts"][-1]["idempotency_key"] != billing["checkouts"][1]["idempotency_key"]
+    assert changed.json()["resumed"] is True
+    assert len(billing["checkouts"]) == 1
     assert len(billing["customers"]) == 1
     assert billing["customers"][0]["email"] == email
     assert "email" not in billing["customers"][0]["idempotency_key"]
@@ -192,3 +200,159 @@ def test_checkout_cookie_write_uses_existing_origin_guard(billing, monkeypatch):
     assert blocked.status_code == 403
     assert blocked.json()["detail"] == "Untrusted request origin"
     assert billing["customers"] == []
+
+
+def _reservation(email):
+    with SessionLocal() as db:
+        owner = db.query(User).filter_by(email=email).one()
+        workspace = db.query(Workspace).filter_by(owner_user_id=owner.id).one()
+        return db.query(BillingCheckoutReservation).filter_by(workspace_id=workspace.id).one()
+
+
+def test_checkout_persists_slot_and_resumes_across_clients(billing):
+    client, email = coach_client()
+    first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
+    first = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": first_id})
+    assert first.status_code == 200
+    row = _reservation(email)
+    assert (row.provider, row.plan_key, row.request_id, row.status) == ("stripe", "coach_pro", first_id, "OPEN")
+    assert row.provider_checkout_session_id.startswith("cs_") and row.expires_at > datetime.utcnow()
+    assert row.provider_checkout_url == first.json()["url"]
+    with TestClient(app) as another_client:
+        # The first client's cookies carry the authenticated workspace; the DB
+        # session is recreated on every API request.
+        another_client.cookies.update(client.cookies)
+        assert another_client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": first_id}).json()["resumed"] is True
+        assert another_client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": second_id}).json()["resumed"] is True
+    assert len(billing["checkouts"]) == 1
+    conflict = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_starter", "requestId": first_id})
+    assert conflict.status_code == 409 and conflict.json()["detail"]["code"] == "BILLING_CHECKOUT_REQUEST_CONFLICT"
+    conflict = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_starter", "requestId": second_id})
+    assert conflict.status_code == 409 and conflict.json()["detail"]["code"] == "BILLING_CHECKOUT_IN_PROGRESS"
+    assert len(billing["checkouts"]) == 1
+
+
+def test_show_access_reports_checkout_without_url(billing, capsys):
+    from backend.manage_user import main as manage_user_main
+    client, email = coach_client()
+    assert client.post("/api/billing/stripe/checkout-session", json={
+        "planKey": "coach_pro", "requestId": str(uuid.uuid4()),
+    }).status_code == 200
+    assert manage_user_main(["show-access", email]) == 0
+    output = capsys.readouterr().out
+    assert "Checkout:" in output and "Status: OPEN" in output and "Plan: coach_pro" in output
+    assert "checkout.stripe.com" not in output
+
+
+def test_expired_session_is_expired_at_provider_before_replacement(billing, monkeypatch):
+    client, email = coach_client()
+    first_id = str(uuid.uuid4())
+    assert client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_starter", "requestId": first_id}).status_code == 200
+    with SessionLocal() as db:
+        row = db.query(BillingCheckoutReservation).filter_by(request_id=first_id).one()
+        row.expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+    new_id = str(uuid.uuid4())
+    next_attempt = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": new_id})
+    assert next_attempt.status_code == 200
+    assert billing["expired"] == ["cs_test_1"]
+    assert len(billing["checkouts"]) == 2
+    assert _reservation(email).request_id == new_id
+
+    with SessionLocal() as db:
+        db.query(BillingCheckoutReservation).filter_by(request_id=new_id).one().expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+    def provider_down(*args, **kwargs):
+        import stripe
+        raise stripe.error.APIConnectionError(message="network timeout")
+    monkeypatch.setattr("stripe.checkout.Session.expire", provider_down)
+    blocked = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_starter", "requestId": str(uuid.uuid4())})
+    assert blocked.status_code == 502
+    assert len(billing["checkouts"]) == 2
+    assert _reservation(email).request_id == new_id
+
+
+def test_ambiguous_provider_timeout_keeps_original_key_for_recovery(billing, monkeypatch):
+    import stripe
+    client, email = coach_client()
+    request_id = str(uuid.uuid4())
+    original = stripe.checkout.Session.create
+    seen = []
+    def timeout(**kwargs):
+        seen.append(kwargs["idempotency_key"])
+        raise stripe.error.APIConnectionError(message="timeout")
+    monkeypatch.setattr("stripe.checkout.Session.create", timeout)
+    first = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": request_id})
+    assert first.status_code == 502 and _reservation(email).status == "CREATING"
+    monkeypatch.setattr("stripe.checkout.Session.create", original)
+    with SessionLocal() as db:
+        db.query(BillingCheckoutReservation).filter_by(request_id=request_id).one().updated_at = datetime.utcnow() - timedelta(minutes=11)
+        db.commit()
+    recovered = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": str(uuid.uuid4())})
+    assert recovered.status_code == 200
+    assert billing["checkouts"][0]["idempotency_key"] == seen[0]
+    assert _reservation(email).status == "OPEN"
+
+
+def test_definitive_provider_failure_releases_slot(billing, monkeypatch):
+    import stripe
+    client, email = coach_client()
+    def rejected(**kwargs):
+        raise stripe.error.InvalidRequestError("invalid price", param="line_items")
+    original = stripe.checkout.Session.create
+    monkeypatch.setattr("stripe.checkout.Session.create", rejected)
+    request_id = str(uuid.uuid4())
+    response = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": request_id})
+    assert response.status_code == 502
+    assert _reservation(email).status == "FAILED"
+    monkeypatch.setattr("stripe.checkout.Session.create", original)
+    response = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_starter", "requestId": str(uuid.uuid4())})
+    assert response.status_code == 200
+    assert _reservation(email).status == "OPEN"
+
+
+@pytest.mark.parametrize("reserved_plan,price_id,mismatch", [
+    ("coach_pro", "price_pro_test", False),
+    ("coach_starter", "price_pro_test", True),
+])
+def test_webhook_reconciles_reservation_without_using_it_for_entitlement(
+        billing, monkeypatch, reserved_plan, price_id, mismatch):
+    from backend.test_stripe_adapter import _event, _post_event, _set_stripe_env, _subscription_payload
+    client, email = coach_client()
+    _set_stripe_env(monkeypatch)
+    request_id = str(uuid.uuid4())
+    assert client.post("/api/billing/stripe/checkout-session", json={"planKey": reserved_plan, "requestId": request_id}).status_code == 200
+    access_before = client.get("/api/account/access").json()
+    assert access_before["billingSubscription"] is None
+    with SessionLocal() as db:
+        owner = db.query(User).filter_by(email=email).one()
+        workspace = db.query(Workspace).filter_by(owner_user_id=owner.id).one()
+        mapping = db.query(BillingCustomer).filter_by(workspace_id=workspace.id).one()
+        customer_id = mapping.provider_customer_id
+    event = _event(f"evt_{uuid.uuid4().hex}", "customer.subscription.created",
+                   _subscription_payload(customer_id=customer_id, price_id=price_id))
+    assert _post_event(event).json() == {"status": "processed"}
+    assert _reservation(email).status == "COMPLETED"
+    with SessionLocal() as db:
+        subscription = db.query(Subscription).filter_by(provider_customer_id=customer_id).one()
+        assert subscription.plan_key == "coach_pro"
+        assert db.query(AuditEvent).filter_by(event_type="CHECKOUT_RECONCILIATION_MISMATCH").filter_by(resource_id=_reservation(email).id).count() == int(mismatch)
+    assert client.get("/api/account/access").json()["entitlements"]["planKey"] == "coach_pro"
+    blocked = client.post("/api/billing/stripe/checkout-session", json={"planKey": "coach_pro", "requestId": str(uuid.uuid4())})
+    assert blocked.status_code == 409 and blocked.json()["detail"]["code"] == "BILLING_SUBSCRIPTION_EXISTS"
+
+
+def test_old_terminal_subscription_event_does_not_complete_open_checkout(billing, monkeypatch):
+    from backend.test_stripe_adapter import _event, _post_event, _set_stripe_env, _subscription_payload
+    client, email = coach_client()
+    _set_stripe_env(monkeypatch)
+    assert client.post("/api/billing/stripe/checkout-session", json={
+        "planKey": "coach_pro", "requestId": str(uuid.uuid4()),
+    }).status_code == 200
+    with SessionLocal() as db:
+        workspace_id = db.query(Workspace).filter_by(owner_user_id=db.query(User).filter_by(email=email).one().id).one().id
+        customer_id = db.query(BillingCustomer).filter_by(workspace_id=workspace_id).one().provider_customer_id
+    event = _event(f"evt_{uuid.uuid4().hex}", "customer.subscription.deleted",
+                   _subscription_payload(customer_id=customer_id, sub_id=f"sub_old_{uuid.uuid4().hex}", status="canceled"))
+    assert _post_event(event).json() == {"status": "processed"}
+    assert _reservation(email).status == "OPEN"

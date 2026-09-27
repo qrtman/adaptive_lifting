@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..billing_customers import link_billing_customer
@@ -17,6 +18,10 @@ from ..runtime_config import is_production_like, stripe_billing_enabled
 from ..saas_access import require_workspace_billing_owner
 from ..subscriptions import has_current_stripe_subscription
 from .stripe_adapter import stripe_plan_price_map, StripeEventError
+from .checkout_reservations import (
+    ReservationConflict, ReservationProviderError, claim_checkout,
+    finalize_checkout, fail_checkout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,24 +133,71 @@ def create_billing_router(get_current_user):
         if has_current_stripe_subscription(db, workspace.id):
             billing_error("BILLING_SUBSCRIPTION_EXISTS", "This coaching account already has a Stripe subscription.", 409)
         origin = app_origin()
-        customer_id = ensure_stripe_customer_for_workspace(db, workspace, current_user, api_key)
+        request_id = str(req.requestId)
+        try:
+            reservation, action = claim_checkout(
+                db, workspace_id=workspace.id, provider="stripe", request_id=request_id,
+                plan_key=req.planKey, api_key=api_key,
+            )
+            db.commit()
+        except ReservationConflict as exc:
+            db.rollback()
+            if exc.code == "BILLING_SUBSCRIPTION_EXISTS":
+                billing_error(exc.code, "This coaching account already has a Stripe subscription.", 409)
+            if exc.code == "BILLING_CHECKOUT_REQUEST_CONFLICT":
+                billing_error(exc.code, "This checkout request ID belongs to another attempt.", 409)
+            billing_error(exc.code, "A checkout for another plan is already in progress. Complete or wait for that checkout to expire before starting another.", 409)
+        except ReservationProviderError:
+            db.rollback()
+            billing_error("BILLING_PROVIDER_ERROR", "The previous checkout could not be safely expired.", 502)
+        except IntegrityError:
+            db.rollback()
+            billing_error("BILLING_CHECKOUT_REQUEST_CONFLICT", "This checkout request ID is already in use.", 409)
+        if action == "resume":
+            return {"url": reservation.provider_checkout_url, "resumed": True}
+        # The original key is retained when recovering a stale CREATING row.
+        request_id = reservation.request_id
+        plan_key = reservation.plan_key
+        try:
+            customer_id = ensure_stripe_customer_for_workspace(db, workspace, current_user, api_key)
+        except HTTPException:
+            # No Checkout Session has been requested yet. Customer creation
+            # itself has a stable workspace key, so the slot may be released.
+            fail_checkout(db, workspace_id=workspace.id, provider="stripe", request_id=request_id)
+            db.commit()
+            raise
         try:
             session = stripe.checkout.Session.create(
                 api_key=api_key,
-                idempotency_key=f"checkout:{workspace.id}:{req.planKey}:{req.requestId}",
+                idempotency_key=f"checkout:{workspace.id}:{plan_key}:{request_id}",
                 mode="subscription", customer=customer_id,
-                line_items=[{"price": prices[req.planKey], "quantity": 1}],
+                line_items=[{"price": prices[plan_key], "quantity": 1}],
                 success_url=f"{origin}/?billing=success&session_id={{CHECKOUT_SESSION_ID}}#/security",
                 cancel_url=f"{origin}/?billing=cancelled#/security",
                 # Diagnostic only; price and customer mapping control authorization.
-                metadata={"workspace_id": workspace.id, "requested_plan_key": req.planKey},
+                metadata={"workspace_id": workspace.id, "requested_plan_key": plan_key},
             )
         except stripe.error.StripeError as exc:
             logger.error("Stripe Checkout creation failed workspace_id=%s error_type=%s", workspace.id, type(exc).__name__)
+            # Connection and server errors are ambiguous: keep CREATING and
+            # replay this exact Stripe key after its conservative stale delay.
+            if isinstance(exc, (stripe.error.InvalidRequestError, stripe.error.AuthenticationError,
+                                stripe.error.PermissionError, stripe.error.CardError)):
+                fail_checkout(db, workspace_id=workspace.id, provider="stripe", request_id=request_id)
+                db.commit()
             billing_error("BILLING_PROVIDER_ERROR", "Checkout is temporarily unavailable.", 502)
-        if not isinstance(session.get("url"), str) or not session["url"].startswith("https://checkout.stripe.com/"):
-            billing_error("BILLING_PROVIDER_ERROR", "Checkout URL is unavailable.", 502)
-        return {"url": session["url"]}
+        try:
+            reservation = finalize_checkout(
+                db, workspace_id=workspace.id, provider="stripe", request_id=request_id, session=session,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Checkout reservation finalization needs recovery workspace_id=%s", workspace.id)
+            billing_error("BILLING_PROVIDER_ERROR", "Checkout is temporarily unavailable.", 502)
+        # If commit fails, CREATING survives and the same Stripe idempotency
+        # key recovers this provider operation on a later retry.
+        return {"url": reservation.provider_checkout_url, "resumed": action == "recover"}
 
     @router.post("/api/billing/stripe/portal-session")
     def portal(db: Session = Depends(get_db), current_user=Depends(get_current_user)):

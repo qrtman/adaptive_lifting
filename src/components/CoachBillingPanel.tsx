@@ -10,6 +10,8 @@ const BILLING_MESSAGES: Record<string, string> = {
   BILLING_SUBSCRIPTION_EXISTS: 'This workspace already has a Stripe subscription. Manage it through billing.',
   BILLING_CUSTOMER_UNAVAILABLE: 'Your billing customer is unavailable. Please try again later.',
   BILLING_PROVIDER_ERROR: 'The billing provider is temporarily unavailable. Please try again.',
+  BILLING_CHECKOUT_IN_PROGRESS: 'A checkout for another plan is already in progress. Complete or wait for that checkout to expire before starting another.',
+  BILLING_CHECKOUT_REQUEST_CONFLICT: 'This checkout request cannot be reused for a different plan. Please try again.',
 };
 
 function errorMessage(error: unknown): string {

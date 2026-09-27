@@ -159,6 +159,10 @@ def show_access(email: str) -> int:
         billing_customers = db.query(BillingCustomer).filter(
             BillingCustomer.workspace_id == workspace.id,
         ).order_by(BillingCustomer.provider).all()
+        from .database import BillingCheckoutReservation
+        checkout = db.query(BillingCheckoutReservation).filter_by(
+            workspace_id=workspace.id, provider="stripe",
+        ).one_or_none()
         print("\nWorkspace:")
         print(f"  ID: {workspace.id}")
         print(f"  Name: {workspace.name}")
@@ -203,6 +207,13 @@ def show_access(email: str) -> int:
         for customer in billing_customers:
             masked = f"{customer.provider_customer_id[:5]}…{customer.provider_customer_id[-4:]}" if len(customer.provider_customer_id) > 10 else customer.provider_customer_id
             print(f"  {customer.provider}: {masked}")
+        print("\nCheckout:")
+        if checkout is None:
+            print("  none")
+        else:
+            print(f"  Status: {checkout.status}")
+            print(f"  Plan: {checkout.plan_key}")
+            print(f"  Expires: {checkout.expires_at.isoformat() if checkout.expires_at else 'unknown'}")
         limit = "unlimited" if entitlements.max_active_athletes is None else entitlements.max_active_athletes
         print("\nAthletes:")
         print(f"  Active: {get_active_athlete_count(db, workspace)}")

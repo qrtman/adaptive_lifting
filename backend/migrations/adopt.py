@@ -17,7 +17,7 @@ LEGACY_SERVER_DEFAULTS = {
 }
 BASELINE_REVISION = "0001_current_schema"
 POST_BASELINE_COLUMNS = {("users", "google_sub"), ("integration_outbox", "result")}
-POST_BASELINE_TABLES = {"oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers"}
+POST_BASELINE_TABLES = {"oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "billing_checkout_reservations"}
 
 
 def _normalize_default(value):
