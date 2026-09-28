@@ -788,8 +788,12 @@ export function SessionsView({
           initialBlockLabel={selectedBlock ? selectedBlock.blockLabel || '' : undefined}
           onClose={() => setShowNewSession(false)}
           onCreated={async () => {
-            await reloadMicrocycles(planAthleteId);
             setShowNewSession(false);
+            try {
+              await reloadMicrocycles(planAthleteId);
+            } catch (err) {
+              console.warn('Session was created, but the plan could not be refreshed.', err);
+            }
           }}
         />
       )}

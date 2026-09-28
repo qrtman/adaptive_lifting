@@ -245,33 +245,29 @@ export const apiService = {
    */
   async fetchMicrocycles(athleteId?: string, options?: { allowOffline?: boolean }): Promise<MicrocycleData[]> {
     const allowOffline = options?.allowOffline !== false;
-    if (BACKEND_URL) {
-      try {
-        const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
-        const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
-        if (!response.ok) {
-          if (response.status === 403 && athleteId) {
-            await clearSnapshot(microcycleSnapshotKey(athleteId)).catch(() => undefined);
-          }
-          const errData = await response.json().catch(() => ({}));
-          throw new ApiRequestError(apiErrorMessage(errData, 'Could not load this athlete plan.'), response.status);
+    try {
+      const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
+      const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
+      if (!response.ok) {
+        if (response.status === 403 && athleteId) {
+          await clearSnapshot(microcycleSnapshotKey(athleteId)).catch(() => undefined);
         }
-        const data = await response.json();
-        if (athleteId) {
-          await saveOfflineMicrocycles(data, athleteId);
-        }
-        return data;
-      } catch (err) {
-        if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) throw err;
-        if (!allowOffline) {
-          throw err instanceof Error ? err : new Error('Failed to load plan');
-        }
-        console.warn('Backend server unavailable. Falling back to IndexedDB snapshot.', err);
-        return getOfflineMicrocycles(athleteId);
+        const errData = await response.json().catch(() => ({}));
+        throw new ApiRequestError(apiErrorMessage(errData, 'Could not load this athlete plan.'), response.status);
       }
+      const data = await response.json();
+      if (athleteId) {
+        await saveOfflineMicrocycles(data, athleteId);
+      }
+      return data;
+    } catch (err) {
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) throw err;
+      if (!allowOffline) {
+        throw err instanceof Error ? err : new Error('Failed to load plan');
+      }
+      console.warn('Backend server unavailable. Falling back to IndexedDB snapshot.', err);
+      return getOfflineMicrocycles(athleteId);
     }
-    if (!allowOffline) throw new Error('Failed to load plan');
-    return getOfflineMicrocycles(athleteId);
   },
 
   /**

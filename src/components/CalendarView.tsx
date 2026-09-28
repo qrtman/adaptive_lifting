@@ -942,9 +942,13 @@ export function CalendarView({
           athleteId={planAthleteId}
           onClose={() => setNewSessionDate(null)}
           onCreated={async (created) => {
-            await reloadMicrocycles(planAthleteId);
             setNewSessionDate(null);
             if (created.microcycleId) onViewSession({ id: created.id } as WorkoutData, created.microcycleId);
+            try {
+              await reloadMicrocycles(planAthleteId);
+            } catch (err) {
+              console.warn('Session was created, but the plan could not be refreshed.', err);
+            }
           }}
         />
       )}
