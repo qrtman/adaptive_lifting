@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 import uuid
 from datetime import date, timedelta
 
@@ -15,10 +16,10 @@ def _auth_pair():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     coach = register_coach(client, f"c-{suffix}@ex.com")
-    athlete = client.post("/api/auth/register", json={"email": f"a-{suffix}@ex.com", "password": "password123", "role": "ATHLETE"})
+    athlete = register_verified(client, json={"email": f"a-{suffix}@ex.com", "password": "password123", "role": "ATHLETE"})
     code = client.post("/api/auth/coach-code", cookies=dict(coach.cookies)).json()["code"]
     client.post("/api/auth/link-athlete", json={"code": code}, cookies=dict(athlete.cookies))
-    return client, dict(coach.cookies), dict(athlete.cookies), athlete.json()["id"]
+    return client, dict(coach.cookies), dict(athlete.cookies), athlete.json()["user"]["id"]
 
 
 def _seed_sets(athlete_id: str):
@@ -112,7 +113,7 @@ def test_metrics_match_canonical_math_and_rbac():
         for p in points
     )
 
-    stranger = client.post("/api/auth/register", json={
+    stranger = register_verified(client, json={
         "email": f"x-{uuid.uuid4().hex[:6]}@ex.com", "password": "password123", "role": "ATHLETE",
     })
     blocked = client.post("/api/analytics/query", json={

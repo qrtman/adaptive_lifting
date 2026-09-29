@@ -133,9 +133,9 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
             >
               {intensityType === "PERCENT" ? "%" : "@"}
             </button>
-            <AnimatePresence>
-              {modeMenuOpen ? createPortal(
-              <motion.div
+            {createPortal(
+              <AnimatePresence>
+                {modeMenuOpen ? <motion.div
                 ref={modeMenuPortalRef}
                 id={`rx-intensity-menu-${liftId}-${rowIndex}`}
                 role="menu"
@@ -177,9 +177,10 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                 >
                   %
                 </button>
-              </motion.div>
-              , document.body) : null}
-            </AnimatePresence>
+                </motion.div> : null}
+              </AnimatePresence>,
+              document.body,
+            )}
           </div>
         </div>
       </td>

@@ -41,6 +41,7 @@ def test_jwt_secret_previous_optional(monkeypatch):
 
 def test_jwt_placeholder_forbidden_in_production(monkeypatch):
     _clear_runtime_env(monkeypatch)
+    monkeypatch.setenv("EMAIL_VERIFICATION_NEW_ACCOUNTS", "false")
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("JWT_SECRET_CURRENT", "dev-only-unspecified-secret")
     try:
@@ -86,6 +87,7 @@ def test_apply_dotenv_does_not_override(monkeypatch):
 
 
 def test_production_rejects_insecure_cookie_and_placeholder_encryption_key(monkeypatch):
+    monkeypatch.setenv("EMAIL_VERIFICATION_NEW_ACCOUNTS", "false")
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("JWT_SECRET_CURRENT", "runtime-config-test-jwt-key-with-over-32-characters")
     monkeypatch.setenv("JWT_SECRET_PREVIOUS", "")
@@ -113,6 +115,7 @@ def test_production_rejects_insecure_cookie_and_placeholder_encryption_key(monke
 
 
 def test_stripe_config_is_optional_but_validated_when_enabled(monkeypatch):
+    monkeypatch.setenv("EMAIL_VERIFICATION_NEW_ACCOUNTS", "false")
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("JWT_SECRET_CURRENT", "runtime-config-test-jwt-key-with-over-32-characters")
     monkeypatch.setenv("JWT_SECRET_PREVIOUS", "")
@@ -157,6 +160,7 @@ def test_stripe_config_is_optional_but_validated_when_enabled(monkeypatch):
 
 def test_production_voucher_secret_is_durable_independent_and_fingerprinted(monkeypatch):
     for name, value in {
+        "EMAIL_VERIFICATION_NEW_ACCOUNTS": "false",
         "APP_ENV": "production", "APP_URL": "https://lift.example.com",
         "CORS_ALLOWED_ORIGINS": "https://lift.example.com", "COOKIE_SECURE": "true",
         "JWT_SECRET_CURRENT": "separate-jwt-secret-for-runtime-config-test-1234",
@@ -184,6 +188,7 @@ def test_production_voucher_secret_is_durable_independent_and_fingerprinted(monk
 
 def test_staging_requires_test_mode_for_stripe(monkeypatch):
     for name, value in {
+        "EMAIL_VERIFICATION_NEW_ACCOUNTS": "false",
         "APP_ENV": "staging", "APP_URL": "https://stage.example.com",
         "CORS_ALLOWED_ORIGINS": "https://stage.example.com", "COOKIE_SECURE": "true",
         "JWT_SECRET_CURRENT": "staging-runtime-test-jwt-key-with-over-32-characters",

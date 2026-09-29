@@ -1,5 +1,6 @@
+import { canReadOffline } from '../services/authAuthorization';
 import { useCallback, useEffect, useState } from 'react';
-import { apiService } from '../services/api';
+import { ApiRequestError, apiService } from '../services/api';
 import { getSnapshot, saveSnapshot } from '../services/db';
 import { queueInsightCardMutation } from '../services/sync_engine';
 import { usePeriodization } from '../contexts/PeriodizationContext';
@@ -54,17 +55,19 @@ export function InsightsView() {
       const data = await apiService.fetchInsightCards();
       const sorted = [...data].sort((a, b) => a.layout.order - b.layout.order);
       setCards(sorted);
-      await saveSnapshot('insight_cards', sorted);
+      await saveSnapshot(`insight_cards:${user?.id}`, sorted);
     } catch (err) {
-      const cached = await getSnapshot('insight_cards');
+      if (err instanceof ApiRequestError || !canReadOffline(user?.id)) { setError('Sign in to view saved insights.'); return; }
+      const cached = await getSnapshot(`insight_cards:${user?.id}`);
       if (Array.isArray(cached)) setCards(cached);
       else setError(err instanceof Error ? err.message : 'Failed to load cards');
     }
-  }, []);
+  }, [user?.id]);
 
   const loadResult = useCallback(async (card: SavedCard) => {
-    const cacheId = resultKey(card.id);
+    const cacheId = `${resultKey(card.id)}:${planAthleteId || 'none'}`;
     const applyCache = async () => {
+      if (!canReadOffline(planAthleteId)) return;
       const cached = await getSnapshot(cacheId) as CachedResult | undefined;
       if (cached?.result) {
         setResults((prev) => ({ ...prev, [card.id]: cached }));
@@ -86,6 +89,7 @@ export function InsightsView() {
       setStaleIds((prev) => ({ ...prev, [card.id]: false }));
       await saveSnapshot(cacheId, cached);
     } catch (err) {
+      if (err instanceof ApiRequestError && [401, 403].includes(err.status)) { setError(err.message); return; }
       const message = saasErrorMessage(err);
       if (message) setError(message);
       await applyCache();

@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 from datetime import datetime, timedelta
 import uuid
 
@@ -22,7 +23,7 @@ def test_production_rejects_weak_previous_key(monkeypatch):
 
 def test_key_rotation_preserves_sessions_and_removing_key_revokes_them(monkeypatch):
     client = TestClient(main.app)
-    response = client.post("/api/auth/register", json={"email": f"rotate-{uuid.uuid4().hex}@example.com", "password": "password123", "role": "ATHLETE"})
+    response = register_verified(client, json={"email": f"rotate-{uuid.uuid4().hex}@example.com", "password": "password123", "role": "ATHLETE"})
     old_token = response.json()["access_token"]
     old_key = main.SECRET_KEY
     monkeypatch.setattr(main, "SECRET_KEY", uuid.uuid4().hex)
@@ -39,7 +40,7 @@ def test_key_rotation_preserves_sessions_and_removing_key_revokes_them(monkeypat
 
 def test_sync_cannot_reassign_ownership_or_parent_or_delete_relationships():
     client = TestClient(main.app)
-    owner = client.post("/api/auth/register", json={"email": f"sync-{uuid.uuid4().hex}@example.com", "password": "password123", "role": "ATHLETE"}).json()["user"]["id"]
+    owner = register_verified(client, json={"email": f"sync-{uuid.uuid4().hex}@example.com", "password": "password123", "role": "ATHLETE"}).json()["user"]["id"]
     workout = client.post("/api/sessions", json={"date": "2026-09-26", "title": "Keep"}).json()
     exercise = client.post(f"/api/sessions/{workout['id']}/exercises", json={"title": "Squat", "liftCategory": "Squat"}).json()
     set_id = exercise["sets"][0]["id"]

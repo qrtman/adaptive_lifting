@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiService } from '../services/api';
+import { ApiRequestError, apiService } from '../services/api';
 
 const fieldClass =
   'w-full min-h-12 bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] py-3 pl-10 pr-3 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus:outline-none focus:border-[var(--cal-accent)] focus:ring-1 focus:ring-[var(--cal-accent)]';
@@ -15,6 +15,14 @@ export const LoginView = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [resendMessage, setResendMessage] = useState('');
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = window.setTimeout(() => setCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
   const [error, setError] = useState<string | null>(null);
 
   const handleStandardLogin = async (e: React.FormEvent) => {
@@ -26,11 +34,18 @@ export const LoginView = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = mode === 'signup'
-        ? await apiService.register(email, password)
-        : await apiService.login(email, password);
-      signIn(data.user);
+      if (mode === 'signup') {
+        await apiService.register(email, password);
+        setPassword('');
+        setConfirmPassword('');
+        setPending(true);
+        setCooldown(60);
+      } else {
+        const data = await apiService.login(email, password);
+        await signIn(data.user);
+      }
     } catch (err: any) {
+      if (err instanceof ApiRequestError && err.code === 'EMAIL_VERIFICATION_REQUIRED') setPending(true);
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
@@ -42,7 +57,7 @@ export const LoginView = () => {
     setError(null);
     try {
       const data = await apiService.googleLogin(token);
-      signIn(data.user);
+      await signIn(data.user);
     } catch (err: any) {
       setError(err.message || 'Google login failed');
     } finally {
@@ -51,7 +66,7 @@ export const LoginView = () => {
   };
 
   useEffect(() => {
-    if (!googleClientId) return;
+    if (!googleClientId || pending) return;
     type GoogleIdentity = {
       accounts: { id: {
         initialize: (options: { client_id: string; callback: (result: { credential: string }) => void }) => void;
@@ -79,14 +94,14 @@ export const LoginView = () => {
     script.onerror = () => setError('Google sign-in could not load');
     document.head.appendChild(script);
     return () => { script.onload = null; script.onerror = null; };
-  }, [googleClientId]);
+  }, [googleClientId, pending]);
 
   const handleDevelopmentLogin = async (role: 'COACH' | 'ATHLETE') => {
     setLoading(true);
     setError(null);
     try {
       const data = await apiService.developmentLogin(role);
-      signIn(data.user);
+      await signIn(data.user);
     } catch (err: any) {
       setError(err.message || 'Development login failed');
     } finally {
@@ -95,6 +110,25 @@ export const LoginView = () => {
   };
 
   const showDevelopmentLogin = Boolean((import.meta as any).env.DEV);
+
+  if (pending) return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
+      <div className="w-full max-w-md cal-nested-card p-6 flex flex-col gap-4" data-elevated="true">
+        <h1 className="text-xl font-semibold">Check your email</h1>
+        <p>Verify your email before signing in to Adaptive Lifting. If {email} is eligible, an email will arrive shortly. The link expires after 24 hours.</p>
+        <p className="text-sm text-[var(--cal-muted)]">Check your spam folder too.</p>
+        {error && <p role="alert">{error}</p>}
+        {resendMessage && <p role="status">{resendMessage}</p>}
+        <button type="button" disabled={loading || cooldown > 0} className="min-h-12 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-50" onClick={async () => {
+          setLoading(true); setError(null);
+          try { await apiService.resendVerification(email); setCooldown(60); setResendMessage('If eligible, a new verification email will arrive shortly.'); }
+          catch (err: any) { setError(err.message); }
+          finally { setLoading(false); }
+        }}>{cooldown ? `Resend in ${cooldown}s` : 'Resend verification email'}</button>
+        <button type="button" className="min-h-12" onClick={() => { setPending(false); setMode('signin'); setError(null); }}>Return to sign in</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">

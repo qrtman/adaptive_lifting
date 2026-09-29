@@ -1,6 +1,6 @@
 """Browser origin enforcement and bounded authentication throttling."""
-from collections import OrderedDict, deque
-from time import monotonic
+from starlette.concurrency import run_in_threadpool
+from .auth_limits import allow_auth_attempt
 from urllib.parse import urlsplit
 
 from starlette.responses import JSONResponse
@@ -9,9 +9,9 @@ from .runtime_config import is_production_like
 
 
 def install_request_security(app, allowed_origins):
-    attempts = OrderedDict()
     auth_paths = {
         "/api/auth/login", "/api/auth/register", "/api/auth/google",
+        "/api/auth/verify-email", "/api/auth/resend-verification",
         "/api/integrations/telegram/miniapp/session",
         "/api/billing/stripe/checkout-session", "/api/billing/stripe/portal-session",
     }
@@ -27,16 +27,15 @@ def install_request_security(app, allowed_origins):
             # Cookie-authenticated browser writes require an approved origin.
             if (origin and origin not in allowed_origins) or (not origin and request.cookies.get("session_id")):
                 return JSONResponse({"detail": "Untrusted request origin"}, status_code=403)
-            if request.url.path.rstrip("/") in auth_paths:
-                address = request.client.host if request.client else "unknown"
-                now = monotonic()
-                window = attempts.setdefault(address, deque())
-                attempts.move_to_end(address)
-                while window and window[0] <= now - 60:
-                    window.popleft()
-                if len(window) >= 20:
-                    return JSONResponse({"detail": "Too many authentication attempts"}, status_code=429, headers={"Retry-After": "60"})
-                window.append(now)
-                if len(attempts) > 10000:
-                    attempts.popitem(last=False)
-        return await call_next(request)
+        path = request.url.path.rstrip("/")
+        if request.method == "POST" and path in auth_paths:
+            address = request.client.host if request.client else "unknown"
+            category = "registration" if path.endswith("/register") else "verification" if path.endswith("/verify-email") else "resend" if path.endswith("/resend-verification") else "auth"
+            limit, seconds = (10, 3600) if category == "registration" else (20, 60)
+            if not await run_in_threadpool(allow_auth_attempt, address, category, limit, seconds):
+                return JSONResponse({"detail": "Too many authentication attempts"}, status_code=429, headers={"Retry-After": str(seconds)})
+        response = await call_next(request)
+        if path.startswith("/api/auth/"):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+        return response

@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 import uuid
 
 from fastapi.testclient import TestClient
@@ -7,8 +8,7 @@ from backend.test_support import register_coach
 
 
 def _register(client, email, role):
-    resp = client.post(
-        "/api/auth/register",
+    resp = register_verified(client,
         json={"email": email, "password": "password123", "role": role},
     )
     assert resp.status_code == 200

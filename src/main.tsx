@@ -1,3 +1,4 @@
+import { EmailVerificationView } from './components/EmailVerificationView';
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
@@ -22,7 +23,7 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
 
   <StrictMode>
-    <AuthProvider>
+    {window.location.pathname === '/verify-email' ? <EmailVerificationView /> : <AuthProvider>
       <AccessProvider>
         <PeriodizationProvider>
           <SyncProvider>
@@ -30,6 +31,6 @@ createRoot(document.getElementById('root')!).render(
           </SyncProvider>
         </PeriodizationProvider>
       </AccessProvider>
-    </AuthProvider>
+    </AuthProvider>}
   </StrictMode>,
 );

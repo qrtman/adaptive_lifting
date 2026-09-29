@@ -1616,3 +1616,8 @@ Reject or revise generated UI if it includes:
 - [ ] Google Sheets import/edit as if it were already supported.
 - [ ] Hidden sync/conflict/lock states.
 - [ ] Buttons with vague labels like "Submit" where a domain action exists.
+
+
+### Email verification authentication states
+
+Use the existing Cal theme and login-card surface for pending registration, confirmation, success and invalid/expired-link recovery. Registration shows "Check your email" a 24-hour expiry explanation, a resend cooldown and a return-to-sign-in action. It never opens the authenticated workspace. Verification links load a confirmation button; activation requires POST. Scrub the token before external assets load and avoid analytics on this surface. Login verification-required errors expose resend recovery. Cached profile fields cannot bypass these states; valid offline authorization follows the signed capability policy in architecture.md.

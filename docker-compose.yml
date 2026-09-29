@@ -61,6 +61,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_OFFLINE_AUTH_PUBLIC_KEY: ${VITE_OFFLINE_AUTH_PUBLIC_KEY:-}
     restart: unless-stopped
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in the deployment environment file}

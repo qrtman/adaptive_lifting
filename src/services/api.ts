@@ -1,3 +1,5 @@
+import { authorizedOfflineOwners, canReadOffline, clearAuthorization } from './authAuthorization';
+import { queueMutation } from './sync_engine';
 import { MicrocycleData, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
 import { getSnapshot, saveSnapshot, clearSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
@@ -82,6 +84,10 @@ export async function apiRequestError(response: Response, fallback: string): Pro
   const detail = data && typeof data === 'object' ? (data as { detail?: unknown }).detail : undefined;
   const structured = detail && typeof detail === 'object' ? detail as Record<string, unknown> : null;
   const code = typeof structured?.code === 'string' ? structured.code : undefined;
+  if (response.status === 401 || code === 'EMAIL_VERIFICATION_REQUIRED') {
+    void clearAuthorization();
+    window.dispatchEvent(new Event('auth-access-denied'));
+  }
   const message = structured && typeof structured.message === 'string'
     ? structured.message
     : apiErrorMessage(data, fallback);
@@ -160,6 +166,7 @@ export function recalculateWorkoutMetrics(
 }
 
 async function getOfflineMicrocycles(ownerId?: string): Promise<MicrocycleData[]> {
+  if (!canReadOffline(ownerId)) throw new ApiRequestError("Sign in to access offline training.", 401);
   try {
     if (ownerId) {
       const cached = await getSnapshot(microcycleSnapshotKey(ownerId));
@@ -249,11 +256,7 @@ export const apiService = {
       const query = athleteId ? `?athlete_id=${encodeURIComponent(athleteId)}` : '';
       const response = await fetch(`${BACKEND_URL}/api/microcycles${query}`, { headers: getHeaders(), credentials: 'include' });
       if (!response.ok) {
-        if (response.status === 403 && athleteId) {
-          await clearSnapshot(microcycleSnapshotKey(athleteId)).catch(() => undefined);
-        }
-        const errData = await response.json().catch(() => ({}));
-        throw new ApiRequestError(apiErrorMessage(errData, 'Could not load this athlete plan.'), response.status);
+        throw await apiRequestError(response, 'Could not load this athlete plan.');
       }
       const data = await response.json();
       if (athleteId) {
@@ -285,22 +288,32 @@ export const apiService = {
     readiness?: number | null,
     hrv?: number | null
   ): Promise<MicrocycleData[]> {
-    if (BACKEND_URL) {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/sets/log`, {
-          method: 'POST',
-          headers: getHeaders(),
-          credentials: 'include',
-          body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv })
-        });
-        if (!response.ok) throw new Error('API set log request failed');
-        return await response.json();
-      } catch (err) {
-        console.warn('Backend server save failed. Queueing set on IndexedDB snapshot.', err);
-      }
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/sets/log`, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv })
+      });
+      if (!response.ok) throw await apiRequestError(response, 'API set log request failed');
+      return await response.json();
+    } catch (err) {
+      if (err instanceof ApiRequestError) throw err;
+      console.warn('Backend server save failed. Queueing set on IndexedDB snapshot.', err);
     }
 
-    const data = await getOfflineMicrocycles();
+    // The Mini App uses the same scoped cache policy as the web session.
+    let data: MicrocycleData[] = [];
+    let ownerId: string | undefined;
+    for (const owner of authorizedOfflineOwners()) {
+      const cached = await getOfflineMicrocycles(owner);
+      if (cached.some(mc => mc.workouts.some(workout => workout.id === workoutId))) {
+        data = cached;
+        ownerId = owner;
+        break;
+      }
+    }
+    if (!ownerId) throw new ApiRequestError('Sign in and load this plan before logging offline.', 401);
     
     // Find active workout indices
     let workoutObj: any = null;
@@ -339,13 +352,20 @@ export const apiService = {
         if (velocity !== undefined) set.velocity = trainingNumber(velocity);
         if (readiness !== undefined) set.readiness = trainingInt(readiness);
         if (hrv !== undefined) set.hrv = trainingNumber(hrv);
+        await queueMutation(workoutId, 'ExerciseSet', setId, {
+          actual: set.actual, reps: set.reps, executedRpe: set.executedRpe, scope: set.scope,
+          ...(note !== undefined ? { note: set.note } : {}),
+          ...(velocity !== undefined ? { velocity: set.velocity } : {}),
+          ...(readiness !== undefined ? { readiness: set.readiness } : {}),
+          ...(hrv !== undefined ? { hrv: set.hrv } : {}),
+        });
       }
     }
 
     // 3. Recalculate training volumes and progression delta
     recalculateWorkoutMetrics(workoutObj, prevWorkoutTonnage);
     
-    await saveOfflineMicrocycles(data);
+    await saveOfflineMicrocycles(data, ownerId);
     return data;
   },
 
@@ -413,7 +433,7 @@ export const apiService = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Invalid credentials');
+    if (!response.ok) throw await apiRequestError(response, 'Invalid credentials');
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.user.role);
     setUiPref(UI_KEYS.email, data.user.email);
@@ -428,7 +448,7 @@ export const apiService = {
       method: 'POST',
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('Development login is unavailable');
+    if (!response.ok) throw await apiRequestError(response, 'Development login is unavailable');
     const data = await response.json();
     setUiPref(UI_KEYS.role, data.user.role);
     setUiPref(UI_KEYS.email, data.user.email);
@@ -445,7 +465,7 @@ export const apiService = {
       credentials: 'include',
       body: JSON.stringify({ token }),
     });
-    if (!response.ok) throw new Error('Google authentication failed');
+    if (!response.ok) throw await apiRequestError(response, 'Google authentication failed');
     const data = await response.json();
     if (data.user?.role) setUiPref(UI_KEYS.role, data.user.role);
     if (data.user?.email) setUiPref(UI_KEYS.email, data.user.email);
@@ -462,18 +482,31 @@ export const apiService = {
       credentials: 'include',
       body: JSON.stringify({ email, password })
     });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Registration failed');
-    }
-    const data = await response.json();
-    setUiPref(UI_KEYS.role, data.role || data.user?.role);
-    setUiPref(UI_KEYS.email, data.email || data.user?.email);
-    if (data.displayName || data.user?.displayName) setUiPref(UI_KEYS.displayName, data.displayName || data.user?.displayName);
-    else removeUiPref(UI_KEYS.displayName);
-    const userId = data.id || data.user?.id;
-    if (userId) setUiPref(UI_KEYS.userId, String(userId));
-    return data;
+    if (!response.ok) throw await apiRequestError(response, 'Registration failed');
+    return await response.json() as { message: string };
+  },
+
+  async session() {
+    const response = await fetch(`${BACKEND_URL}/api/auth/me`, { credentials: 'include', cache: 'no-store' });
+    if (!response.ok) throw await apiRequestError(response, 'Sign in to continue.');
+    return await response.json();
+  },
+
+  async verifyEmail(token: string) {
+    const response = await fetch(`${BACKEND_URL}/api/auth/verify-email`, {
+      method: 'POST', headers: getHeaders(), credentials: 'omit', referrerPolicy: 'no-referrer',
+      body: JSON.stringify({ token }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'This link is invalid or expired.');
+    return await response.json();
+  },
+
+  async resendVerification(email: string) {
+    const response = await fetch(`${BACKEND_URL}/api/auth/resend-verification`, {
+      method: 'POST', headers: getHeaders(), credentials: 'omit', body: JSON.stringify({ email }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'Please wait before requesting another email.');
+    return await response.json();
   },
 
   async pushProgramming(athleteId: string, template: string) {
@@ -572,7 +605,7 @@ export const apiService = {
     if (params.length > 0) url += `?${params.join('&')}`;
 
     const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
-    if (!response.ok) throw new Error('CSV export download failed');
+    if (!response.ok) throw await apiRequestError(response, 'CSV export download failed');
     return await response.blob();
   },
 
@@ -583,7 +616,7 @@ export const apiService = {
     const baseUrl = BACKEND_URL;
     const url = `${baseUrl}/api/export/json`;
     const response = await fetch(url, { headers: getHeaders(), credentials: 'include' });
-    if (!response.ok) throw new Error('JSON export download failed');
+    if (!response.ok) throw await apiRequestError(response, 'JSON export download failed');
     return await response.blob();
   },
 
@@ -615,10 +648,7 @@ export const apiService = {
       headers: getHeaders(),
       credentials: 'include',
     });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to fetch coach code status');
-    }
+    if (!response.ok) throw await apiRequestError(response, 'Failed to fetch coach code status');
     return await response.json();
   },
 
@@ -640,10 +670,7 @@ export const apiService = {
       method: 'DELETE',
       credentials: 'include',
     });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to unlink coach');
-    }
+    if (!response.ok) throw await apiRequestError(response, 'Failed to unlink coach');
     return await response.json();
   },
 
@@ -763,10 +790,7 @@ export const apiService = {
       headers: getHeaders(),
       credentials: 'include',
     });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(errData, 'Failed to load notes'));
-    }
+    if (!response.ok) throw await apiRequestError(response, 'Failed to load notes');
     const data = await response.json();
     return Array.isArray(data?.notes) ? data.notes : [];
   },
@@ -786,10 +810,7 @@ export const apiService = {
         athleteId: payload.athleteId || undefined,
       }),
     });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(errData, 'Failed to save note'));
-    }
+    if (!response.ok) throw await apiRequestError(response, 'Failed to save note');
     return await response.json();
   },
 
@@ -920,7 +941,7 @@ export const apiService = {
 
   async fetchAnalyticsCatalog(): Promise<AnalyticsCatalog> {
     const response = await fetch(`${BACKEND_URL}/api/analytics/catalog`, { headers: getHeaders(), credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to load analytics catalog');
+    if (!response.ok) throw await apiRequestError(response, 'Failed to load analytics catalog');
     return await response.json() as AnalyticsCatalog;
   },
 
@@ -939,7 +960,7 @@ export const apiService = {
 
   async fetchInsightCards(): Promise<SavedCard[]> {
     const response = await fetch(`${BACKEND_URL}/api/insight-cards`, { headers: getHeaders(), credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to load insight cards');
+    if (!response.ok) throw await apiRequestError(response, 'Failed to load insight cards');
     return await response.json() as SavedCard[];
   },
 
@@ -960,10 +981,7 @@ export const apiService = {
         body: JSON.stringify(card),
       });
     }
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(errData, 'Failed to save card'));
-    }
+    if (!response.ok) throw await apiRequestError(response, 'Failed to save card');
     return await response.json() as SavedCard;
   },
 
@@ -972,6 +990,6 @@ export const apiService = {
       method: 'DELETE',
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('Failed to delete card');
+    if (!response.ok) throw await apiRequestError(response, 'Failed to delete card');
   },
 };

@@ -1,11 +1,12 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
 import { fillLogCell } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 test('queues a set offline and flushes it when the network returns', async ({ page, context, request }) => {
   const email = `offline-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -29,10 +30,10 @@ test('queues a set offline and flushes it when the network returns', async ({ pa
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand Deadlift', exact: true }).click();
   await expect(page.getByTestId('session-name')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await expect(page.getByTestId('sync-status')).toHaveCount(0);

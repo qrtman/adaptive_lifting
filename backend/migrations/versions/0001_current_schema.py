@@ -22,8 +22,8 @@ LEGACY_ADDITIVE_COLUMNS = {
     "exercise_sets": {"velocity", "readiness", "hrv", "intensity_type", "scope"},
     "workouts": {"athlete_bw", "block_label", "week_label", "owner_id"},
     "exercises": {"tier", "lift_category", "movement_pattern", "lift_note"},
-    "users": {"display_name", "google_sub"},
-    "integration_outbox": {"result"},
+    "users": {"display_name", "google_sub", "email_verified_at", "email_verification_required", "email_verification_legacy_exempt"},
+    "integration_outbox": {"result", "encrypted_payload", "verification_token_id"},
 }
 LEGACY_COLUMN_SPECS = {
     "microcycles": [("owner_id", sa.String(), None, True)],
@@ -80,6 +80,8 @@ def validate_supported_legacy_schema(bind, existing_tables):
             # ignored by old startup code; permit only this known difference.
             if column.name == "microcycle_id" and table_name == "workouts":
                 continue
+            if table_name == "integration_outbox" and column.name == "connection_id":
+                continue
             known_old_scope = table_name == "exercise_sets" and column.name == "scope" and bool(actual_column["nullable"])
             if column.name not in {pk.name for pk in model_table.primary_key.columns} and bool(actual_column["nullable"]) != bool(column.nullable) and not known_old_scope:
                 raise RuntimeError(f"Unsupported nullability for {table_name}.{column.name}")
@@ -94,6 +96,7 @@ def validate_supported_legacy_schema(bind, existing_tables):
              constraint.elements[0].column.table.name,
              tuple(element.column.name for element in constraint.elements))
             for constraint in model_table.foreign_key_constraints
+            if all(element.parent.name in actual for element in constraint.elements)
         }
         actual_fks = {
             (tuple(fk.get("constrained_columns") or ()), fk.get("referred_table"),

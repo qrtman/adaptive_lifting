@@ -2,6 +2,7 @@
 import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiRequestError } from '../services/api';
 import { LoginView } from './LoginView';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -13,7 +14,7 @@ const { signIn, login, register } = vi.hoisted(() => ({
 }));
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ signIn }) }));
-vi.mock('../services/api', () => ({ apiService: { login, register, googleLogin: vi.fn(), developmentLogin: vi.fn() } }));
+vi.mock('../services/api', async (original) => ({ ...await original<typeof import('../services/api')>(), apiService: { login, register, googleLogin: vi.fn(), developmentLogin: vi.fn() } }));
 
 let root: Root;
 let container: HTMLDivElement;
@@ -52,7 +53,7 @@ afterEach(async () => {
 });
 
 describe('LoginView authentication modes', () => {
-  it('creates an account and signs the returned user in', async () => {
+  it('creates a pending account without signing in', async () => {
     const user = { id: 'new-user', email: 'new@example.com', role: 'ATHLETE' };
     register.mockResolvedValue({ user });
     await act(async () => { container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="false"]')?.click(); });
@@ -62,7 +63,9 @@ describe('LoginView authentication modes', () => {
     await enter(inputs[2], 'password123');
     await submit();
     expect(register).toHaveBeenCalledWith('new@example.com', 'password123');
-    expect(signIn).toHaveBeenCalledWith(user);
+    expect(signIn).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Check your email");
+    expect(container.textContent).toContain("Resend in 60s");
   });
 
   it('rejects mismatched passwords without calling registration', async () => {
@@ -86,4 +89,14 @@ describe('LoginView authentication modes', () => {
     expect(login).toHaveBeenCalledWith('existing@example.com', 'password123');
     expect(signIn).toHaveBeenCalledWith(user);
   });
+});
+
+it('offers resend when valid credentials require verification', async () => {
+  login.mockRejectedValue(new ApiRequestError('Verify your email before signing in.', 403, 'EMAIL_VERIFICATION_REQUIRED'));
+  await enter(container.querySelectorAll('input')[0], 'pending@example.com');
+  await enter(container.querySelectorAll('input')[1], 'password123');
+  await submit();
+  expect(container.textContent).toContain('Check your email');
+  expect(container.textContent).toContain('Resend verification email');
+  expect(signIn).not.toHaveBeenCalled();
 });

@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 import uuid
 from datetime import datetime, timedelta
 
@@ -119,7 +120,7 @@ def test_checkout_rejects_unpurchasable_input_and_non_owner(billing):
     assert denied.status_code == 403
     assert denied.json()["detail"]["code"] == "BILLING_OWNER_REQUIRED"
     athlete = TestClient(app)
-    athlete.post("/api/auth/register", json={"email": f"athlete-{uuid.uuid4().hex}@example.com", "password": "password123"})
+    register_verified(athlete, json={"email": f"athlete-{uuid.uuid4().hex}@example.com", "password": "password123"})
     assert athlete.post("/api/billing/stripe/portal-session").status_code == 403
 
 

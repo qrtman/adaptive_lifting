@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 import uuid
 from datetime import datetime, timedelta
 
@@ -16,7 +17,7 @@ from backend.subscriptions import upsert_subscription
 
 def _register_athlete(client, email=None):
     email = email or f"athlete-{uuid.uuid4().hex}@example.com"
-    response = client.post("/api/auth/register", json={"email": email, "password": "password123"})
+    response = register_verified(client, json={"email": email, "password": "password123"})
     assert response.status_code == 200
     return response
 

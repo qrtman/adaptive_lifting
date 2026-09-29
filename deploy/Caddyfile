@@ -8,6 +8,9 @@
 
 {$APP_DOMAIN} {
 	encode zstd gzip
+	header Referrer-Policy "no-referrer"
+	@verification path /verify-email
+	header @verification Cache-Control "no-store"
 
 	@api path /api /api/*
 	handle @api {

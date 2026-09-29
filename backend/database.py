@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint, CheckConstraint, Index, event
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint, CheckConstraint, Index, event, text, true, false
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 from .accessory_migration import expand_legacy_accessory_sets
@@ -77,9 +77,45 @@ class User(Base, TimestampMixin):
     display_name = Column(String, nullable=True)
     # Stable Google OpenID subject. Nullable for password-only accounts.
     google_sub = Column(String, nullable=True)
+    email_verified_at = Column(DateTime, nullable=True)
+    email_verification_required = Column(Boolean, nullable=False, default=True, server_default=true())
+    email_verification_legacy_exempt = Column(Boolean, nullable=False, default=False, server_default=false())
 
 
 Index("uq_users_google_sub", User.google_sub, unique=True)
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    consumed_at = Column(DateTime, nullable=True)
+    invalidated_at = Column(DateTime, nullable=True)
+    is_resend = Column(Boolean, nullable=False, default=False)
+    __table_args__ = (
+        CheckConstraint("length(token_hash) = 64", name="ck_email_token_hash_length"),
+        CheckConstraint("expires_at > created_at", name="ck_email_token_expiry"),
+        Index("uq_email_token_active_user", "user_id", unique=True,
+              sqlite_where=text("consumed_at IS NULL AND invalidated_at IS NULL"),
+              postgresql_where=text("consumed_at IS NULL AND invalidated_at IS NULL")),
+    )
+
+
+class AuthSecuritySubject(Base):
+    __tablename__ = "auth_security_subjects"
+    subject_hash = Column(String(64), primary_key=True)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class AuthSecurityEvent(Base):
+    __tablename__ = "auth_security_events"
+    id = Column(String, primary_key=True)
+    subject_hash = Column(String(64), ForeignKey("auth_security_subjects.subject_hash"), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    __table_args__ = (Index("ix_auth_security_event_subject_time", "subject_hash", "created_at"),)
 
 
 class Workspace(Base):
@@ -477,12 +513,14 @@ class IntegrationOutbox(Base):
     __tablename__ = "integration_outbox"
     id = Column(String, primary_key=True, index=True)
     provider = Column(String, nullable=False)
-    connection_id = Column(String, ForeignKey("integration_connections.id"), nullable=False)
+    connection_id = Column(String, ForeignKey("integration_connections.id"), nullable=True)
     payload_json = Column(String, nullable=False)
     status = Column(String, nullable=False)
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
     result = Column(String, nullable=True)
+    encrypted_payload = Column(String, nullable=True)
+    verification_token_id = Column(String, ForeignKey("email_verification_tokens.id"), nullable=True, index=True)
 
 class DayNote(Base, TimestampMixin):
     """Athlete-plan note keyed by calendar date, not weekday and not a workout."""

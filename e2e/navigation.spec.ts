@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { signInCoach } from './helpers';
+import { registerVerified } from './verified-fixture';
 
 test.describe('navigation consolidation', () => {
   test('opens the coach Roster workspace and keeps the athlete switcher available', async ({ page }) => {
@@ -45,6 +46,10 @@ test.describe('navigation consolidation', () => {
   });
 
   test('shows a permission-denied state to athletes and hides Roster navigation', async ({ page }) => {
+    const login = await registerVerified(page.request, { data: {
+      email: `navigation-athlete-${Date.now()}@example.test`, password: 'password123',
+    } });
+    expect(login.ok()).toBeTruthy();
     await page.addInitScript(() => {
       localStorage.setItem('al_role', 'ATHLETE');
       localStorage.setItem('al_role_mode', 'athlete');
@@ -59,16 +64,16 @@ test.describe('navigation consolidation', () => {
 
   test('shows a recoverable roster load error', async ({ page }) => {
     await signInCoach(page, { al_app_view: 'dashboard', al_dashboard_mode: 'roster' });
-    let requestCount = 0;
+    let unavailable = true;
     await page.route('**/api/coach/roster', (route) => {
-      requestCount += 1;
-      if (requestCount === 1) {
+      if (unavailable) {
         return route.fulfill({ status: 503, contentType: 'application/json', body: '{"detail":"Temporarily unavailable"}' });
       }
       return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     });
     await page.goto('/#/roster');
     await expect(page.getByTestId('roster-error')).toBeVisible();
+    unavailable = false;
     await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByTestId('roster-empty')).toBeVisible();
   });

@@ -1,7 +1,8 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { pickComboOption } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function expectOverlayParked(overlay: Locator, day?: Locator) {
   await expect(overlay).toBeVisible();
@@ -67,7 +68,8 @@ async function expectSessionHeaderHierarchy(page: Page) {
     return { size: parseFloat(computed.fontSize), weight: parseInt(computed.fontWeight, 10) || 400 };
   });
   expect(nameStyle.size).toBeGreaterThan(labelStyle.size);
-  expect(nameStyle.weight).toBeGreaterThan(labelStyle.weight);
+  // Both identity and label chips use semibold; size defines the hierarchy.
+  expect(nameStyle.weight).toBeGreaterThanOrEqual(labelStyle.weight);
   const nameBox = await name.boundingBox();
   const tonnageBox = await tonnage.boundingBox();
   const editBox = await page.getByTestId('session-edit').boundingBox();
@@ -78,7 +80,7 @@ async function expectSessionHeaderHierarchy(page: Page) {
 
 async function addCatalogLift(page: Page, category: string, exercise: string) {
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('add-lift-category').selectOption(category);
+  await page.getByTestId('movement-pattern-add-lift').selectOption(category);
   await page.getByTestId(`add-lift-result-${exercise}`).click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByTestId('add-lift-dialog')).toHaveCount(0);
@@ -95,7 +97,7 @@ async function createDatedSession(page: Page, date: string, title: string) {
 
 test('hover New session opens a dialog; cancel creates nothing', async ({ page, request }) => {
   const email = `cal-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -192,6 +194,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('new-session-title')).toHaveValue('Squat');
   await expect(page.getByTestId('new-session-block')).toHaveValue('Hypertrophy');
   await expect(page.getByTestId('new-session-week')).toHaveValue('Week1');
+  // Reopening focuses Name and opens its remembered suggestions above labels.
+  await page.getByTestId('new-session-title').press('Escape');
   await page.getByTestId('new-session-block').click();
   await expect(page.getByRole('option', { name: 'Hypertrophy', exact: true })).toBeVisible();
   await page.getByTestId('new-session-create').click();
@@ -259,13 +263,13 @@ test('coach without an athlete cannot create; linked coach can', async ({ page, 
   const suffix = Date.now();
   const coachEmail = `coach-${suffix}@example.com`;
   const athleteEmail = `ath-${suffix}@example.com`;
-  const coachApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
-  const athleteApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
+  const coachApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
+  const athleteApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
   try {
-    const coachReg = await coachApi.post('/api/auth/register', {
+    const coachReg = await registerVerified(coachApi, {
       data: { email: coachEmail, password: 'password123', role: 'COACH' },
     });
-    const athleteReg = await athleteApi.post('/api/auth/register', {
+    const athleteReg = await registerVerified(athleteApi, {
       data: { email: athleteEmail, password: 'password123', role: 'ATHLETE' },
     });
     expect(coachReg.ok()).toBeTruthy();
@@ -311,7 +315,7 @@ test('coach without an athlete cannot create; linked coach can', async ({ page, 
 
 test('hover overlay does not grow the day cell; Notes saves a day card', async ({ page, request }) => {
   const email = `notes-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -434,7 +438,7 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
 
 test('lift filter dialog matches stored category × pattern × tier', async ({ page, request }) => {
   const email = `filter-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -539,7 +543,7 @@ test('lift filter dialog matches stored category × pattern × tier', async ({ p
   await page.getByTestId('lift-filter-lift-All').click();
   await page.getByTestId('lift-filter-tier-All').click();
   await page.getByTestId('lift-filter-done').click();
-  await expect(page.getByTestId('lift-filter-open')).toHaveText('All');
+  await expect(page.getByTestId('lift-filter-open')).toHaveText('All lifts');
   await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Lower' })).toBeVisible();
   await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Press' })).toBeVisible();
   await expect(page.locator('[data-testid^="sessions-card-"]', { hasText: 'Pull' })).toBeVisible();

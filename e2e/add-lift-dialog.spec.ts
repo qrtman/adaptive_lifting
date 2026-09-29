@@ -1,10 +1,11 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function openAddLift(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
   const email = `add-lift-dialog-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();

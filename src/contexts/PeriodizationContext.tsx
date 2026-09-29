@@ -1,3 +1,4 @@
+import { canReadOffline } from '../services/authAuthorization';
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, ReactNode } from 'react';
 import { ApiRequestError, apiService } from '../services/api';
 import { saveSnapshot, getSnapshot, clearSnapshot, evictOldSyncedData, microcycleSnapshotKey } from '../services/db';
@@ -189,7 +190,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       if (accountRole(user) === 'COACH' && typeof navigator !== 'undefined' && !navigator.onLine) return;
       try {
         const gen = reloadGen.current;
-        const cached = await getSnapshot(microcycleSnapshotKey(owner));
+        const cached = canReadOffline(owner) ? await getSnapshot(microcycleSnapshotKey(owner)) : null;
         if (gen !== reloadGen.current) return;
         if (liveFetchedRef.current && snapshotOwnerRef.current === owner) return;
         if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {

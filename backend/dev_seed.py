@@ -1,7 +1,7 @@
 """Stable local-only data for exercising coach-to-athlete UI flows."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from .database import CoachingRelationship, Exercise, ExerciseSet, Microcycle, User, Workout
 
@@ -16,12 +16,12 @@ def ensure_demo_accounts(db, password_hasher) -> None:
     """Idempotently create one linked pair and one compact athlete training week."""
     coach = db.query(User).filter(User.email == DEMO_COACH_EMAIL).first()
     if not coach:
-        coach = User(id=DEMO_COACH_ID, email=DEMO_COACH_EMAIL, hashed_password=password_hasher(DEMO_PASSWORD), role="COACH")
+        coach = User(id=DEMO_COACH_ID, email=DEMO_COACH_EMAIL, hashed_password=password_hasher(DEMO_PASSWORD), role="COACH", email_verified_at=datetime.utcnow())
         db.add(coach)
 
     athlete = db.query(User).filter(User.email == DEMO_ATHLETE_EMAIL).first()
     if not athlete:
-        athlete = User(id=DEMO_ATHLETE_ID, email=DEMO_ATHLETE_EMAIL, hashed_password=password_hasher(DEMO_PASSWORD), role="ATHLETE")
+        athlete = User(id=DEMO_ATHLETE_ID, email=DEMO_ATHLETE_EMAIL, hashed_password=password_hasher(DEMO_PASSWORD), role="ATHLETE", email_verified_at=datetime.utcnow())
         db.add(athlete)
     db.flush()
 

@@ -29,3 +29,18 @@ atexit.register(_remove_test_database)
 os.environ.setdefault("JWT_SECRET_CURRENT", "test-jwt-secret-current")
 os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://testserver")
 os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("EMAIL_PROVIDER", "fake")
+os.environ.setdefault("EMAIL_FROM", "Adaptive Lifting <verify@example.test>")
+os.environ.setdefault("APP_URL", "http://localhost:3000")
+from cryptography.fernet import Fernet
+os.environ.setdefault("EMAIL_PAYLOAD_ENCRYPTION_KEY", Fernet.generate_key().decode())
+
+import pytest
+
+@pytest.fixture(autouse=True)
+def reset_auth_limits():
+    from backend.database import SessionLocal, AuthSecurityEvent, AuthSecuritySubject
+    with SessionLocal() as db:
+        db.query(AuthSecurityEvent).delete()
+        db.query(AuthSecuritySubject).delete()
+        db.commit()

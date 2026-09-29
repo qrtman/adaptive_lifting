@@ -1,3 +1,4 @@
+import { useAuth } from './AuthContext';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { countMutationsByStatus, getPendingMutations } from '../services/db';
 import { isInsightCardMutation, isLockSyncCode, processInsightCardSync, processSyncQueue } from '../services/sync_engine';
@@ -37,6 +38,7 @@ function isTrueConflict(item: { reason?: string }): boolean {
 }
 
 export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
+  const { user } = useAuth();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [rejectedCount, setRejectedCount] = useState(0);
@@ -51,6 +53,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   };
 
   useEffect(() => {
+    if (!user) { setPendingCount(0); setRejectedCount(0); setConflicts([]); setLocks([]); return; }
     const handleOnline = () => {
       setIsOnline(true);
       void (async () => {
@@ -126,9 +129,10 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       window.removeEventListener('sync-lock', handleLock);
       clearInterval(interval);
     };
-  }, []);
+  }, [user?.id]);
 
   const triggerSync = (workout_id: string) => {
+    if (!user) return;
     processSyncQueue(workout_id).then(async (newConflicts) => {
        if (newConflicts && newConflicts.length > 0) {
          setConflicts(prev => [...prev, ...newConflicts.filter(isTrueConflict)]);
@@ -149,7 +153,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   return (
     <SyncContext.Provider value={{ isOnline, pendingCount, rejectedCount, triggerSync, conflicts }}>
       {children}
-      <SyncQueueOverlay collide={locks.length > 0 || conflicts.length > 0} />
+      {user && <SyncQueueOverlay collide={locks.length > 0 || conflicts.length > 0} />}
       {(locks.length > 0 || conflicts.length > 0) && (
         <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm mx-auto">
           {locks.map((lock) => (

@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 import json
 import re
 import uuid
@@ -160,7 +161,7 @@ def test_api_redeems_only_trusted_voucher_fields_and_generic_errors():
     assert replay.status_code == 400 and replay.json()["detail"]["code"] == "VOUCHER_INVALID"
     assert owner.get("/api/account/access").json()["entitlements"]["maxActiveAthletes"] == 5
     athlete = TestClient(app)
-    assert athlete.post("/api/auth/register", json={"email": f"athlete-{uuid.uuid4().hex}@example.com", "password": "password123"}).status_code == 200
+    assert register_verified(athlete, json={"email": f"athlete-{uuid.uuid4().hex}@example.com", "password": "password123"}).status_code == 200
     denied = athlete.post(path, json={"code": code})
     assert denied.status_code == 403 and denied.json()["detail"]["code"] == "VOUCHER_COACH_ACCOUNT_REQUIRED"
 

@@ -22,7 +22,7 @@ export function AthleteProfilePanel() {
     setError('');
     try {
       const profile = await apiService.updateProfile(displayName);
-      signIn({ ...user, ...profile });
+      await signIn({ ...user, ...profile });
       setDisplayName(profile.displayName || '');
       setMessage('Athlete name saved. Linked coaches can see and search this name and your email.');
     } catch (reason) {

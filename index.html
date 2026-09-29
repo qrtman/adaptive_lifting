@@ -2,6 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="referrer" content="no-referrer" />
+    <script>
+      // Capture in memory and scrub before loading SDKs, fonts or application code.
+      if (location.pathname === '/verify-email') {
+        var params = new URLSearchParams(location.hash.slice(1));
+        window.__emailVerification = { token: params.get('token') || '' };
+        history.replaceState(null, '', '/verify-email');
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Adaptive Lifting</title>
     <script>
@@ -34,4 +43,3 @@
     </script>
   </body>
 </html>
-

@@ -880,6 +880,15 @@ sequenceDiagram
 
 ## 9. Security, Compliance & Access Control
 
+### Email verification authorization policy
+
+New password registrations require email verification by default and return no session. Verification uses a 24-hour, hash-only, single-use token and explicit POST; users then sign in normally. Migration 0011 records historical password accounts as separately exempt, without claiming their emails were verified. Initial legacy enforcement is disabled. The eligibility policy applies to every backend session and protected API, including Telegram and coach linking. Google authentication uses verified ID-token claims and stable subjects, with explicit authenticated linking and no email-only merge.
+
+Verification email jobs extend IntegrationOutbox and the existing standalone worker. Raw tokens are confined to encrypted temporary payloads under a separate backend key; resend/consumption/delivery serialize through the same account lock. Database-backed IP and account limits apply across workers. See `docs/email-verification.md` for schema, collision policy, configuration and deployment details.
+
+Browser profile preferences are presentation data, not authorization. Online restoration validates the server session. Secure offline reload uses an optional signed ES256 capability pinned to the frontend build's public key, scoped to authorized plans and valid at most 24 hours; reconnection revalidates. Existing snapshots and mutations are retained, and disconnected revocation takes effect by lease expiry. Configure the signing key pair before rollout to preserve authorized offline reloads.
+
+
 ### 9.1 Authentication & Threat Mitigation
 
 - **Mechanism:** JSON Web Tokens (JWT) with `HS256` signing

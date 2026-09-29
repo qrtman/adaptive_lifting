@@ -1,3 +1,4 @@
+from backend.test_support import register_verified
 import asyncio
 import hashlib
 import hmac
@@ -21,11 +22,10 @@ from backend import integrations as telegram_integrations
 from backend.test_support import register_coach
 
 
-def test_register_and_login_set_session_cookie():
+def test_verified_fixture_and_login_set_session_cookie():
     client = TestClient(app)
     email = f"coach-{uuid.uuid4().hex[:10]}@example.com"
-    register_response = client.post(
-        "/api/auth/register",
+    register_response = register_verified(client,
         json={"email": f"  {email.upper()}  ", "password": "password123", "role": "COACH"},
     )
     assert register_response.status_code == 200
@@ -97,7 +97,7 @@ def test_google_login_links_existing_user_only_with_verified_google_email(monkey
     email = f"google-existing-{uuid.uuid4().hex}@example.com"
     db = SessionLocal()
     try:
-        db.add(User(id=user_id, email=email, hashed_password=auth_main.get_password_hash("password123"), role="ATHLETE"))
+        db.add(User(id=user_id, email=email, hashed_password=auth_main.get_password_hash("password123"), role="ATHLETE", email_verified_at=datetime.utcnow()))
         db.commit()
     finally:
         db.close()
@@ -211,8 +211,7 @@ def test_google_login_calls_google_auth_verifier_with_server_audience(monkeypatc
 
 def _register_auth_user(client, prefix="auth"):
     email = f"{prefix}-{uuid.uuid4().hex}@example.com"
-    response = client.post(
-        "/api/auth/register",
+    response = register_verified(client,
         json={"email": email, "password": "password123"},
     )
     assert response.status_code == 200
@@ -228,7 +227,7 @@ def test_registration_role_is_server_controlled_and_cli_promotes_after_reauthent
 
     client = TestClient(app)
     email = f"manual-coach-{uuid.uuid4().hex}@example.com"
-    created = client.post("/api/auth/register", json={
+    created = register_verified(client, json={
         "email": email,
         "password": "password123",
         "role": "COACH",
@@ -278,6 +277,7 @@ def test_login_and_coach_cli_find_legacy_mixed_case_email(capsys):
             email=email,
             hashed_password=auth_main.get_password_hash("password123"),
             role="ATHLETE",
+            email_verification_legacy_exempt=True,
         ))
         db.commit()
     finally:
@@ -621,8 +621,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     assert outsider.status_code == 200
     outsider_cookies = dict(outsider.cookies)
 
-    athlete1 = client.post(
-        "/api/auth/register",
+    athlete1 = register_verified(client,
         json={"email": athlete1_email, "password": "password123", "role": "ATHLETE"},
     )
     assert athlete1.status_code == 200
@@ -631,8 +630,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     assert named_profile.status_code == 200
     assert named_profile.json()["displayName"] == "Athlete One"
 
-    athlete2 = client.post(
-        "/api/auth/register",
+    athlete2 = register_verified(client,
         json={"email": athlete2_email, "password": "password123", "role": "ATHLETE"},
     )
     assert athlete2.status_code == 200
@@ -661,7 +659,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     try:
         audit_db.add(AuditEvent(
             id=f"private-{suffix}",
-            actor_user_id=athlete1.json()["id"],
+            actor_user_id=athlete1.json()["user"]["id"],
             event_type="PRIVATE_ATHLETE_EVENT",
             resource_type="PrivateResource",
             resource_id=suffix,
@@ -791,8 +789,7 @@ def test_coach_can_unlink_and_get_read_only_snapshot():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     coach = _register_coach(client, f"coach-{suffix}@example.com")
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     coach_cookies = dict(coach.cookies)
@@ -817,8 +814,7 @@ def test_coach_create_session_requires_linked_athlete():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     coach = _register_coach(client, f"coach-{suffix}@example.com")
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     coach_cookies = dict(coach.cookies)
@@ -899,8 +895,7 @@ def test_coach_create_session_requires_linked_athlete():
 def test_session_labels_anytime_and_new_athlete_starts_empty():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -935,12 +930,10 @@ def test_session_labels_anytime_and_new_athlete_starts_empty():
 def test_deleting_synced_session_preserves_event_and_rejects_future_writes():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    owner = client.post(
-        "/api/auth/register",
+    owner = register_verified(client,
         json={"email": f"delete-owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
-    outsider = client.post(
-        "/api/auth/register",
+    outsider = register_verified(client,
         json={"email": f"delete-outsider-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     owner_cookies = dict(owner.cookies)
@@ -986,8 +979,7 @@ def test_deleting_synced_session_preserves_event_and_rejects_future_writes():
 def test_copy_week_shifts_dates_and_increments_week_label():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1045,8 +1037,7 @@ def test_copy_week_shifts_dates_and_increments_week_label():
 def test_copy_week_preserve_week_label_keeps_source():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1103,8 +1094,7 @@ def test_copy_week_preserve_week_label_keeps_source():
 def test_copy_preserves_labeled_day_label_not_dest_date():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1142,8 +1132,7 @@ def test_copy_preserves_labeled_day_label_not_dest_date():
 def test_plan_sets_persist_typed_weight_and_empty_backoff():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"plan-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1187,8 +1176,7 @@ def test_plan_sets_persist_typed_weight_and_empty_backoff():
 def test_plan_sets_persist_drop_percent():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"drop-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1271,8 +1259,7 @@ def test_plan_sets_persist_drop_percent():
 def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1323,8 +1310,7 @@ def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
 def test_add_lift_to_empty_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1362,8 +1348,7 @@ def test_add_lift_to_empty_session():
     )
     assert bench.status_code == 200
 
-    other = client.post(
-        "/api/auth/register",
+    other = register_verified(client,
         json={"email": f"other-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     other_cookies = dict(other.cookies)
@@ -1384,8 +1369,7 @@ def test_add_lift_to_empty_session():
 def test_remove_lift_from_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1434,8 +1418,7 @@ def test_remove_lift_from_session():
 def test_completed_session_stays_writable():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1472,8 +1455,7 @@ def test_completed_session_stays_writable():
 def test_completed_session_allows_set_writes():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1568,8 +1550,7 @@ def test_completed_session_allows_set_writes():
 def test_reorder_lifts_in_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1639,8 +1620,7 @@ def test_reorder_lifts_in_session():
 def test_name_lift_variation():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1676,8 +1656,7 @@ def test_athlete_sees_coach_created_session_on_own_id_fetch():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
     coach = _register_coach(client, f"coach-{suffix}@example.com")
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     coach_cookies = dict(coach.cookies)
@@ -1708,8 +1687,8 @@ def test_athlete_sees_coach_created_session_on_own_id_fetch():
 def test_sync_workout_requires_plan_access_and_matching_url():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    owner = client.post("/api/auth/register", json={"email": f"owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
-    stranger = client.post("/api/auth/register", json={"email": f"stranger-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
+    owner = register_verified(client, json={"email": f"owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
+    stranger = register_verified(client, json={"email": f"stranger-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
     session = client.post("/api/sessions", json={"date": "2026-09-12", "title": "Private"}, cookies=dict(owner.cookies)).json()
     payload = {
         "schema_version": 1,
@@ -1725,8 +1704,7 @@ def test_sync_workout_requires_plan_access_and_matching_url():
 def test_sync_mixed_workout_payload_rejects_foreign_entities():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1788,8 +1766,7 @@ def test_sync_mixed_workout_payload_rejects_foreign_entities():
 def test_auth_link_reset_is_not_a_plan_conflict():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)

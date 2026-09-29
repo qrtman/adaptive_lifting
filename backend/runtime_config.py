@@ -89,6 +89,8 @@ def cookie_secure_flag() -> bool:
 
 
 def validate_production_settings() -> None:
+    validate_email_settings()
+    validate_offline_auth_settings()
     if not is_production_like():
         return
     if not cookie_secure_flag():
@@ -197,3 +199,67 @@ def development_login_enabled() -> bool:
     """Allow the local demo-account shortcut only when explicitly enabled."""
     enabled = os.environ.get("DEV_LOGIN_ENABLED", "").strip().lower() in {"1", "true", "yes"}
     return enabled and not is_production_like()
+
+
+def _email_flag(name: str, default: str) -> bool:
+    value = os.environ.get(name, default).strip().lower()
+    if value not in {"1", "true", "yes", "0", "false", "no"}:
+        raise RuntimeError(f"{name} must be a boolean")
+    return value in {"1", "true", "yes"}
+
+
+def new_email_verification_enabled() -> bool:
+    return _email_flag("EMAIL_VERIFICATION_NEW_ACCOUNTS", "true")
+
+
+def legacy_email_verification_enabled() -> bool:
+    return _email_flag("EMAIL_VERIFICATION_ENFORCE_LEGACY", "false")
+
+
+def email_payload_key() -> bytes:
+    from cryptography.fernet import Fernet
+    value = os.environ.get("EMAIL_PAYLOAD_ENCRYPTION_KEY", "")
+    try:
+        Fernet(value.encode("ascii"))
+    except Exception:
+        raise RuntimeError("EMAIL_PAYLOAD_ENCRYPTION_KEY must be a dedicated Fernet key") from None
+    if value in {os.environ.get("JWT_SECRET_CURRENT"), os.environ.get("JWT_SECRET_PREVIOUS"),
+                 os.environ.get("INTEGRATION_ENCRYPTION_KEY")}:
+        raise RuntimeError("EMAIL_PAYLOAD_ENCRYPTION_KEY must be independent of other secrets")
+    return value.encode("ascii")
+
+
+def validate_email_settings(*, pending_accounts: bool = False) -> None:
+    if not (new_email_verification_enabled() or legacy_email_verification_enabled() or pending_accounts):
+        return
+    email_payload_key()
+    provider = os.environ.get("EMAIL_PROVIDER", "").strip()
+    if provider not in {"resend", "fake"} or (is_production_like() and provider == "fake"):
+        raise RuntimeError("Mandatory email verification requires EMAIL_PROVIDER=resend (fake is local/test only)")
+    sender = os.environ.get("EMAIL_FROM", "").strip()
+    if "@" not in sender or "\n" in sender or "\r" in sender:
+        raise RuntimeError("EMAIL_FROM must be a transactional sender identity")
+    if provider == "resend":
+        key = os.environ.get("EMAIL_PROVIDER_API_KEY", "").strip()
+        if not key or _obvious_placeholder(key):
+            raise RuntimeError("EMAIL_PROVIDER_API_KEY is required")
+    parsed = urlsplit(os.environ.get("APP_URL", ""))
+    if (parsed.scheme not in {"http", "https"} or not parsed.netloc or
+            parsed.username or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment or
+            (is_production_like() and parsed.scheme != "https")):
+        raise RuntimeError("APP_URL must be a frontend origin (HTTPS in production)")
+
+
+def validate_offline_auth_settings() -> None:
+    key = os.environ.get("OFFLINE_AUTH_PRIVATE_KEY", "").replace("\\n", "\n")
+    if not key:
+        return
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, SECP256R1
+    try:
+        parsed = load_pem_private_key(key.encode(), password=None)
+        valid = isinstance(parsed, EllipticCurvePrivateKey) and isinstance(parsed.curve, SECP256R1)
+    except Exception:
+        valid = False
+    if not valid:
+        raise RuntimeError("OFFLINE_AUTH_PRIVATE_KEY must be an ES256/P-256 private PEM key")

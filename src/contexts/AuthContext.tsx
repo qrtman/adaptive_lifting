@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { authorizationExpiresAt, clearAuthorization, rememberOfflineGrant, restoreOfflineAuthorization, setOnlineAuthorization } from '../services/authAuthorization';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { UI_KEYS, getUiPref, removeUiPref, setUiPref } from '../storage/uiPrefs';
-import { apiService } from '../services/api';
+import { ApiRequestError, apiService } from '../services/api';
 
 export type RoleMode = 'coach' | 'athlete';
 
@@ -8,7 +9,7 @@ interface AuthState {
   user: any | null;
   roleMode: RoleMode;
   setRoleMode: (role: RoleMode) => void;
-  signIn: (user: any) => void;
+  signIn: (user: any) => Promise<void>;
   signOut: () => void;
 }
 
@@ -28,19 +29,8 @@ function roleFromPref(): RoleMode {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any | null>(() => {
-    const storedRole = getUiPref(UI_KEYS.role)?.toUpperCase();
-    if (storedRole === 'ATHLETE' || storedRole === 'COACH') {
-      return {
-        id: getUiPref(UI_KEYS.userId),
-        role: storedRole,
-        email: getUiPref(UI_KEYS.email),
-        displayName: getUiPref(UI_KEYS.displayName),
-      };
-    }
-    const stored = getUiPref(UI_KEYS.roleMode);
-    return stored === 'athlete' || stored === 'coach' ? { role: stored.toUpperCase() } : null;
-  });
+  const [user, setUser] = useState<any | null>(null);
+  const authGeneration = useRef(0);
   const [roleMode, setRoleMode] = useState<RoleMode>(() => roleFromPref());
 
   useEffect(() => {
@@ -49,22 +39,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [roleMode, user]);
 
   useEffect(() => {
-    const handleSessionRevoked = () => {
-      alert('Your session has been terminated or revoked remotely. Please sign in again.');
-      removeUiPref(UI_KEYS.roleMode);
-      removeUiPref(UI_KEYS.role);
-      removeUiPref(UI_KEYS.email);
-      removeUiPref(UI_KEYS.displayName);
-      removeUiPref(UI_KEYS.userId);
-      removeUiPref(UI_KEYS.activeAthleteId);
-      setUser(null);
-      window.location.reload();
+    let active = true;
+    const refresh = async () => {
+      const generation = ++authGeneration.current;
+      try {
+        const data = await apiService.session();
+        if (!active || generation !== authGeneration.current) return;
+        setOnlineAuthorization(data.user, data.sessionExpiresAt, data.scopes);
+        await rememberOfflineGrant(data.offlineGrant);
+        if (active && generation === authGeneration.current) {
+          setUser(data.user);
+          setRoleMode(String(data.user.role).toLowerCase() === 'coach' ? 'coach' : 'athlete');
+        }
+      } catch (error) {
+        if (!active || generation !== authGeneration.current) return;
+        if (error instanceof ApiRequestError && error.status < 500) {
+          await clearAuthorization();
+          if (active && generation === authGeneration.current) setUser(null);
+        } else {
+          const restored = await restoreOfflineAuthorization();
+          if (active && generation === authGeneration.current) setUser(restored);
+        }
+      }
     };
-    window.addEventListener('auth-session-revoked', handleSessionRevoked);
-    return () => window.removeEventListener('auth-session-revoked', handleSessionRevoked);
+    const deny = () => { authGeneration.current++; void clearAuthorization(); setUser(null); };
+    void refresh();
+    window.addEventListener('online', refresh);
+    window.addEventListener('auth-access-denied', deny);
+    window.addEventListener('auth-session-revoked', deny);
+    return () => {
+      active = false;
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('auth-access-denied', deny);
+      window.removeEventListener('auth-session-revoked', deny);
+    };
   }, []);
 
-  const signIn = (nextUser: any) => {
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setTimeout(() => {
+      authGeneration.current++;
+      void clearAuthorization();
+      setUser(null);
+    }, Math.max(0, authorizationExpiresAt() * 1000 - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [user]);
+
+  const signIn = async (_nextUser: any) => {
+    const generation = ++authGeneration.current;
+    // Profile objects are never sufficient to establish authorization.
+    const data = await apiService.session();
+    if (generation !== authGeneration.current) return;
+    const nextUser = data.user;
+    setOnlineAuthorization(nextUser, data.sessionExpiresAt, data.scopes);
+    await rememberOfflineGrant(data.offlineGrant);
+    if (generation !== authGeneration.current) return;
     if (nextUser?.role) {
       const role = String(nextUser.role).toLowerCase();
       if (role === 'athlete' || role === 'coach') {
@@ -87,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = () => {
+    authGeneration.current++;
+    void clearAuthorization();
     void apiService.logout();
     removeUiPref(UI_KEYS.roleMode);
     removeUiPref(UI_KEYS.role);

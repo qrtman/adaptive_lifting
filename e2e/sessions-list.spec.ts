@@ -1,11 +1,12 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator } from '@playwright/test';
 import { fillEditableCell, pickComboOption } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 test('empty athlete plan shows an addable empty state', async ({ page, request }) => {
   const email = `sessions-empty-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -30,7 +31,7 @@ async function typeCell(cell: Locator, value: string) {
 
 test('Sessions cards lead with Name and show every set as Plan vs Log', async ({ page, request }) => {
   const email = `sessions-list-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -57,15 +58,25 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  const deadliftRow = page.getByRole('heading', { name: 'Deadlift', exact: true })
+    .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
+  await deadliftRow.getByRole('button', { name: 'Expand Deadlift' }).click();
+  await typeCell(deadliftRow.getByTestId('reps').first(), '5');
+  const deadliftTargetSaved = page.waitForResponse((response) => (
+    response.url().includes('/sets') && response.request().method() === 'PUT'
+  ));
+  await typeCell(deadliftRow.getByTestId('targetValue').first(), '8');
+  await deadliftTargetSaved;
+  await deadliftRow.getByRole('button', { name: 'Minimize Deadlift' }).click();
 
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
-  const squatRow = page.getByRole('heading', { name: 'Competition Squat', exact: true })
+  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
-  await squatRow.getByRole('button', { name: 'Expand Competition Squat' }).click();
+  await squatRow.getByRole('button', { name: 'Expand Squat' }).click();
 
   await typeCell(squatRow.getByTestId('rx-weight').first(), '150');
   await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('150');
@@ -105,6 +116,7 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await expect(card).toContainText('150 × 5 @ 6');
   await expect(card).toContainText('140 × 5 @ 7');
   await expect(card).toContainText('130 × 3 @ 7');
+  await expect(card).toContainText('Deadlift');
   await expect(card).toContainText('5 @ 8');
   await expect(card.getByTestId(/sessions-lift-e1rm-/)).toHaveText('e1RM 197 kg');
   await expect(card).not.toContainText('—×');
@@ -155,7 +167,7 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
 
 test('labeled weeks compare by first session date with dated rest rows', async ({ page, request }) => {
   const email = `sessions-board-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -168,16 +180,16 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   ];
   const ids: string[] = [];
   for (const session of sessions) {
-    const response = await request.post('http://localhost:8000/api/sessions', { data: session });
+    const response = await request.post(`${apiUrl}/api/sessions`, { data: session });
     expect(response.ok()).toBeTruthy();
     ids.push((await response.json()).id as string);
   }
   for (const id of [ids[0], ids[2], ids[3], ids[4]]) {
-    const response = await request.post(`http://localhost:8000/api/sessions/${id}/exercises`, {
+    const response = await request.post(`${apiUrl}/api/sessions/${id}/exercises`, {
       data: { title: 'Competition Squat', tier: 'Comp', liftCategory: 'Squat', plannedWeight: 100, plannedReps: 5, plannedRpe: 7 },
     });
     expect(response.ok()).toBeTruthy();
-    const accessory = await request.post(`http://localhost:8000/api/sessions/${id}/exercises`, {
+    const accessory = await request.post(`${apiUrl}/api/sessions/${id}/exercises`, {
       data: { title: 'Accessory Row', tier: 'Accessory', liftCategory: 'Other', plannedWeight: 40, plannedReps: 10, plannedRpe: 7 },
     });
     expect(accessory.ok()).toBeTruthy();
@@ -245,16 +257,26 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   const widths = await board.evaluate((element) => ({
     board: element.clientWidth,
     column: element.firstElementChild?.getBoundingClientRect().width || 0,
+    maximumColumn: 32 * parseFloat(getComputedStyle(document.documentElement).fontSize),
   }));
-  expect(Math.abs(widths.board - widths.column)).toBeLessThan(3);
+  // Weeks fit their contents and scroll inside the board, including on mobile.
+  expect(widths.board).toBeGreaterThan(0);
+  expect(widths.column).toBeGreaterThan(0);
+  expect(widths.column).toBeLessThanOrEqual(widths.maximumColumn);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBeFalsy();
 
   const scrollbar = page.getByTestId('sessions-scrollbar');
-  await expect(scrollbar).toBeVisible();
-  await scrollbar.evaluate((element) => { element.scrollLeft = 100; });
-  await expect.poll(() => board.evaluate((element) => element.scrollLeft)).toBe(100);
-  await board.evaluate((element) => { element.scrollLeft = 0; });
-  await expect.poll(() => scrollbar.evaluate((element) => element.scrollLeft)).toBe(0);
+  const horizontalOverflow = await board.evaluate((element) => element.scrollWidth - element.clientWidth);
+  if (horizontalOverflow > 0) {
+    await expect(scrollbar).toBeVisible();
+    const target = Math.min(100, horizontalOverflow);
+    await scrollbar.evaluate((element, value) => { element.scrollLeft = value; }, target);
+    await expect.poll(() => board.evaluate((element) => element.scrollLeft)).toBe(target);
+    await board.evaluate((element) => { element.scrollLeft = 0; });
+    await expect.poll(() => scrollbar.evaluate((element) => element.scrollLeft)).toBe(0);
+  } else {
+    await expect(scrollbar).toHaveCount(0);
+  }
 
   const content = page.getByTestId('sessions-content');
   await content.evaluate((element) => {
@@ -273,19 +295,19 @@ test('labeled weeks compare by first session date with dated rest rows', async (
 
 test('block picker opens the latest block and resets scrolling when switching', async ({ page, request }) => {
   const email = `sessions-scroll-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
   for (const blockLabel of ['1', '2']) {
     for (const weekLabel of ['1', '2', '3']) {
-      const response = await request.post('http://localhost:8000/api/sessions', {
+      const response = await request.post(`${apiUrl}/api/sessions`, {
         data: { date: `2026-0${blockLabel}-${weekLabel.padStart(2, '0')}`, title: `Block ${blockLabel} week ${weekLabel}`, blockLabel, weekLabel },
       });
       expect(response.ok()).toBeTruthy();
       if (weekLabel === '1') {
         const sessionId = (await response.json()).id as string;
-        const exercise = await request.post(`http://localhost:8000/api/sessions/${sessionId}/exercises`, {
+        const exercise = await request.post(`${apiUrl}/api/sessions/${sessionId}/exercises`, {
           data: { title: blockLabel === '1' ? 'Competition Squat' : 'Competition Bench', tier: 'Comp', liftCategory: blockLabel === '1' ? 'Squat' : 'Bench', plannedWeight: 100, plannedReps: 5, plannedRpe: 7 },
         });
         expect(exercise.ok()).toBeTruthy();
@@ -307,8 +329,10 @@ test('block picker opens the latest block and resets scrolling when switching', 
   await expect(first).toHaveCount(0);
   await expect(second).toBeVisible();
   await expect(scrollbar).toBeVisible();
-  await scrollbar.evaluate((element) => { element.scrollLeft = 120; });
-  await expect.poll(() => second.evaluate((element) => element.scrollLeft)).toBe(120);
+  const scrollTarget = await scrollbar.evaluate((element) => Math.min(120, element.scrollWidth - element.clientWidth));
+  expect(scrollTarget).toBeGreaterThan(0);
+  await scrollbar.evaluate((element, target) => { element.scrollLeft = target; }, scrollTarget);
+  await expect.poll(() => second.evaluate((element) => element.scrollLeft)).toBe(scrollTarget);
 
   const content = page.getByTestId('sessions-content');
   await content.evaluate((element) => {
@@ -336,7 +360,7 @@ test('block picker opens the latest block and resets scrolling when switching', 
 
 test('Compare switches control logged lift deltas across Weeks and reset on reopen', async ({ page, request }) => {
   const email = `sessions-compare-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -345,18 +369,18 @@ test('Compare switches control logged lift deltas across Weeks and reset on reop
   for (const [date, weekLabel, weight] of [
     ['2026-09-01', '1', 140], ['2026-09-08', '2', 150], ['2026-09-15', '3', 145],
   ] as const) {
-    const session = await request.post('http://localhost:8000/api/sessions', {
+    const session = await request.post(`${apiUrl}/api/sessions`, {
       data: { date, title: `Lower ${weekLabel}`, blockLabel: '1', weekLabel, dayLabel: '1' },
     });
     expect(session.ok()).toBeTruthy();
     const id = (await session.json()).id as string;
     ids.push(id);
-    const added = await request.post(`http://localhost:8000/api/sessions/${id}/exercises`, {
+    const added = await request.post(`${apiUrl}/api/sessions/${id}/exercises`, {
       data: { title: 'Competition Squat', variation: 'Competition', tier: 'Comp', liftCategory: 'Squat', plannedWeight: 300, plannedReps: 5, plannedRpe: 8 },
     });
     expect(added.ok()).toBeTruthy();
     const exercise = await added.json();
-    const logged = await request.put(`http://localhost:8000/api/sessions/${id}/exercises/${exercise.id}/sets`, {
+    const logged = await request.put(`${apiUrl}/api/sessions/${id}/exercises/${exercise.id}/sets`, {
       data: { sets: [{ id: exercise.sets[0].id, scope: 'both', plannedWeight: 300, plannedReps: 5, plannedRpe: 8, actual: weight, reps: 5, executedRpe: 8 }] },
     });
     expect(logged.ok()).toBeTruthy();
@@ -371,8 +395,8 @@ test('Compare switches control logged lift deltas across Weeks and reset on reop
   const second = page.getByTestId(`sessions-card-${ids[1]}`);
   const third = page.getByTestId(`sessions-card-${ids[2]}`);
   await expect(first.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 700 kg');
-  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg (+7.1%)');
-  await expect(third.getByTestId(/sessions-lift-tonnage-/)).toContainText('-25 kg (-3.3%)');
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg+7.1%');
+  await expect(third.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 725 kg-3.3%');
   await expect(second.getByTestId(/sessions-lift-avg-int-/)).toContainText('0%');
 
   await page.getByTestId('sessions-compare-open').click();
@@ -380,22 +404,22 @@ test('Compare switches control logged lift deltas across Weeks and reset on reop
   await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg');
   await expect(third.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 725 kg');
   await page.getByTestId('sessions-compare-e1rm').check();
-  await expect(second.getByTestId(/sessions-lift-e1rm-/)).toContainText('(+');
+  await expect(second.getByTestId(/sessions-lift-e1rm-/)).toContainText('+');
   await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg');
   await page.getByTestId('sessions-compare-show-all').click();
-  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg+7.1%');
   await page.getByTestId('sessions-mode-plan').click();
-  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg+7.1%');
   await page.getByTestId('sessions-mode-log').click();
-  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg+7.1%');
 
   await page.setViewportSize({ width: 360, height: 740 });
   await page.getByTestId('sidebar-toggle').click();
-  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toBeVisible();
+  await expect(second.getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg+7.1%');
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBeFalsy();
   await page.getByTestId('nav-calendar').click();
   await page.getByTestId('nav-sessions').click();
   await page.getByTestId('sessions-compare-open').click();
   await expect(page.getByTestId('sessions-compare-tonnage')).toBeChecked();
-  await expect(page.getByTestId(`sessions-card-${ids[1]}`).getByTestId(/sessions-lift-tonnage-/)).toContainText('+50 kg');
+  await expect(page.getByTestId(`sessions-card-${ids[1]}`).getByTestId(/sessions-lift-tonnage-/)).toHaveText('Tonnage 750 kg+7.1%');
 });

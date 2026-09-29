@@ -22,7 +22,7 @@ def run_worker(stop_event=None, poll_interval=None, session_factory=None):
             processed = process_next_outbox_job(session_factory)
         except Exception as exc:
             # A transient DB/provider error should not permanently kill consumption.
-            print(f"[WORKER ERROR] Outbox exception: {exc}", flush=True)
+            print(f"[WORKER ERROR] Outbox exception: {type(exc).__name__}", flush=True)
             processed = False
         if not processed:
             stop_event.wait(interval)

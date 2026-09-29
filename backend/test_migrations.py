@@ -28,7 +28,7 @@ def test_fresh_database_migrates_repeats_and_starts(tmp_path):
     try:
         names = set(inspect(engine).get_table_names())
         assert {"users", "workouts", "exercises", "exercise_sets", "oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "billing_checkout_reservations", "vouchers", "voucher_redemption_limits", "alembic_version"} <= names
-        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0010_voucher_redemption_limits"
+        assert engine.connect().scalar(text("SELECT version_num FROM alembic_version")) == "0011_email_verification"
         assert "result" in {column["name"] for column in inspect(engine).get_columns("integration_outbox")}
         assert "google_sub" in {column["name"] for column in inspect(engine).get_columns("users")}
     finally:
@@ -143,18 +143,23 @@ def test_legacy_database_upgrade_preserves_data_and_is_repeatable(tmp_path):
     environment["DATABASE_URL"] = database_url
     create_fixture = r"""
 from sqlalchemy import create_engine
-from backend.database import Base
+from alembic import command
+from alembic.config import Config
+command.upgrade(Config("alembic.ini"), "0004_outbox_result")
 engine=create_engine(__import__('os').environ['DATABASE_URL'])
-Base.metadata.create_all(engine)
 with engine.begin() as c:
- c.exec_driver_sql('DROP TABLE access_grants')
- c.exec_driver_sql('DROP TABLE subscriptions')
- c.exec_driver_sql('DROP TABLE vouchers')
- c.exec_driver_sql('DROP TABLE voucher_redemption_limits')
- c.exec_driver_sql('DROP TABLE billing_checkout_reservations')
- c.exec_driver_sql('DROP TABLE billing_customers')
- c.exec_driver_sql('DROP TABLE workspace_members')
- c.exec_driver_sql('DROP TABLE workspaces')
+ c.exec_driver_sql('DROP TABLE IF EXISTS alembic_version')
+ c.exec_driver_sql('DROP TABLE IF EXISTS auth_security_events')
+ c.exec_driver_sql('DROP TABLE IF EXISTS auth_security_subjects')
+ c.exec_driver_sql('DROP TABLE IF EXISTS email_verification_tokens')
+ c.exec_driver_sql('DROP TABLE IF EXISTS access_grants')
+ c.exec_driver_sql('DROP TABLE IF EXISTS subscriptions')
+ c.exec_driver_sql('DROP TABLE IF EXISTS vouchers')
+ c.exec_driver_sql('DROP TABLE IF EXISTS voucher_redemption_limits')
+ c.exec_driver_sql('DROP TABLE IF EXISTS billing_checkout_reservations')
+ c.exec_driver_sql('DROP TABLE IF EXISTS billing_customers')
+ c.exec_driver_sql('DROP TABLE IF EXISTS workspace_members')
+ c.exec_driver_sql('DROP TABLE IF EXISTS workspaces')
  c.exec_driver_sql('DROP INDEX uq_coaching_relationships_active_athlete')
  c.exec_driver_sql('DROP INDEX uq_users_google_sub')
  c.exec_driver_sql('ALTER TABLE users DROP COLUMN google_sub')
@@ -164,7 +169,7 @@ with engine.begin() as c:
   athlete_id VARCHAR NOT NULL REFERENCES users(id),
   created_at DATETIME, ended_at DATETIME, updated_at DATETIME, deleted_at DATETIME,
   UNIQUE(athlete_id))''')
- c.exec_driver_sql('DROP TABLE coaching_relationships')
+ c.exec_driver_sql('DROP TABLE IF EXISTS coaching_relationships')
  c.exec_driver_sql('ALTER TABLE coaching_relationships_old RENAME TO coaching_relationships')
  c.exec_driver_sql("INSERT INTO users (id,email,hashed_password,role) VALUES ('coach','coach@example.test','hash','COACH'),('athlete','athlete@example.test','hash','ATHLETE')")
  c.exec_driver_sql("INSERT INTO workouts (id,date,dayLabel,title,color,status) VALUES ('w1','2026-09-25','D1','Session','blue','PLANNED')")
@@ -217,24 +222,24 @@ def test_exact_legacy_schema_requires_validation_before_adoption(tmp_path):
     environment["DATABASE_URL"] = database_url
     create_schema = r"""
 from sqlalchemy import create_engine
-from backend.database import Base, User
+from alembic import command
+from alembic.config import Config
+command.upgrade(Config("alembic.ini"), "0004_outbox_result")
 engine=create_engine(__import__('os').environ['DATABASE_URL'])
-Base.metadata.create_all(engine)
 with engine.begin() as connection:
-    connection.exec_driver_sql('DROP TABLE access_grants')
-    connection.exec_driver_sql('DROP TABLE subscriptions')
-    connection.exec_driver_sql('DROP TABLE vouchers')
-    connection.exec_driver_sql('DROP TABLE voucher_redemption_limits')
-    connection.exec_driver_sql('DROP TABLE billing_checkout_reservations')
-    connection.exec_driver_sql('DROP TABLE billing_customers')
-    connection.exec_driver_sql('DROP TABLE workspace_members')
-    connection.exec_driver_sql('DROP TABLE workspaces')
-from sqlalchemy.orm import Session
-with Session(engine) as db:
- db.add(User(id='existing',email='existing@example.test',hashed_password='hash',role='ATHLETE'))
- db.commit()
+    connection.exec_driver_sql('DROP TABLE IF EXISTS alembic_version')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS access_grants')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS subscriptions')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS vouchers')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS voucher_redemption_limits')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS billing_checkout_reservations')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS billing_customers')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS workspace_members')
+    connection.exec_driver_sql('DROP TABLE IF EXISTS workspaces')
 with engine.begin() as connection:
- connection.exec_driver_sql('DROP TABLE oauth_states')
+ connection.exec_driver_sql("INSERT INTO users(id,email,hashed_password,role) VALUES ('existing','existing@example.test','hash','ATHLETE')")
+with engine.begin() as connection:
+ connection.exec_driver_sql('DROP TABLE IF EXISTS oauth_states')
  connection.exec_driver_sql('DROP INDEX uq_users_google_sub')
  connection.exec_driver_sql('ALTER TABLE users DROP COLUMN google_sub')
  connection.exec_driver_sql('ALTER TABLE integration_outbox DROP COLUMN result')
@@ -248,7 +253,7 @@ engine.dispose()
     try:
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT id FROM users WHERE id='existing'")) == "existing"
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0010_voucher_redemption_limits"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0011_email_verification"
             assert connection.scalar(text("SELECT google_sub FROM users WHERE id='existing'")) is None
     finally:
         engine.dispose()
@@ -303,3 +308,34 @@ except RuntimeError as exc:
         assert inspect(engine).get_table_names() == []
     finally:
         engine.dispose()
+
+
+
+def test_email_migration_preserves_unknown_verification_sessions_links_and_subscriptions(tmp_path):
+    _run_python(tmp_path, "-m", "alembic", "upgrade", "0010_voucher_redemption_limits")
+    url = f"sqlite:///{(tmp_path / 'app.sqlite').as_posix()}"
+    engine = create_engine(url)
+    with engine.begin() as db:
+        db.execute(text("INSERT INTO users(id,email,hashed_password,role,subscription_status) VALUES ('coach','coach@example.com','hash','COACH','active'), ('athlete','athlete@example.com','hash','ATHLETE','active')"))
+        db.execute(text("INSERT INTO users(id,email,hashed_password,role,google_sub) VALUES ('google','google@example.com','hash','ATHLETE','stable-sub')"))
+        db.execute(text("INSERT INTO sessions(id,user_id,jwt_id,expires_at) VALUES ('session','coach','session','2030-01-01')"))
+        db.execute(text("INSERT INTO coaching_relationships(coach_id,athlete_id,created_at) VALUES ('coach','athlete','2025-01-01')"))
+        db.execute(text("INSERT INTO workspaces(id,name,owner_user_id,created_at,updated_at) VALUES ('workspace','Coach','coach','2025-01-01','2025-01-01')"))
+        db.execute(text("INSERT INTO subscriptions(id,workspace_id,provider,provider_subscription_id,plan_key,status,cancel_at_period_end,created_at,updated_at) VALUES ('subscription','workspace','stripe','sub_preserved','coach_pro','ACTIVE',false,'2025-01-01','2025-01-01')"))
+        db.execute(text("INSERT INTO access_grants(id,workspace_id,plan_key,source,starts_at,created_at) VALUES ('grant','workspace','coach_pro','beta','2025-01-01','2025-01-01')"))
+        before = {table: db.execute(text(f"SELECT * FROM {table}")).fetchall() for table in ('sessions', 'coaching_relationships', 'subscriptions', 'access_grants', 'workspaces')}
+    _run_python(tmp_path, "-m", "alembic", "upgrade", "head")
+    _run_python(tmp_path, "-m", "alembic", "upgrade", "head")
+    with engine.connect() as db:
+        for table, rows in before.items():
+            assert db.execute(text(f"SELECT * FROM {table}")).fetchall() == rows
+        assert db.execute(text("SELECT email_verified_at, email_verification_legacy_exempt FROM users WHERE id='coach'")).one() == (None, 1)
+        assert db.scalar(text("SELECT email_verified_at FROM users WHERE id='google'")) is not None
+        assert db.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+    _run_python(tmp_path, "-m", "alembic", "downgrade", "0010_voucher_redemption_limits")
+    with engine.connect() as db:
+        for table, rows in before.items():
+            assert db.execute(text(f"SELECT * FROM {table}")).fetchall() == rows
+    _run_python(tmp_path, "-m", "alembic", "upgrade", "head")
+    _run_python(tmp_path, "-m", "alembic", "check")
+    engine.dispose()

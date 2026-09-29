@@ -32,6 +32,9 @@ from .runtime_config import (
     load_jwt_secrets,
     validate_production_settings,
 )
+from .email_verification import (require_eligible_account, requires_verification, queue_verification,
+                                 consume_verification, resend_verification, GENERIC_MESSAGE)
+from .runtime_config import new_email_verification_enabled, legacy_email_verification_enabled, validate_email_settings
 from .dev_seed import DEMO_ATHLETE_EMAIL, DEMO_COACH_EMAIL, ensure_demo_accounts
 from .saas_access import (
     build_account_access_state,
@@ -68,6 +71,17 @@ from sqlalchemy import text
 app = FastAPI(title="Adaptive Lifting Backend", version="1.0.0")
 
 
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from starlette.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def safe_auth_validation(request, exc):
+    if request.url.path.startswith("/api/auth/"):
+        return JSONResponse({"detail": "Invalid authentication request"}, status_code=422)
+    return await request_validation_exception_handler(request, exc)
+
+
 @app.get("/api/health", include_in_schema=False)
 def health_check():
     with engine.connect() as connection:
@@ -76,6 +90,7 @@ def health_check():
 
 @app.on_event("startup")
 def on_startup():
+    validate_email_settings()
     # Fail closed when an operator has not applied the checked-in revisions.
     # Startup verifies migration state only; it never applies schema changes.
     from alembic.config import Config
@@ -91,6 +106,17 @@ def on_startup():
             f"Database migration required (current={current_revision!r}, expected={expected_revision!r}); "
             "run `alembic -c alembic.ini upgrade head` before starting the application."
         )
+    # Pausing verification for future registrations cannot strand existing
+    # pending accounts by silently accepting missing recovery configuration.
+    if not (new_email_verification_enabled() or legacy_email_verification_enabled()):
+        from .database import SessionLocal
+        with SessionLocal() as db:
+            pending_accounts = db.query(User.id).filter(
+                User.email_verification_required.is_(True),
+                User.email_verification_legacy_exempt.is_(False),
+                User.email_verified_at.is_(None), User.google_sub.is_(None),
+                User.deleted_at.is_(None)).first() is not None
+        validate_email_settings(pending_accounts=pending_accounts)
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,7 +136,10 @@ from fastapi.security import OAuth2PasswordBearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    try:
+        return len(plain_password.encode('utf-8')) <= 72 and bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except ValueError:
+        return False
 
 def get_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -135,6 +164,7 @@ def start_session(response: Response, user: User) -> dict:
     """Create the same signed, HttpOnly session used by every authentication path."""
     from .database import Session as DBSession, SessionLocal
 
+    require_eligible_account(user)
     session_id = str(uuid.uuid4())
     db = SessionLocal()
     try:
@@ -232,6 +262,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
     if user is None:
         raise credentials_exception
+    require_eligible_account(user)
     request.state.auth_session_id = session_id
     return user
 
@@ -271,9 +302,10 @@ def verify_google_id_token(token: str, client_id: str) -> dict:
 def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     email = form_data.username.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or user.deleted_at is not None or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
+    require_eligible_account(user)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     session_id = str(uuid.uuid4())
     from .database import Session as DBSession
@@ -358,6 +390,29 @@ def google_login(req: GoogleLoginRequest, response: Response, request: Request, 
                 raise HTTPException(status_code=403, detail="This account is unavailable")
             if user.google_sub is not None and user.google_sub != subject:
                 raise HTTPException(status_code=409, detail="Google identity is already linked to another account")
+            if requires_verification(user) and not user.email_verification_legacy_exempt:
+                from .email_verification import lock_user, cancel_pending_tokens
+                user = lock_user(db, user.id)
+                if not requires_verification(user) or user.google_sub is not None:
+                    raise HTTPException(status_code=409, detail="Account changed; sign in before linking Google")
+                cancel_pending_tokens(db, user.id, datetime.utcnow())
+                # Never give the Google owner the registrant's account, password,
+                # relationships or data. Keep the old identity as a tombstone.
+                user.email = f"retired-{user.id}@invalid.local"
+                user.deleted_at = datetime.utcnow()
+                db.flush()
+                user = User(id=str(uuid.uuid4()), email=email, google_sub=subject,
+                            hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+                            role="ATHLETE", email_verified_at=datetime.utcnow(),
+                            email_verification_required=False)
+                db.add(user)
+                try:
+                    db.commit()
+                    db.refresh(user)
+                except IntegrityError:
+                    db.rollback()
+                    raise HTTPException(status_code=409, detail="Google identity or email is already linked")
+                return start_session(response, user)
             # Matching email alone must not merge authentication methods: a
             # password account may have been registered by someone else first.
             try:
@@ -367,6 +422,7 @@ def google_login(req: GoogleLoginRequest, response: Response, request: Request, 
             if authenticated_user.id != user.id:
                 raise HTTPException(status_code=409, detail="Sign in to the matching account before linking Google")
             user.google_sub = subject
+            user.email_verified_at = datetime.utcnow()
         else:
             # App authorization roles are not taken from browser input.
             user = User(
@@ -375,6 +431,8 @@ def google_login(req: GoogleLoginRequest, response: Response, request: Request, 
                 hashed_password=get_password_hash(str(uuid.uuid4())),
                 role="ATHLETE",
                 google_sub=subject,
+                email_verified_at=datetime.utcnow(),
+                email_verification_required=False,
             )
             db.add(user)
 
@@ -646,6 +704,7 @@ def create_coaching_history_snapshot(db: Session, rel: CoachingRelationship, end
 
 def assert_plan_access(db: Session, current_user: User, athlete_id: str) -> str:
     """Return athlete_id if current_user may read/write that athlete plan space."""
+    require_eligible_account(current_user)
     if current_user.role == "ATHLETE":
         if athlete_id != current_user.id:
             raise HTTPException(status_code=403, detail="Athletes can only access their own plan")
@@ -720,54 +779,64 @@ def get_or_create_ungrouped_microcycle(db: Session, owner_id: str) -> Microcycle
 from .sync_service import SyncPayload, resolve_sync_payload
 
 @app.post("/api/auth/register")
-def register_user(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
+def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     email = req.email.strip().lower()
+    if len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        raise HTTPException(status_code=422, detail="Enter a valid email address")
+    if len(req.password) < 8 or len(req.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters and at most 72 UTF-8 bytes")
+    # Hash on both paths so duplicate registrations do not skip expensive work.
+    hashed_password = get_password_hash(req.password)
     if db.query(User).filter(func.lower(User.email) == email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-        
-    user = User(
-        id=str(uuid.uuid4()),
-        email=email,
-        hashed_password=get_password_hash(req.password),
-        role="ATHLETE",
-    )
-    db.add(user)
+        return GENERIC_MESSAGE
+    required = new_email_verification_enabled()
+    user = User(id=str(uuid.uuid4()), email=email, hashed_password=hashed_password,
+                role="ATHLETE", email_verification_required=required,
+                email_verification_legacy_exempt=False)
+    try:
+        db.add(user)
+        db.flush()
+        if required:
+            queue_verification(db, user)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return GENERIC_MESSAGE
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/auth/verify-email")
+def verify_email(req: VerifyEmailRequest, db: Session = Depends(get_db)):
+    consume_verification(db, req.token)
+    return {"message": "Email verified. You can now sign in."}
+
+
+@app.post("/api/auth/resend-verification")
+def resend_email(req: ResendVerificationRequest, db: Session = Depends(get_db)):
+    resend_verification(db, req.email.strip().lower())
     db.commit()
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    session_id = str(uuid.uuid4())
-    from .database import Session as DBSession
-    db_session = DBSession(
-        id=session_id,
-        user_id=user.id,
-        jwt_id=session_id,
-        expires_at=datetime.utcnow() + access_token_expires
-    )
-    db.add(db_session)
-    db.commit()
-    
-    access_token = create_access_token(
-        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
-    )
-    
-    response.set_cookie(
-        key="session_id",
-        value=access_token,
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        secure=COOKIE_SECURE
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "role": user.role,
-        "email": user.email,
-        "id": user.id,
-        "displayName": user.display_name,
-        "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name},
-    }
+    return GENERIC_MESSAGE
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request, current_user: User = Depends(get_current_user)):
+    from .database import Session as DBSession, SessionLocal
+    with SessionLocal() as db:
+        session = db.get(DBSession, request.state.auth_session_id)
+        expires = session.expires_at.isoformat() + "Z"
+        from .offline_auth import issue_offline_grant
+        offline_grant = issue_offline_grant(db, current_user, session)
+        from .database import CoachingRelationship
+        scopes = [current_user.id] + ([r.athlete_id for r in db.query(CoachingRelationship).filter_by(coach_id=current_user.id, ended_at=None, deleted_at=None).all()] if current_user.role == "COACH" else [])
+    return {"user": {"id": current_user.id, "email": current_user.email, "role": current_user.role,
+                     "displayName": current_user.display_name}, "sessionExpiresAt": expires, "offlineGrant": offline_grant, "scopes": scopes}
 
 
 @app.patch("/api/auth/profile")
@@ -839,6 +908,7 @@ def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_us
     if not coach:
         raise HTTPException(status_code=404, detail="Coach not found for this code")
 
+    require_eligible_account(coach)
     existing_link = active_coaching_query(db).filter(CoachingRelationship.athlete_id == current_user.id).first()
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")

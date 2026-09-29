@@ -1,3 +1,4 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
 
 test('login screen shows Adaptive Lifting', async ({ page }) => {
@@ -7,7 +8,7 @@ test('login screen shows Adaptive Lifting', async ({ page }) => {
 
 test('sidebar has Sign out and no Reset plan', async ({ page, request }) => {
   const email = `no-reset-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();

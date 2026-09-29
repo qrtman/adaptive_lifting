@@ -1,11 +1,12 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { fillLogCell } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function openSession(page: Page, request: APIRequestContext, title: string) {
   const email = `sync-overlay-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -67,10 +68,11 @@ test('flushing shows a fixed spinner then unmounts without shifting session-name
   await openSession(page, request, 'Overlay flush');
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('add-lift-category').selectOption('Hip Dominant');
+  await page.getByTestId('movement-pattern-add-lift').selectOption('Hip Dominant');
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Deadlift', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand Deadlift', exact: true }).click();
 
   const logReps = page.locator('[data-testid$="-reps"]').first();
   const logRpe = page.locator('[data-testid$="-executedRpe"]').first();

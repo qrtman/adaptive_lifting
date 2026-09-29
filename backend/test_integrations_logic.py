@@ -133,8 +133,8 @@ def oauth_client():
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False)
     db = factory()
-    user_a = User(id="oauth-user-a", email="oauth-a@example.com", hashed_password="x", role="COACH")
-    user_b = User(id="oauth-user-b", email="oauth-b@example.com", hashed_password="x", role="COACH")
+    user_a = User(id="oauth-user-a", email="oauth-a@example.com", hashed_password="x", role="COACH", email_verified_at=datetime.utcnow())
+    user_b = User(id="oauth-user-b", email="oauth-b@example.com", hashed_password="x", role="COACH", email_verified_at=datetime.utcnow())
     db.add_all([user_a, user_b])
     db.commit()
     for user, plan in ((user_a, "coach_beta"), (user_b, "coach_starter")):
@@ -206,7 +206,7 @@ def test_google_sheets_requires_integration_capability(oauth_client):
 
 def test_google_sheets_publishing_keeps_relationship_authorization(oauth_client):
     client, db, current, user_a, user_b = oauth_client
-    athlete = User(id="sheets-athlete", email="sheets-athlete@example.com", hashed_password="x", role="ATHLETE")
+    athlete = User(id="sheets-athlete", email="sheets-athlete@example.com", hashed_password="x", role="ATHLETE", email_verified_at=datetime.utcnow())
     db.add(athlete)
     db.commit()
     current["user"] = user_b
@@ -253,3 +253,50 @@ def test_google_oauth_state_owner_cannot_be_substituted_by_another_user(oauth_cl
     assert response.status_code == 200
     assert db.query(IntegrationConnection).one().user_id == user_a.id
     assert db.query(IntegrationConnection).filter_by(user_id=user_b.id).count() == 0
+
+
+def test_google_oauth_callback_rejects_account_that_became_pending(oauth_client):
+    client, db, _current, user, _other = oauth_client
+    state = _start_google_oauth(client)
+    user.email_verified_at = None
+    db.commit()
+    response = client.get('/api/integrations/google-sheets/callback', params={'code': 'x', 'state': state})
+    assert response.status_code == 403
+    assert response.json()['detail']['code'] == 'EMAIL_VERIFICATION_REQUIRED'
+    assert db.query(IntegrationConnection).count() == 0
+
+
+def test_sheets_worker_refuses_pending_account_before_reading_training(oauth_client, monkeypatch):
+    _client, db, _current, user, _other = oauth_client
+    user.email_verified_at = None
+    conn = IntegrationConnection(id='pending-export-connection', user_id=user.id, provider='google-sheets', status='active')
+    db.add(conn)
+    db.commit()
+    job = IntegrationOutbox(id='pending-export-job', provider='google-sheets', connection_id=conn.id,
+                            payload_json=json.dumps({'athlete_id': user.id, 'mesocycle_id': 'm'}), status='processing')
+    db.add(job)
+    db.commit()
+    monkeypatch.setattr(integrations, 'get_valid_google_access_token', lambda *_: pytest.fail('provider must not be contacted'))
+    assert not integrations.process_sheets_publish_job(job, db)
+    assert job.status == 'failed' and job.attempt_count == 3
+    assert job.result == 'Export authorization is no longer valid'
+
+
+def test_sheets_worker_respects_a_relationship_tombstone(oauth_client):
+    _client, db, _current, coach, _other = oauth_client
+    athlete = User(id='tombstone-export-athlete', email='tombstone-export@example.test',
+                   hashed_password='x', role='ATHLETE', email_verified_at=datetime.utcnow())
+    db.add(athlete)
+    db.commit()
+    db.add(CoachingRelationship(coach_id=coach.id, athlete_id=athlete.id, deleted_at=datetime.utcnow()))
+    connection = IntegrationConnection(id='tombstone-export-connection', user_id=coach.id,
+                                       provider='google-sheets', status='active')
+    db.add(connection)
+    db.commit()
+    job = IntegrationOutbox(id='tombstone-export-job', provider='google-sheets', connection_id=connection.id,
+                            payload_json=json.dumps({'athlete_id': athlete.id, 'mesocycle_id': 'm'}), status='processing')
+    db.add(job)
+    db.commit()
+    assert not integrations.process_sheets_publish_job(job, db)
+    assert job.result == 'Export authorization is no longer valid'
+    assert job.attempt_count == 3

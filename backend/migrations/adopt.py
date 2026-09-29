@@ -16,8 +16,8 @@ LEGACY_SERVER_DEFAULTS = {
     ("exercise_sets", "scope"): "both",
 }
 BASELINE_REVISION = "0001_current_schema"
-POST_BASELINE_COLUMNS = {("users", "google_sub"), ("integration_outbox", "result")}
-POST_BASELINE_TABLES = {"oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "billing_checkout_reservations", "vouchers", "voucher_redemption_limits"}
+POST_BASELINE_COLUMNS = {("users", "email_verified_at"), ("users", "email_verification_required"), ("users", "email_verification_legacy_exempt"), ("integration_outbox", "encrypted_payload"), ("integration_outbox", "verification_token_id"), ("users", "google_sub"), ("integration_outbox", "result")}
+POST_BASELINE_TABLES = {"email_verification_tokens", "auth_security_events", "auth_security_subjects", "oauth_states", "workspaces", "workspace_members", "access_grants", "subscriptions", "billing_customers", "billing_checkout_reservations", "vouchers", "voucher_redemption_limits"}
 
 
 def _normalize_default(value):
@@ -56,7 +56,7 @@ def validate_schema(connection):
                 continue
             if reflected["type"]._type_affinity is not column.type._type_affinity:
                 problems.append(f"{name}.{column.name} type differs: expected {column.type}, found {reflected['type']}")
-            if column.name not in expected_pk and bool(reflected["nullable"]) != bool(column.nullable):
+            if column.name not in expected_pk and bool(reflected["nullable"]) != bool(column.nullable) and (name, column.name) != ("integration_outbox", "connection_id"):
                 problems.append(f"{name}.{column.name} nullability differs")
             expected_default = str(column.server_default.arg) if column.server_default is not None else None
             actual_default = reflected.get("default")
@@ -70,7 +70,8 @@ def validate_schema(connection):
         expected_fks = {(tuple(fk.parent.name for fk in constraint.elements),
                          constraint.elements[0].column.table.name,
                          tuple(fk.column.name for fk in constraint.elements))
-                        for constraint in expected_table.foreign_key_constraints}
+                        for constraint in expected_table.foreign_key_constraints
+                        if all(fk.parent.name in actual_columns for fk in constraint.elements)}
         actual_fks = {(tuple(fk.get("constrained_columns") or ()), fk.get("referred_table"),
                        tuple(fk.get("referred_columns") or ()))
                       for fk in inspector.get_foreign_keys(name)}
@@ -128,7 +129,13 @@ def main():
         print("Schema matches the current SQLAlchemy model metadata.")
         return
     config = Config("alembic.ini")
-    command.stamp(config, BASELINE_REVISION)
+    with engine.connect() as connection:
+        inspector = inspect(connection)
+        fully_current = set(Base.metadata.tables) <= set(inspector.get_table_names()) and all(
+            set(table.columns.keys()) <= {column["name"] for column in inspector.get_columns(name)}
+            for name, table in Base.metadata.tables.items())
+    # A structurally validated current schema must not replay additive revisions.
+    command.stamp(config, "head" if fully_current else BASELINE_REVISION)
     command.upgrade(config, "head")
     print(f"Validated schema based at {BASELINE_REVISION}; later revisions applied through head.")
 

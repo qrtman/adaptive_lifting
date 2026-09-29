@@ -1,11 +1,12 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
 import { expectCellEditing, expectCellSelected } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN↔LOG arrows', async ({ page, request }) => {
   const email = `sheets-cell-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -26,10 +27,11 @@ test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN�
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
+  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
 
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await expect(page.getByTestId('rx-weight')).toHaveCount(2);
@@ -39,9 +41,14 @@ test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN�
   await expect(page.getByTestId('set-grid-h-planKg')).toBeVisible();
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('Δ%');
   await expect(page.getByTestId('set-grid').getByText('×', { exact: true })).toHaveCount(0);
-  await expect(page.getByTestId('set-grid').locator('tbody').getByText('@', { exact: true })).toHaveCount(0);
+  // @ labels are target-mode buttons, never separators between numeric cells.
+  const modeLabels = page.getByTestId('set-grid').locator('tbody').getByText('@', { exact: true });
+  await expect(modeLabels).toHaveCount(2);
+  expect(await modeLabels.evaluateAll((nodes) => nodes.every((node) => node.tagName === 'BUTTON' && node.getAttribute('data-testid') === 'rx-intensity'))).toBeTruthy();
   await expect(page.locator('tbody tr').nth(0).locator('[data-testid="set-drop-pct"]')).toHaveCount(0);
-  await expect(page.getByTestId('set-drop-pct').first()).toHaveAttribute('tabindex', '-1');
+  // The selected adjustment display is focusable, but it is not a seventh
+  // editable input in the Sheets keyboard sequence checked below.
+  await expect(page.getByTestId('set-drop-pct').first()).toHaveAttribute('tabindex', /-1|0/);
   await expect(page.getByTestId('set-drop-pct-dec')).toHaveCount(0);
   await expect(page.getByTestId('set-drop-pct-inc')).toHaveCount(0);
 

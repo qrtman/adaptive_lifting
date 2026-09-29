@@ -1,3 +1,4 @@
+import { clearAuthorization } from './authAuthorization';
 import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
@@ -190,6 +191,13 @@ async function postSync(
       }
       return [{ reason: code, workout_id: lockWorkoutId, message }];
     } else {
+      if (response.status === 401 || response.status === 403) {
+        const body = await response.json().catch(() => ({}));
+        if (response.status === 401 || parseSyncErrorCode(body) === 'EMAIL_VERIFICATION_REQUIRED') {
+          await clearAuthorization();
+          window.dispatchEvent(new Event('auth-access-denied'));
+        }
+      }
       for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
     }
   } catch (err) {

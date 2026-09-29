@@ -1,7 +1,8 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator } from '@playwright/test';
 import { fillEditableCell } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function typeCell(cell: Locator, value: string) {
   await cell.page().keyboard.press('Escape');
@@ -11,7 +12,7 @@ async function typeCell(cell: Locator, value: string) {
 
 test('LOG e1RM: 150×6 @5 > @6 > @7, @4 equals @5, empty RPE is load', async ({ page, request }) => {
   const email = `e1rm-floor-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -32,10 +33,11 @@ test('LOG e1RM: 150×6 @5 > @6 > @7, @4 equals @5, empty RPE is load', async ({ 
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
+  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
 
   await typeCell(page.locator('[data-testid$="-actual-weight"]').first(), '150');
   await typeCell(page.locator('[data-testid$="-reps"]').first(), '6');

@@ -26,6 +26,7 @@ from .database import (
 )
 from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
+from .email_verification import require_eligible_account, process_email_job
 from .runtime_config import is_production_like
 from .saas_access import require_integrations_access
 
@@ -176,6 +177,7 @@ def telegram_miniapp_session(req: dict, response: Response, db: Session = Depend
         if not user:
             raise HTTPException(status_code=404, detail="Associated user not found")
             
+        require_eligible_account(user)
         # Create connection
         conn = db.query(IntegrationConnection).filter(
             IntegrationConnection.user_id == user.id,
@@ -296,6 +298,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
             token = parts[1]
             token_info = PENDING_LINK_TOKENS.get(token)
             if token_info and token_info["expires_at"] > datetime.utcnow():
+                require_eligible_account(db.get(User, token_info["user_id"]))
                 # Link account
                 user_id = token_info["user_id"]
                 conn = db.query(IntegrationConnection).filter(
@@ -343,6 +346,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
         send_telegram_message(chat_id, "Linked user profile not found.")
         return {"status": "processed"}
         
+    require_eligible_account(linked_user)
     # Command processing
     if text == "/today":
         today_str = datetime.utcnow().strftime("%Y-%m-%d")
@@ -433,6 +437,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
             athlete = db.query(User).filter(User.id == r.athlete_id).first()
             if not athlete:
                 continue
+            require_eligible_account(athlete)
             w = db.query(Workout).join(Microcycle).filter(
                 Microcycle.owner_id == athlete.id,
                 Workout.date == today_str
@@ -512,6 +517,7 @@ def sheets_callback(code: str, state: Optional[str] = None, db: Session = Depend
         db.commit()
         raise HTTPException(status_code=400, detail="OAuth state user is unavailable")
     callback_user = db.query(User).filter(User.id == user_id).one()
+    require_eligible_account(callback_user)
     if callback_user.role == "COACH":
         require_integrations_access(db, callback_user)
     # A conditional DELETE makes consumption atomic across concurrent callbacks.
@@ -689,12 +695,14 @@ def publish_to_sheets(req: dict, current_user: User = Depends(get_current_user),
     rel = db.query(CoachingRelationship).filter(
         CoachingRelationship.coach_id == current_user.id,
         CoachingRelationship.athlete_id == athlete_id,
-        CoachingRelationship.ended_at.is_(None)
+        CoachingRelationship.ended_at.is_(None),
+        CoachingRelationship.deleted_at.is_(None)
     ).first()
     
     if not rel:
         raise HTTPException(status_code=403, detail="Unauthorized: No active relationship with this athlete")
 
+    require_eligible_account(db.get(User, athlete_id))
     require_integrations_access(db, current_user)
         
     conn = db.query(IntegrationConnection).filter(
@@ -801,6 +809,24 @@ def process_sheets_publish_job(job: IntegrationOutbox, db: Session) -> bool:
     sheet_name = payload.get("sheet_name", "Mesocycle Export")
     tabs = payload.get("tabs", ["Sets", "Workouts", "INOL", "ACWR", "e1RM"])
     
+    # Revalidate queued exports before accessing training or calling a provider.
+    connection = db.get(IntegrationConnection, job.connection_id)
+    coach = db.get(User, connection.user_id) if connection is not None else None
+    athlete = db.get(User, athlete_id) if athlete_id else None
+    try:
+        require_eligible_account(coach)
+        require_eligible_account(athlete)
+        if connection.status != "active" or coach.role != "COACH":
+            raise HTTPException(status_code=403)
+        relationship = db.query(CoachingRelationship).filter_by(coach_id=coach.id, athlete_id=athlete.id).filter(
+            CoachingRelationship.ended_at.is_(None), CoachingRelationship.deleted_at.is_(None)).first()
+        if relationship is None:
+            raise HTTPException(status_code=403)
+        require_integrations_access(db, coach)
+    except HTTPException:
+        job.status, job.attempt_count, job.result = "failed", 3, "Export authorization is no longer valid"
+        return False
+
     # 1. Fetch training data
     workouts = db.query(Workout).join(Microcycle).filter(
         Microcycle.mesocycle_id == mesocycle_id,
@@ -1054,7 +1080,7 @@ def claim_next_outbox_job(session_factory=None) -> Optional[str]:
     try:
         db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
         db.query(IntegrationOutbox).filter(
-            IntegrationOutbox.provider == "google-sheets",
+            IntegrationOutbox.provider.in_(["google-sheets", "email-verification"]),
             IntegrationOutbox.status == "processing",
             IntegrationOutbox.attempt_count >= 3,
             IntegrationOutbox.retry_after <= now,
@@ -1063,10 +1089,18 @@ def claim_next_outbox_job(session_factory=None) -> Optional[str]:
             IntegrationOutbox.retry_after: None,
             IntegrationOutbox.result: "Worker lease expired after the maximum attempts",
         }, synchronize_session=False)
+        from .database import EmailVerificationToken
+        expired_ids = db.query(EmailVerificationToken.id).filter(EmailVerificationToken.expires_at <= now)
+        db.query(IntegrationOutbox).filter(IntegrationOutbox.provider == "email-verification",
+            IntegrationOutbox.verification_token_id.in_(expired_ids), IntegrationOutbox.encrypted_payload.is_not(None)).update(
+                {IntegrationOutbox.encrypted_payload: None, IntegrationOutbox.status: "cancelled", IntegrationOutbox.retry_after: None}, synchronize_session=False)
+        db.query(IntegrationOutbox).filter(IntegrationOutbox.provider == "email-verification",
+            IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count >= 3).update(
+                {IntegrationOutbox.encrypted_payload: None}, synchronize_session=False)
         # Selecting candidates is only advisory: the conditional UPDATE is the claim.
         # retry_after doubles as a lease while status is processing, allowing recovery
         # after a worker dies without introducing another migration.
-        candidates = db.query(IntegrationOutbox.id).filter(IntegrationOutbox.provider == "google-sheets").filter(or_(
+        candidates = db.query(IntegrationOutbox.id).filter(IntegrationOutbox.provider.in_(["google-sheets", "email-verification"])).filter(or_(
             IntegrationOutbox.status == "queued",
             and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
                  or_(IntegrationOutbox.retry_after.is_(None), IntegrationOutbox.retry_after <= now)),
@@ -1076,7 +1110,7 @@ def claim_next_outbox_job(session_factory=None) -> Optional[str]:
         for (job_id,) in candidates:
             changed = db.query(IntegrationOutbox).filter(
                 IntegrationOutbox.id == job_id,
-                IntegrationOutbox.provider == "google-sheets",
+                IntegrationOutbox.provider.in_(["google-sheets", "email-verification"]),
                 or_(
                     IntegrationOutbox.status == "queued",
                     and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
@@ -1117,14 +1151,14 @@ def process_next_outbox_job(session_factory=None) -> bool:
             return True
         print(f"[WORKER] Processing export outbox job {job.id}...")
         try:
-            success = process_sheets_publish_job(job, db)
+            success = process_email_job(job, db) if job.provider == "email-verification" else process_sheets_publish_job(job, db)
         except Exception as exc:
             db.rollback()
             job = db.query(IntegrationOutbox).filter_by(id=job_id, status="processing").one_or_none()
             if job is None:
                 return True
             job.status = "failed"
-            job.result = f"Worker error: {exc}"
+            job.result = "Email worker error" if job.provider == "email-verification" else f"Worker error: {exc}"
             success = False
         if not success:
             if job.attempt_count < 3:
@@ -1133,6 +1167,8 @@ def process_next_outbox_job(session_factory=None) -> bool:
                 job.retry_after = None
         else:
             job.retry_after = None
+        if job.provider == "email-verification" and job.attempt_count >= 3 and not success:
+            job.encrypted_payload = None
         db.commit()
         return True
     except Exception:
