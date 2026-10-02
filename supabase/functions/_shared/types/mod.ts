@@ -1,8 +1,5 @@
 export interface AppUser {
   id: string;
-  email: string;
-  role: string;
-  display_name: string | null;
   google_sub: string | null;
   email_verified_at: string | null;
   email_verification_required: boolean;
@@ -15,7 +12,6 @@ export interface AuthSession {
   user_id: string;
   jwt_id: string;
   revoked_at: string | null;
-  expires_at: string;
   active: boolean;
 }
 

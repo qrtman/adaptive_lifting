@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
+import { coexistenceProxy } from './deploy/coexistenceProxy';
 
 export default defineConfig(() => {
   return {
@@ -22,12 +23,10 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Keep browser API requests same-origin. HTTP streaming responses such as
       // SSE are proxied as a stream by Vite's HTTP proxy.
-      proxy: {
-        '/api': {
-          target: process.env.API_PROXY_TARGET || 'http://localhost:8000',
-          changeOrigin: true,
-        },
-      },
+      proxy: coexistenceProxy(
+        process.env.API_PROXY_TARGET || 'http://localhost:8000',
+        process.env.API_EDGE_TARGET,
+      ),
     },
   };
 });

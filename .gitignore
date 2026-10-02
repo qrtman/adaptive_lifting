@@ -17,6 +17,7 @@ __pycache__/
 .venv/
 .venv*/
 .nodeenv/
+supabase/.temp/
 
 *.sqlite
 backend/database.sqlite

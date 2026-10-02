@@ -24,9 +24,6 @@ const config: AppConfig = {
 };
 const user: AppUser = {
   id: "user-1",
-  email: "athlete@example.test",
-  role: "ATHLETE",
-  display_name: null,
   google_sub: null,
   email_verified_at: "2026-01-01T00:00:00",
   email_verification_required: true,
@@ -37,7 +34,6 @@ const session: AuthSession = {
   id: "session-1",
   user_id: user.id,
   jwt_id: "session-1",
-  expires_at: "2099-01-01T00:00:00",
   revoked_at: null,
   active: true,
 };
@@ -275,7 +271,7 @@ Deno.test("cookie takes precedence and authorization is based on DB user", async
   });
   assert(requestToken(req) === pythonTokens.current_token);
   const principal = await authenticate(request(token), repository(), config);
-  assert(principal.user.role === "ATHLETE");
+  assert(!Object.hasOwn(principal.user, "role"));
   requireSelf(principal, user.id);
   await rejects(
     403,

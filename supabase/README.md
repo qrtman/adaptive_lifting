@@ -41,7 +41,8 @@ cd ..
 python supabase/tests/check_catalog_parity.py
 ```
 
-These tests use a fake repository for failure cases. A live Supabase project and
-its existing PostgreSQL schema were deliberately not touched. A coexistence
-staging test with a restricted database role and same-origin proxy is required
-before cutover.
+These tests use a fake repository for failure cases. The staging validation
+workflow, restricted runtime role, same-origin development proxy, and isolated
+Realtime token prototype are described in `STAGING_VALIDATION.md`. The
+Realtime prototype is separate from the two migrated API routes and is not a
+replacement for SSE or application authentication.

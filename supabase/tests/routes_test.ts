@@ -27,9 +27,6 @@ const db: Database = {
             : query.includes("from public.users")
             ? [{
               id: "user-1",
-              email: "athlete@example.test",
-              role: "ATHLETE",
-              display_name: null,
               google_sub: null,
               email_verified_at: "2026-01-01",
               email_verification_required: true,

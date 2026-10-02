@@ -2,3 +2,8 @@
 # The handler performs its own verification and session-table lookup.
 [functions.api]
 verify_jwt = false
+
+# Staging-only Realtime capability prototype. Application auth is checked in
+# the handler before a separate, narrow Realtime JWT is signed.
+[functions.realtime-token-spike]
+verify_jwt = false

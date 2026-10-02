@@ -51,7 +51,7 @@ export function authRepository(db: Database): AuthRepository {
       readOne<AuthSession>(
         db,
         `
-      select id, user_id, jwt_id, revoked_at, expires_at,
+      select id, user_id, jwt_id, revoked_at,
         (expires_at > (now() at time zone 'utc')) as active
       from public.sessions where id = $1
     `,
@@ -61,7 +61,7 @@ export function authRepository(db: Database): AuthRepository {
       readOne<AppUser>(
         db,
         `
-      select id, email, role, display_name, google_sub, email_verified_at,
+      select id, google_sub, email_verified_at,
         email_verification_required, email_verification_legacy_exempt, deleted_at
       from public.users where id = $1
     `,
