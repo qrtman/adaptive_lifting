@@ -1,0 +1,404 @@
+{
+  "math_version": "linear-decay-v3",
+  "metrics": [
+    {
+      "name": "tonnage",
+      "unit": "kg",
+      "default_aggregation": "sum",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "heatmap",
+        "line",
+        "table",
+        "weekday_matrix"
+      ],
+      "aggregations": [
+        "mean",
+        "sum"
+      ]
+    },
+    {
+      "name": "e1rm",
+      "unit": "kg",
+      "default_aggregation": "max",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "line",
+        "table"
+      ],
+      "aggregations": [
+        "last",
+        "max",
+        "mean"
+      ]
+    },
+    {
+      "name": "avg_intensity",
+      "unit": "%",
+      "default_aggregation": "mean",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "line",
+        "table"
+      ],
+      "aggregations": [
+        "mean"
+      ]
+    },
+    {
+      "name": "avg_rpe",
+      "unit": "RPE",
+      "default_aggregation": "mean",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "line",
+        "table"
+      ],
+      "aggregations": [
+        "mean"
+      ]
+    },
+    {
+      "name": "inol",
+      "unit": "INOL",
+      "default_aggregation": "sum",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "heatmap",
+        "line",
+        "table"
+      ],
+      "aggregations": [
+        "mean",
+        "sum"
+      ]
+    },
+    {
+      "name": "acwr",
+      "unit": "ratio",
+      "default_aggregation": "last",
+      "grains": [
+        "week"
+      ],
+      "visualizations": [
+        "line",
+        "table"
+      ],
+      "aggregations": [
+        "last",
+        "mean"
+      ]
+    },
+    {
+      "name": "session_count",
+      "unit": "sessions",
+      "default_aggregation": "sum",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "heatmap",
+        "line",
+        "table",
+        "weekday_matrix"
+      ],
+      "aggregations": [
+        "sum"
+      ]
+    },
+    {
+      "name": "set_count",
+      "unit": "sets",
+      "default_aggregation": "sum",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "heatmap",
+        "line",
+        "table",
+        "weekday_matrix"
+      ],
+      "aggregations": [
+        "sum"
+      ]
+    },
+    {
+      "name": "rep_count",
+      "unit": "reps",
+      "default_aggregation": "sum",
+      "grains": [
+        "block",
+        "day",
+        "week"
+      ],
+      "visualizations": [
+        "bar",
+        "heatmap",
+        "line",
+        "table",
+        "weekday_matrix"
+      ],
+      "aggregations": [
+        "sum"
+      ]
+    },
+    {
+      "name": "session_spacing",
+      "unit": "days",
+      "default_aggregation": "mean",
+      "grains": [
+        "block",
+        "week"
+      ],
+      "visualizations": [
+        "line",
+        "table"
+      ],
+      "aggregations": [
+        "last",
+        "mean"
+      ]
+    }
+  ],
+  "patterns": [
+    "Knee Dominant",
+    "Hip Dominant",
+    "Horizontal Push",
+    "Vertical Push",
+    "Horizontal Pull",
+    "Vertical Pull",
+    "Misc",
+    "Weightlifting"
+  ],
+  "visualizations": [
+    "line",
+    "bar",
+    "heatmap",
+    "weekday_matrix",
+    "table"
+  ],
+  "grains": [
+    "day",
+    "week",
+    "block"
+  ],
+  "aggregations": [
+    "sum",
+    "mean",
+    "max",
+    "last"
+  ],
+  "presets": [
+    {
+      "id": "preset-competition-lifts",
+      "name": "Competition lifts",
+      "config": {
+        "metrics": [
+          "e1rm"
+        ],
+        "scopes": [
+          {
+            "kind": "movement",
+            "ids": [
+              "Squat",
+              "Bench",
+              "Deadlift"
+            ]
+          }
+        ],
+        "time_grain": "week",
+        "range": {
+          "n": 12,
+          "grain": "week"
+        },
+        "visualization": "line",
+        "comparison": null,
+        "aggregation": null
+      },
+      "layout": {
+        "order": 0,
+        "col_span": 2
+      }
+    },
+    {
+      "id": "preset-weekly-load-heatmap",
+      "name": "Weekly load heatmap",
+      "config": {
+        "metrics": [
+          "tonnage"
+        ],
+        "scopes": [
+          {
+            "kind": "all",
+            "ids": []
+          }
+        ],
+        "time_grain": "day",
+        "range": {
+          "n": 8,
+          "grain": "week"
+        },
+        "visualization": "heatmap",
+        "comparison": null,
+        "aggregation": null
+      },
+      "layout": {
+        "order": 1,
+        "col_span": 2
+      }
+    },
+    {
+      "id": "preset-avg-intensity",
+      "name": "Average intensity by week",
+      "config": {
+        "metrics": [
+          "avg_intensity",
+          "avg_rpe"
+        ],
+        "scopes": [
+          {
+            "kind": "all",
+            "ids": []
+          }
+        ],
+        "time_grain": "week",
+        "range": {
+          "n": 12,
+          "grain": "week"
+        },
+        "visualization": "line",
+        "comparison": null,
+        "aggregation": null
+      },
+      "layout": {
+        "order": 2,
+        "col_span": 1
+      }
+    },
+    {
+      "id": "preset-pattern-weekday",
+      "name": "Pattern recruitment by weekday",
+      "config": {
+        "metrics": [
+          "set_count"
+        ],
+        "scopes": [
+          {
+            "kind": "all",
+            "ids": []
+          }
+        ],
+        "time_grain": "week",
+        "range": {
+          "n": 1,
+          "grain": "block"
+        },
+        "visualization": "weekday_matrix",
+        "comparison": null,
+        "aggregation": null
+      },
+      "layout": {
+        "order": 3,
+        "col_span": 2
+      }
+    },
+    {
+      "id": "preset-spacing-e1rm",
+      "name": "Spacing vs e1RM",
+      "config": {
+        "metrics": [
+          "session_spacing",
+          "e1rm"
+        ],
+        "scopes": [
+          {
+            "kind": "pattern",
+            "ids": [
+              "Knee Dominant"
+            ]
+          }
+        ],
+        "time_grain": "week",
+        "range": {
+          "n": 12,
+          "grain": "week"
+        },
+        "visualization": "line",
+        "comparison": null,
+        "aggregation": null
+      },
+      "layout": {
+        "order": 4,
+        "col_span": 2
+      }
+    },
+    {
+      "id": "preset-block-vs-previous",
+      "name": "Block vs previous block",
+      "config": {
+        "metrics": [
+          "e1rm",
+          "tonnage"
+        ],
+        "scopes": [
+          {
+            "kind": "pattern",
+            "ids": [
+              "Knee Dominant"
+            ]
+          }
+        ],
+        "time_grain": "week",
+        "range": {
+          "n": 4,
+          "grain": "week"
+        },
+        "visualization": "line",
+        "comparison": {
+          "kind": "period_vs_period",
+          "secondary": {
+            "explicit": null,
+            "relative": "previous_equal"
+          }
+        },
+        "aggregation": null
+      },
+      "layout": {
+        "order": 5,
+        "col_span": 2
+      }
+    }
+  ]
+}

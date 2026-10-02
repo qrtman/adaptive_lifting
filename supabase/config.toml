@@ -1,0 +1,4 @@
+# The application JWT is signed with application keys, not Supabase Auth keys.
+# The handler performs its own verification and session-table lookup.
+[functions.api]
+verify_jwt = false
