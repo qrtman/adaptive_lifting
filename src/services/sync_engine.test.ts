@@ -142,6 +142,37 @@ describe('processSyncQueue mixed payload', () => {
     expect(posted.changes.map((c: { id: string }) => c.id)).toEqual(['card-1', 'card-2']);
   });
 
+  it('acknowledges accepted card mutations and rejects returned per-mutation IDs', async () => {
+    const updateMutationStatus = vi.fn(async () => {});
+    vi.doMock('./db', () => ({
+      getPendingMutations: async () => [insightMut('card-1'), insightMut('card-2', 'insight-cards')],
+      updateMutationStatus,
+      saveMutation: vi.fn(),
+    }));
+    vi.doMock('../storage/uiPrefs', () => ({
+      UI_KEYS: { deviceId: 'al_client_device_id' },
+      getUiPref: () => 'dev-test',
+      setUiPref: () => {},
+    }));
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        accepted_mutation_ids: ['mut-card-1'],
+        rejected_mutation_ids: ['mut-card-2'],
+        math_version: MATH_VERSION,
+      }),
+    })));
+    vi.stubGlobal('navigator', { onLine: true });
+
+    const { processInsightCardSync } = await import('./sync_engine');
+    expect(await processInsightCardSync()).toEqual([]);
+    expect(updateMutationStatus).toHaveBeenCalledWith('mut-card-1', 'IN_FLIGHT');
+    expect(updateMutationStatus).toHaveBeenCalledWith('mut-card-2', 'IN_FLIGHT');
+    expect(updateMutationStatus).toHaveBeenCalledWith('mut-card-1', 'ACKED');
+    expect(updateMutationStatus).toHaveBeenCalledWith('mut-card-2', 'REJECTED');
+  });
+
   it('surfaces WORKOUT_LOCKED without a false conflict card payload', async () => {
     const updateMutationStatus = vi.fn(async () => {});
     vi.doMock('./db', () => ({

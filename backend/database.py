@@ -426,8 +426,11 @@ class Session(Base):
 
 class SyncMutation(Base):
     __tablename__ = "sync_mutations"
+    # Mutation IDs are scoped to their effective browser device. This matches
+    # the offline queue key and permits independent users/devices to reuse an
+    # otherwise identical client-generated mutation ID.
     mutation_id = Column(String, primary_key=True, index=True)
-    client_device_id = Column(String, ForeignKey("client_devices.id"), nullable=False)
+    client_device_id = Column(String, ForeignKey("client_devices.id"), primary_key=True, nullable=False)
     entity_type = Column(String, nullable=False)
     entity_id = Column(String, nullable=False)
     field_path = Column(String, nullable=False)

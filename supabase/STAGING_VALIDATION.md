@@ -551,3 +551,100 @@ Local checks rerun for this capability:
 
 SSE, Realtime role/policies, and the analytics query route were not changed.
 Supabase Auth was not adopted; production and `local-save` were untouched.
+
+## Insight Card sync capability (2026-10-03)
+
+This slice migrates only `POST /api/insight-cards/sync`; workout sync remains
+legacy. The parity inventory was taken from `backend/analytics_router.py`,
+`backend/sync_service.py`, `backend/database.py`, `backend/analytics_schemas.py`,
+`backend/analytics_registry.py`, and `src/services/sync_engine.ts`:
+
+- Modern `mutation_type: insight_card` payloads omit `workout_id`; legacy
+  payloads with omitted `mutation_type` and `workout_id: insight-cards` remain
+  accepted. `schema_version` is required to be an integer but is not restricted
+  to `1` on this route. Missing `math_version` and a matching value pass; a
+  mismatch returns 409 with the existing `MATH_VERSION_MISMATCH` envelope.
+- Device IDs are first claimed as submitted. A raw ID already owned by another
+  account resolves to `<user_id>:<raw_id>`; a revoked effective device returns
+  403. Empty-string device IDs remain accepted as in the Pydantic/SQLAlchemy
+  implementation; a rollback-only SQL probe confirmed the RPC creates that
+  exact ID. The shared `sync_mutations` primary key was aligned to
+  `(client_device_id, mutation_id)` after confirming there are no referencing
+  foreign keys and no duplicate composite keys. Existing global uniqueness had
+  prevented the requested per-device identity when two users reused a mutation
+  ID.
+- Only `InsightCard` is processed. Unknown entities and incompatible non-empty
+  configs are rejected without durable rejection rows. Malformed non-empty
+  CardConfig remains a request-level 422; empty/falsy config skips schema
+  validation. Unknown fields are ignored. Missing-card deletes are accepted
+  and recorded. Sync updates can resurrect a tombstoned owned card.
+- Mutation application, device resolution, mutation recording, and canonical
+  response run in one `SECURITY DEFINER` RPC transaction with fixed empty
+  `search_path` and transaction-scoped advisory locks. Client timestamps are
+  parsed as timestamp-without-time-zone; a timestamp with an offset was checked
+  to preserve its wall-clock value, matching legacy `replace(tzinfo=None)`.
+
+Staging migration history now records:
+
+```text
+20261002181420 insight_card_sync_private_rpc
+20261002181756 sync_mutation_device_scoped_key
+20261002182616 insight_card_sync_id_parity
+```
+
+The local migration filenames match those remote versions. The second
+migration changes only sync mutation identity; the third removes unnecessary
+identifier-format restrictions after parity review. Neither changes workout
+sync routing. `al_edge_catalog_runtime` has no direct read/write privilege on
+`insight_cards`, `client_devices`, or `sync_mutations`, no `public` CREATE, and
+EXECUTE only on the sync RPC among browser/runtime roles. The RPC is
+`SECURITY DEFINER` owned by `postgres` with fixed `search_path`; ACL inspection
+showed EXECUTE for `al_edge_catalog_runtime` and none for `anon` or
+`authenticated`. `anon` and `authenticated` have no effective read/write
+privileges on the three application tables.
+
+MCP SQL exercised: create/defaults, same mutation retry without replay, update,
+tombstone, repeated/missing deletes, resurrection, mixed partial acceptance,
+incompatible and unknown entity rejection, existing rejected mutation lookup,
+raw-device namespacing across two users reusing the same mutation ID, revoked
+device denial, expired/invalid session denial, client timestamp parsing, and
+two concurrent duplicate calls. Both concurrent responses acknowledged the
+mutation, while SQL showed one card effect and one mutation row. Malformed
+CardConfig was also tested through the SQL rollback marker; the transaction
+rolled back. That probe verified RPC rollback mechanics, not the HTTP 422
+translation.
+
+The API Edge Function deployed to staging as version 23. A live `GET
+/functions/v1/api/health` returned 200 `{"status":"ok"}` and unauthenticated
+`POST /functions/v1/api/insight-cards/sync` returned 401
+`{"detail":"Could not validate credentials"}`; the Edge logs show both
+requests. A successful app-authenticated HTTP sync matrix was not run because
+the available tools cannot mint a synthetic Adaptive Lifting HS256 app JWT,
+and the staging signing secret was not read or requested. Therefore end-to-end
+HTTP acceptance, math mismatch, device identity, mutation effects, and canonical
+payload parity remain unvalidated live despite the direct RPC probes and local
+contract tests.
+
+Local Deno tests were added in `supabase/tests/insight_card_sync_contract.test.ts`
+but were not executed because Deno is unavailable in this environment. The
+IndexedDB queue's existing `postSync` behavior is covered by the newly rerun
+`src/services/sync_engine.test.ts`; no queue implementation changes were made.
+
+Cleanup and regression (2026-10-03): all rows matching the
+`stg-card-sync-` fixture prefix were deleted and verified absent from
+`users`, `sessions`, `insight_cards`, `client_devices`, and `sync_mutations`.
+The sync RPC ACL and direct-table boundary were rechecked after cleanup:
+runtime EXECUTE is true; `anon`/`authenticated` EXECUTE is false; runtime
+SELECT on the three sync tables and `public` CREATE are false. Remote migration
+history matches all three new local versions exactly.
+
+Checks rerun for this capability: `npm.cmd test` passed (32 files, 233 tests),
+`npm.cmd run lint` passed, `npm.cmd run build` passed with the existing large
+chunk warning, and `git diff --check` passed. `python -m pytest
+backend/test_analytics.py` could not run because `pytest` is not installed;
+`python -m unittest backend.test_analytics` could not import tests because
+SQLAlchemy is not installed. Deno format/lint/typecheck/tests could not run
+because `deno` is unavailable.
+The unauthenticated live sync request and health check were observed before
+cleanup; no authenticated HTTP sync request was possible with the available
+tooling without accessing the protected application signing secret.

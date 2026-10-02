@@ -3,16 +3,11 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
-import { coexistenceProxy, createLegacyInsightSyncMiddleware } from './deploy/coexistenceProxy';
+import { coexistenceProxy } from './deploy/coexistenceProxy';
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), {
-      name: 'legacy-insight-card-sync',
-      configureServer(server) {
-        server.middlewares.use(createLegacyInsightSyncMiddleware(process.env.API_PROXY_TARGET || 'http://localhost:8000'));
-      },
-    }],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

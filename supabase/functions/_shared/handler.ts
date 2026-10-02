@@ -4,6 +4,7 @@ import { authRepository, checkDatabase, type Database } from "./db/mod.ts";
 import { ApiError, errorResponse, jsonResponse } from "./errors/mod.ts";
 import { handleAnalyticsQuery } from "./analyticsRoute.ts";
 import { handleInsightCardsRoute } from "./insightCardsRoute.ts";
+import { handleInsightCardSync } from "./insightCardSyncRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -59,6 +60,10 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         return jsonResponse(await handleAnalyticsQuery(request, config, db, principal), 200, cors);
+      }
+      if (path === "/api/insight-cards/sync") {
+        const principal = await authenticate(request, authRepository(db), config);
+        return await handleInsightCardSync(request, db, principal);
       }
       if (path === "/api/insight-cards" || /^\/api\/insight-cards\/[^/]+$/.test(path)) {
         const principal = await authenticate(request, authRepository(db), config);
