@@ -179,8 +179,14 @@ export async function handleInsightCardSync(
   try {
     result = await callSyncRpc(db, principal, payload);
   } catch (error) {
-    const pgError = error as { code?: string; message?: string };
-    if (pgError?.code === "P0001" && pgError.message?.includes("AL_SYNC_CARD_CONFIG_SCHEMA")) {
+    const pgError = error as {
+      code?: string;
+      message?: string;
+      fields?: { code?: string; message?: string };
+    };
+    const pgCode = pgError?.code ?? pgError?.fields?.code;
+    const pgMessage = pgError?.message ?? pgError?.fields?.message;
+    if (pgCode === "P0001" && pgMessage?.includes("AL_SYNC_CARD_CONFIG_SCHEMA")) {
       const schemaIssue = payload.changes.find((change) => change._schema_error);
       if (schemaIssue) {
         const badConfig = schemaIssue.fields.config;

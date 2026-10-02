@@ -614,25 +614,53 @@ CardConfig was also tested through the SQL rollback marker; the transaction
 rolled back. That probe verified RPC rollback mechanics, not the HTTP 422
 translation.
 
-The API Edge Function deployed to staging as version 23. A live `GET
-/functions/v1/api/health` returned 200 `{"status":"ok"}` and unauthenticated
-`POST /functions/v1/api/insight-cards/sync` returned 401
-`{"detail":"Could not validate credentials"}`; the Edge logs show both
-requests. A successful app-authenticated HTTP sync matrix was not run because
-the available tools cannot mint a synthetic Adaptive Lifting HS256 app JWT,
-and the staging signing secret was not read or requested. Therefore end-to-end
-HTTP acceptance, math mismatch, device identity, mutation effects, and canonical
-payload parity remain unvalidated live despite the direct RPC probes and local
-contract tests.
+Authenticated Edge validation used a short-lived, staging-only, capability-
+gated mint route for one fixed synthetic athlete/session. A random one-time
+capability was generated locally; only its SHA-256 hash was included in the
+temporary uncommitted Edge source, and its value was kept in a DPAPI-protected
+local temporary file. The bridge signed with the already-configured Edge
+`JWT_SECRET_CURRENT`; the secret was never read or exposed. Its JWT matched the
+normal app format (`HS256`, `kid=current`, `sub`, `role`, `session_id`, `iat`,
+`exp`) and was held only in the local test process.
+
+Live authenticated results:
+
+- catalog auth returned 200;
+- modern `insight_card` sync returned 200 and accepted the mutation;
+- retry returned 200 and accepted the same ID without replaying the original
+  create/update (the card retained the first mutation's values);
+- legacy sentinel sync (`workout_id=insight-cards`, omitted mutation type)
+  returned 200 and updated the owned card;
+- matching math version was accepted; a mismatched version returned 409 with
+  `MATH_VERSION_MISMATCH`;
+- incompatible config returned 200 with its mutation ID rejected and no
+  mutation record;
+- malformed config initially exposed a Postgres driver shape mismatch and
+  returned 500. Logs showed SQLSTATE `P0001` and the marker under the driver's
+  nested `fields`. The Edge error adapter now recognizes both nested and direct
+  fields; retest returned 422 with the CardConfig validation detail array.
+
+The live DB showed one accepted row for each modern/legacy mutation, the final
+card name from the legacy update, and the expected user/device/session linkage.
+No record was written for the incompatible or malformed mutation. Earlier
+SQL-RPC checks cover concurrent duplicate calls, foreign-device namespacing,
+revoked devices, ownership scoping, partial acceptance, missing-card delete,
+resurrection, and tombstones.
+
+The temporary bridge was removed from source and the API redeployed as version
+26. Afterwards the bridge path returned 404, health returned 200, and
+unauthenticated catalog/sync requests returned 401. No temporary route or
+capability value remains in Git or the active deployment.
 
 Local Deno tests were added in `supabase/tests/insight_card_sync_contract.test.ts`
 but were not executed because Deno is unavailable in this environment. The
 IndexedDB queue's existing `postSync` behavior is covered by the newly rerun
 `src/services/sync_engine.test.ts`; no queue implementation changes were made.
 
-Cleanup and regression (2026-10-03): all rows matching the
-`stg-card-sync-` fixture prefix were deleted and verified absent from
-`users`, `sessions`, `insight_cards`, `client_devices`, and `sync_mutations`.
+Cleanup and regression (2026-10-03): all rows matching both the
+`stg-card-sync-` and `stg-card-sync-auth-` fixture prefixes were deleted and
+verified absent from `users`, `sessions`, `insight_cards`, `client_devices`,
+and `sync_mutations`.
 The sync RPC ACL and direct-table boundary were rechecked after cleanup:
 runtime EXECUTE is true; `anon`/`authenticated` EXECUTE is false; runtime
 SELECT on the three sync tables and `public` CREATE are false. Remote migration
@@ -644,7 +672,5 @@ chunk warning, and `git diff --check` passed. `python -m pytest
 backend/test_analytics.py` could not run because `pytest` is not installed;
 `python -m unittest backend.test_analytics` could not import tests because
 SQLAlchemy is not installed. Deno format/lint/typecheck/tests could not run
-because `deno` is unavailable.
-The unauthenticated live sync request and health check were observed before
-cleanup; no authenticated HTTP sync request was possible with the available
-tooling without accessing the protected application signing secret.
+because `deno` is unavailable. Production and `local-save` were untouched; no
+paid resources were enabled, and no secret values were read or exposed.
