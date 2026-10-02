@@ -33,6 +33,13 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
+    // Workout sync is migrated as one exact capability. Session CRUD and
+    // other workout endpoints continue to use the legacy backend.
+    proxy['^/api/workouts/[^/?]+/sync(?:\\?.*)?$'] = {
+      target: edge,
+      changeOrigin: true,
+      rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
+    };
   }
   proxy['/api'] = { target: legacy, changeOrigin: true };
   return proxy;

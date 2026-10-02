@@ -674,3 +674,110 @@ backend/test_analytics.py` could not run because `pytest` is not installed;
 SQLAlchemy is not installed. Deno format/lint/typecheck/tests could not run
 because `deno` is unavailable. Production and `local-save` were untouched; no
 paid resources were enabled, and no secret values were read or exposed.
+
+## Workout sync migration
+
+This capability migrates only `POST /api/workouts/{id}/sync`. The local parity
+inventory was checked against `backend/sync_service.py`, `backend/main.py`,
+`backend/set_writes.py`, `backend/math_utils.py`, `backend/database.py`,
+`src/services/sync_engine.ts`, `src/services/db.ts`, and
+`src/contexts/SyncContext.tsx`.
+
+- Workout sync remains distinct from Insight Card sync. It requires a workout
+  ID, defaults the mutation type to `workout`, rejects `insight_card` with 400,
+  rejects schema versions other than 1 with 409, accepts missing math version,
+  and uses `rejected_mutations` plus per-mutation `conflicts` in the response.
+- The Edge route authenticates with the existing app-session validator. The
+  exact coexistence allowlist sends only `/api/workouts/{id}/sync` to Edge;
+  unrelated workout routes still fall back to the legacy backend.
+- The route ID must equal `payload.workout_id`. The database RPC rechecks this
+  binding and authorizes the current user against the workout owner's active
+  athlete/coach relationship and required programming entitlement in the same
+  transaction. The stable route also checks path/payload equality and calls
+  `require_session_for_write`, which enforces plan access and coach programming
+  access. Source inspection found no legacy authorization defect; the new
+  database checks provide defense in depth.
+- Device IDs are scoped by the effective device owner. Existing foreign raw IDs
+  resolve to `<user_id>:<raw_id>`, and a revoked effective device is denied.
+  Mutation idempotency uses the effective device plus mutation ID and database
+  advisory/row locks. A concurrent duplicate HTTP retry produced two accepted
+  acknowledgements but one persisted mutation and one effect; replay did not
+  apply the retry body.
+- Only `Workout`, `Exercise`, and `ExerciseSet` mutations are supported. Field
+  allowlists, workout containment, tombstone conflicts, and the five-minute
+  future-clock rejection are applied per mutation. Future-clock and tombstone
+  outcomes are persisted; unknown-entity, foreign-parent, and forbidden-field
+  rejections are not durably recorded, matching the legacy handler. Malformed
+  client timestamps fall back to server time. Completed workouts remain
+  writable, and an active foreign lock blocks with 409 while expired/current-
+  holder locks do not.
+- Nested `Exercise.fields.sets` uses the legacy replacement rules: generated
+  IDs/ranks/labels, scope and intensity defaults, `plannedRpe` fallback,
+  first-row `isTop`, resurrection of supplied tombstoned sets, and soft deletion
+  of omitted live sets. The legacy replacement does not write note, velocity,
+  readiness, or HRV from nested rows; the SQL interface preserves that behavior.
+- Recalculation runs after per-mutation processing, including batches whose
+  individual changes are rejected. It recalculates canonical tonnage and
+  exercise top/volume fields and attempts the prior-microcycle delta lookup.
+  Live synthetic data verified tonnage `1026`, exercise volume `1,026kg`, top
+  `107.0kg x 3`, and delta `526`. The implementation includes tombstoned rows
+  during recalculation because the legacy ORM relationship does not filter
+  them. Each successful request writes a `WORKOUT_SYNCED` DomainEvent; live
+  inspection verified the event payload carried the accepted count and
+  canonical tonnage. SSE code was not changed.
+
+Staging applied these migrations through the project-scoped Supabase MCP:
+
+```text
+20261002191614 workout_sync_private_rpc
+20261002192833 workout_sync_top_repr_fix
+20261002192943 workout_sync_route_binding
+```
+
+The local filenames match remote migration history. The final function
+`al_private.al_workout_sync(text,text,text,text,text,boolean,integer,jsonb)` has
+EXECUTE for `al_edge_catalog_runtime` only. The older seven-argument overload
+is revoked from runtime and browser roles. Effective-privilege inspection after
+the final deployment confirmed the runtime has no direct SELECT on workouts,
+exercises, exercise_sets, sync_mutations, or workout_locks; no workout UPDATE;
+and no `public` CREATE. It has LOGIN but no superuser, createdb, createrole, or
+BYPASSRLS capability. `anon` and `authenticated` have no direct application
+table privileges and cannot execute either RPC overload. The temporary Edge
+diagnostic confirmed `current_user` and `session_user` were both
+`al_edge_catalog_runtime`; direct sensitive-table reads and workout update
+were denied from that actual identity. Supabase's advisor still reports RLS
+disabled on 36 `public` tables. No RLS setting was changed in this milestone;
+the effective ACL checks for the workout-sync tables show `anon` and
+`authenticated` cannot access them, and the broader advisor item remains a
+separate hardening review.
+
+Authenticated staging HTTP validation used synthetic identities and fixtures
+only. It covered the athlete's own write, linked coach write, unrelated athlete
+and coach denials, ended coach, URL/payload mismatch, wrong mutation type,
+schema/math mismatch, absent math version, active/expired/current-holder locks,
+revoked device/session, completed workout, future-clock rejection and replay,
+malformed timestamp fallback, tombstone and workout containment conflicts,
+forbidden fields, nested-set replacement, mixed accepted/rejected batches,
+duplicate retry, concurrent duplicate retry, canonical metrics, and the event
+row. A synthetic Realtime-shaped JWT and missing/invalid app auth were rejected.
+The stable route source enforces URL/payload match and `require_session_for_write`
+with athlete ownership or active coach relationship plus programming access;
+no unrelated-write defect was found.
+
+The API Edge Function is active at version 30. The temporary staging-only test
+session/diagnostic route was removed before that deployment; its GET path now
+returns 404 and `/api/health` returns 200. All rows with the
+`stg-workout-sync-` prefix were checked absent from users, sessions, coaching
+relationships, microcycles, workspaces, workouts, exercises, exercise sets,
+workout locks, devices, sync mutations, domain events, and insight cards.
+
+Regression checks executed on 2026-10-03: `npm.cmd test` passed (32 files,
+233 tests), `npm.cmd run lint` passed, `npm.cmd run build` passed with the
+existing large-chunk warning, and `git diff --check` passed. The coexistence
+proxy test verifies body, method, cookie, Authorization, query string, exact
+workout-sync Edge routing, and legacy fallback for other workout paths. Deno
+format/lint/typecheck/tests were not rerun because Deno is unavailable; Python
+reference tests could not run because the local Python environment lacks the
+repository's required test dependencies. Production and `local-save` remain
+untouched; no secrets or `.env` files were added, and no paid resource was
+enabled.

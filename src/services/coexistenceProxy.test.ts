@@ -130,7 +130,7 @@ describe('same-origin coexistence proxy', () => {
     expect(syncCardResult.path).toBe('/functions/v1/api/insight-cards/sync');
   });
 
-  it('keeps workout sync on the legacy backend', async () => {
+  it('routes only workout sync to Edge and keeps other workout routes on legacy', async () => {
     const body = JSON.stringify({ mutation_type: 'workout', workout_id: 'w-stg' });
     const response = await fetch(`${base}/api/workouts/w-stg/sync?cursor=1`, {
       method: 'POST',
@@ -138,9 +138,13 @@ describe('same-origin coexistence proxy', () => {
       body,
     });
     expect(await response.json()).toEqual({
-      upstream: 'legacy', method: 'POST', path: '/api/workouts/w-stg/sync?cursor=1',
+      upstream: 'edge', method: 'POST', path: '/functions/v1/api/workouts/w-stg/sync?cursor=1',
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
     });
+    for (const path of ['/api/workouts/w-stg', '/api/workouts/w-stg/exercises', '/api/workouts/w-stg/sync/other']) {
+      const fallback = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      expect((await fallback.json()).upstream).toBe('legacy');
+    }
   });
 
   it('keeps all other API paths on the legacy backend', async () => {

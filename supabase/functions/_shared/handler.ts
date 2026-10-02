@@ -5,6 +5,7 @@ import { ApiError, errorResponse, jsonResponse } from "./errors/mod.ts";
 import { handleAnalyticsQuery } from "./analyticsRoute.ts";
 import { handleInsightCardsRoute } from "./insightCardsRoute.ts";
 import { handleInsightCardSync } from "./insightCardSyncRoute.ts";
+import { handleWorkoutSync } from "./workoutSyncRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -64,6 +65,13 @@ export function createHandler(
       if (path === "/api/insight-cards/sync") {
         const principal = await authenticate(request, authRepository(db), config);
         return await handleInsightCardSync(request, db, principal);
+      }
+      const workoutSync = /^\/api\/workouts\/([^/]+)\/sync$/.exec(path);
+      if (workoutSync) {
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleWorkoutSync(request, workoutSync[1], config, db, principal);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
       }
       if (path === "/api/insight-cards" || /^\/api\/insight-cards\/[^/]+$/.test(path)) {
         const principal = await authenticate(request, authRepository(db), config);
