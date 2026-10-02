@@ -4,8 +4,8 @@ The `api` Edge Function ports exactly two read routes:
 
 | Existing route               | Function path                             | Behavior                                                                           |
 | ---------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| `GET /api/health`            | `/functions/v1/api/api/health`            | `SELECT 1`, then `{"status":"ok"}`                                                 |
-| `GET /api/analytics/catalog` | `/functions/v1/api/api/analytics/catalog` | Existing app cookie or bearer JWT, session and user lookup, Python catalog payload |
+| `GET /api/health`            | `/functions/v1/api/health`                | `SELECT 1`, then `{"status":"ok"}`                                                 |
+| `GET /api/analytics/catalog` | `/functions/v1/api/analytics/catalog`     | Existing app cookie or bearer JWT, session and user lookup, Python catalog payload |
 
 The existing same-origin reverse proxy must route these paths to the function
 before a browser rollout. Keeping the original `/api/*` URL preserves the

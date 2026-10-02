@@ -23,7 +23,9 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       proxy[`^${path}(?:\\?|$)`] = {
         target: edge,
         changeOrigin: true,
-        rewrite: (incoming) => `/functions/v1/api${incoming}`,
+        // The function slug is already `api`; append the route after removing
+        // the same-origin `/api` prefix to avoid `/api/api/...` upstream paths.
+        rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
       };
     }
   }

@@ -62,7 +62,7 @@ describe('same-origin coexistence proxy', () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({
         upstream: 'edge',
-        path: `/functions/v1/api${path}`,
+        path: `/functions/v1/api${path.slice('/api'.length)}`,
         cookie: 'session_id=app-token',
         authorization: 'Bearer app-token',
       });

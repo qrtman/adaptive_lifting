@@ -126,7 +126,8 @@ separate network login.
 The available MCP tools include `apply_migration`, `execute_sql`, and
 `deploy_edge_function`, but do not include a function-secret listing/get tool
 or `create_edge_function_secret`. Secret presence cannot be checked through
-this connection, and no secret values were read or changed. The API function
+this connection. The operator confirmed the API secrets were entered through
+the Dashboard; no secret values were read or changed. The API function
 requires `DATABASE_URL`, `JWT_SECRET_CURRENT`, and `CORS_ALLOWED_ORIGINS`.
 `JWT_SECRET_PREVIOUS` is optional and is not needed for synthetic sessions
 using a new staging-only key. The implementation does not require
@@ -135,19 +136,48 @@ is optional. The Realtime function additionally requires
 `REALTIME_ISSUER_DATABASE_URL`, `REALTIME_SIGNING_JWK`, and
 `REALTIME_SIGNING_KID`.
 
-No Edge Functions are currently deployed to this staging project. The API
-route deployment and live route/auth checks remain outstanding until the
-restricted connection and required staging secrets are entered through the
-Dashboard's Edge Function Secrets UI. The project's Edge secret store cannot
-be inspected through MCP. This validation uses only synthetic sessions, so
-configure a new staging-only `JWT_SECRET_CURRENT` rather than copying any
-production or unverified existing-backend key.
+The existing `api` Edge Function is deployed to staging as version 1 with
+platform JWT verification disabled because the handler validates the separate
+application JWT and database session. The operator confirmed `DATABASE_URL`,
+`JWT_SECRET_CURRENT`, and `CORS_ALLOWED_ORIGINS` are configured; secret values
+remain unavailable and were not requested.
 
 ### Routes and Realtime status
 
+Live API and routing checks on 2026-10-02:
+
+- `GET /functions/v1/api/health` returned HTTP 200 and `{"status":"ok"}`;
+  this route executes `SELECT 1`, so it proved the deployed Edge function could
+  connect to staging through its configured runtime connection.
+- The configured CORS origin `http://localhost:3000` was echoed exactly on the
+  health response, unauthenticated catalog response, and OPTIONS preflight.
+  Preflight returned HTTP 204 and allowed `GET, OPTIONS`; no wildcard origin
+  was observed.
+- A health request carrying `Origin: https://not-allowed.example` returned
+  HTTP 200 without `Access-Control-Allow-Origin`.
+- `GET /functions/v1/api/analytics/catalog` without credentials and with a
+  malformed bearer token each returned HTTP 401 with `WWW-Authenticate: Bearer`.
+- An initial request to `/functions/v1/api/api/health` returned 404. This
+  exposed an extra `/api` segment in the coexistence proxy rewrite. The rewrite
+  now targets `/functions/v1/api/health` and
+  `/functions/v1/api/analytics/catalog`; no function code or production
+  routing was changed.
+- The authenticated catalog payload and application-session cases were not
+  exercised: the function secret values were deliberately neither retrieved
+  nor exposed, and no local signing key/session fixture was provided. No
+  synthetic database rows were created.
+
+The Edge Function code, its configured database URL, and the manually tested
+runtime identity identify `al_edge_catalog_runtime` as the application DB
+login. The operator separately confirmed `current_user` and `session_user`
+both equal that role and that selecting from `workouts` is denied.
+
 Local-only checks rerun on 2026-10-02:
 
-- `npm.cmd test -- src/services/coexistenceProxy.test.ts`: passed, 3 tests.
+- `npm.cmd test -- src/services/coexistenceProxy.test.ts`: passed, 3 tests
+  after correcting the Edge path rewrite. The tests confirm only the two
+  exact routes target Edge, headers pass through, and other API paths use the
+  legacy backend.
 - `npm.cmd run lint`: passed (`tsc --noEmit`).
 - `npm.cmd run build`: passed; Vite emitted the existing large-chunk warning
   (636.23 kB minified JavaScript chunk).
@@ -248,7 +278,7 @@ Set `API_EDGE_TARGET=https://<confirmed-ref>.supabase.co` and
 `API_PROXY_TARGET` to the existing legacy backend origin in the **staging
 development** environment. `vite.config.ts` uses `deploy/coexistenceProxy.ts`
 to route exact `/api/health` and `/api/analytics/catalog` paths to
-`/functions/v1/api/api/...`; other `/api/...` paths retain the legacy proxy.
+`/functions/v1/api/...`; other `/api/...` paths retain the legacy proxy.
 Cookie and Authorization headers pass through the same-origin proxy. The
 automated Vite proxy test exercises those paths, query strings, adjacent-path
 fallback, and headers against local mock upstreams. It does not constitute a
