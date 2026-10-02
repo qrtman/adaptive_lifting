@@ -3,6 +3,7 @@ import { authenticate } from "./auth/session.ts";
 import { authRepository, checkDatabase, type Database } from "./db/mod.ts";
 import { ApiError, errorResponse, jsonResponse } from "./errors/mod.ts";
 import { handleAnalyticsQuery } from "./analyticsRoute.ts";
+import { handleInsightCardsRoute } from "./insightCardsRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -35,7 +36,7 @@ export function createHandler(
         status: 204,
         headers: {
           ...cors,
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Authorization, Content-Type",
         },
       });
@@ -58,6 +59,19 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         return jsonResponse(await handleAnalyticsQuery(request, config, db, principal), 200, cors);
+      }
+      if (path === "/api/insight-cards" || /^\/api\/insight-cards\/[^/]+$/.test(path)) {
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleInsightCardsRoute(
+          request,
+          config,
+          db,
+          principal,
+          path,
+          (catalog.presets ?? []) as Array<{ id?: string | null; name: string; config: Record<string, unknown>; layout: { order: number; col_span: 1 | 2 } }>,
+        );
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
       }
       if (request.method !== "GET") {
         throw new ApiError(405, "Method not allowed");

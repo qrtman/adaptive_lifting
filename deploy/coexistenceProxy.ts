@@ -1,4 +1,6 @@
 import type { ProxyOptions } from 'vite';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 
 const edgePaths = ['/api/health', '/api/analytics/catalog', '/api/analytics/query'] as const;
 
@@ -28,7 +30,48 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
         rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
       };
     }
+    proxy['^/api/insight-cards(?:/[^/?]+)?(?:\\?.*)?$'] = {
+      target: edge,
+      changeOrigin: true,
+      rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
+    };
   }
   proxy['/api'] = { target: legacy, changeOrigin: true };
   return proxy;
+}
+
+// Vite's proxy context matchers see paths but not methods. Keep POST sync on
+// legacy in a small method-aware middleware while allowing PUT/DELETE for a
+// card whose opaque ID happens to be "sync" to reach the migrated CRUD route.
+export function createLegacyInsightSyncMiddleware(legacyUrl: string) {
+  const targetOrigin = origin(legacyUrl, 'API_PROXY_TARGET');
+  return (request: import('node:http').IncomingMessage, response: import('node:http').ServerResponse, next: (error?: unknown) => void) => {
+    let incoming: URL;
+    try { incoming = new URL(request.url || '/', 'http://vite.local'); } catch { return next(); }
+    if (request.method !== 'POST' || incoming.pathname !== '/api/insight-cards/sync') return next();
+    const target = new URL(request.url || '/', targetOrigin);
+    const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
+    const upstream = send({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || undefined,
+      method: request.method,
+      path: `${target.pathname}${target.search}`,
+      headers: { ...request.headers, host: target.host },
+    }, (upstreamResponse) => {
+      response.statusCode = upstreamResponse.statusCode || 502;
+      for (const [name, value] of Object.entries(upstreamResponse.headers)) {
+        if (value !== undefined) response.setHeader(name, value);
+      }
+      upstreamResponse.pipe(response);
+    });
+    upstream.on('error', (error) => {
+      if (!response.headersSent) {
+        response.statusCode = 502;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ detail: 'Legacy backend unavailable' }));
+      } else response.destroy(error);
+    });
+    request.pipe(upstream);
+  };
 }

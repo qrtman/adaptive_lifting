@@ -1,10 +1,10 @@
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    readonly detail: string | Record<string, unknown>,
+    readonly detail: string | Record<string, unknown> | unknown[],
     readonly headers: HeadersInit = {},
   ) {
-    super(typeof detail === "string" ? detail : String(detail.message ?? "API request failed"));
+    super(typeof detail === "string" ? detail : Array.isArray(detail) ? "Request validation failed" : String(detail.message ?? "API request failed"));
   }
 }
 

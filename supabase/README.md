@@ -1,17 +1,24 @@
 # Supabase migration foundation
 
-The `api` Edge Function ports exactly two read routes:
+The `api` Edge Function ports these validated routes:
 
 | Existing route               | Function path                             | Behavior                                                                           |
 | ---------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
 | `GET /api/health`            | `/functions/v1/api/health`                | `SELECT 1`, then `{"status":"ok"}`                                                 |
 | `GET /api/analytics/catalog` | `/functions/v1/api/analytics/catalog`     | Existing app cookie or bearer JWT, session and user lookup, Python catalog payload |
+| `POST /api/analytics/query` | `/functions/v1/api/analytics/query` | Existing app session, narrow analytics RPC, Python-compatible calculations |
+| `GET /api/insight-cards` | `/functions/v1/api/insight-cards` | Owner-only list with transactional preset seeding |
+| `POST /api/insight-cards` | `/functions/v1/api/insight-cards` | Owner-only create with legacy config validation |
+| `PUT /api/insight-cards/{id}` | `/functions/v1/api/insight-cards/{id}` | Owner-only update; tombstones remain not found |
+| `DELETE /api/insight-cards/{id}` | `/functions/v1/api/insight-cards/{id}` | Owner-only tombstone |
 
 The existing same-origin reverse proxy must route these paths to the function
 before a browser rollout. Keeping the original `/api/*` URL preserves the
 HttpOnly `session_id` cookie. Direct cross-origin Function calls will not
-inherit the application's cookie. There is no frontend routing change here.
-Python remains available for every other route and as rollback.
+inherit the application's cookie. `POST /api/insight-cards/sync` remains on
+the legacy backend; Vite routes only that method/path to legacy while card IDs
+remain opaque for PUT and DELETE. Python remains available for every other
+route and as rollback.
 
 ## Configuration
 
@@ -20,10 +27,11 @@ Set `DATABASE_URL` to a server-only PostgreSQL connection URL,
 and the same `EMAIL_VERIFICATION_ENFORCE_LEGACY` flag as Python. The function
 sets `verify_jwt = false` because Supabase's platform JWT check cannot verify
 the application's independent HS256 keys; the handler verifies JWT and database
-session on every authenticated request. This does **not** make the catalog
-public. Prefer a transaction-pooler URL with TLS and a read-only database role
-restricted to the queried columns. Do not put the URL or application signing
-keys in browser code.
+session on every authenticated request. This does **not** make the API public.
+The runtime login has no direct access to `insight_cards`; it can execute only
+the narrow `al_private.al_insight_cards_*` functions for card CRUD. Its other
+application access remains column-scoped session/user lookups and the analytics
+read function. Do not put the URL or application signing keys in browser code.
 
 The catalog file was generated from `backend.analytics_registry` and
 `CatalogPayload` at `local-save` commit

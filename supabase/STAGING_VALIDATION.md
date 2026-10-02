@@ -481,3 +481,73 @@ Local checks rerun for this capability on 2026-10-03:
   the available Python environment. Deno checks were not run because Deno is
   not installed/on PATH. Prior auth, email-verification, and catalog-parity
   checks are historical, not rerun for this capability.
+
+## Insight Card CRUD capability (2026-10-03)
+
+This capability adds only `GET`, `POST`, `PUT`, and `DELETE
+/api/insight-cards`. `POST /api/insight-cards/sync` remains legacy. The local
+coexistence proxy tests cover all four CRUD methods, query strings, cookies,
+Authorization, JSON bodies, and verify sync POST still reaches legacy. A
+method-aware Vite middleware handles sync POST so PUT/DELETE still reach Edge
+even when the opaque card ID is literally `sync`.
+
+Staging migration `20261002173155 insight_card_crud_private_interface` was
+applied once. Its local filename is
+`20261002173155_insight_card_crud_private_interface.sql`. It adds four
+`SECURITY DEFINER` functions in the unexposed `al_private` schema, each with
+an empty fixed `search_path`: list-or-seed, create, update, and tombstone.
+Preset JSON is passed from the existing `catalog.json`; SQL contains no second
+copy of preset definitions. First-load seeding takes a per-user transaction
+advisory lock. Owner ID is only taken from the Edge principal, and the RPCs
+validate that the supplied user and active app session are linked.
+
+Observed ACLs: `al_edge_catalog_runtime` has EXECUTE on these four functions,
+but no SELECT/INSERT/UPDATE/DELETE on `public.insight_cards`. It has no CREATE
+on `public`. `anon` and `authenticated` have no effective read/write access to
+Insight Cards and cannot execute these functions. The runtime is not a table
+owner and its NOLOGIN reader membership and existing narrow app privileges are
+unchanged. The deployed Edge connection reported both `current_user` and
+`session_user` as `al_edge_catalog_runtime`.
+
+Live CRUD results on staging:
+
+- unauthenticated list/create/update/delete: all 401;
+- two concurrent first GETs both returned six presets, and subsequent SQL
+  showed exactly six live presets for that owner;
+- the six seeded IDs, names, configs, and layouts matched the catalog payload;
+- a user with one live custom card received only that card; after tombstoning
+  the custom card, GET seeded the six presets as legacy does;
+- create with an explicit ID preserved the ID; create without one returned a
+  UUID and default layout `{ "order": 0, "col_span": 1 }`;
+- update preserved the path ID and owner while changing name/config/layout;
+- foreign-user and missing-card PUT/DELETE both returned
+  `404 {"detail":"Card not found"}`;
+- incompatible POST and PUT configs returned 422 `INCOMPATIBLE_CARD`; malformed
+  config returned 422 with a validation detail array;
+- DELETE retained the row with `deleted_at`, hid it from list, and returned
+  `{"status":"tombstoned"}`. A second DELETE also returned 200 with the same
+  body, matching the Python route's owner/id lookup without a live-row filter.
+
+All synthetic cards, sessions, and users with `stg-insight-cards-` identifiers
+were deleted. Final staging checks showed zero matching user/session/card rows.
+The temporary synthetic-token test bridge was removed and API Edge Function
+version 22 was deployed from the clean source. Health returned 200 with
+`{"status":"ok"}`, an unauthenticated card list returned 401, and the removed
+test bridge no longer issues tokens.
+
+Local checks rerun for this capability:
+
+- `npm.cmd test`: passed, 32 files / 231 tests.
+- `npm.cmd run lint`: passed (`tsc --noEmit`).
+- `npm.cmd run build`: passed; existing large-chunk warning (665.69 kB minified
+  JavaScript chunk).
+- coexistence proxy tests: passed, including legacy POST sync and Edge
+  PUT/DELETE for card ID `sync`.
+- `git diff --check`: passed.
+- Deno tests and formatting were not rerun because Deno is unavailable.
+- Python analytics/reference tests were not rerun because Pydantic/Pytest are
+  unavailable in the environment. Live Edge behavior was checked against the
+  inspected Python router/schema/registry semantics.
+
+SSE, Realtime role/policies, and the analytics query route were not changed.
+Supabase Auth was not adopted; production and `local-save` were untouched.

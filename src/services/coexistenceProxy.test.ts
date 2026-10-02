@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type ViteDevServer } from 'vite';
 import { createServer as createHttpServer, type Server } from 'node:http';
-import { coexistenceProxy } from '../../deploy/coexistenceProxy';
+import { coexistenceProxy, createLegacyInsightSyncMiddleware } from '../../deploy/coexistenceProxy';
 
 let edge: Server;
 let legacy: Server;
@@ -35,13 +35,23 @@ beforeAll(async () => {
   });
   legacy = createHttpServer((request, response) => {
     response.setHeader('content-type', 'application/json');
-    response.end(JSON.stringify({ upstream: 'legacy', path: request.url }));
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', () => response.end(JSON.stringify({
+      upstream: 'legacy', method: request.method, path: request.url,
+      cookie: request.headers.cookie ?? null,
+      authorization: request.headers.authorization ?? null,
+      body: Buffer.concat(chunks).toString(),
+    })));
   });
   const edgeUrl = await listen(edge);
   const legacyUrl = await listen(legacy);
   vite = await createServer({
     configFile: false,
-    plugins: [],
+    plugins: [{
+      name: 'legacy-insight-card-sync-test',
+      configureServer(server) { server.middlewares.use(createLegacyInsightSyncMiddleware(legacyUrl)); },
+    }],
     optimizeDeps: { noDiscovery: true },
     server: { host: '127.0.0.1', port: 0, proxy: coexistenceProxy(legacyUrl, edgeUrl) },
   });
@@ -85,10 +95,46 @@ describe('same-origin coexistence proxy', () => {
     });
   });
 
+  it('routes Insight Card CRUD to Edge while keeping sync on legacy', async () => {
+    const cases = [
+      { method: 'GET', path: '/api/insight-cards?view=all', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards?view=all' },
+      { method: 'POST', path: '/api/insight-cards', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards' },
+      { method: 'PUT', path: '/api/insight-cards/card-1', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards/card-1' },
+      { method: 'DELETE', path: '/api/insight-cards/card-1', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards/card-1' },
+    ];
+    for (const item of cases) {
+      const body = item.method === 'GET' || item.method === 'DELETE' ? '' : JSON.stringify({ name: 'Card' });
+      const response = await fetch(base + item.path, {
+        method: item.method,
+        headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body ? { body } : {}),
+      });
+      const result = await response.json();
+      expect(result.upstream).toBe(item.upstream);
+      expect(result.method).toBe(item.method);
+      expect(result.path).toBe(item.edgePath);
+      expect(result.cookie).toBe('session_id=app-token');
+      expect(result.authorization).toBe('Bearer app-token');
+      expect(result.body).toBe(body);
+    }
+    const syncBody = JSON.stringify({ math_version: 'legacy' });
+    const sync = await fetch(`${base}/api/insight-cards/sync?cursor=1`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' }, body: syncBody,
+    });
+    expect(await sync.json()).toEqual({ upstream: 'legacy', method: 'POST', path: '/api/insight-cards/sync?cursor=1', cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: syncBody });
+    const syncCardId = await fetch(`${base}/api/insight-cards/sync`, {
+      method: 'DELETE', headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+    });
+    const syncCardResult = await syncCardId.json();
+    expect(syncCardResult.upstream).toBe('edge');
+    expect(syncCardResult.method).toBe('DELETE');
+    expect(syncCardResult.path).toBe('/functions/v1/api/insight-cards/sync');
+  });
+
   it('keeps all other API paths on the legacy backend', async () => {
     for (const path of ['/api/auth/me', '/api/healthcheck', '/api/analytics/catalogue']) {
       const response = await fetch(base + path);
-      expect(await response.json()).toEqual({ upstream: 'legacy', path });
+      expect(await response.json()).toEqual({ upstream: 'legacy', method: 'GET', path, cookie: null, authorization: null, body: '' });
     }
   });
 
