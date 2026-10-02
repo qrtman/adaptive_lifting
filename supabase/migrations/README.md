@@ -13,10 +13,11 @@ provisioning the environment. Do not use that credential in the frontend.
 
 Any later coexistence migration must be additive and keep Python compatible.
 
-`20261002071547_edge_catalog_reader.sql` is the next additive migration. It
-creates only a NOLOGIN privilege group and grants CONNECT, schema USAGE, and
-column-level SELECT needed by the session validator. It does not change table
-structure, Python behavior, browser grants, or Data API exposure. A separate
-staging-only LOGIN role and password must be provisioned operationally, then
-tested before the function receives its connection URL. See
-`../STAGING_VALIDATION.md`. This migration has not been applied by this branch.
+`20261002090404_edge_catalog_reader.sql` creates the NOLOGIN privilege group
+and grants CONNECT, schema USAGE, and column-level SELECT needed by the session
+validator. `20261002092347_al_edge_catalog_runtime.sql` creates a separate
+staging runtime LOGIN that inherits only that group; its password is provisioned
+operationally and is not stored in this repository. Neither migration changes
+table structure, Python behavior, browser grants, or Data API exposure. Both
+were applied only to staging and their filenames were reconciled with the
+recorded Supabase migration versions. See `../STAGING_VALIDATION.md`.

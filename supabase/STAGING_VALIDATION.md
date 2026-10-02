@@ -7,10 +7,174 @@ operation. The foundation commit is `c37ebfe373b11c843707e17a13bbe26178ed5d93`;
 `local-save` at `29c81fb395c62cc2ac3c775d2a7d8ef3106d9328` is frozen.
 No script here guesses a project ref or reads production credentials.
 
+## Observed staging validation — 2026-10-02 (partial)
+
+The confirmed target is `adaptive-lifting-staging`, ref
+`admyuepbbtstayaydjmo`, region `ap-northeast-2`, Free plan. The project-scoped
+Supabase MCP URL resolved to that ref. No production project or credential was
+used.
+
+### Existing catalog-reader migration
+
+`20261002090404_edge_catalog_reader.sql` was applied through the official
+project-scoped MCP `apply_migration` tool. Supabase recorded version
+`20261002090404`, name `edge_catalog_reader`. The schema matched the migration's
+expected `public.users` and `public.sessions` columns before application.
+
+Live effective privilege inspection after application found:
+
+- `al_edge_catalog_reader`: `CONNECT` on `postgres`, `USAGE` on `public`, no
+  `CREATE`, 11 effective column-level SELECT grants, zero writable public
+  tables, zero public sequence USAGE, zero owned public tables, and no
+  `LOGIN`, `SUPERUSER`, `CREATEROLE`, `CREATEDB`, or `BYPASSRLS` attributes.
+- Its SELECT grants are exactly `sessions(id,user_id,jwt_id,revoked_at,expires_at)`
+  and `users(id,google_sub,email_verified_at,email_verification_required,
+  email_verification_legacy_exempt,deleted_at)`. Queries selecting those
+  columns completed under the role; `SELECT 1` also succeeded.
+- `anon` and `authenticated` each retain `CONNECT` and `public` `USAGE`, but
+  have zero effective application-table column SELECT privileges and zero
+  writable public tables. No grants were added to either browser role.
+- Under the restricted role, attempted INSERT/UPDATE/DELETE on users and
+  sessions, reads of verification tokens, integration credentials and
+  workouts, workout writes, public object creation, users table ALTER/DROP,
+  role creation, a grant to `anon`, and an `authenticated` role alteration
+  were all denied. PostgreSQL returned permission-denied/owner-required errors.
+- These probes ran inside transactions that were rolled back. The temporary
+  `SET` membership used to exercise the role was rolled back too. No probe role
+  or fixture rows remain.
+
+The SQL MCP session itself is `postgres`. Therefore its successful ability to
+switch back to `postgres` is not a valid runtime-role escalation test. Catalog
+inspection shows `al_edge_catalog_reader` has no escalation attributes and
+cannot assume `postgres`; an actual LOGIN connection test is still needed.
+
+### Runtime LOGIN migration
+
+`20261002092347_al_edge_catalog_runtime.sql` was applied through the
+project-scoped MCP after confirming its URL still resolved to
+`admyuepbbtstayaydjmo`. The migration created `al_edge_catalog_runtime` with
+LOGIN, INHERIT, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, and
+NOBYPASSRLS. It contains no password. The role has exactly one membership:
+`al_edge_catalog_reader`, with `INHERIT TRUE`, `SET FALSE`, and `ADMIN FALSE`.
+This makes the reviewed group column grants usable while preventing role
+switching or membership delegation.
+
+Live catalog inspection after application confirmed:
+
+- The runtime role has `CONNECT` through its inherited reader membership and
+  `USAGE` on `public`; it has no `CREATE` on `public`.
+- `has_database_privilege` confirms `CONNECT` to `postgres`; the six required
+  session columns and five required user columns are selectable.
+- Exactly the same 11 expected column SELECT privileges are effective. It has
+  zero effective public-table writes, zero sequence USAGE/UPDATE, zero owned
+  public objects, and zero direct public-object ACL entries.
+- Effective privilege checks deny `UPDATE` on users/sessions and `SELECT` on
+  `email_verification_tokens`, `integration_credentials`, and `workouts`.
+- It cannot `SET ROLE` to either `al_edge_catalog_reader` or `postgres`.
+- The roles retain no superuser, createdb, createrole, replication, or
+  bypass-RLS capability.
+- Effective `anon`/`authenticated` access remains zero for public application
+  table column reads and writes.
+
+Supabase `list_migrations` records `20261002092347`
+`al_edge_catalog_runtime`.
+
+### Migration-history filename reconciliation
+
+On 2026-10-02, project-scoped MCP confirmed ref `admyuepbbtstayaydjmo` and
+reported exactly these records: `20261002090404 edge_catalog_reader` and
+`20261002092347 al_edge_catalog_runtime`. MCP `execute_sql` inspection of the
+two corresponding `supabase_migrations.schema_migrations.statements` entries
+matched each local SQL file after normalizing CRLF/LF and trailing whitespace.
+The file contents were not edited; filenames were aligned to the remote
+versions:
+
+- `20261002071547_edge_catalog_reader.sql` →
+  `20261002090404_edge_catalog_reader.sql`
+- `20261002092326_al_edge_catalog_runtime.sql` →
+  `20261002092347_al_edge_catalog_runtime.sql`
+
+The local migration directory now orders these two files in dependency order:
+the reader group migration precedes the runtime LOGIN membership migration.
+Both versions match `list_migrations`; no SQL was reapplied and the remote
+migration-history table was not changed.
+
+These are live catalog/ACL checks through MCP, not queries executed as the
+runtime LOGIN. Actual `current_user`/`session_user` and attempted forbidden
+operations must be validated after a password is set and `DATABASE_URL` is
+installed securely.
+
+The MCP schema listing reports 36 public tables with RLS disabled. A separate
+effective ACL check confirms no `anon` or `authenticated` application-table
+read/write privileges at this time. This is recorded for later hardening
+review; no RLS changes were made in this milestone.
+
+### Runtime connection and secrets
+
+Supabase's current Edge Functions documentation lists `SUPABASE_DB_URL` as an
+automatically supplied URL for the project Postgres database. Supabase's
+documented default connection examples use the `postgres` database role. I
+infer the built-in URL uses that elevated default identity; this project's
+injected URL value cannot be inspected with the available MCP tools. In any
+case, the built-in URL is not a least-privilege runtime identity. The current
+function implementation requires `DATABASE_URL`, so the intended runtime
+remains a separate PostgreSQL transaction-pooler connection string for
+`al_edge_catalog_runtime`, whose only role membership is
+`al_edge_catalog_reader`. The MCP SQL tool cannot provide or test that
+separate network login.
+
+The available MCP tools include `apply_migration`, `execute_sql`, and
+`deploy_edge_function`, but do not include a function-secret listing/get tool
+or `create_edge_function_secret`. Secret presence cannot be checked through
+this connection, and no secret values were read or changed. The API function
+requires `DATABASE_URL`, `JWT_SECRET_CURRENT`, and `CORS_ALLOWED_ORIGINS`.
+`JWT_SECRET_PREVIOUS` is optional and is not needed for synthetic sessions
+using a new staging-only key. The implementation does not require
+`JWT_KID_CURRENT` or `JWT_KID_PREVIOUS`. `EMAIL_VERIFICATION_ENFORCE_LEGACY`
+is optional. The Realtime function additionally requires
+`REALTIME_ISSUER_DATABASE_URL`, `REALTIME_SIGNING_JWK`, and
+`REALTIME_SIGNING_KID`.
+
+No Edge Functions are currently deployed to this staging project. The API
+route deployment and live route/auth checks remain outstanding until the
+restricted connection and required staging secrets are entered through the
+Dashboard's Edge Function Secrets UI. The project's Edge secret store cannot
+be inspected through MCP. This validation uses only synthetic sessions, so
+configure a new staging-only `JWT_SECRET_CURRENT` rather than copying any
+production or unverified existing-backend key.
+
+### Routes and Realtime status
+
+Local-only checks rerun on 2026-10-02:
+
+- `npm.cmd test -- src/services/coexistenceProxy.test.ts`: passed, 3 tests.
+- `npm.cmd run lint`: passed (`tsc --noEmit`).
+- `npm.cmd run build`: passed; Vite emitted the existing large-chunk warning
+  (636.23 kB minified JavaScript chunk).
+- `python -m pytest -q backend/test_auth.py backend/test_email_verification.py`
+  using a temporary venv populated from `backend/requirements.txt`: passed,
+  66 tests (79 warnings).
+- `python supabase/tests/check_catalog_parity.py` using the same temporary
+  venv: passed.
+- Deno checks were not rerun because `deno` is not installed/on PATH.
+
+The earlier recorded Deno 12-test pass, catalog parity, and Python
+auth/email-verification 66-test pass are historical results, not rerun here.
+The proxy tests check exact-path routing, query/header forwarding, and legacy
+fallback. No hosted `GET /api/health` or `/api/analytics/catalog` response has
+been validated. No Edge Function deployment was made.
+
+Realtime remains a prototype only. The checked-in issuer uses ES256 and emits
+`sub`, `role=al_realtime_subscriber`, `purpose=workout_broadcast_spike`, exact
+`rt_topic`, `iat`, `jti`, and a 60-second `exp`. No live Realtime policy,
+subscription, Broadcast, token refresh, or revocation-window measurement was
+performed. No Realtime roles, policy, key, secret, setting, or function were
+created.
+
 ## Restricted database credential
 
-Apply `migrations/20261002071547_edge_catalog_reader.sql` to the confirmed
-staging project. It creates `al_edge_catalog_reader` as a NOLOGIN group with:
+The applied migration `migrations/20261002090404_edge_catalog_reader.sql`
+creates `al_edge_catalog_reader` as a NOLOGIN group with:
 
 - `CONNECT` on `postgres` and `USAGE` on `public`;
 - `SELECT` on `sessions(id,user_id,jwt_id,revoked_at,expires_at)`;
@@ -23,39 +187,60 @@ inherited and `PUBLIC` grants in the live project.
 Future RPCs should receive individual `EXECUTE` grants only after their SQL
 and security mode are reviewed; this read slice needs no application RPC.
 
-For a staging login, create `al_edge_catalog_login LOGIN` and grant it only
-`al_edge_catalog_reader`. Set a generated, strong password using an interactive
-database client (`\password al_edge_catalog_login` in `psql`) so the password
-does not appear in SQL history or this repository. Supabase's shared **transaction
-pooler** uses port 6543 and a custom username of
-`al_edge_catalog_login.<confirmed-project-ref>`. The Edge function's
-server-side `DATABASE_URL` must point there with TLS; never use the default
-owner-level `SUPABASE_DB_URL` for this slice. Store the URL through the
-staging project's Edge Function Secrets UI or `supabase secrets set --env-file`
-with an ignored local file. Secret names are project scoped. The pooler
+The staging LOGIN role `al_edge_catalog_runtime` now exists and inherits only
+`al_edge_catalog_reader`; it has no password until assigned securely. Generate
+a strong, unique staging-only password in a password manager or local password
+generator, then use a trusted interactive `psql` session connected to the
+staging database as an administrator and run `\password al_edge_catalog_runtime`.
+Enter the password only at the two hidden prompts;
+do not use `ALTER ROLE ... PASSWORD '...'` in SQL Editor history.
+
+In the staging Dashboard, open **Connect**, choose **Transaction Pooler**, and
+copy its actual host and connection details. Do not infer the host from the
+region. The Edge secret must use the shared transaction pooler, port 6543, and
+this username format (with the actual Dashboard host and password URL-encoded
+if needed):
+
+`postgresql://al_edge_catalog_runtime.admyuepbbtstayaydjmo:<PASSWORD>@<ACTUAL-POOLER-HOST>:6543/postgres`
+
+In **Project > Edge Functions > Secrets**, securely enter these required
+names for the existing API function: `DATABASE_URL`, `JWT_SECRET_CURRENT`,
+and `CORS_ALLOWED_ORIGINS`. Generate a new staging-only `JWT_SECRET_CURRENT`
+locally or in a password manager; synthetic sessions and JWT fixtures must use
+that same key. Do not copy a production key. Do not add
+`JWT_SECRET_PREVIOUS`, `JWT_KID_CURRENT`, or `JWT_KID_PREVIOUS` for this
+synthetic-only validation. The MCP cannot create or inspect Edge secrets, so
+secret setup is a manual Dashboard step and no values should be sent in chat.
+
+The Edge function's server-side `DATABASE_URL` must point to this restricted
+login; never use the default elevated `SUPABASE_DB_URL` for this slice. The pooler
 supports no named prepared statements or query pipelining; the adapter's
 parameterized queries require a live compatibility check before use.
 The previously validated session pooler remains a valid staging connection
 path for long-lived tools, while Supabase recommends the transaction pooler
 for short-lived Edge Function connections.
 
-Run `deno run --allow-env --allow-net tests/staging_live.ts` from `supabase/`
-with `STAGING_PROJECT_NAME`, `STAGING_PROJECT_REF`,
-`STAGING_ADMIN_DATABASE_URL`, `STAGING_RUNTIME_DATABASE_URL`, and the staging
-`JWT_SECRET_CURRENT` supplied through secure environment variables. The script
-refuses a URL whose host/username does not match the confirmed ref. It creates
-only synthetic `@example.invalid` users and sessions and deletes them in
-`finally`. It checks the actual adapter, eleven expected column grants,
-CONNECT/USAGE, negative writes and sensitive reads, role escalation, browser
-roles, and application-session cases. It must be run and its output recorded;
-the checked-in script is not evidence of a live pass. A failed cleanup needs
+The Deno harness is an optional supplemental end-to-end check, not a
+prerequisite for MCP migration or SQL privilege validation. If it is run,
+`deno run --allow-env --allow-net tests/staging_live.ts` from `supabase/`
+expects `STAGING_PROJECT_NAME`, `STAGING_PROJECT_REF`,
+`STAGING_ADMIN_DATABASE_URL`, `STAGING_RUNTIME_DATABASE_URL`, and staging
+`JWT_SECRET_CURRENT` in its environment. Those harness-specific variables are
+not Supabase services and need not be created when an equivalent check can be
+performed through MCP. The script refuses a URL whose host/username does not
+match the confirmed ref. It creates only synthetic `@example.invalid` users
+and sessions and deletes them in `finally`. It checks the actual adapter,
+eleven expected column grants, CONNECT/USAGE, negative writes and sensitive
+reads, role escalation, browser roles, and application-session cases. Its
+output is evidence only if the harness actually runs; a failed cleanup needs
 manual review before a rerun.
 
 Rotate the login by changing its password interactively, updating the staging
 Edge secret, verifying a new connection, and terminating the old credential's
-connections. Remove it by deleting the Edge secret, revoking group membership,
-and dropping the login. Keep the NOLOGIN group only if this architecture is
-adopted; otherwise revoke its grants and drop it after the experiment.
+connections. If this architecture is rejected after validation, remove it by
+deleting the Edge secret, revoking group membership, and dropping the login.
+Keep the NOLOGIN reader group and LOGIN role if this runtime architecture is
+adopted.
 
 ## Same-origin coexistence
 
