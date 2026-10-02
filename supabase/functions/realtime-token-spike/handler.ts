@@ -65,10 +65,9 @@ export function createRealtimeTokenHandler(
       const body = await request.json();
       const workoutId = body?.workout_id;
       if (
-        typeof workoutId !== "string" || !/^[0-9a-f-]{36}$/i.test(workoutId)
-      ) {
-        throw new ApiError(422, "Valid workout_id required");
-      }
+        typeof workoutId !== "string" ||
+        !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(workoutId)
+      ) throw new ApiError(422, "Valid workout_id required");
       const principal = await authenticate(request, authRepository(db), config);
       if (!await ownsWorkout(db, workoutId, principal.user.id)) {
         throw new ApiError(403, "Workout access denied");

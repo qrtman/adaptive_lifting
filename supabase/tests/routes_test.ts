@@ -58,6 +58,15 @@ Deno.test("health checks the database and returns Python payload", async () => {
   assert(failure.status === 500);
 });
 
+Deno.test("Realtime token route is unavailable without its signing key", async () => {
+  const response = await createHandler(config, db)(
+    new Request("https://example.test/functions/v1/api/api/realtime/token", {
+      method: "POST",
+    }),
+  );
+  assert(response.status === 503);
+});
+
 Deno.test("catalog requires app session and matches Python registry fixture", async () => {
   const handler = createHandler(config, db);
   const denied = await handler(

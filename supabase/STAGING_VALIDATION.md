@@ -7,7 +7,7 @@ operation. The foundation commit is `c37ebfe373b11c843707e17a13bbe26178ed5d93`;
 `local-save` at `29c81fb395c62cc2ac3c775d2a7d8ef3106d9328` is frozen.
 No script here guesses a project ref or reads production credentials.
 
-## Observed staging validation — 2026-10-02 (partial)
+## Observed staging validation â€” 2026-10-02 (partial)
 
 The confirmed target is `adaptive-lifting-staging`, ref
 `admyuepbbtstayaydjmo`, region `ap-northeast-2`, Free plan. The project-scoped
@@ -89,9 +89,9 @@ matched each local SQL file after normalizing CRLF/LF and trailing whitespace.
 The file contents were not edited; filenames were aligned to the remote
 versions:
 
-- `20261002071547_edge_catalog_reader.sql` →
+- `20261002071547_edge_catalog_reader.sql` â†’
   `20261002090404_edge_catalog_reader.sql`
-- `20261002092326_al_edge_catalog_runtime.sql` →
+- `20261002092326_al_edge_catalog_runtime.sql` â†’
   `20261002092347_al_edge_catalog_runtime.sql`
 
 The local migration directory now orders these two files in dependency order:
@@ -142,7 +142,7 @@ application JWT and database session. The operator confirmed `DATABASE_URL`,
 `JWT_SECRET_CURRENT`, and `CORS_ALLOWED_ORIGINS` are configured; secret values
 remain unavailable and were not requested.
 
-### Routes and Realtime status
+### Routes and Realtime status (historical checkpoint)
 
 Live API and routing checks on 2026-10-02:
 
@@ -162,10 +162,10 @@ Live API and routing checks on 2026-10-02:
   now targets `/functions/v1/api/health` and
   `/functions/v1/api/analytics/catalog`; no function code or production
   routing was changed.
-- The authenticated catalog payload and application-session cases were not
-  exercised: the function secret values were deliberately neither retrieved
-  nor exposed, and no local signing key/session fixture was provided. No
-  synthetic database rows were created.
+- The authenticated catalog payload and application-session cases were later
+  completed in the catalog-auth milestone; that later validation supersedes
+  this preliminary checkpoint. Realtime status is superseded by the final
+  results below.
 
 The Edge Function code, its configured database URL, and the manually tested
 runtime identity identify `al_edge_catalog_runtime` as the application DB
@@ -191,15 +191,10 @@ Local-only checks rerun on 2026-10-02:
 The earlier recorded Deno 12-test pass, catalog parity, and Python
 auth/email-verification 66-test pass are historical results, not rerun here.
 The proxy tests check exact-path routing, query/header forwarding, and legacy
-fallback. No hosted `GET /api/health` or `/api/analytics/catalog` response has
-been validated. No Edge Function deployment was made.
+fallback. This was a historical state before the hosted route deployment.
 
-Realtime remains a prototype only. The checked-in issuer uses ES256 and emits
-`sub`, `role=al_realtime_subscriber`, `purpose=workout_broadcast_spike`, exact
-`rt_topic`, `iat`, `jti`, and a 60-second `exp`. No live Realtime policy,
-subscription, Broadcast, token refresh, or revocation-window measurement was
-performed. No Realtime roles, policy, key, secret, setting, or function were
-created.
+Realtime remained unvalidated at this historical checkpoint. See the final
+prototype results below.
 
 ## Restricted database credential
 
@@ -287,7 +282,7 @@ same two exact-path rules before the existing `/api/*` fallback. Its host and
 deployment configuration must be confirmed separately; no production DNS or
 deployment change belongs to this milestone.
 
-## Realtime capability prototype
+## Realtime capability prototype (pre-validation draft; superseded below)
 
 `realtime-token-spike` is a separate staging-only Edge Function. It verifies
 the existing HttpOnly application cookie or bearer token through the shared
@@ -337,3 +332,75 @@ Official sources: [Postgres connection paths](https://supabase.com/docs/guides/d
 [custom JWT signing keys](https://supabase.com/docs/guides/auth/signing-keys),
 [Realtime private-channel authorization](https://supabase.com/docs/guides/realtime/authorization),
 [Realtime `setAuth`](https://supabase.com/docs/reference/javascript/setauth).
+
+## Realtime prototype validation (2026-10-02)
+
+This section supersedes the preliminary Realtime draft above. The staging API
+uses the existing app JWT/session/eligibility validator, verifies
+`workouts.owner_id`, and issues an ES256 Realtime token with the Current
+imported key (`kid=ce24a866-49d1-4f0e-bde5-9c5e05a70210`). Token TTL is 60
+seconds. Claims are limited to `sub`, `role=al_realtime_subscriber`,
+`app_user_id`, `workout_id`, `purpose=adaptive_lifting_realtime`, exact
+`rt_topic=workout:<id>`, `iat`, `exp`, and `jti`. The private signing key is
+stored only as Edge secret `REALTIME_JWT_PRIVATE_JWK`.
+
+Migration `20261002152646_realtime_private_broadcast_subscriber` was applied
+to staging. It creates `al_realtime_subscriber` as NOLOGIN, NOINHERIT,
+NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOBYPASSRLS, with no ownership or
+application-table privileges. It has `USAGE` on `realtime` and `SELECT` on
+`realtime.messages`; its only policy is receive-only for Broadcast, exact
+topic/workout identity and the `adaptive_lifting_realtime` purpose. RLS on
+`realtime.messages` was already enabled and was not changed. The API runtime
+receives only `workouts(id,owner_id,deleted_at)` for the ownership check.
+There are no direct sequence grants to `al_realtime_subscriber`. Effective ACL
+inspection also found `PUBLIC` grants on the shared `net.http_request_queue_id_seq`
+and cron job/run sequences; this role has no `USAGE` on the `net` or `cron`
+schemas, so it cannot address those objects. Those global extension ACLs were
+not changed because revoking from `PUBLIC` would affect the whole project.
+
+Live tests:
+
+- Valid app session, ownership, token claims, and private join: passed.
+- Private Broadcast receive and post-`setAuth()` Broadcast receive: passed.
+- Second eligible user requesting the first workout's token: denied (403).
+- Token for workout A joining workout B: denied.
+- Normal Adaptive Lifting app JWT joining private Realtime directly: denied
+  (`JwtSignatureError`).
+- Realtime token used on `/api/analytics/catalog`: denied (401); used as a
+  Data API bearer for `workouts`: denied (403).
+- Expired Realtime token starting a new subscription: denied
+  (`InvalidJWTToken: Token has expired`).
+- Revoked app session requesting a new Realtime token: denied (401).
+- Reconnect with an already issued, unexpired Realtime token after app-session
+  revocation: succeeded and received Broadcast. The capability JWT remains
+  valid independently of the application DB session until its own expiry.
+- Measured revocation window in the controlled run: PostgreSQL revoked the app
+  session at `2026-10-02 15:54:27.475952 UTC`; token expiry was approximately
+  `2026-10-02 15:55:17 UTC`, about 49.5 seconds later. Controlled Broadcasts
+  continued to arrive until immediately before expiry; the reconnected channel
+  closed at expiry, and no later Broadcast was observed. This observed window
+  is specific to the run and is not a general guarantee.
+
+The user subsequently switched **Allow public access to channels OFF**
+in staging. On 2026-10-02, a fresh synthetic retest proved:
+
+- a no-token public channel join was denied; Realtime logged
+  `PrivateOnly: This project only allows private channels`;
+- the valid ES256 capability token joined the private workout channel;
+- a no-token private join and a wrong-topic join were denied;
+- a different eligible app user could not obtain the owner's workout token;
+- a WebSocket Broadcast was received on the authorized private channel.
+
+For that Broadcast only, an exact-workout temporary INSERT policy and privilege
+were added to `al_realtime_subscriber`, then removed immediately afterward.
+The final role has SELECT but no INSERT on `realtime.messages`. A separate
+database `realtime.send` probe inserted a row but did not deliver it during
+this retest, so only WebSocket Broadcast delivery is claimed as live-validated.
+
+Cleanup verified zero synthetic `stg-realtime-*` users, sessions, workouts,
+and `realtime.messages` topics. No temporary policy or fixture route remains.
+The staging API was redeployed from current source as version 14;
+`GET /api/health` returned 200 and the temporary fixture route returned 404.
+The token issuer, minimal receive policy, role, tests, and runbook remain as
+the completed prototype. No SSE or frontend changes were made; Supabase Auth
+was not adopted.

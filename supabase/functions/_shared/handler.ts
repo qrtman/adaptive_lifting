@@ -3,8 +3,19 @@ import { authenticate } from "./auth/session.ts";
 import { authRepository, checkDatabase, type Database } from "./db/mod.ts";
 import { ApiError, errorResponse, jsonResponse } from "./errors/mod.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
+import {
+  createRealtimeTokenHandler,
+} from "../realtime-token-spike/handler.ts";
+import type { RealtimeSigner } from "../realtime-token-spike/token.ts";
 
-export function createHandler(config: AppConfig, db: Database) {
+export function createHandler(
+  config: AppConfig,
+  db: Database,
+  realtimeSigner?: RealtimeSigner,
+) {
+  const realtimeTokenHandler = realtimeSigner
+    ? createRealtimeTokenHandler(config, db, realtimeSigner)
+    : null;
   return async (request: Request): Promise<Response> => {
     const origin = request.headers.get("origin");
     const cors: Record<string, string> =
@@ -23,16 +34,25 @@ export function createHandler(config: AppConfig, db: Database) {
         status: 204,
         headers: {
           ...cors,
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Authorization, Content-Type",
         },
       });
     }
     try {
-      const path = new URL(request.url).pathname.replace(
+      const rawPath = new URL(request.url).pathname.replace(
         /^\/functions\/v1\/api/,
         "",
       );
+      const path = rawPath === "/api" || rawPath.startsWith("/api/")
+        ? rawPath
+        : `/api${rawPath}`;
+      if (path === "/api/realtime/token") {
+        if (!realtimeTokenHandler) {
+          throw new ApiError(503, "Realtime token service unavailable");
+        }
+        return await realtimeTokenHandler(request);
+      }
       if (request.method !== "GET") {
         throw new ApiError(405, "Method not allowed");
       }

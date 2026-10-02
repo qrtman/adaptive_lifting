@@ -7,6 +7,8 @@ import {
   REALTIME_PURPOSE,
   REALTIME_ROLE,
   REALTIME_TOKEN_TTL_SECONDS,
+  REALTIME_SIGNING_KID,
+  signerFromEnv,
   type RealtimeSigner,
 } from "../functions/realtime-token-spike/token.ts";
 
@@ -124,6 +126,7 @@ Deno.test("Realtime capability has a separate ES256 key, restricted role, exact 
   assert(
     payload.purpose === REALTIME_PURPOSE && payload.rt_topic === issued.topic,
   );
+  assert(payload.app_user_id === userId && payload.workout_id === workoutId);
   assert(payload.exp === now + REALTIME_TOKEN_TTL_SECONDS);
   assert(!("session_id" in payload));
   let expired = false;
@@ -138,6 +141,31 @@ Deno.test("Realtime capability has a separate ES256 key, restricted role, exact 
     expired,
     "expired capability must fail signature-library verification",
   );
+});
+
+Deno.test("signer ignores verify-only JWK metadata and imports signing use", async () => {
+  const { signer: generated, publicKey } = await signingKeys();
+  const privateJwk = {
+    ...generated.jwk,
+    key_ops: ["verify"],
+    use: "enc",
+  };
+  const signer = signerFromEnv((name) =>
+    name === "REALTIME_JWT_PRIVATE_JWK"
+      ? JSON.stringify(privateJwk)
+      : undefined
+  );
+  assert(signer.kid === REALTIME_SIGNING_KID);
+  assert(signer.jwk.key_ops?.join(",") === "sign");
+  assert(signer.jwk.use === undefined);
+  const issued = await issueRealtimeToken(userId, workoutId, signer, 1_800_000_000);
+  const { payload, protectedHeader } = await jwtVerify(
+    issued.token,
+    publicKey,
+    { algorithms: ["ES256"], currentDate: new Date(1_800_000_001_000) },
+  );
+  assert(protectedHeader.kid === REALTIME_SIGNING_KID);
+  assert(payload.role === REALTIME_ROLE);
 });
 
 Deno.test("issuer only mints after live app session and workout ownership checks", async () => {
@@ -181,4 +209,24 @@ Deno.test("issuer denies unapproved browser origin", async () => {
   )(request);
   assert(response.status === 403);
   assert(!response.headers.has("Access-Control-Allow-Origin"));
+});
+
+Deno.test("issuer accepts application-owned opaque string IDs", async () => {
+  const { signer, publicKey } = await signingKeys();
+  const appUserId = "stg-realtime-user-a1b2c3";
+  const ownedWorkoutId = "stg-realtime-workout-a1b2c3";
+  const issued = await issueRealtimeToken(
+    appUserId,
+    ownedWorkoutId,
+    signer,
+    1_800_000_000,
+  );
+  const { payload } = await jwtVerify(
+    issued.token,
+    publicKey,
+    { algorithms: ["ES256"], currentDate: new Date(1_800_000_001_000) },
+  );
+  assert(payload.sub === appUserId);
+  assert(payload.workout_id === ownedWorkoutId);
+  assert(issued.topic === `workout:${ownedWorkoutId}`);
 });
