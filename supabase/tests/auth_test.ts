@@ -20,6 +20,7 @@ const config: AppConfig = {
   jwtCurrent: pythonTokens.current_secret,
   jwtPrevious: pythonTokens.previous_secret,
   enforceLegacyEmailVerification: false,
+  analyticsPastDueGraceDays: 3,
   allowedOrigins: ["https://app.example.test"],
 };
 const user: AppUser = {

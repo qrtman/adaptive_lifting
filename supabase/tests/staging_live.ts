@@ -59,6 +59,7 @@ const config: AppConfig = {
   jwtCurrent: required("JWT_SECRET_CURRENT"),
   jwtPrevious: Deno.env.get("JWT_SECRET_PREVIOUS") || null,
   enforceLegacyEmailVerification: false,
+  analyticsPastDueGraceDays: 3,
   allowedOrigins: ["https://staging.example.invalid"],
 };
 

@@ -22,12 +22,16 @@ async function close(server: Server): Promise<void> {
 beforeAll(async () => {
   edge = createHttpServer((request, response) => {
     response.setHeader('content-type', 'application/json');
-    response.end(JSON.stringify({
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', () => response.end(JSON.stringify({
       upstream: 'edge',
+      method: request.method,
       path: request.url,
       cookie: request.headers.cookie ?? null,
       authorization: request.headers.authorization ?? null,
-    }));
+      body: Buffer.concat(chunks).toString(),
+    })));
   });
   legacy = createHttpServer((request, response) => {
     response.setHeader('content-type', 'application/json');
@@ -54,7 +58,7 @@ afterAll(async () => {
 });
 
 describe('same-origin coexistence proxy', () => {
-  it('sends only the two migrated GET paths to the Edge function and preserves credentials', async () => {
+  it('sends only migrated paths to Edge and preserves method, body, and credentials', async () => {
     for (const path of ['/api/health', '/api/analytics/catalog?limit=1']) {
       const response = await fetch(base + path, {
         headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
@@ -62,11 +66,23 @@ describe('same-origin coexistence proxy', () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({
         upstream: 'edge',
+        method: 'GET',
         path: `/functions/v1/api${path.slice('/api'.length)}`,
         cookie: 'session_id=app-token',
         authorization: 'Bearer app-token',
+        body: '',
       });
     }
+    const body = JSON.stringify({ athlete_id: 'stg-athlete', config: { metrics: ['tonnage'] } });
+    const response = await fetch(`${base}/api/analytics/query?debug=1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body,
+    });
+    expect(await response.json()).toEqual({
+      upstream: 'edge', method: 'POST', path: '/functions/v1/api/analytics/query?debug=1',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
+    });
   });
 
   it('keeps all other API paths on the legacy backend', async () => {

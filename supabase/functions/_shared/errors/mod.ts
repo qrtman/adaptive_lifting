@@ -1,10 +1,10 @@
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    readonly detail: string | { code: string; message: string },
+    readonly detail: string | Record<string, unknown>,
     readonly headers: HeadersInit = {},
   ) {
-    super(typeof detail === "string" ? detail : detail.message);
+    super(typeof detail === "string" ? detail : String(detail.message ?? "API request failed"));
   }
 }
 

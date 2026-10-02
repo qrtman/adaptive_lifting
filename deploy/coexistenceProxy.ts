@@ -1,6 +1,6 @@
 import type { ProxyOptions } from 'vite';
 
-const edgePaths = ['/api/health', '/api/analytics/catalog'] as const;
+const edgePaths = ['/api/health', '/api/analytics/catalog', '/api/analytics/query'] as const;
 
 function origin(value: string, label: string): string {
   const parsed = new URL(value);

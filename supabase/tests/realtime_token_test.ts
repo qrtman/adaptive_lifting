@@ -21,6 +21,7 @@ const config: AppConfig = {
   jwtCurrent: secret,
   jwtPrevious: null,
   enforceLegacyEmailVerification: false,
+  analyticsPastDueGraceDays: 3,
   allowedOrigins: ["https://staging.example.test"],
 };
 

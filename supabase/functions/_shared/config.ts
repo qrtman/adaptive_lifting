@@ -3,6 +3,7 @@ export interface AppConfig {
   jwtCurrent: string;
   jwtPrevious: string | null;
   enforceLegacyEmailVerification: boolean;
+  analyticsPastDueGraceDays: number;
   allowedOrigins: string[];
 }
 
@@ -19,6 +20,11 @@ export function loadConfig(
   ).filter(Boolean);
   const legacy = (read("EMAIL_VERIFICATION_ENFORCE_LEGACY") ?? "false").trim()
     .toLowerCase();
+  const rawPastDueGrace = (read("SUBSCRIPTION_PAST_DUE_GRACE_DAYS") ?? "3").trim();
+  const analyticsPastDueGraceDays = Number(rawPastDueGrace);
+  if (!/^\d+$/.test(rawPastDueGrace) || analyticsPastDueGraceDays > 30) {
+    throw new Error("SUBSCRIPTION_PAST_DUE_GRACE_DAYS must be an integer from 0 to 30");
+  }
   if (!databaseUrl || !/^postgres(ql)?:\/\//.test(databaseUrl)) {
     throw new Error("DATABASE_URL must be a PostgreSQL connection URL");
   }
@@ -63,6 +69,7 @@ export function loadConfig(
     jwtCurrent,
     jwtPrevious: rawPrevious && rawPrevious !== jwtCurrent ? rawPrevious : null,
     enforceLegacyEmailVerification: ["1", "true", "yes"].includes(legacy),
+    analyticsPastDueGraceDays,
     allowedOrigins: origins,
   };
 }

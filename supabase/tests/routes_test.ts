@@ -9,6 +9,7 @@ const config: AppConfig = {
   jwtCurrent: tokens.current_secret,
   jwtPrevious: tokens.previous_secret,
   enforceLegacyEmailVerification: false,
+  analyticsPastDueGraceDays: 3,
   allowedOrigins: ["https://app.example.test"],
 };
 const db: Database = {
@@ -16,7 +17,9 @@ const db: Database = {
     Promise.resolve({
       queryObject: (query: string) =>
         Promise.resolve({
-          rows: query.includes("from public.sessions")
+          rows: query.includes("al_analytics_read_facts")
+            ? [{ payload: { denial: null, set_rows: [], acwr_rows: [] } }]
+            : query.includes("from public.sessions")
             ? [{
               id: "session-1",
               user_id: "user-1",
@@ -94,4 +97,28 @@ Deno.test("catalog requires app session and matches Python registry fixture", as
       }),
     )).status === 405,
   );
+});
+
+Deno.test("analytics query reuses app auth and returns a compatible empty result", async () => {
+  const handler = createHandler(config, db);
+  const body = {
+    config: {
+      metrics: ["tonnage"], scopes: [{ kind: "all", ids: [] }],
+      time_grain: "day", range: { start: "2026-09-01", end: "2026-09-30" },
+      visualization: "line",
+    },
+  };
+  const unauthenticated = await handler(new Request("https://example.test/api/analytics/query", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  }));
+  assert(unauthenticated.status === 401);
+  const response = await handler(new Request("https://example.test/api/analytics/query", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: `session_id=${tokens.current_token}` },
+    body: JSON.stringify(body),
+  }));
+  assert(response.status === 200);
+  const result = await response.json();
+  assert(result.math_version === "linear-decay-v3");
+  assert(Array.isArray(result.series) && result.series[0].points.length === 0);
 });

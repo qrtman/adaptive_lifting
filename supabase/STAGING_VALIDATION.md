@@ -404,3 +404,80 @@ The staging API was redeployed from current source as version 14;
 The token issuer, minimal receive policy, role, tests, and runbook remain as
 the completed prototype. No SSE or frontend changes were made; Supabase Auth
 was not adopted.
+
+## Analytics query capability (2026-10-03)
+
+This capability migrates only `POST /api/analytics/query`. The exact-path
+coexistence proxy sends `GET /api/health`, `GET /api/analytics/catalog`, and
+`POST /api/analytics/query` to the API Edge Function; other `/api/*` paths
+remain on the legacy backend. The proxy test covers POST method/body, query
+string, cookies, Authorization, and fallback for unmigrated paths.
+
+Migration `20261002164804_analytics_query_read_interface` was applied to the
+confirmed staging project. It adds only
+`public.al_analytics_read_facts(...)`, a `SECURITY DEFINER` read interface
+with an empty fixed `search_path`. The function repeats app-session validity,
+account eligibility, athlete/coach relationship, and coach entitlement
+checks, and returns only the fields used by analytics calculations. The only
+application `SECURITY DEFINER` function in `public` is this RPC. Its
+`EXECUTE` privilege is effective for `al_edge_catalog_runtime` and denied to
+`anon` and `authenticated`. No raw workout/history grants were added.
+
+Live staging validation used deterministic synthetic athlete, coach,
+workspace, microcycle, workout, exercise, and set rows. The API Edge runtime
+identity was directly probed as `current_user=session_user=
+al_edge_catalog_runtime`. That login could call the analytics RPC, but direct
+`SELECT` on `workouts`, `exercises`, `exercise_sets`, and `microcycles`, plus
+`INSERT`, `UPDATE`, and `DELETE` on `workouts`, were all denied. It has no
+`public` schema `CREATE`, no direct read privilege on those four tables, and
+only the intended application security-definer RPC. Browser roles have no
+`workouts` read privilege and cannot execute the RPC. Existing catalog-reader
+session/user column access remains unchanged.
+
+The staged `POST /api/analytics/query` behavior returned HTTP 200 and matched
+the Python contract for canonical e1RM and tonnage, stored-column pattern
+filtering (including a non-obvious exercise title), set counts, weekday
+matrix columns (`Mon` through `Sun`), heatmap cells, session spacing, and
+`math_version=linear-decay-v3`. Period comparisons passed for unequal lengths,
+overlapping ranges, previous-equal ranges, previous-block ranges, and an empty
+secondary period. Live ACWR week points for the synthetic workload were
+`[4, 1.47, 1.11]`; ACWR begins at the first workout date and uses the 27-day
+lookback for rolling values. Invalid ACWR/day configuration returned 422.
+The live RBAC outcomes were: athlete self and linked coach allowed; unlinked
+coach and unrelated athlete denied; coach without analytics entitlement
+denied. Missing and malformed auth each returned 401. The fixture-only test
+bridge used to exercise authenticated requests was removed before the final
+deployment; no diagnostic route is retained.
+
+Representative live request latency (one request each, including network
+round-trip) was 436 ms for a simple tonnage query, 365 ms for six metrics,
+and 369 ms for a comparison query. Each requested period is bounded in SQL;
+the HTTP handler makes one RPC for the primary period and one more only when
+a period comparison requires it. The fixture run showed no per-set or
+per-exercise database round trips.
+
+After removing the temporary fixture and runtime-privilege probes, the API
+Edge Function was deployed to staging as version 19. The final `GET
+/functions/v1/api/health` returned 200 with `{"status":"ok"}`;
+unauthenticated `POST /functions/v1/api/analytics/query` returned 401.
+Requests to the temporary runtime probe no longer reach a route.
+
+All synthetic `stg-analytics-*` users, sessions, workspaces, workspace
+members, access grants, coaching links, microcycles, workouts, exercises, and
+sets were deleted. A final staging count query returned zero for every such
+fixture category. No test policies or temporary routes remain. The analytics
+RPC and least-privilege runtime role remain as intended architecture.
+
+Local checks rerun for this capability on 2026-10-03:
+
+- `npm.cmd test`: passed, 32 files / 230 tests.
+- `npm.cmd test -- src/services/analyticsParity.test.ts`: passed, 8 tests.
+- `npm.cmd test -- src/services/coexistenceProxy.test.ts`: passed, 3 tests.
+- `npm.cmd run lint`: passed (`tsc --noEmit`).
+- `npm.cmd run build`: passed; Vite emitted the existing large-chunk warning
+  (665.69 kB minified JavaScript chunk).
+- `git diff --check`: passed.
+- Python analytics tests were not rerun because `pytest` is not installed in
+  the available Python environment. Deno checks were not run because Deno is
+  not installed/on PATH. Prior auth, email-verification, and catalog-parity
+  checks are historical, not rerun for this capability.

@@ -2,6 +2,7 @@ import type { AppConfig } from "./config.ts";
 import { authenticate } from "./auth/session.ts";
 import { authRepository, checkDatabase, type Database } from "./db/mod.ts";
 import { ApiError, errorResponse, jsonResponse } from "./errors/mod.ts";
+import { handleAnalyticsQuery } from "./analyticsRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -52,6 +53,11 @@ export function createHandler(
           throw new ApiError(503, "Realtime token service unavailable");
         }
         return await realtimeTokenHandler(request);
+      }
+      if (path === "/api/analytics/query") {
+        if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        return jsonResponse(await handleAnalyticsQuery(request, config, db, principal), 200, cors);
       }
       if (request.method !== "GET") {
         throw new ApiError(405, "Method not allowed");
