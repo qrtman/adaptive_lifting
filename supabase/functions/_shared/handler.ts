@@ -6,6 +6,7 @@ import { handleAnalyticsQuery } from "./analyticsRoute.ts";
 import { handleInsightCardsRoute } from "./insightCardsRoute.ts";
 import { handleInsightCardSync } from "./insightCardSyncRoute.ts";
 import { handleWorkoutSync } from "./workoutSyncRoute.ts";
+import { handleMicrocyclesRoute } from "./microcyclesRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -61,6 +62,14 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         return jsonResponse(await handleAnalyticsQuery(request, config, db, principal), 200, cors);
+      }
+      if (path === "/api/microcycles") {
+        if (request.method !== "GET") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        const athleteId = new URL(request.url).searchParams.get("athlete_id") || null;
+        const response = await handleMicrocyclesRoute(request, db, principal, config, athleteId);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
       }
       if (path === "/api/insight-cards/sync") {
         const principal = await authenticate(request, authRepository(db), config);

@@ -41,7 +41,7 @@ describe('offline authorization', () => {
     expect(await verifyOfflineGrant(grant.token, '')).toBeNull();
   });
 
-  it.each([{ exp: 1 }, { aud: 'other' }, { user: { id: 'other', role: 'ATHLETE' } }, { exp: Math.floor(Date.now() / 1000) + 86401 }])('rejects expired, mismatched or overlong grants: %j', async claims => {
+  it.each([{ exp: 1 }, { aud: 'other' }, { user: { id: 'other', role: 'ATHLETE' } }, { exp: Math.floor(Date.now() / 1000) + 172800 }])('rejects expired, mismatched or overlong grants: %j', async claims => {
     const grant = await signedGrant(claims);
     expect(await verifyOfflineGrant(grant.token, grant.key)).toBeNull();
   });

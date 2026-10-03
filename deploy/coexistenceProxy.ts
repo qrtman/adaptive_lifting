@@ -40,6 +40,12 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
+    // Match this exact path only; future microcycle subroutes stay on legacy.
+    proxy['^/api/microcycles(?:\\?.*)?$'] = {
+      target: edge,
+      changeOrigin: true,
+      rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
+    };
   }
   proxy['/api'] = { target: legacy, changeOrigin: true };
   return proxy;

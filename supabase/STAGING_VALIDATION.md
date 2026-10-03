@@ -781,3 +781,100 @@ reference tests could not run because the local Python environment lacks the
 repository's required test dependencies. Production and `local-save` remain
 untouched; no secrets or `.env` files were added, and no paid resource was
 enabled.
+
+## Microcycles read migration (2026-10-03)
+
+The local source review for the proposed `GET /api/microcycles` slice confirmed:
+
+- Athlete reads default to the actor's own plan; an explicit different athlete
+  returns 403 with `Athletes can only access their own plan`.
+- A coach with `athlete_id` needs an active coaching relationship and receives
+  `Not linked to this athlete` otherwise. A coach without `athlete_id` receives
+  the union of all active linked athlete plans, or `[]` when there are none.
+- The route does not create rows for an empty plan. `format_microcycle` orders
+  roots and workouts by ID; exercises and sets by `(lexo_rank or '', id)`.
+- `format_microcycle` filters deleted Workouts, Exercises, and ExerciseSets,
+  but `get_visible_microcycles` and the root formatter do not filter deleted
+  Microcycles. This is a confirmed legacy read-path tombstone defect; the
+  proposed Supabase projection filters deleted Microcycles.
+- The ORM defines no `planned` ExerciseSet property, so the current serializer
+  does not emit that optional key. `tags` comes from comma-splitting and
+  trimming `tags_raw`; stored `movement_pattern` precedes the legacy
+  `pattern_for(title, lift_category)` fallback.
+
+The staging project was confirmed by its API URL as
+`https://admyuepbbtstayaydjmo.supabase.co`. The narrow `al_private.al_microcycles_read`
+interface was applied and is recorded in remote migration history as:
+
+- `20261003104637 microcycles_read_interface`
+- `20261003110609 microcycles_workout_owner_guard`
+- `20261003110904 microcycles_legacy_boolean_nulls`
+
+The local filenames use these exact remote versions. The second migration hides
+any child Workout whose `owner_id` differs from its Microcycle owner; the third
+preserves nullable `isAuto` and `isTop` values as emitted by the legacy
+serializer. All three migrations are additive and expose the Microcycle read
+projection only through the restricted function.
+
+The RPC is `SECURITY DEFINER`, `STABLE`, and has an empty fixed `search_path`.
+It repeats app-user/session/eligibility checks and enforces athlete ownership
+or an active coach relationship in its read snapshot. It returns only the
+serialized plan projection. The runtime role has `EXECUTE`; `anon` and
+`authenticated` do not. The runtime role remains LOGIN, inherits only
+`al_edge_catalog_reader`, has no superuser/create-db/create-role/BYPASSRLS or
+public schema CREATE capability, and has no direct SELECT or DML privileges on
+Microcycles, Workouts, Exercises, ExerciseSets, or coaching relationships.
+Browser roles likewise have no direct app-table access.
+
+Authenticated staging checks used a temporary, capability-protected Edge
+session issuer restricted to synthetic prefixed users. It was removed from the
+handler and the clean API was redeployed as Edge Function version 33. The
+temporary route now returns 404; health returns 200 and unauthenticated
+`/microcycles` returns 401. Synthetic users, sessions, relationships,
+Microcycles, Workouts, Exercises, and ExerciseSets were deleted; follow-up
+counts for every fixture table were zero. The local capability and encrypted
+token cache were removed.
+
+Live authorization results: athlete own/default and explicit-athlete reads
+returned 200; cross-athlete read returned 403; linked coach explicit read and
+coach-without-athlete union returned 200; unrelated and ended coaches returned
+403; coach with no active relationships and empty athlete returned `[]`.
+Missing/malformed app credentials returned 401. Expired, revoked, and deleted
+sessions returned 401, while email-verification-ineligible account returned
+403. An ES256 bearer was denied by the app-session validator, which accepts
+only the Adaptive Lifting HS256 application-token algorithm.
+The empty-plan athlete had zero Microcycle/Workout/Exercise/Set rows before and
+after GET, confirming no seeding or writes.
+
+Live serialization checks passed for exact Microcycle/Workout/Exercise/Set
+keys, camelCase fields, defaults, stored-pattern precedence and title fallback,
+tags, numeric JSON types, optional-note omission/inclusion, absent `planned`,
+nullable boolean parity, all four ordering rules, and descendant tombstones.
+Tombstoned root Microcycles were also hidden. The stable Python read path does
+not filter tombstoned Microcycles, so
+`LEGACY_MICROCYCLE_TOMBSTONE_DEFECT_FOUND=yes` and
+`MICROCYCLE_TOMBSTONE_HARDENING_APPLIED=yes`. A deliberately cross-owned child
+Workout was hidden by the RPC owner guard. The exact returned array survived
+the IndexedDB snapshot JSON serialization round-trip.
+
+Five-request median staging latencies after the final SQL changes were:
+
+- Empty plan: **365.1 ms**
+- Small plan: **353.9 ms**
+- Nested plan: **349.8 ms**
+
+Each route uses one RPC round trip with bounded nested SQL aggregation; the Edge
+layer has no per-Microcycle/Workout/Exercise/Set N+1 requests. No authorization
+freshness cache was added.
+
+Local checks run for this migration: `npm.cmd test`, `npm.cmd run lint`,
+`npm.cmd run build`, the coexistence proxy tests included by the test suite, and
+`git diff --check`. The build retains its existing large-chunk warning. Deno
+format/lint/typecheck/tests were not rerun because Deno is unavailable; Python
+reference tests could not run because the local Python environment lacks the
+repository's required test dependencies (`python -m pytest ...` reports that
+`pytest` is not installed). The offline authorization suite had a pre-existing
+clock-sensitive overlong-grant fixture; its test expiry was moved from 86,401
+to 172,800 seconds so it remains beyond the 24-hour policy after test startup
+delay. Production and `local-save` remain untouched; no secrets or `.env` files
+were added, and no paid resource was enabled.

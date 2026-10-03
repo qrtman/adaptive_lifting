@@ -147,6 +147,19 @@ describe('same-origin coexistence proxy', () => {
     }
   });
 
+  it('routes only GET /api/microcycles to Edge and preserves its query string', async () => {
+    const response = await fetch(`${base}/api/microcycles?athlete_id=athlete-a`, {
+      headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+    });
+    expect(await response.json()).toEqual({
+      upstream: 'edge', method: 'GET', path: '/functions/v1/api/microcycles?athlete_id=athlete-a',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
+    });
+
+    const futureSubroute = await fetch(`${base}/api/microcycles/mc-a`, { method: 'DELETE' });
+    expect((await futureSubroute.json()).upstream).toBe('legacy');
+  });
+
   it('keeps all other API paths on the legacy backend', async () => {
     for (const path of ['/api/auth/me', '/api/healthcheck', '/api/analytics/catalogue']) {
       const response = await fetch(base + path);
