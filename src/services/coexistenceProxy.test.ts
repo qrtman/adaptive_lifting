@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type ViteDevServer } from 'vite';
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { coexistenceProxy } from '../../deploy/coexistenceProxy';
+import { sessionCreateProxyPlugin } from '../../deploy/sessionCreateProxy';
 
 let edge: Server;
 let legacy: Server;
@@ -48,7 +49,7 @@ beforeAll(async () => {
   const legacyUrl = await listen(legacy);
   vite = await createServer({
     configFile: false,
-    plugins: [{
+    plugins: [sessionCreateProxyPlugin(edgeUrl), {
       name: 'coexistence-proxy-test',
     }],
     optimizeDeps: { noDiscovery: true },
@@ -158,6 +159,28 @@ describe('same-origin coexistence proxy', () => {
 
     const futureSubroute = await fetch(`${base}/api/microcycles/mc-a`, { method: 'DELETE' });
     expect((await futureSubroute.json()).upstream).toBe('legacy');
+  });
+
+  it('routes only POST /api/sessions to Edge and keeps other session methods legacy', async () => {
+    const body = JSON.stringify({ date: '2026-10-05', title: 'Squat' });
+    const created = await fetch(`${base}/api/sessions?source=calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body,
+    });
+    expect(await created.json()).toEqual({
+      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
+    });
+
+    for (const method of ['GET', 'PATCH', 'DELETE']) {
+      const fallback = await fetch(`${base}/api/sessions`, { method });
+      expect((await fallback.json()).upstream).toBe('legacy');
+    }
+    for (const path of ['/api/sessions/labels', '/api/sessions/copy-week', '/api/sessions/w-1/exercises']) {
+      const fallback = await fetch(`${base}${path}`, { method: 'POST', body: '{}' });
+      expect((await fallback.json()).upstream).toBe('legacy');
+    }
   });
 
   it('keeps all other API paths on the legacy backend', async () => {

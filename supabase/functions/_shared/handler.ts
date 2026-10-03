@@ -7,6 +7,7 @@ import { handleInsightCardsRoute } from "./insightCardsRoute.ts";
 import { handleInsightCardSync } from "./insightCardSyncRoute.ts";
 import { handleWorkoutSync } from "./workoutSyncRoute.ts";
 import { handleMicrocyclesRoute } from "./microcyclesRoute.ts";
+import { handleCreateSession } from "./createSessionRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -58,6 +59,9 @@ export function createHandler(
         }
         return await realtimeTokenHandler(request);
       }
+      if (path === "/api/_staging/session-create-test-tokens") {
+        throw new ApiError(404, "Not found");
+      }
       if (path === "/api/analytics/query") {
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
@@ -68,6 +72,13 @@ export function createHandler(
         const principal = await authenticate(request, authRepository(db), config);
         const athleteId = new URL(request.url).searchParams.get("athlete_id") || null;
         const response = await handleMicrocyclesRoute(request, db, principal, config, athleteId);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      if (path === "/api/sessions") {
+        if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleCreateSession(request, db, principal, config);
         for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
         return response;
       }

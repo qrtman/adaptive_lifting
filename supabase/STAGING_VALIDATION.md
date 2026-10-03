@@ -878,3 +878,92 @@ clock-sensitive overlong-grant fixture; its test expiry was moved from 86,401
 to 172,800 seconds so it remains beyond the 24-hour policy after test startup
 delay. Production and `local-save` remain untouched; no secrets or `.env` files
 were added, and no paid resource was enabled.
+
+## POST /api/sessions staging validation
+
+The session-create implementation follows the stable route contract in
+`backend/main.py`: athletes always write to their own plan and an incoming
+`athleteId` is ignored; coaches must provide an athlete, have an active
+relationship, and pass the workspace programming entitlement check. Coach
+workspace resolution uses the coach-owned workspace and OWNER membership, then
+the same recognized plan keys, active grant/subscription states, plan
+precedence, period-end rules, and configured past-due grace. Every currently
+configured plan includes programming, so a live `FEATURE_NOT_INCLUDED` fixture
+cannot be created without changing the plan catalog; the denial remains
+implemented and mapped, while live staging verified both no-active-plan denial
+and an entitled coach write.
+
+The RPC and route are in `al_private.al_session_create`, a fixed-search-path
+`SECURITY DEFINER` transaction. It rechecks the application session, current
+account eligibility, target ownership/relationship, entitlement, and live
+Microcycle ownership. The runtime has no direct SELECT or DML on workouts,
+Microcycles, coaching relationships, workspaces, members, grants, or
+subscriptions. `al_edge_catalog_runtime` is the only role with function
+EXECUTE; `anon` and `authenticated` lack both schema usage and function
+EXECUTE. Their SELECT/INSERT/UPDATE/DELETE ACLs on those plan and entitlement
+tables are all false. The runtime also has no public-schema CREATE, role
+creation, database creation, superuser, or RLS-bypass capability. The deployed
+Edge path successfully called the RPC with the restricted runtime connection.
+
+The first empty-plan read returned `[]`; before and after counts were identical
+(one pre-existing synthetic tombstoned Microcycle, zero Workouts, Exercises,
+and Sets). Session creation then created a new live `Ungrouped` Microcycle,
+never reused the tombstone, and inserted no Exercises or Sets. Two simultaneous
+first-create requests both returned 200 and shared one live `Ungrouped`
+Microcycle. A separate athlete with an existing live `Ungrouped` cycle reused
+it. The stable helpers do not filter tombstoned roots for explicit or automatic
+creation, while the canonical read hides them; this defect was confirmed and
+the creation RPC rejects tombstones or creates a new live `Ungrouped` cycle.
+
+Live HTTP checks passed for athlete self-create (including ignoring a foreign
+`athleteId`), linked coach create, missing coach athlete ID (400), unrelated
+and ended coach denials (403), coach without active workspace entitlement
+(403 `WORKSPACE_ACCESS_REQUIRED`), explicit live/foreign/missing/tombstoned
+Microcycle behavior, auto-creation and reuse, default and trimmed title,
+day-label fallback and whitespace preservation, trimmed/empty labels, date
+errors, read-after-write through `GET /api/microcycles`, coach visibility, and
+cross-athlete isolation. The successful response was HTTP 200 with exactly
+`id`, `date`, `dayLabel`, `title`, `status`, `blockLabel`, `weekLabel`,
+`microcycleId`, `ownerId`, and `exercises`. Persisted workouts had the expected
+owner, Microcycle, `PLANNED`/`mac-blue` defaults, zero tonnage/delta, and no
+Exercises.
+
+Source parity review found that Python `strptime("%Y-%m-%d")` accepts
+unpadded month/day values and returns the original trimmed string. A live
+`2026-1-5` request confirmed this behavior; a follow-up SQL migration preserves
+it. Current remote migrations and local filenames match exactly:
+
+- `20261003113739 sessions_create_private_rpc`
+- `20261003114718 sessions_create_strptime_compat`
+- `20261003114820 sessions_create_strptime_acceptance_fix`
+- `20261003115405 sessions_create_microcycle_lock`
+
+The first follow-up still had a normalized-string check; the final migration
+removes that check while keeping an exact year-month-day shape and PostgreSQL
+calendar validation. The last migration locks an explicitly selected or reused
+live Microcycle row for the duration of creation, preventing a concurrent
+tombstone update from hiding a newly created Workout. No migration SQL was
+reapplied under an existing version. A transaction rollback probe executed the
+current RPC with a synthetic session, asserted the persisted Workout and
+Ungrouped Microcycle owner/default fields plus zero Exercises, and confirmed
+the new rows rolled back together.
+
+Authentication checks returned 401 for missing credentials, malformed JWT,
+Realtime ES256 JWT, revoked app session, expired app session, and deleted user;
+an email-verification-ineligible account returned 403 with
+`EMAIL_VERIFICATION_REQUIRED`. The removed temporary token issuer now returns
+404 for GET and POST. The clean API was redeployed as active Edge Function
+version 36; health returned 200 and unauthenticated Microcycles returned 401.
+The temporary capability and encrypted token cache were deleted. All prefixed
+synthetic users, sessions, relationships, workspace/entitlement rows,
+Microcycles, Workouts, Exercises, Sets, locks, and events were verified at zero.
+
+Regression checks executed: `npm.cmd test` (32 files, 235 tests passed),
+`npm.cmd run lint`, `npm.cmd run build` (existing large-chunk warning), and
+`git diff --check`. Python reference tests were unavailable because `pytest`
+is not installed; Deno format/lint/typecheck/tests were unavailable because
+the Deno executable is not installed. The Supabase security advisor still
+reports 36 public tables with RLS disabled. This milestone did not change that
+separate posture; the verified `anon` and `authenticated` roles have no direct
+table privileges on the session-create interface's plan or entitlement
+tables, and cannot execute the private RPC.

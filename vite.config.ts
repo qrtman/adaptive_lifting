@@ -4,10 +4,11 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 import { coexistenceProxy } from './deploy/coexistenceProxy';
+import { sessionCreateProxyPlugin } from './deploy/sessionCreateProxy';
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [sessionCreateProxyPlugin(process.env.API_EDGE_TARGET), react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
