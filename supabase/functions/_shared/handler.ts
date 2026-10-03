@@ -8,6 +8,7 @@ import { handleInsightCardSync } from "./insightCardSyncRoute.ts";
 import { handleWorkoutSync } from "./workoutSyncRoute.ts";
 import { handleMicrocyclesRoute } from "./microcyclesRoute.ts";
 import { handleCreateSession } from "./createSessionRoute.ts";
+import { handleUpdateSession } from "./updateSessionRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -40,7 +41,7 @@ export function createHandler(
         status: 204,
         headers: {
           ...cors,
-          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Authorization, Content-Type",
         },
       });
@@ -79,6 +80,20 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         const response = await handleCreateSession(request, db, principal, config);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      const sessionPatch = /^\/api\/sessions\/([^/]+)$/.exec(path);
+      if (sessionPatch) {
+        if (request.method !== "PATCH") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        let sessionId: string;
+        try {
+          sessionId = decodeURIComponent(sessionPatch[1]);
+        } catch {
+          throw new ApiError(400, "Invalid session ID");
+        }
+        const response = await handleUpdateSession(request, sessionId, db, principal, config);
         for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
         return response;
       }

@@ -161,7 +161,7 @@ describe('same-origin coexistence proxy', () => {
     expect((await futureSubroute.json()).upstream).toBe('legacy');
   });
 
-  it('routes only POST /api/sessions to Edge and keeps other session methods legacy', async () => {
+  it('routes only POST /api/sessions and PATCH /api/sessions/{id} to Edge', async () => {
     const body = JSON.stringify({ date: '2026-10-05', title: 'Squat' });
     const created = await fetch(`${base}/api/sessions?source=calendar`, {
       method: 'POST',
@@ -173,12 +173,29 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
     });
 
-    for (const method of ['GET', 'PATCH', 'DELETE']) {
+    for (const method of ['GET', 'DELETE']) {
       const fallback = await fetch(`${base}/api/sessions`, { method });
       expect((await fallback.json()).upstream).toBe('legacy');
     }
-    for (const path of ['/api/sessions/labels', '/api/sessions/copy-week', '/api/sessions/w-1/exercises']) {
-      const fallback = await fetch(`${base}${path}`, { method: 'POST', body: '{}' });
+    const patchBody = JSON.stringify({ title: 'Updated title' });
+    const updated = await fetch(`${base}/api/sessions/w-1?from=calendar`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: patchBody,
+    });
+    expect(await updated.json()).toEqual({
+      upstream: 'edge', method: 'PATCH', path: '/functions/v1/api/sessions/w-1?from=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: patchBody,
+    });
+
+    for (const [path, method] of [
+      ['/api/sessions/labels', 'PATCH'],
+      ['/api/sessions/labels', 'POST'],
+      ['/api/sessions/copy-week', 'POST'],
+      ['/api/sessions/w-1/exercises', 'POST'],
+      ['/api/sessions/w-1/exercises/e-1', 'PATCH'],
+    ]) {
+      const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
       expect((await fallback.json()).upstream).toBe('legacy');
     }
   });

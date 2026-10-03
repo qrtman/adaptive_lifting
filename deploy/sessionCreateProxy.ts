@@ -19,7 +19,7 @@ function edgeOrigin(value: string): URL {
   return parsed;
 }
 
-/** Method-specific Vite proxy for the one migrated session-creation route. */
+/** Method-specific Vite proxy for the migrated session create/update routes. */
 export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
   const edge = edgeUrl ? edgeOrigin(edgeUrl) : null;
   return {
@@ -29,9 +29,14 @@ export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
       server.middlewares.use((request, response, next) => {
         const incoming = request.url ?? '/';
         const parsed = new URL(incoming, 'http://vite.local');
-        if (request.method !== 'POST' || parsed.pathname !== '/api/sessions') return next();
+        const createSession = request.method === 'POST' && parsed.pathname === '/api/sessions';
+        const updateSession = request.method === 'PATCH' &&
+          /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
+          parsed.pathname !== '/api/sessions/labels';
+        if (!createSession && !updateSession) return next();
 
-        const target = new URL(`/functions/v1/api/sessions${parsed.search}`, edge);
+        const targetPath = `/functions/v1/api${parsed.pathname.slice('/api'.length)}${parsed.search}`;
+        const target = new URL(targetPath, edge);
         const headers = new Headers();
         for (const [name, raw] of Object.entries(request.headers)) {
           if (raw === undefined || HOP_BY_HOP_REQUEST_HEADERS.has(name.toLowerCase())) continue;
@@ -48,7 +53,7 @@ export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
         request.on('end', async () => {
           try {
             const upstream = await fetch(target, {
-              method: 'POST',
+              method: request.method,
               headers,
               body: Buffer.concat(chunks),
               redirect: 'manual',

@@ -967,3 +967,73 @@ reports 36 public tables with RLS disabled. This milestone did not change that
 separate posture; the verified `anon` and `authenticated` roles have no direct
 table privileges on the session-create interface's plan or entitlement
 tables, and cannot execute the private RPC.
+
+## PATCH /api/sessions/{id} staging validation
+
+The update route reuses the established Adaptive Lifting app JWT/session
+validator and calls only `al_private.al_session_update`. Migrations
+`20261003121444 sessions_update_private_rpc` and
+`20261003121623 sessions_update_authorization_order` are recorded on staging
+and match the checked-in filenames. The second migration preserves the legacy
+owner-resolution and authorization order: resolve direct/parent Microcycle
+owner, enforce plan access and coach programming entitlement, then conceal a
+tombstoned Workout as `Session not found`.
+
+The function is `SECURITY DEFINER` with an empty fixed `search_path`; only
+`al_edge_catalog_runtime` has EXECUTE. Actual runtime identity was
+`al_edge_catalog_runtime` for both `current_user` and `session_user`. Runtime
+direct SELECT and title/owner UPDATE attempts on `public.workouts` failed with
+`permission_denied`. Effective ACL checks also show no workouts SELECT/UPDATE
+for the runtime role and no function EXECUTE or workouts SELECT/UPDATE for
+`anon` or `authenticated`. No broad table grants were added. The function
+rechecks current app session, account eligibility, athlete ownership or active
+coach relationship, and coach workspace entitlement inside the transaction.
+It updates only the six supported fields, atomically applies status/color,
+trims and validates supplied dates, preserves raw title/day-label values,
+trims block/week labels, and leaves no-op `updated_at` unchanged. It does not
+inspect WorkoutLocks, recalculate metrics, emit DomainEvents, change ownership,
+or move a Workout between Microcycles.
+
+Live staging PATCH results included: missing/tombstoned sessions 404; foreign
+athlete, unrelated coach, and ended relationship denied; linked coach allowed;
+coach without an active plan returned the exact `WORKSPACE_ACCESS_REQUIRED`
+403 envelope; owner fallback through a parent Microcycle succeeded, while a
+row with neither owner returned 400. Missing, malformed, revoked, expired,
+deleted-user, and valid ES256 Realtime-only credentials were denied by the
+app-auth boundary (401); an email-verification-ineligible user received the
+existing 403. A foreign active WorkoutLock did not block PATCH. Completed and
+missed sessions remained writable. PLANNED/IN_PROGRESS mapped to `mac-blue`,
+COMPLETED to `mac-green`, and MISSED to `gray`; invalid status returned 400.
+Date trimming and malformed, impossible, datetime, and empty date rejection
+matched the new `date must be YYYY-MM-DD` hardening. Raw padded/empty title and
+day-label values persisted, block/week labels trimmed or cleared, and null
+fields were unchanged. Empty PATCH returned 200 without changing the row or
+`updated_at`. Concurrent title and week-label patches both persisted. The
+response contained exactly the nine legacy keys, and canonical
+`GET /api/microcycles` reflected date/title/label/status updates.
+
+Stable PATCH source assigns a non-null date directly without calling
+`require_iso_date`; this accepts malformed values at the route boundary and is
+a data-integrity defect. The Edge RPC intentionally applies the session-create
+date validation instead. The stable route also has no WorkoutLock check; that
+behavior is preserved. No feature-not-included coach plan exists in the
+current plan catalog (all recognized plans include programming), while the
+existing entitlement denial mapping remains covered by the Edge unit test.
+
+Cross-route compatibility was smoke-tested by creating a synthetic session,
+PATCHing it, then sending an allowed Workout Sync title mutation. Sync returned
+200/accepted and the migrated Microcycles read showed the canonical title.
+The temporary staging token/runtime diagnostic paths were removed from the
+checked-in API and deployment. The clean API is active as Edge version 41;
+health returned 200, temporary diagnostic GET paths returned 404, and the
+general non-GET unknown-route guard returned 405 for POST to those absent paths.
+All synthetic users, sessions, plans, workouts, relationships, entitlements,
+locks, devices, mutation records, and events for this test prefix were verified
+at zero. No secret, `.env`, production resource, or paid resource was changed.
+
+Local checks for this change: the focused coexistence proxy suite passed 7/7
+after correcting the one-segment PATCH proxy matcher. Full `npm.cmd test`,
+`npm.cmd run lint`, `npm.cmd run build`, and `git diff --check` are rerun for
+this commit. Deno is not installed, so Deno format/lint/typecheck/tests were
+not rerun. Python reference tests remain unavailable because this environment
+does not have the repository test dependencies installed.
