@@ -968,6 +968,44 @@ separate posture; the verified `anon` and `authenticated` roles have no direct
 table privileges on the session-create interface's plan or entitlement
 tables, and cannot execute the private RPC.
 
+## DELETE /api/sessions/{id} local draft
+
+The parity matrix for the deletion path is: authenticate the existing app
+session; load a Workout; resolve `owner_id` or parent Microcycle ownership;
+enforce athlete ownership or active coach linkage and programming entitlement;
+hide an already tombstoned row as 404; then set only the Workout root
+`deleted_at` and `updated_at`, returning `{"status":"success"}`. Exercises,
+ExerciseSets, WorkoutLocks, DomainEvents, SyncMutations, and the parent
+Microcycle are deliberately untouched. The stable route and its integration
+test confirm root-only deletion, outsider denial, 200 then 404 on repeated
+delete, PATCH and Workout Sync rejection afterward, and preservation of an
+existing DomainEvent.
+
+Local draft adds `al_private.al_session_delete`, which delegates its locked
+authorization and entitlement check to the established session PATCH RPC, then
+performs one conditional root tombstone update in the same transaction. The
+single-row lock makes duplicate DELETE requests serialize. The route returns
+only the legacy success object. Coexistence routing matches only DELETE with a
+single session-id path segment; exercise REST routes remain on legacy.
+
+This draft is not staging-validated yet. The authenticated Supabase MCP
+connection returned `MCP authentication required`; the official Supabase CLI
+2.119.0 is available via `npx` but has no stored access token or environment
+credential. The official CLI browser login has been started and is waiting for
+its browser verification code. The SQL migration has not been applied, the
+Edge API has not been redeployed, and no session-delete staging fixtures have
+been created.
+
+The frontend delete callbacks still use the same API contract and confirmation
+dialog. They reload the canonical plan and close the dialog; the App session
+view returns to the dashboard and clears the active Workout selection, while
+the Sessions view clears the selection when it was the deleted Workout. The
+active Workout UI preference is removed when its ID is cleared, preventing a
+stale selected session after reload. Local regression checks pass: `npm.cmd
+test` (32 files, 235 tests), `npm.cmd run lint`, and `npm.cmd run build` (the
+existing large-chunk warning); `git diff --check` passes. Deno is unavailable,
+and Python reference tests are unavailable because pytest is not installed.
+
 ## PATCH /api/sessions/{id} staging validation
 
 The update route reuses the established Adaptive Lifting app JWT/session
@@ -1037,3 +1075,52 @@ after correcting the one-segment PATCH proxy matcher. Full `npm.cmd test`,
 this commit. Deno is not installed, so Deno format/lint/typecheck/tests were
 not rerun. Python reference tests remain unavailable because this environment
 does not have the repository test dependencies installed.
+
+## DELETE /api/sessions/{id} staging validation
+
+Migration `20261004130440_sessions_delete_private_rpc` is recorded on staging.
+The API Edge Function was deployed as version 46 after the temporary staging
+token bridge was removed. Health returned 200; the former bridge POST path
+returns 404. No bridge capability or token remains in the repository or local
+temporary directory.
+
+Live requests used synthetic `stg-session-delete-*` users, sessions, plans,
+relationships, and training rows. Missing/malformed/revoked/expired/missing-DB
+session/deleted-user credentials returned 401; the unverified synthetic
+password account returned the existing `EMAIL_VERIFICATION_REQUIRED` 403.
+The ES256 Realtime-only JWT was rejected as an application credential. Athlete
+own-plan and active linked-coach deletions succeeded. A foreign athlete,
+unrelated coach, and ended relationship were denied. A coach with a relationship
+but no active workspace access received `WORKSPACE_ACCESS_REQUIRED`; historical
+owner fallback succeeded and a workout without any resolvable owner returned
+400. A missing or already tombstoned workout returned 404.
+
+The success response was exactly `{"status":"success"}`. PLANNED,
+IN_PROGRESS, COMPLETED, and MISSED sessions were deletable; an active foreign
+WorkoutLock did not block deletion. A concurrent duplicate delete returned one
+200 and one 404. The live Workout root was soft-tombstoned and `updated_at`
+matched `deleted_at`; its Exercise and ExerciseSet remained live with their
+original timestamps, its parent Microcycle remained live, and the foreign lock
+remained. Existing `WORKOUT_SYNCED` DomainEvents and accepted SyncMutation rows
+survived. Workout Sync created one additional `WORKOUT_SYNCED` event before the
+delete; no delete event was emitted and no post-delete mutation was recorded.
+PATCH and both empty and writing Workout Sync requests returned 404 afterward.
+The athlete and linked coach Microcycles trees omitted the Workout.
+
+For analytics tombstone parity, the synthetic athlete's tonnage query returned
+500 before deletion and an empty series afterward. The Realtime-only JWT could
+not authenticate the app DELETE route. The Edge DB connection reported
+`current_user = session_user = current_role = al_edge_catalog_runtime`; direct
+SELECT on workouts, exercises, exercise_sets, sync_mutations, and workout_locks,
+plus direct Workout UPDATE and DELETE probes, were denied. The narrow delete RPC
+was executable by the runtime role only; effective EXECUTE was false for `anon`
+and `authenticated`, which also retained no effective Workout table access.
+
+All synthetic `stg-session-delete-*` fixtures were deleted after validation;
+the post-cleanup count was zero across users, sessions, Microcycles, Workouts,
+Exercises, ExerciseSets, DomainEvents, SyncMutations, devices, locks,
+relationships, workspaces, memberships, grants, and subscriptions. Local
+regressions rerun for the milestone: `npm.cmd test` (32 files, 235 tests),
+`npm.cmd run lint`, `npm.cmd run build`, and `git diff --check` all passed. The
+build retained the existing large-chunk warning. Deno is unavailable and
+Python reference tests could not run because `pytest` is not installed.

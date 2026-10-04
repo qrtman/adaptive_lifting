@@ -383,6 +383,7 @@ export function SessionsView({
   const {
     microcycles,
     activeWorkoutId,
+    setActiveWorkoutId,
     reloadMicrocycles,
     activeAthleteId,
     planAthleteId,
@@ -807,6 +808,7 @@ export function SessionsView({
           }}
           onDeleted={async () => {
             await reloadMicrocycles(planAthleteId);
+            if (activeWorkoutId === editingSession.id) setActiveWorkoutId(null);
             setEditingSession(null);
           }}
         />

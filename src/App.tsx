@@ -441,6 +441,7 @@ export default function App() {
                       }}
                       onDeleted={async () => {
                         await reloadMicrocycles(planAthleteId);
+                        setActiveWorkoutId(null);
                         setEditSessionOpen(false);
                         setCurrentView('dashboard');
                       }}

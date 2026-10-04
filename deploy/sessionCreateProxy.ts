@@ -19,7 +19,7 @@ function edgeOrigin(value: string): URL {
   return parsed;
 }
 
-/** Method-specific Vite proxy for the migrated session create/update routes. */
+/** Method-specific Vite proxy for the migrated session create/update/delete routes. */
 export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
   const edge = edgeUrl ? edgeOrigin(edgeUrl) : null;
   return {
@@ -33,7 +33,10 @@ export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
         const updateSession = request.method === 'PATCH' &&
           /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
           parsed.pathname !== '/api/sessions/labels';
-        if (!createSession && !updateSession) return next();
+        const deleteSession = request.method === 'DELETE' &&
+          /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
+          parsed.pathname !== '/api/sessions/labels';
+        if (!createSession && !updateSession && !deleteSession) return next();
 
         const targetPath = `/functions/v1/api${parsed.pathname.slice('/api'.length)}${parsed.search}`;
         const target = new URL(targetPath, edge);

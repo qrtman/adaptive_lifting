@@ -247,6 +247,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (activeWorkoutId) setUiPref(UI_KEYS.activeWorkoutId, activeWorkoutId);
+    else removeUiPref(UI_KEYS.activeWorkoutId);
   }, [activeWorkoutId]);
 
   useEffect(() => {
