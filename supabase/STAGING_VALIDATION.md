@@ -1124,3 +1124,61 @@ regressions rerun for the milestone: `npm.cmd test` (32 files, 235 tests),
 `npm.cmd run lint`, `npm.cmd run build`, and `git diff --check` all passed. The
 build retained the existing large-chunk warning. Deno is unavailable and
 Python reference tests could not run because `pytest` is not installed.
+
+## PATCH /api/sessions/labels staging validation
+
+Migration `20261005124211_sessions_bulk_labels_private_rpc` is recorded on the
+staging project and matches the checked-in migration filename. The route uses
+the narrow `al_private.al_sessions_bulk_labels` SECURITY DEFINER interface;
+it reuses `al_private.al_session_update` for app-session, account eligibility,
+plan ownership/relationship, coach entitlement, owner fallback, and tombstone
+checks. The Edge route ignores `athleteId` for target selection, rejects an
+empty `sessionIds` list with the legacy 400 detail, and returns only
+`status` and request-ordered `updated` IDs. The Vite coexistence proxy routes
+only `PATCH /api/sessions/labels` to Edge; `PATCH /api/sessions/{id}` remains
+the single-session route and other session methods/paths are not broadened.
+
+The stable Python implementation skips missing and ownerless workouts, keeps
+duplicate IDs in the returned list, and does not check `deleted_at` before
+writing. That tombstone omission is a legacy defect. The staging RPC hardens
+it by returning the compatible `Session not found` 404 for a tombstoned ID and
+preflighting the full batch before writing, so a foreign or tombstoned member
+rolls back the entire request. `athleteId` remains accepted for compatibility
+but cannot broaden access. Block and Week values remain raw strings; each
+clear flag takes precedence over its value. No-op requests report authorized
+IDs without bumping `updated_at`. Completed and missed workouts remain
+writable, WorkoutLocks are not consulted, and this route emits no DomainEvent.
+
+Authenticated live staging checks covered athlete self-access, linked coach,
+unrelated athlete/coach and ended relationship denial, missing/ownerless skip,
+forged `athleteId`, programming-entitlement denial, empty IDs, raw/empty/
+whitespace labels, independent clears, clear precedence, no-op timestamps,
+request order and duplicate IDs, completed/missed sessions, active foreign
+WorkoutLock, mixed authorization rollback, and tombstone rollback. Concurrent
+Block-only and Week-only patches to the same Workout both persisted. The
+Realtime-only JWT was rejected by this app-auth route. The exact success body
+was `{"status":"success","updated":[...]}`; no synthetic DomainEvents were
+created. Runtime connections reported
+`current_user = session_user = al_edge_catalog_runtime`; direct Workout
+SELECT/UPDATE were denied, and only the runtime role could execute the RPC.
+`anon` and `authenticated` could neither execute the RPC nor access Workout
+rows.
+
+The temporary staging token/runtime probe was removed from source and the API
+was redeployed clean as Edge version 51. After that deployment, health returned
+200 and the temporary read/write token path returned 404 for GET (the generic
+unknown non-GET guard returned 405 for POST). A final isolated athlete fixture
+confirmed live `PATCH /api/sessions/labels` followed by `GET /api/microcycles`
+returned the same Workout with both new labels. That temporary fixture was
+deleted and prefix counts returned zero. All synthetic
+`stg-session-labels-*` users, sessions, plans, workouts, locks, relationships,
+devices, sync mutations, events, and entitlement rows were removed and verified
+at zero.
+
+Local checks for this change: `npm.cmd test` passed (33 files, 239 tests),
+`npm.cmd run build` passed with the existing large-chunk warning, and
+`git diff --check` passed. `npm.cmd run lint` is blocked by the existing
+TypeScript project configuration including Supabase Deno sources without
+Deno globals/import-map resolution (`Deno` and `@db/postgres`); Deno itself is
+not installed, and Python reference tests remain unavailable because `pytest`
+is not installed. Production and `local-save` were not modified.

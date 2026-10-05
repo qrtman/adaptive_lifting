@@ -19,7 +19,7 @@ function edgeOrigin(value: string): URL {
   return parsed;
 }
 
-/** Method-specific Vite proxy for the migrated session create/update/delete routes. */
+/** Method-specific Vite proxy for migrated session create/update/delete/labels routes. */
 export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
   const edge = edgeUrl ? edgeOrigin(edgeUrl) : null;
   return {
@@ -30,13 +30,14 @@ export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
         const incoming = request.url ?? '/';
         const parsed = new URL(incoming, 'http://vite.local');
         const createSession = request.method === 'POST' && parsed.pathname === '/api/sessions';
+        const bulkSessionLabels = request.method === 'PATCH' && parsed.pathname === '/api/sessions/labels';
         const updateSession = request.method === 'PATCH' &&
           /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
           parsed.pathname !== '/api/sessions/labels';
         const deleteSession = request.method === 'DELETE' &&
           /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
           parsed.pathname !== '/api/sessions/labels';
-        if (!createSession && !updateSession && !deleteSession) return next();
+        if (!createSession && !bulkSessionLabels && !updateSession && !deleteSession) return next();
 
         const targetPath = `/functions/v1/api${parsed.pathname.slice('/api'.length)}${parsed.search}`;
         const target = new URL(targetPath, edge);

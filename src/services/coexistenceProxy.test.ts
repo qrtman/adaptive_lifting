@@ -161,7 +161,7 @@ describe('same-origin coexistence proxy', () => {
     expect((await futureSubroute.json()).upstream).toBe('legacy');
   });
 
-  it('routes only POST /api/sessions and PATCH/DELETE /api/sessions/{id} to Edge', async () => {
+  it('routes POST /api/sessions, PATCH /api/sessions/labels, and PATCH/DELETE /api/sessions/{id} to Edge', async () => {
     const body = JSON.stringify({ date: '2026-10-05', title: 'Squat' });
     const created = await fetch(`${base}/api/sessions?source=calendar`, {
       method: 'POST',
@@ -197,8 +197,22 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
     });
 
+    const labelsBody = JSON.stringify({
+      sessionIds: ['w-1', 'missing'],
+      blockLabel: 'Block4',
+      athleteId: 'ignored-target',
+    });
+    const labels = await fetch(base + '/api/sessions/labels?source=calendar', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: labelsBody,
+    });
+    expect(await labels.json()).toEqual({
+      upstream: 'edge', method: 'PATCH', path: '/functions/v1/api/sessions/labels?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: labelsBody,
+    });
+
     for (const [path, method] of [
-      ['/api/sessions/labels', 'PATCH'],
       ['/api/sessions/labels', 'POST'],
       ['/api/sessions/copy-week', 'POST'],
       ['/api/sessions/w-1/exercises', 'POST'],
