@@ -234,11 +234,21 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: addExerciseBody,
     });
 
+    const updateExerciseBody = JSON.stringify({ move: 'UP' });
+    const updateExercise = await fetch(`${base}/api/sessions/w-1/exercises/e-1?source=calendar`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: updateExerciseBody,
+    });
+    expect(await updateExercise.json()).toEqual({
+      upstream: 'edge', method: 'PATCH', path: '/functions/v1/api/sessions/w-1/exercises/e-1?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: updateExerciseBody,
+    });
+
     for (const [path, method] of [
       ['/api/sessions/labels', 'POST'],
       ['/api/sessions/w-1/exercises', 'GET'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'POST'],
-      ['/api/sessions/w-1/exercises/e-1', 'PATCH'],
       ['/api/sessions/w-1/exercises/e-1', 'DELETE'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'PUT'],
     ]) {
