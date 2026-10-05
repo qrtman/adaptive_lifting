@@ -12,6 +12,7 @@ import { handleUpdateSession } from "./updateSessionRoute.ts";
 import { handleDeleteSession } from "./deleteSessionRoute.ts";
 import { handleBulkSessionLabels } from "./bulkSessionLabelsRoute.ts";
 import { handleCopyWeek } from "./copyWeekRoute.ts";
+import { handleAddSessionExercise } from "./addExerciseRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -63,13 +64,7 @@ export function createHandler(
         }
         return await realtimeTokenHandler(request);
       }
-      if (path === "/api/_staging/session-create-test-tokens") {
-        throw new ApiError(404, "Not found");
-      }
-      if (path === "/api/_staging/session-delete-test-tokens") {
-        throw new ApiError(404, "Not found");
-      }
-      if (path === "/api/_staging/copy-week-test-session") {
+      if (path.startsWith("/api/_staging/")) {
         throw new ApiError(404, "Not found");
       }
       if (path === "/api/analytics/query") {
@@ -96,6 +91,19 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         const response = await handleCopyWeek(request, db, principal, config);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      const addExercise = /^\/api\/sessions\/([^/]+)\/exercises$/.exec(path);
+      if (addExercise) {
+        const principal = await authenticate(request, authRepository(db), config);
+        let sessionId: string;
+        try {
+          sessionId = decodeURIComponent(addExercise[1]);
+        } catch {
+          throw new ApiError(400, "Invalid session ID");
+        }
+        const response = await handleAddSessionExercise(request, sessionId, db, principal, config);
         for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
         return response;
       }

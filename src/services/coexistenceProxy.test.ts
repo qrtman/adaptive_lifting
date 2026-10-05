@@ -161,7 +161,7 @@ describe('same-origin coexistence proxy', () => {
     expect((await futureSubroute.json()).upstream).toBe('legacy');
   });
 
-  it('routes POST /api/sessions, POST copy-week, PATCH /api/sessions/labels, and PATCH/DELETE /api/sessions/{id} to Edge', async () => {
+  it('routes migrated session writes and Add Exercise to Edge without capturing adjacent routes', async () => {
     const body = JSON.stringify({ date: '2026-10-05', title: 'Squat' });
     const created = await fetch(`${base}/api/sessions?source=calendar`, {
       method: 'POST',
@@ -223,9 +223,21 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: labelsBody,
     });
 
+    const addExerciseBody = JSON.stringify({ title: ' Squat ', liftCategory: 'Squat', plannedWeight: 180 });
+    const addExercise = await fetch(`${base}/api/sessions/w-1/exercises?source=calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: addExerciseBody,
+    });
+    expect(await addExercise.json()).toEqual({
+      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions/w-1/exercises?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: addExerciseBody,
+    });
+
     for (const [path, method] of [
       ['/api/sessions/labels', 'POST'],
-      ['/api/sessions/w-1/exercises', 'POST'],
+      ['/api/sessions/w-1/exercises', 'GET'],
+      ['/api/sessions/w-1/exercises/e-1/sets', 'POST'],
       ['/api/sessions/w-1/exercises/e-1', 'PATCH'],
       ['/api/sessions/w-1/exercises/e-1', 'DELETE'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'PUT'],

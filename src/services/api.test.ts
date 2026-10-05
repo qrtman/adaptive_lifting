@@ -83,6 +83,29 @@ describe('apiService.fetchMicrocycles', () => {
   });
 });
 
+describe('apiService.addSessionExercise', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    vi.stubEnv('VITE_BACKEND_URL', '');
+  });
+
+  it('preserves the same-origin POST contract and planned values', async () => {
+    const exercise = { id: 'e-1', title: 'Squat', sets: [] };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(exercise), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { apiService } = await import('./api');
+    await expect(apiService.addSessionExercise('w-1', {
+      title: 'Squat', variation: 'Pause Squat', tier: 'Variation', liftCategory: 'Squat',
+      movementPattern: 'Knee Dominant', plannedWeight: 182.5, plannedReps: 5, plannedRpe: 8.5,
+    })).resolves.toEqual(exercise);
+    expect(fetchMock).toHaveBeenCalledWith('/api/sessions/w-1/exercises', expect.objectContaining({
+      method: 'POST', credentials: 'include',
+      body: JSON.stringify({ title: 'Squat', variation: 'Pause Squat', tier: 'Variation', liftCategory: 'Squat', movementPattern: 'Knee Dominant', liftNote: undefined, plannedWeight: 182.5, plannedReps: 5, plannedRpe: 8.5 }),
+    }));
+  });
+});
+
 describe('apiService.copyWeek', () => {
   beforeEach(() => {
     vi.resetModules();
