@@ -977,7 +977,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
 | `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) or `move` (`up`/`down`) | Coach / Athlete |
-| `PUT` | `/api/sessions/{id}/exercises/{exercise_id}/sets` | Replace planned/logged sets (typed kg; extra sets may have empty kg) | Coach / Athlete |
+| `PUT` | `/api/sessions/{id}/exercises/{exercise_id}/sets` | Replace the complete live set list (typed kg; empty list removes all live sets; metrics recalculate atomically) | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}/exercises/{exercise_id}` | Tombstone a lift | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}` | Update session including labels anytime (`blockLabel`/`weekLabel`; empty string clears); `COMPLETED` is a status label and does not freeze writes | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |

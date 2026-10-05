@@ -254,11 +254,22 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
     });
 
+    const replaceSetsBody = JSON.stringify({ sets: [] });
+    const replaceSets = await fetch(`${base}/api/sessions/w-1/exercises/e-1/sets?source=calendar`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: replaceSetsBody,
+    });
+    expect(await replaceSets.json()).toEqual({
+      upstream: 'edge', method: 'PUT', path: '/functions/v1/api/sessions/w-1/exercises/e-1/sets?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: replaceSetsBody,
+    });
+
     for (const [path, method] of [
       ['/api/sessions/labels', 'POST'],
       ['/api/sessions/w-1/exercises', 'GET'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'POST'],
-      ['/api/sessions/w-1/exercises/e-1/sets', 'PUT'],
+      ['/api/sets/log', 'POST'],
     ]) {
       const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
       const fallbackResult = await fallback.json();

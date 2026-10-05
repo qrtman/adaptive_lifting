@@ -1175,6 +1175,49 @@ deleted and prefix counts returned zero. All synthetic
 devices, sync mutations, events, and entitlement rows were removed and verified
 at zero.
 
+## Exercise Set Replacement
+
+The private transactional RPC for `PUT /api/sessions/{id}/exercises/{exercise_id}/sets`
+was applied to staging as migrations `20261005161820` and
+`20261005162355` and the API Edge Function was deployed as version 71. The
+replacement route shares the Workout row serialization lock and the canonical
+live-only `linear-decay-v3` metrics helper with Workout Sync. Only the Edge
+runtime role can execute the replacement RPC; it has no direct SELECT, INSERT,
+UPDATE, or DELETE privilege on Workouts, Exercises, or ExerciseSets, and the
+`anon` and `authenticated` browser roles cannot execute the RPC.
+
+Authenticated staging checks covered unauthenticated rejection, athlete owner
+and foreign-plan behavior, linked coach access, unrelated and ended coach
+denial, missing/ownerless session behavior, parent-Microcycle tombstone
+hardening, live Exercise ownership, client Set IDs, deterministic fallback Set
+IDs, update-in-place, omitted Set tombstones, preexisting tombstone rejection,
+cross-Exercise Set-ID rejection, defaults/coercion, unposted log metadata
+preservation, completed Workout write (the same guard does not branch on
+Workout status), empty replacement, duplicate
+IDs, and concurrent complete replacements. A live Workout Sync mutation after
+REST replacement updated the canonical Set tree; the analytics query reported
+320 kg while that logged Set was live and no result after a later empty
+replacement. A subsequent queued mutation was rejected with
+`TOMBSTONE_CONFLICT`. The migrated GET returned the same canonical tree and
+metrics. The temporary runtime-privilege probe ran under
+`al_edge_catalog_runtime` and every direct table operation was denied.
+
+The temporary token/runtime routes were removed from source and Edge version 71
+was redeployed. Both temporary paths returned 404. All prefixed fixture rows,
+including users, app sessions, workspaces, access grants, relationships,
+plans, Workouts, Exercises, ExerciseSets, SyncMutations, DomainEvents, and
+client devices, were removed and each count verified zero. Health returned 200
+after the clean redeploy.
+
+Local checks for Set replacement: `npm.cmd test` passed (38 files, 261 tests),
+`npm.cmd run build` passed with the existing large-chunk warning, and
+`git diff --check` passed. `npm.cmd run lint` still reports only the unchanged
+`Deno` global and `@db/postgres` resolution diagnostics in shared Edge files;
+Deno, pytest, and Pydantic are unavailable in this environment, so legacy
+Python/Pydantic reference tests could not run. The existing staging Advisor
+warning about public tables without RLS was not changed. Production and
+`local-save` were not modified.
+
 Local checks for this change: `npm.cmd test` passed (33 files, 239 tests),
 `npm.cmd run build` passed with the existing large-chunk warning, and
 `git diff --check` passed. `npm.cmd run lint` is blocked by the existing
@@ -1182,3 +1225,56 @@ TypeScript project configuration including Supabase Deno sources without
 Deno globals/import-map resolution (`Deno` and `@db/postgres`); Deno itself is
 not installed, and Python reference tests remain unavailable because `pytest`
 is not installed. Production and `local-save` were not modified.
+
+## Set Replacement vs Set Log Compatibility
+
+The missing `SET_REPLACE_VS_SET_LOG_COMPATIBILITY` gate was completed on the
+confirmed `adaptive-lifting-staging` database. The test used two independent
+Postgres transactions: one private SQL actor reproduced the stable Set Log
+mutation and canonical recalculation, while the other called the deployed
+`al_private.al_session_replace_exercise_sets` RPC used by
+`PUT /api/sessions/{id}/exercises/{exercise_id}/sets`. This isolates database
+serialization from the unavailable legacy FastAPI HTTP transport. No
+`/api/sets/log` Edge route was created and no frontend Set Log routing changed.
+
+The initial reverse-order overlap exposed a Set replacement defect: a stale
+plan replacement overwrote `scope`, `actual`, `reps`, and `executedRpe` after
+Set Log had committed. Corrective migrations `20261005170153` and `20261005170449`
+now make existing Set IDs prescription-only updates, preserving Set Log's
+scope/execution fields. New Sets are inserted with no execution values. The
+deployed API route continues to use the same private RPC; no Edge code deploy
+was needed for this SQL-only correction.
+
+Forced-overlap results after the final correction:
+
+- Replacement first, then Set Log: plan `105 kg × 4 @ 8`, log `111.5 kg × 3 @
+  8.5`, `scope=both`; canonical `top=111.5kg x 3`, `vol=334kg`, `tonnage=334.5`,
+  `delta=0`.
+- Set Log first, then replacement carrying stale null execution fields: the
+  same serial combination remained persisted; canonical metrics matched.
+- Set Log first, then replacement omitting the Set: the Set became tombstoned;
+  no live Set contributed, `top`/`vol` were `—`, and `tonnage=0`, `delta=0`.
+- Replacement omitting the Set first, then Set Log: the later actor rejected
+  the tombstoned Set with 404; there was no resurrection and metrics stayed at
+  zero.
+- A new Set replacement carrying stale execution values inserted a plan Set
+  with `actual`, `reps`, and `executedRpe` all null.
+
+After each overlap, persisted `ExerciseSet`, `Exercise.top`, `Exercise.vol`,
+`Workout.tonnage`, and `Workout.delta` were compared with the shared
+live-only `linear-decay-v3` helper. No duplicate ID or ownership change was
+observed. Temporary functions were revoked from browser/runtime roles and
+dropped; synthetic rows with the `stg-set-replace-` prefix were deleted and
+verified absent. `anon` and `authenticated` still cannot execute the replacement
+RPC or directly read/update `ExerciseSet`; only the Edge runtime can execute it.
+
+Staging smoke checks: Edge API v71 health returned 200; unauthenticated
+Microcycles and Set replacement returned 401; the old Set Log Edge path returned
+405; the removed temporary staging token path returned 404. `local-save` and
+production were untouched. `SET_REPLACE_VS_SET_LOG_COMPATIBILITY=PASS`.
+
+Regression after the final migration: `npm.cmd test` passed (38 files, 261
+tests); `npm.cmd run build` passed with the existing large-chunk warning;
+`npm.cmd run lint` reported only the known missing `Deno` global and unresolved
+`@db/postgres` import; both `git diff --check` and
+`git diff --cached --check` passed.
