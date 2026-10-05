@@ -83,6 +83,35 @@ describe('apiService.fetchMicrocycles', () => {
   });
 });
 
+describe('apiService.copyWeek', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    vi.stubEnv('VITE_BACKEND_URL', '');
+  });
+
+  it('preserves the same-origin POST, cookies, payload keys, and mode compatibility', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'success', copied: [] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { apiService } = await import('./api');
+
+    await expect(apiService.copyWeek({
+      sessionIds: ['w-2', 'w-1'], athleteId: 'athlete-a', dateOffsetDays: -5,
+      targetBlockLabel: ' Block ', targetWeekLabel: '', includeLogs: true,
+      copyMode: 'lifts', preserveWeekLabel: true,
+    })).resolves.toEqual({ status: 'success', copied: [] });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/sessions/copy-week', expect.objectContaining({
+      method: 'POST', credentials: 'include',
+      body: JSON.stringify({
+        sessionIds: ['w-2', 'w-1'], athleteId: 'athlete-a', dateOffsetDays: -5,
+        copyMode: 'lifts', preserveWeekLabel: true,
+        targetBlockLabel: ' Block ', targetWeekLabel: '',
+      }),
+    }));
+  });
+});
+
 it('cannot open cached training with an unsigned cached profile', async () => {
   vi.resetModules();
   getSnapshot.mockResolvedValue(plan);

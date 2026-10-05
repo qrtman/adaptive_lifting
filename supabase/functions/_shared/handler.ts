@@ -11,6 +11,7 @@ import { handleCreateSession } from "./createSessionRoute.ts";
 import { handleUpdateSession } from "./updateSessionRoute.ts";
 import { handleDeleteSession } from "./deleteSessionRoute.ts";
 import { handleBulkSessionLabels } from "./bulkSessionLabelsRoute.ts";
+import { handleCopyWeek } from "./copyWeekRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -68,6 +69,9 @@ export function createHandler(
       if (path === "/api/_staging/session-delete-test-tokens") {
         throw new ApiError(404, "Not found");
       }
+      if (path === "/api/_staging/copy-week-test-session") {
+        throw new ApiError(404, "Not found");
+      }
       if (path === "/api/analytics/query") {
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
@@ -85,6 +89,13 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         const response = await handleCreateSession(request, db, principal, config);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      if (path === "/api/sessions/copy-week") {
+        if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleCopyWeek(request, db, principal, config);
         for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
         return response;
       }

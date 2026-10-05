@@ -161,7 +161,7 @@ describe('same-origin coexistence proxy', () => {
     expect((await futureSubroute.json()).upstream).toBe('legacy');
   });
 
-  it('routes POST /api/sessions, PATCH /api/sessions/labels, and PATCH/DELETE /api/sessions/{id} to Edge', async () => {
+  it('routes POST /api/sessions, POST copy-week, PATCH /api/sessions/labels, and PATCH/DELETE /api/sessions/{id} to Edge', async () => {
     const body = JSON.stringify({ date: '2026-10-05', title: 'Squat' });
     const created = await fetch(`${base}/api/sessions?source=calendar`, {
       method: 'POST',
@@ -171,6 +171,17 @@ describe('same-origin coexistence proxy', () => {
     expect(await created.json()).toEqual({
       upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions?source=calendar',
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
+    });
+
+    const copyBody = JSON.stringify({ sessionIds: ['w-1'], dateOffsetDays: -5, copyMode: 'lifts' });
+    const copied = await fetch(`${base}/api/sessions/copy-week?source=calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: copyBody,
+    });
+    expect(await copied.json()).toEqual({
+      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions/copy-week?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: copyBody,
     });
 
     for (const method of ['GET', 'DELETE']) {
@@ -214,11 +225,19 @@ describe('same-origin coexistence proxy', () => {
 
     for (const [path, method] of [
       ['/api/sessions/labels', 'POST'],
-      ['/api/sessions/copy-week', 'POST'],
       ['/api/sessions/w-1/exercises', 'POST'],
       ['/api/sessions/w-1/exercises/e-1', 'PATCH'],
       ['/api/sessions/w-1/exercises/e-1', 'DELETE'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'PUT'],
+    ]) {
+      const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
+      const fallbackResult = await fallback.json();
+      expect(fallbackResult.upstream, `${method} ${path} should remain on legacy`).toBe('legacy');
+    }
+    for (const [path, method] of [
+      ['/api/sessions/copy-week', 'GET'],
+      ['/api/sessions/copy-week', 'PATCH'],
+      ['/api/sessions/copy-week/source-1', 'POST'],
     ]) {
       const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
       expect((await fallback.json()).upstream).toBe('legacy');
