@@ -16,6 +16,7 @@ import { handleAddSessionExercise } from "./addExerciseRoute.ts";
 import { handleUpdateSessionExercise } from "./updateExerciseRoute.ts";
 import { handleDeleteSessionExercise } from "./deleteExerciseRoute.ts";
 import { handleReplaceExerciseSets } from "./replaceExerciseSetsRoute.ts";
+import { handleSetLog } from "./setLogRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -87,6 +88,13 @@ export function createHandler(
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
         const principal = await authenticate(request, authRepository(db), config);
         const response = await handleCreateSession(request, db, principal, config);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      if (path === "/api/sets/log") {
+        if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleSetLog(request, db, principal, config);
         for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
         return response;
       }

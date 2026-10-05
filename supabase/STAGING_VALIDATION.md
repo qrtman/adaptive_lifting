@@ -1278,3 +1278,46 @@ tests); `npm.cmd run build` passed with the existing large-chunk warning;
 `npm.cmd run lint` reported only the known missing `Deno` global and unresolved
 `@db/postgres` import; both `git diff --check` and
 `git diff --cached --check` passed.
+
+## Set Log Edge Migration
+
+`POST /api/sets/log` now routes to the Supabase Edge API and the narrow
+`al_private.al_set_log` RPC. The request parser was checked against the stable
+Pydantic model for missing/null required values, numeric coercions, zero and
+negative values, fractional reps, invalid numbers, empty IDs, and omitted,
+null, and empty optional telemetry. The RPC preserves execution/log semantics,
+the plan-to-both scope upgrade, and unchanged prescription fields. It uses the
+app JWT and session authorization path, allows an actively linked coach to log
+without a Programming entitlement, rejects deleted Workout/parent Microcycle
+and target rows, and never consults `WorkoutLock`.
+
+Live staging covered athlete/coach authorization, a coach linked to two
+athletes and its all-linked-plan response scope, completed/missed/locked
+sessions, direct-owner sessions without a Microcycle, the owner fallback,
+cross-Exercise/Workout Set rejection, telemetry updates, canonical response
+and analytics reads, atomic rollback when metric recalculation was forced to
+fail, and same/different Set concurrent writes. Set Log vs Set replacement
+and Workout Sync serialized to coherent final rows. Set Log vs Exercise DELETE
+initially showed that the existing delete RPC left cached metrics counting a
+tombstoned Exercise; migration `20261005174414` now invokes the existing
+canonical live-only metric helper inside that same delete transaction. A
+fresh staging Set Log followed by Exercise DELETE produced matching cached
+and live tonnage (`815`). This is a narrow metric-consistency dependency fix;
+the Exercise DELETE HTTP route contract is unchanged.
+
+The Set Log RPC emits no DomainEvent or SSE signal and does not write
+SyncMutation history. The returned value is the canonical `MicrocycleData[]`
+from the existing read interface; the same `apiService.logSet()` response
+continues to serve the Telegram terminal and offline queue flow. Runtime
+direct ExerciseSet reads and execution-field updates remain denied; only the
+Edge runtime can execute the log RPC. The temporary staging token and runtime
+privilege probe routes were removed before API Edge version 77 was deployed;
+both now return 404. All `stg-set-log-*` staging rows, including sessions,
+relationships, Workouts, Exercises, Sets, history rows, locks, devices, and
+users, were removed and zero residue was verified.
+
+Set Log regression: `npm.cmd test` passed (39 files, 285 tests),
+`npm.cmd run build` passed with the existing large-chunk warning, and
+`git diff --check` passed. `npm.cmd run lint` still reports only the existing
+`Deno` global and `@db/postgres` resolution diagnostics; Deno and pytest are
+unavailable. Production and `local-save` were not modified.

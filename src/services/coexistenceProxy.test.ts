@@ -265,11 +265,22 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: replaceSetsBody,
     });
 
+    const setLogBody = JSON.stringify({ workoutId: 'w-1', exerciseId: 'e-1', setId: 's-1', weight: 100, reps: 5, rpe: 8 });
+    const setLog = await fetch(`${base}/api/sets/log?source=calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+      body: setLogBody,
+    });
+    expect(await setLog.json()).toEqual({
+      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sets/log?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: setLogBody,
+    });
+
     for (const [path, method] of [
       ['/api/sessions/labels', 'POST'],
       ['/api/sessions/w-1/exercises', 'GET'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'POST'],
-      ['/api/sets/log', 'POST'],
+      ['/api/sets/log/extra', 'POST'],
     ]) {
       const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
       const fallbackResult = await fallback.json();

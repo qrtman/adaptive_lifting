@@ -46,6 +46,13 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
+    // Set execution logging is an exact POST capability; adjacent set routes
+    // stay on the legacy API during coexistence.
+    proxy['^/api/sets/log(?:\\?.*)?$'] = {
+      target: edge,
+      changeOrigin: true,
+      rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
+    };
   }
   proxy['/api'] = { target: legacy, changeOrigin: true };
   return proxy;
