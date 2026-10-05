@@ -33,6 +33,7 @@ export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
         const copyWeek = request.method === 'POST' && parsed.pathname === '/api/sessions/copy-week';
         const addExercise = request.method === 'POST' && /^\/api\/sessions\/[^/]+\/exercises$/.test(parsed.pathname);
         const updateExercise = request.method === 'PATCH' && /^\/api\/sessions\/[^/]+\/exercises\/[^/]+$/.test(parsed.pathname);
+        const deleteExercise = request.method === 'DELETE' && /^\/api\/sessions\/[^/]+\/exercises\/[^/]+$/.test(parsed.pathname);
         const bulkSessionLabels = request.method === 'PATCH' && parsed.pathname === '/api/sessions/labels';
         const updateSession = request.method === 'PATCH' &&
           /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
@@ -42,7 +43,7 @@ export function sessionCreateProxyPlugin(edgeUrl?: string): Plugin {
           /^\/api\/sessions\/[^/]+$/.test(parsed.pathname) &&
           parsed.pathname !== '/api/sessions/labels' &&
           parsed.pathname !== '/api/sessions/copy-week';
-        if (!createSession && !copyWeek && !addExercise && !updateExercise && !bulkSessionLabels && !updateSession && !deleteSession) return next();
+        if (!createSession && !copyWeek && !addExercise && !updateExercise && !deleteExercise && !bulkSessionLabels && !updateSession && !deleteSession) return next();
 
         const targetPath = `/functions/v1/api${parsed.pathname.slice('/api'.length)}${parsed.search}`;
         const target = new URL(targetPath, edge);

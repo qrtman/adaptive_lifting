@@ -245,11 +245,19 @@ describe('same-origin coexistence proxy', () => {
       cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: updateExerciseBody,
     });
 
+    const deleteExercise = await fetch(`${base}/api/sessions/w-1/exercises/e-1?source=calendar`, {
+      method: 'DELETE',
+      headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+    });
+    expect(await deleteExercise.json()).toEqual({
+      upstream: 'edge', method: 'DELETE', path: '/functions/v1/api/sessions/w-1/exercises/e-1?source=calendar',
+      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
+    });
+
     for (const [path, method] of [
       ['/api/sessions/labels', 'POST'],
       ['/api/sessions/w-1/exercises', 'GET'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'POST'],
-      ['/api/sessions/w-1/exercises/e-1', 'DELETE'],
       ['/api/sessions/w-1/exercises/e-1/sets', 'PUT'],
     ]) {
       const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });

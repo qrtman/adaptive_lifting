@@ -14,6 +14,7 @@ import { handleBulkSessionLabels } from "./bulkSessionLabelsRoute.ts";
 import { handleCopyWeek } from "./copyWeekRoute.ts";
 import { handleAddSessionExercise } from "./addExerciseRoute.ts";
 import { handleUpdateSessionExercise } from "./updateExerciseRoute.ts";
+import { handleDeleteSessionExercise } from "./deleteExerciseRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -107,6 +108,28 @@ export function createHandler(
           throw new ApiError(400, "Invalid session or lift ID");
         }
         const response = await handleUpdateSessionExercise(
+          request,
+          sessionId,
+          exerciseId,
+          db,
+          principal,
+          config,
+        );
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      const deleteExercise = /^\/api\/sessions\/([^/]+)\/exercises\/([^/]+)$/.exec(path);
+      if (deleteExercise && request.method === "DELETE") {
+        const principal = await authenticate(request, authRepository(db), config);
+        let sessionId: string;
+        let exerciseId: string;
+        try {
+          sessionId = decodeURIComponent(deleteExercise[1]);
+          exerciseId = decodeURIComponent(deleteExercise[2]);
+        } catch {
+          throw new ApiError(400, "Invalid session or lift ID");
+        }
+        const response = await handleDeleteSessionExercise(
           request,
           sessionId,
           exerciseId,
