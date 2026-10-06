@@ -26,7 +26,7 @@ from .database import (
 )
 from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
-from .email_verification import require_eligible_account, process_email_job
+from .email_verification import require_eligible_account
 from .runtime_config import is_production_like
 from .saas_access import require_integrations_access
 
@@ -1080,7 +1080,7 @@ def claim_next_outbox_job(session_factory=None) -> Optional[str]:
     try:
         db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
         db.query(IntegrationOutbox).filter(
-            IntegrationOutbox.provider.in_(["google-sheets", "email-verification"]),
+            IntegrationOutbox.provider == "google-sheets",
             IntegrationOutbox.status == "processing",
             IntegrationOutbox.attempt_count >= 3,
             IntegrationOutbox.retry_after <= now,
@@ -1089,18 +1089,10 @@ def claim_next_outbox_job(session_factory=None) -> Optional[str]:
             IntegrationOutbox.retry_after: None,
             IntegrationOutbox.result: "Worker lease expired after the maximum attempts",
         }, synchronize_session=False)
-        from .database import EmailVerificationToken
-        expired_ids = db.query(EmailVerificationToken.id).filter(EmailVerificationToken.expires_at <= now)
-        db.query(IntegrationOutbox).filter(IntegrationOutbox.provider == "email-verification",
-            IntegrationOutbox.verification_token_id.in_(expired_ids), IntegrationOutbox.encrypted_payload.is_not(None)).update(
-                {IntegrationOutbox.encrypted_payload: None, IntegrationOutbox.status: "cancelled", IntegrationOutbox.retry_after: None}, synchronize_session=False)
-        db.query(IntegrationOutbox).filter(IntegrationOutbox.provider == "email-verification",
-            IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count >= 3).update(
-                {IntegrationOutbox.encrypted_payload: None}, synchronize_session=False)
         # Selecting candidates is only advisory: the conditional UPDATE is the claim.
         # retry_after doubles as a lease while status is processing, allowing recovery
         # after a worker dies without introducing another migration.
-        candidates = db.query(IntegrationOutbox.id).filter(IntegrationOutbox.provider.in_(["google-sheets", "email-verification"])).filter(or_(
+        candidates = db.query(IntegrationOutbox.id).filter(IntegrationOutbox.provider == "google-sheets").filter(or_(
             IntegrationOutbox.status == "queued",
             and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
                  or_(IntegrationOutbox.retry_after.is_(None), IntegrationOutbox.retry_after <= now)),
@@ -1110,7 +1102,7 @@ def claim_next_outbox_job(session_factory=None) -> Optional[str]:
         for (job_id,) in candidates:
             changed = db.query(IntegrationOutbox).filter(
                 IntegrationOutbox.id == job_id,
-                IntegrationOutbox.provider.in_(["google-sheets", "email-verification"]),
+                IntegrationOutbox.provider == "google-sheets",
                 or_(
                     IntegrationOutbox.status == "queued",
                     and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
@@ -1151,14 +1143,14 @@ def process_next_outbox_job(session_factory=None) -> bool:
             return True
         print(f"[WORKER] Processing export outbox job {job.id}...")
         try:
-            success = process_email_job(job, db) if job.provider == "email-verification" else process_sheets_publish_job(job, db)
+            success = process_sheets_publish_job(job, db)
         except Exception as exc:
             db.rollback()
             job = db.query(IntegrationOutbox).filter_by(id=job_id, status="processing").one_or_none()
             if job is None:
                 return True
             job.status = "failed"
-            job.result = "Email worker error" if job.provider == "email-verification" else f"Worker error: {exc}"
+            job.result = f"Worker error: {exc}"
             success = False
         if not success:
             if job.attempt_count < 3:
@@ -1167,8 +1159,6 @@ def process_next_outbox_job(session_factory=None) -> bool:
                 job.retry_after = None
         else:
             job.retry_after = None
-        if job.provider == "email-verification" and job.attempt_count >= 3 and not success:
-            job.encrypted_payload = None
         db.commit()
         return True
     except Exception:

@@ -1,10 +1,11 @@
-import { SignJWT, importPKCS8 } from "jose";
+import { importPKCS8, SignJWT } from "jose";
 import type { AppConfig } from "./config.ts";
 import { authRepository, type Database, type SqlClient } from "./db/mod.ts";
 import { ApiError, invalidCredentials, jsonResponse } from "./errors/mod.ts";
 import { authenticate, requestToken } from "./auth/session.ts";
 import { verifyAppJwt } from "./auth/jwt.ts";
 import type { Principal } from "./types/mod.ts";
+import { sessionResponse } from "./sessionResponse.ts";
 
 type Json = Record<string, unknown>;
 
@@ -80,18 +81,6 @@ function userJson(user: Principal["user"]): Json {
     role: user.role ?? "ATHLETE",
     displayName: user.display_name ?? null,
   };
-}
-
-function setCookie(token: string, config: AppConfig): string {
-  const parts = [
-    `session_id=${encodeURIComponent(token)}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=lax",
-    `Max-Age=${config.sessionLifetimeSeconds ?? 604800}`,
-  ];
-  if (config.cookieSecure) parts.push("Secure");
-  return parts.join("; ");
 }
 
 function clearCookie(config: AppConfig): string {
@@ -197,18 +186,10 @@ async function login(request: Request, db: Database, config: AppConfig): Promise
     "select al_private.al_auth_login($1::text,$2::text,$3::text,$4::text,$5::boolean) as payload",
     [email, password, subjectHash, sessionId, config.enforceLegacyEmailVerification],
   ));
-  const now = Math.floor(Date.now() / 1000);
-  const token = await new SignJWT({ role: result.role, session_id: sessionId })
-    .setProtectedHeader({ alg: "HS256", kid: "current" })
-    .setSubject(String(result.id))
-    .setIssuedAt(now)
-    .setExpirationTime(now + (config.sessionLifetimeSeconds ?? 604800))
-    .sign(new TextEncoder().encode(config.jwtCurrent));
-  return jsonResponse({
-    access_token: token,
-    token_type: "bearer",
-    user: { id: result.id, email: result.email, role: result.role, displayName: result.displayName ?? null },
-  }, 200, { "set-cookie": setCookie(token, config), "cache-control": "no-store" });
+  return await sessionResponse({
+    id: String(result.id), email: String(result.email), role: String(result.role),
+    displayName: typeof result.displayName === "string" ? result.displayName : null,
+  }, sessionId, config);
 }
 
 async function logout(request: Request, db: Database, config: AppConfig): Promise<Response> {

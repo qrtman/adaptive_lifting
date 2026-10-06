@@ -18,6 +18,7 @@ import { handleDeleteSessionExercise } from "./deleteExerciseRoute.ts";
 import { handleReplaceExerciseSets } from "./replaceExerciseSetsRoute.ts";
 import { handleSetLog } from "./setLogRoute.ts";
 import { handleAccountSecurityRoute } from "./accountSecurityRoute.ts";
+import { handleOnboardingRoute } from "./onboardingRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -71,6 +72,11 @@ export function createHandler(
       }
       if (path.startsWith("/api/_staging/")) {
         throw new ApiError(404, "Not found");
+      }
+      const onboardingResponse = await handleOnboardingRoute(request, db, config);
+      if (onboardingResponse) {
+        for (const [key, value] of Object.entries(cors)) onboardingResponse.headers.set(key, value);
+        return onboardingResponse;
       }
       const accountSecurityResponse = await handleAccountSecurityRoute(request, db, config);
       if (accountSecurityResponse) {

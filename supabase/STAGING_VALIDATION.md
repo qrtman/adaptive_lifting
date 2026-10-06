@@ -1350,3 +1350,49 @@ verifiable until its own expiry, bounded by the app session expiry and 24
 hours. After coach unlink, new `/auth/me` scopes and grants exclude the ended
 athlete; an older grant already held by a disconnected client may retain that
 scope only until its bounded expiry.
+
+## Auth onboarding Edge migration
+
+Registration, email verification, resend, and Google login now run through the
+Supabase API Edge function and the custom application session architecture.
+Supabase Auth remains unused. New password accounts default to ATHLETE and
+queue hashed-token/encrypted-payload email work transactionally. The Python
+outbox worker was narrowed to Google Sheets; a private Edge worker claims only
+email-verification jobs through the one-minute Cron schedule.
+
+Staging deployed API Edge version 87 and `email-verification-worker` version
+3. Live registration returned the same generic response for new/duplicate
+email, created an ATHLETE with bcrypt-compatible password, verification token
+hash, and encrypted outbox payload, and created no training data.
+Pre-verification login returned `EMAIL_VERIFICATION_REQUIRED`. Resend produced
+the same generic reply for unknown and known addresses; the 60-second cooldown,
+five-resend rolling limit, token replacement/ciphertext clearing, and
+concurrent resend serialization were validated. The database verify RPC
+consumed a generated token once and rejected replay; the resulting verified
+password account then logged in through the Edge route and `/api/auth/me`
+returned a frontend-verified ES256 offline grant.
+
+The `email-verification-edge-worker` Cron job is scheduled every minute and
+targets only its private Edge function. An invocation through the Vault-backed
+dispatcher reached the worker; it returned 503 before claiming queued work
+because no Resend key, sender, or app URL is configured in staging. Direct
+unauthenticated worker invocation returned 401. Live delivery is therefore
+`NOT_CONFIGURED_STAGING`; no message was sent. Google has no staging client ID,
+so `/api/auth/google` fails closed with 503 and provider-live success is
+`NOT_CONFIGURED_STAGING`. The cryptographic verifier and invalid-claim cases
+passed local generated-key tests. Production and `local-save` were untouched.
+
+The final live smoke after the API redeploy authenticated the verified fixture
+through the migrated login route, received `/auth/me` with an offline grant,
+read an empty `/microcycles` collection, queried the analytics catalog and
+tonnage endpoint, received the expected 403 from an unrelated Realtime workout
+request, and logged out successfully. A separate one-use synthetic token was
+submitted through the live `/api/auth/verify-email` Edge route and returned the
+exact success response; its user and token rows were immediately removed.
+Afterward all `stg-auth-onboarding-*`
+and retired takeover fixtures and their dependent rows were deleted. Targeted
+counts report zero synthetic users, sessions, devices, tokens, outbox jobs,
+relationships, history/audit rows, training rows, sync rows, events, and locks.
+The staging Vault signing/encryption/worker configuration and the permanent
+private RPCs/Cron job remain. No temporary diagnostic SQL functions remain.
+The final API and worker deployments were version 87 and 3 respectively.

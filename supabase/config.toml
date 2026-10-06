@@ -3,6 +3,10 @@
 [functions.api]
 verify_jwt = false
 
+# Private email-verification worker authenticates with its Vault-held internal secret.
+[functions.email-verification-worker]
+verify_jwt = false
+
 # Staging-only Realtime capability prototype. Application auth is checked in
 # the handler before a separate, narrow Realtime JWT is signed.
 [functions.realtime-token-spike]

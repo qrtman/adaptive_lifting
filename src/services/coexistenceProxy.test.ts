@@ -296,9 +296,11 @@ describe('same-origin coexistence proxy', () => {
     }
   });
 
-  it('routes only the account and session-security domain to Edge', async () => {
+  it('routes account, session-security, and onboarding routes to Edge', async () => {
     const migrated: Array<[string, string]> = [
       ['/api/auth/login', 'POST'], ['/api/auth/logout', 'POST'], ['/api/auth/me', 'GET'],
+      ['/api/auth/register', 'POST'], ['/api/auth/verify-email', 'POST'],
+      ['/api/auth/resend-verification', 'POST'], ['/api/auth/google', 'POST'],
       ['/api/auth/profile', 'PATCH'], ['/api/account/access', 'GET'],
       ['/api/auth/coach-code', 'POST'], ['/api/auth/coach-code', 'GET'],
       ['/api/auth/link', 'POST'], ['/api/auth/link', 'DELETE'], ['/api/auth/link-athlete', 'POST'],
@@ -317,10 +319,10 @@ describe('same-origin coexistence proxy', () => {
     }
   });
 
-  it('keeps unmigrated auth and unrelated API paths on the legacy backend', async () => {
+  it('keeps later auth and unrelated API paths on the legacy backend', async () => {
     for (const path of [
-      '/api/auth/register', '/api/auth/verify-email', '/api/auth/resend-verification',
-      '/api/auth/google', '/api/healthcheck', '/api/analytics/catalogue', '/api/day-notes',
+      '/api/auth/verify-email/token', '/api/auth/register/extra',
+      '/api/healthcheck', '/api/analytics/catalogue', '/api/day-notes',
     ]) {
       const response = await fetch(base + path);
       expect(await response.json()).toEqual({ upstream: 'legacy', method: 'GET', path, cookie: null, authorization: null, body: '' });

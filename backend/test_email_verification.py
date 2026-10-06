@@ -146,48 +146,17 @@ def email_jobs(tmp_path):
     engine.dispose()
 
 
-def test_email_retry_concurrent_workers_and_payload_cleanup(email_jobs, monkeypatch):
+def test_python_outbox_worker_does_not_claim_email_verification(email_jobs, monkeypatch):
     fake = FakeEmailProvider()
-    fake.failures_remaining = 1
     monkeypatch.setattr('backend.email_delivery.email_provider', lambda: fake)
-    assert integrations.process_next_outbox_job(email_jobs)
+    assert integrations.process_next_outbox_job(email_jobs) is False
     with email_jobs() as db:
         job = db.query(IntegrationOutbox).one()
-        assert job.status == 'failed' and job.retry_after > datetime.utcnow()
+        assert job.provider == 'email-verification'
+        assert job.status == 'queued'
+        assert job.attempt_count == 0
         assert job.encrypted_payload
-        job.retry_after = datetime.utcnow() - timedelta(seconds=1)
-        db.commit()
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        list(pool.map(lambda _: integrations.process_next_outbox_job(email_jobs), range(4)))
-    assert len(fake.messages) == 1
-    text, html = fake.messages[0].content()
-    assert '24 hours' in text and 'Verify email address' in html
-    with email_jobs() as db:
-        job = db.query(IntegrationOutbox).one()
-        assert job.status == 'success' and job.attempt_count == 2 and job.encrypted_payload is None
-
-
-def test_terminal_failures_and_superseded_email_never_send(email_jobs, monkeypatch):
-    fake = FakeEmailProvider()
-    fake.failures_remaining = 3
-    monkeypatch.setattr('backend.email_delivery.email_provider', lambda: fake)
-    for _ in range(3):
-        assert integrations.process_next_outbox_job(email_jobs)
-        with email_jobs() as db:
-            job = db.query(IntegrationOutbox).one()
-            if job.attempt_count < 3:
-                job.retry_after = datetime.utcnow() - timedelta(seconds=1)
-                db.commit()
-    assert not integrations.process_next_outbox_job(email_jobs)
-    with email_jobs() as db:
-        assert db.query(IntegrationOutbox).one().encrypted_payload is None
-        queue_verification(db, db.get(User, 'email-user'), resend=True)
-        db.commit()
-        queue_verification(db, db.get(User, 'email-user'), resend=True)
-        db.commit()
-    assert integrations.process_next_outbox_job(email_jobs)
-    assert not integrations.process_next_outbox_job(email_jobs)
-    assert len(fake.messages) == 1
+    assert fake.messages == []
 
 
 def test_real_provider_sanitizes_errors_and_sends_both_formats(monkeypatch):
@@ -375,7 +344,7 @@ def test_pending_coach_cannot_be_linked_by_a_verified_athlete():
     assert athlete_client.post('/api/auth/link', json={'code': code}).json()['detail']['code'] == 'EMAIL_VERIFICATION_REQUIRED'
 
 
-def test_expired_or_abandoned_email_jobs_erase_ciphertext(email_jobs):
+def test_python_outbox_worker_does_not_touch_email_verification_cleanup(email_jobs):
     with email_jobs() as db:
         token = db.query(EmailVerificationToken).one()
         token.created_at = datetime.utcnow() - timedelta(hours=25)
@@ -383,4 +352,6 @@ def test_expired_or_abandoned_email_jobs_erase_ciphertext(email_jobs):
         db.commit()
     assert not integrations.process_next_outbox_job(email_jobs)
     with email_jobs() as db:
-        assert db.query(IntegrationOutbox).one().encrypted_payload is None
+        job = db.query(IntegrationOutbox).one()
+        assert job.status == 'queued'
+        assert job.encrypted_payload

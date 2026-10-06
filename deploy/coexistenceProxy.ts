@@ -3,6 +3,7 @@ import type { ProxyOptions } from 'vite';
 const edgePaths = [
   '/api/health', '/api/analytics/catalog', '/api/analytics/query',
   '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/profile',
+  '/api/auth/register', '/api/auth/verify-email', '/api/auth/resend-verification', '/api/auth/google',
   '/api/auth/coach-code', '/api/auth/link', '/api/auth/link-athlete',
   '/api/account/access', '/api/coach/roster', '/api/coach/roster/history',
   '/api/coach/push-program', '/api/security/devices', '/api/security/sessions',
@@ -60,8 +61,7 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
-    // Only the account/access/security capabilities in this milestone are
-    // routed here. Registration, email verification, Google login, billing,
+    // Account/security and onboarding routes have migrated together. Billing,
     // integrations, exports, and day notes remain on the legacy service.
     for (const pattern of [
       '^/api/auth/link/[^/?]+(?:\\?.*)?$',
