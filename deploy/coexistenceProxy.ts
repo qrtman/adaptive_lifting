@@ -7,7 +7,7 @@ const edgePaths = [
   '/api/auth/coach-code', '/api/auth/link', '/api/auth/link-athlete',
   '/api/account/access', '/api/coach/roster', '/api/coach/roster/history',
   '/api/coach/push-program', '/api/security/devices', '/api/security/sessions',
-  '/api/security/audit-events',
+  '/api/security/audit-events', '/api/day-notes', '/api/export/csv', '/api/export/json',
 ] as const;
 
 function origin(value: string, label: string): string {
@@ -61,8 +61,8 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
-    // Account/security and onboarding routes have migrated together. Billing,
-    // integrations, exports, and day notes remain on the legacy service.
+    // Resource subroutes are explicitly enumerated; unrelated integrations and
+    // billing paths remain on the legacy service.
     for (const pattern of [
       '^/api/auth/link/[^/?]+(?:\\?.*)?$',
       '^/api/coach/roster/history/[^/?]+(?:\\?.*)?$',

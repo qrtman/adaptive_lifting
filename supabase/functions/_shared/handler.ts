@@ -19,6 +19,7 @@ import { handleReplaceExerciseSets } from "./replaceExerciseSetsRoute.ts";
 import { handleSetLog } from "./setLogRoute.ts";
 import { handleAccountSecurityRoute } from "./accountSecurityRoute.ts";
 import { handleOnboardingRoute } from "./onboardingRoute.ts";
+import { handleDayNotesRoute, handleExportRoute } from "./dayNotesExportsRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -72,6 +73,20 @@ export function createHandler(
       }
       if (path.startsWith("/api/_staging/")) {
         throw new ApiError(404, "Not found");
+      }
+      if (path === "/api/day-notes") {
+        if (request.method !== "GET" && request.method !== "PUT") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleDayNotesRoute(request, db, principal, config);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
+      }
+      if (path === "/api/export/csv" || path === "/api/export/json") {
+        if (request.method !== "GET") throw new ApiError(405, "Method not allowed");
+        const principal = await authenticate(request, authRepository(db), config);
+        const response = await handleExportRoute(request, db, principal, config, path);
+        for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response;
       }
       const onboardingResponse = await handleOnboardingRoute(request, db, config);
       if (onboardingResponse) {

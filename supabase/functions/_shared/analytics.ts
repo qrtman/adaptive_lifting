@@ -120,10 +120,15 @@ function grainKey(row: AnalyticsRow, grain: string): string {
   const block = row.block_label || "Unlabeled";
   return row.week_label ? `${block}/${row.week_label}` : block;
 }
-function e1rm(weight: number, reps: number, rpe: number): number {
+export function calculateE1RM(weight: number, reps: number, rpe: number): number {
   if (weight <= 0 || reps <= 0 || reps > 12 || rpe <= 0) return weight > 0 && reps > 0 ? weight : 0;
   const denominator = 1 - 0.03 * (10 - Math.max(rpe, 5) + reps - 1);
   return denominator <= 0.1 ? weight : Number((weight / denominator).toFixed(2));
+}
+export function calculateINOL(reps: number, intensityPct: number): number {
+  if (intensityPct >= 100) return reps;
+  if (intensityPct <= 0) return 0;
+  return Number((reps / (100 - intensityPct)).toFixed(2));
 }
 function setValue(row: AnalyticsRow, metric: string, prescribed: boolean): number | null {
   const weight = Number((prescribed ? row.planned_weight : row.actual) ?? 0);
@@ -135,13 +140,13 @@ function setValue(row: AnalyticsRow, metric: string, prescribed: boolean): numbe
     if (metric === "set_count") return 1;
     return null;
   }
-  const max = e1rm(weight, reps, rpe);
+  const max = calculateE1RM(weight, reps, rpe);
   switch (metric) {
     case "tonnage": return weight * reps;
     case "e1rm": return max;
     case "avg_intensity": return max > 0 ? weight / max * 100 : null;
     case "avg_rpe": return rpe;
-    case "inol": { const intensity = max > 0 ? weight / max * 100 : 0; return intensity >= 100 ? reps : intensity <= 0 ? 0 : Number((reps / (100 - intensity)).toFixed(2)); }
+    case "inol": { const intensity = max > 0 ? weight / max * 100 : 0; return calculateINOL(reps, intensity); }
     case "set_count": return 1;
     case "rep_count": return reps;
     default: return null;

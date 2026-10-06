@@ -135,6 +135,53 @@ describe('apiService.copyWeek', () => {
   });
 });
 
+describe('apiService Day Notes and exports', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    vi.stubEnv('VITE_BACKEND_URL', '');
+  });
+
+  it('uses the authenticated same-origin Day Notes contract for athlete and coach plans', async () => {
+    const notes = [{ id: 'dn-1', date: '2026-09-01', body: 'Deload', ownerId: 'athlete-a' }];
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ notes }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'dn-1', date: '2026-09-01', body: null }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { apiService } = await import('./api');
+
+    await expect(apiService.fetchDayNotes('athlete / a')).resolves.toEqual(notes);
+    await expect(apiService.upsertDayNote({ date: '2026-09-01', body: '', athleteId: 'athlete-a' }))
+      .resolves.toMatchObject({ id: 'dn-1', body: null });
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/day-notes?athlete_id=athlete%20%2F%20a', expect.objectContaining({ credentials: 'include' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/day-notes', expect.objectContaining({
+      method: 'PUT', credentials: 'include',
+      body: JSON.stringify({ date: '2026-09-01', body: '', athleteId: 'athlete-a' }),
+    }));
+  });
+
+  it('returns authenticated export Blobs and preserves encoded CSV filters', async () => {
+    const csv = 'Date,Lift Category,Tier\r\n';
+    const json = '[]';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(csv, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename=adaptive_lifting_export.csv' } }))
+      .mockResolvedValueOnce(new Response(json, { status: 200, headers: { 'content-type': 'application/json', 'content-disposition': 'attachment; filename=adaptive_lifting_export.json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { apiService } = await import('./api');
+
+    const csvBlob = await apiService.downloadExportCSV('Bench & Press', 'Variation');
+    const jsonBlob = await apiService.downloadExportJSON();
+    expect(csvBlob.type).toBe('text/csv;charset=utf-8');
+    await expect(csvBlob.text()).resolves.toBe(csv);
+    expect(jsonBlob.type).toBe('application/json');
+    await expect(jsonBlob.text()).resolves.toBe(json);
+    expect(fetchMock).toHaveBeenNthCalledWith(1,
+      '/api/export/csv?lift_category=Bench%20%26%20Press&tier=Variation',
+      expect.objectContaining({ credentials: 'include' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/export/json', expect.objectContaining({ credentials: 'include' }));
+  });
+});
+
 it('cannot open cached training with an unsigned cached profile', async () => {
   vi.resetModules();
   getSnapshot.mockResolvedValue(plan);

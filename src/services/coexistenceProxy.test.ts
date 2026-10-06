@@ -319,10 +319,24 @@ describe('same-origin coexistence proxy', () => {
     }
   });
 
+  it('routes only Day Notes and CSV/JSON export endpoints to Edge', async () => {
+    for (const [path, method] of [
+      ['/api/day-notes', 'GET'], ['/api/day-notes?athlete_id=ath-1', 'GET'],
+      ['/api/day-notes', 'PUT'], ['/api/export/csv', 'GET'],
+      ['/api/export/csv?lift_category=Squat&tier=Comp', 'GET'], ['/api/export/json', 'GET'],
+    ]) {
+      const response = await fetch(base + path, { method, ...(method === 'PUT' ? { body: '{}' } : {}) });
+      const result = await response.json();
+      expect(result.upstream, `${method} ${path}`).toBe('edge');
+      expect(result.path).toBe(`/functions/v1/api${path.split('?')[0].slice('/api'.length)}${path.includes('?') ? `?${path.split('?')[1]}` : ''}`);
+    }
+  });
+
   it('keeps later auth and unrelated API paths on the legacy backend', async () => {
     for (const path of [
       '/api/auth/verify-email/token', '/api/auth/register/extra',
-      '/api/healthcheck', '/api/analytics/catalogue', '/api/day-notes',
+      '/api/healthcheck', '/api/analytics/catalogue', '/api/day-notes/extra',
+      '/api/export/other', '/api/integrations', '/api/billing',
     ]) {
       const response = await fetch(base + path);
       expect(await response.json()).toEqual({ upstream: 'legacy', method: 'GET', path, cookie: null, authorization: null, body: '' });

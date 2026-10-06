@@ -985,6 +985,8 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
 | `GET` | `/api/day-notes?athlete_id=` | List live calendar-date notes for an athlete plan (empty days included; not weekday-keyed) | Coach / Athlete |
 | `PUT` | `/api/day-notes` | Upsert a day note (`date` YYYY-MM-DD, `body`; empty body tombstones). Coach must pass `athleteId` | Coach / Athlete |
+| `GET` | `/api/export/csv` | Export live set rows; athlete exports own plan, coach exports active linked plans plus coach-owned plans | Coach / Athlete |
+| `GET` | `/api/export/json` | Download the canonical live microcycle tree; coach scope includes all actively linked athlete plans | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
@@ -1337,18 +1339,20 @@ Designed for coaches who need to import data into existing spreadsheet workflows
 
 - **Row Granularity:** One row per `ExerciseSet`
 - **Column Set:** `Date`, `Lift Category`, `Tier`, `Exercise Title`, `Planned Weight`, `Actual Weight`, `Reps`, `RPE`, `e1RM`, `INOL`, `Tonnage`
-- **Filtering:** Exports are gated by `lift_category` and `tier` to prevent naming drift in pivot tables
+- **Filtering:** `lift_category` and `tier` use exact matches; missing filters and `lift_category=All` include all values
 - **Date Ordering:** Rows are strictly ordered by `Workout.date` (chronological) for time-series analysis
+- **Canonical data:** Only live Microcycles, Workouts, Exercises, and ExerciseSets are included. Derived execution values reuse the `linear-decay-v3` e1RM and canonical INOL helpers. Spreadsheet formula-like text cells are prefixed safely; numeric cells remain numeric.
 
 ### 14.2 Hierarchical JSON Export
 
-For deep analysis and external auditing, the full microcycle tree is exportable as nested JSON:
+For deep analysis and external auditing, the canonical live microcycle tree is exportable as nested JSON:
 
 ```
 Microcycle -> Workouts[] -> Exercises[] -> Sets[]
 ```
 
 Each node includes all computed analytics (e1RM, INOL, ACWR) alongside raw inputs.
+DayNotes are separate calendar documents and are not part of either training export. Successful CSV and JSON downloads create an `EXPORT_CSV` or `EXPORT_JSON` AuditEvent without including training contents in audit metadata.
 
 ### 14.3 Telegram Mini App Integration
 

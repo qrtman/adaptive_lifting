@@ -1396,3 +1396,32 @@ relationships, history/audit rows, training rows, sync rows, events, and locks.
 The staging Vault signing/encryption/worker configuration and the permanent
 private RPCs/Cron job remain. No temporary diagnostic SQL functions remain.
 The final API and worker deployments were version 87 and 3 respectively.
+
+## Day Notes and exports Edge migration
+
+Day Notes and CSV/JSON exports now run through the Supabase API Edge function.
+Staging applied migration `20261006153607 day_notes_exports_domain` and
+deployed API Edge version 89. The four routes are method/path-specific; the
+unrelated integration, billing, Telegram, and Sheets routes remain outside
+this migration. Supabase Auth remains unused.
+
+DayNote reads and writes use narrow private RPCs, preserve the owner/date
+unique key, tombstone clears, and resurrect the same row on a later non-empty
+save. Runtime table access remains denied and browser roles cannot execute the
+private RPCs. JSON export reuses the canonical live-only Microcycle reader.
+CSV export uses canonical metric math, live-only training rows, stable coach
+scope and ordering, exact filters/headers, standards-compliant quoting, and a
+text-cell formula-injection prefix. Both export audit events are visible via
+the existing audit route. Day Notes create no sync/domain events and do not
+change training metrics.
+
+Staging validated athlete/coach scope, unlink revocation, concurrent note
+creation, update/clear/resurrection, calendar note API behavior, CSV filters,
+CSV escaping/formula-like titles, JSON/CSV download headers and contents,
+live-only tombstone exclusion, audit visibility, and no metric side effects.
+The final health/auth/core-training/analytics/Realtime smoke passed. All
+`stg-notes-export-*` users and dependent fixture rows were deleted; targeted
+post-cleanup counts are zero for users, sessions, devices, invites,
+relationships, snapshots, audit events, notes, training rows, sync mutations,
+domain events, and locks. No temporary SQL helper was created; only the
+permanent narrow RPCs remain. Production and `local-save` were untouched.
