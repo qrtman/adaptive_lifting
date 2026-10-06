@@ -8,6 +8,11 @@ const edgePaths = [
   '/api/account/access', '/api/coach/roster', '/api/coach/roster/history',
   '/api/coach/push-program', '/api/security/devices', '/api/security/sessions',
   '/api/security/audit-events', '/api/day-notes', '/api/export/csv', '/api/export/json',
+  '/api/integrations/telegram/link-token', '/api/integrations/telegram/miniapp/session',
+  '/api/integrations/telegram/status', '/api/integrations/telegram', '/api/integrations/telegram/webhook',
+  '/api/integrations/google-sheets/auth-url', '/api/integrations/google-sheets/callback',
+  '/api/integrations/google-sheets/status', '/api/integrations/google-sheets',
+  '/api/integrations/google-sheets/publish',
 ] as const;
 
 function origin(value: string, label: string): string {

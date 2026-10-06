@@ -16,6 +16,7 @@ export type RosterAthlete = {
   email: string;
   displayName?: string | null;
   activeMicrocycles: number;
+  activeMesocycleId?: string | null;
 };
 
 export type PastAthlete = {

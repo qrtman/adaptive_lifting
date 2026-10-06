@@ -332,6 +332,30 @@ describe('same-origin coexistence proxy', () => {
     }
   });
 
+  it('routes only the Telegram and Google Sheets integration paths to Edge', async () => {
+    const migrated: Array<[string, string]> = [
+      ['/api/integrations/telegram/link-token', 'POST'],
+      ['/api/integrations/telegram/miniapp/session', 'POST'],
+      ['/api/integrations/telegram/status', 'GET'],
+      ['/api/integrations/telegram', 'DELETE'],
+      ['/api/integrations/telegram/webhook', 'POST'],
+      ['/api/integrations/google-sheets/auth-url', 'GET'],
+      ['/api/integrations/google-sheets/callback?code=x&state=s', 'GET'],
+      ['/api/integrations/google-sheets/status', 'GET'],
+      ['/api/integrations/google-sheets', 'DELETE'],
+      ['/api/integrations/google-sheets/publish', 'POST'],
+    ];
+    for (const [path, method] of migrated) {
+      const response = await fetch(base + path, { method, ...(method === 'POST' ? { body: '{}' } : {}) });
+      const result = await response.json();
+      const cleanPath = path.split('?')[0];
+      expect(result.upstream, `${method} ${path}`).toBe('edge');
+      expect(result.path).toBe(`/functions/v1/api${cleanPath.slice('/api'.length)}${path.includes('?') ? `?${path.split('?')[1]}` : ''}`);
+    }
+    const later = await fetch(`${base}/api/integrations/slack`);
+    expect((await later.json()).upstream).toBe('legacy');
+  });
+
   it('keeps later auth and unrelated API paths on the legacy backend', async () => {
     for (const path of [
       '/api/auth/verify-email/token', '/api/auth/register/extra',

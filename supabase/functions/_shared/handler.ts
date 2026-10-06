@@ -20,6 +20,7 @@ import { handleSetLog } from "./setLogRoute.ts";
 import { handleAccountSecurityRoute } from "./accountSecurityRoute.ts";
 import { handleOnboardingRoute } from "./onboardingRoute.ts";
 import { handleDayNotesRoute, handleExportRoute } from "./dayNotesExportsRoute.ts";
+import { handleIntegrationsRoute } from "./integrationsRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -73,6 +74,16 @@ export function createHandler(
       }
       if (path.startsWith("/api/_staging/")) {
         throw new ApiError(404, "Not found");
+      }
+      if (path === "/api/integrations/telegram/webhook") {
+        const response = await handleIntegrationsRoute(request, db, config);
+        if (response) for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response!;
+      }
+      if (/^\/api\/integrations\/(telegram(?:\/link-token|\/miniapp\/session|\/status)?|google-sheets(?:\/auth-url|\/callback|\/status|\/publish)?)$/.test(path)) {
+        const response = await handleIntegrationsRoute(request, db, config);
+        if (response) for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+        return response!;
       }
       if (path === "/api/day-notes") {
         if (request.method !== "GET" && request.method !== "PUT") throw new ApiError(405, "Method not allowed");

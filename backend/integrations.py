@@ -1070,99 +1070,12 @@ OUTBOX_CLAIM_LEASE = timedelta(minutes=15)
 
 
 def claim_next_outbox_job(session_factory=None) -> Optional[str]:
-    """Atomically reserve one due job so concurrent worker processes cannot both run it."""
-    from sqlalchemy import or_, and_
-    from .database import SessionLocal
-
-    factory = session_factory or SessionLocal
-    now = datetime.utcnow()
-    db = factory()
-    try:
-        db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
-        db.query(IntegrationOutbox).filter(
-            IntegrationOutbox.provider == "google-sheets",
-            IntegrationOutbox.status == "processing",
-            IntegrationOutbox.attempt_count >= 3,
-            IntegrationOutbox.retry_after <= now,
-        ).update({
-            IntegrationOutbox.status: "failed",
-            IntegrationOutbox.retry_after: None,
-            IntegrationOutbox.result: "Worker lease expired after the maximum attempts",
-        }, synchronize_session=False)
-        # Selecting candidates is only advisory: the conditional UPDATE is the claim.
-        # retry_after doubles as a lease while status is processing, allowing recovery
-        # after a worker dies without introducing another migration.
-        candidates = db.query(IntegrationOutbox.id).filter(IntegrationOutbox.provider == "google-sheets").filter(or_(
-            IntegrationOutbox.status == "queued",
-            and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
-                 or_(IntegrationOutbox.retry_after.is_(None), IntegrationOutbox.retry_after <= now)),
-            and_(IntegrationOutbox.status == "processing", IntegrationOutbox.attempt_count < 3,
-                 IntegrationOutbox.retry_after <= now),
-        )).order_by(IntegrationOutbox.id).limit(20).all()
-        for (job_id,) in candidates:
-            changed = db.query(IntegrationOutbox).filter(
-                IntegrationOutbox.id == job_id,
-                IntegrationOutbox.provider == "google-sheets",
-                or_(
-                    IntegrationOutbox.status == "queued",
-                    and_(IntegrationOutbox.status == "failed", IntegrationOutbox.attempt_count < 3,
-                         or_(IntegrationOutbox.retry_after.is_(None), IntegrationOutbox.retry_after <= now)),
-                    and_(IntegrationOutbox.status == "processing", IntegrationOutbox.attempt_count < 3,
-                         IntegrationOutbox.retry_after <= now),
-                ),
-            ).update({
-                IntegrationOutbox.status: "processing",
-                IntegrationOutbox.retry_after: now + OUTBOX_CLAIM_LEASE,
-                IntegrationOutbox.attempt_count: IntegrationOutbox.attempt_count + 1,
-            }, synchronize_session=False)
-            if changed:
-                db.commit()
-                return job_id
-        db.commit()
-        return None
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    """The Python integration worker is retired; Supabase owns Sheets claims."""
+    del session_factory
+    return None
 
 
 def process_next_outbox_job(session_factory=None) -> bool:
-    """Claim and process at most one job. Returns whether a job was claimed."""
-    from .database import SessionLocal
-
-    factory = session_factory or SessionLocal
-    job_id = claim_next_outbox_job(factory)
-    if job_id is None:
-        return False
-
-    db = factory()
-    try:
-        job = db.query(IntegrationOutbox).filter_by(id=job_id, status="processing").one_or_none()
-        if job is None:
-            return True
-        print(f"[WORKER] Processing export outbox job {job.id}...")
-        try:
-            success = process_sheets_publish_job(job, db)
-        except Exception as exc:
-            db.rollback()
-            job = db.query(IntegrationOutbox).filter_by(id=job_id, status="processing").one_or_none()
-            if job is None:
-                return True
-            job.status = "failed"
-            job.result = f"Worker error: {exc}"
-            success = False
-        if not success:
-            if job.attempt_count < 3:
-                job.retry_after = datetime.utcnow() + timedelta(minutes=5 * job.attempt_count)
-            else:
-                job.retry_after = None
-        else:
-            job.retry_after = None
-        db.commit()
-        return True
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    """Compatibility shim; email and Sheets outboxes are Supabase-native."""
+    del session_factory
+    return False

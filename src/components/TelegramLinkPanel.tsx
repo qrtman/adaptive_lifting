@@ -13,7 +13,7 @@ export const TelegramLinkPanel = () => {
     if (!silent) setStatus('loading');
     try {
       const res = await fetch(`${API_BASE_URL}/api/integrations/telegram/status`, {
-        headers: { 'credentials': 'include' } // matches cookie session setup
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
@@ -43,7 +43,7 @@ export const TelegramLinkPanel = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/integrations/telegram/link-token`, {
         method: 'POST',
-        headers: { 'credentials': 'include' }
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
@@ -69,7 +69,7 @@ export const TelegramLinkPanel = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/integrations/telegram`, {
         method: 'DELETE',
-        headers: { 'credentials': 'include' }
+        credentials: 'include'
       });
       if (res.ok) {
         setStatus('unlinked');

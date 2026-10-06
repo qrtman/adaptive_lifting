@@ -74,12 +74,13 @@ def test_postgres_resend_is_serialized(postgres_sessions):
         assert db.query(EmailVerificationToken).filter_by(is_resend=True).count() == 1
 
 
-def test_postgres_limits_and_outbox_claims_are_shared(postgres_sessions, monkeypatch):
+def test_postgres_limits_are_shared_and_python_does_not_claim_outbox(postgres_sessions, monkeypatch):
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda _: allow_auth_attempt('ip', 'register', 5, 60, postgres_sessions), range(16)))
     assert sum(results) == 5
     fake = FakeEmailProvider()
     monkeypatch.setattr('backend.email_delivery.email_provider', lambda: fake)
     with ThreadPoolExecutor(max_workers=8) as pool:
-        list(pool.map(lambda _: integrations.process_next_outbox_job(postgres_sessions), range(8)))
-    assert len(fake.messages) == 1
+        claimed = list(pool.map(lambda _: integrations.process_next_outbox_job(postgres_sessions), range(8)))
+    assert claimed == [False] * 8
+    assert fake.messages == []

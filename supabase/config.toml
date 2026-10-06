@@ -7,6 +7,10 @@ verify_jwt = false
 [functions.email-verification-worker]
 verify_jwt = false
 
+# Google Sheets outbox worker authenticates with a separate Vault-held secret.
+[functions.google-sheets-worker]
+verify_jwt = false
+
 # Staging-only Realtime capability prototype. Application auth is checked in
 # the handler before a separate, narrow Realtime JWT is signed.
 [functions.realtime-token-spike]

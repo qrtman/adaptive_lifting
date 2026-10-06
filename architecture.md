@@ -884,7 +884,7 @@ sequenceDiagram
 
 New password registrations require email verification by default and return no session. Verification uses a 24-hour, hash-only, single-use token and explicit POST; users then sign in normally. Migration 0011 records historical password accounts as separately exempt, without claiming their emails were verified. Initial legacy enforcement is disabled. The eligibility policy applies to every backend session and protected API, including Telegram and coach linking. Google authentication uses verified ID-token claims and stable subjects, with explicit authenticated linking and no email-only merge.
 
-Verification email jobs extend IntegrationOutbox. Supabase Cron wakes a private Edge worker that claims only `email-verification` jobs; the Python outbox worker remains responsible for Google Sheets. Raw tokens are confined to encrypted temporary payloads under an independent Vault-held Fernet key; resend, verification, and delivery serialize through the same account lock. Database-backed IP and account limits apply across workers. See `docs/email-verification.md` for schema, collision policy, configuration and deployment details.
+Verification email jobs extend IntegrationOutbox. Supabase Cron wakes the private email-verification Edge worker, which claims only `email-verification` jobs. Google Sheets publishing uses a separate Supabase Cron and private Edge worker that claims only `google-sheets` jobs; the Python outbox consumer is retired and does not claim jobs. Raw verification tokens are confined to encrypted temporary payloads under an independent Vault-held Fernet key; resend, verification, and delivery serialize through the same account lock. Database-backed IP and account limits apply across workers. See `docs/email-verification.md` and `docs/integrations-supabase.md` for configuration and deployment details.
 
 Browser profile preferences are presentation data, not authorization. Online restoration validates the server session. Secure offline reload uses an optional signed ES256 capability pinned to the frontend build's public key, scoped to authorized plans and valid at most 24 hours; reconnection revalidates. Existing snapshots and mutations are retained, and disconnected revocation takes effect by lease expiry. Configure the signing key pair before rollout to preserve authorized offline reloads.
 
@@ -1446,7 +1446,7 @@ graph TD
     DNS["DNS<br/>app.example.com"] --> Proxy["Caddy / Nginx<br/>TLS + Static PWA + Reverse Proxy"]
     Proxy --> API["FastAPI App<br/>Uvicorn/Gunicorn"]
     API --> DB[("Persistent PostgreSQL")]
-    API --> Worker["Background Worker<br/>Outbox / Backups / Scheduled Sheets Publish"]
+    API --> Worker["Supabase Cron + Private Edge Workers<br/>Email Verification / Google Sheets"]
     Worker --> DB
     Worker --> Backup["Encrypted Backup Target<br/>Object Storage or Remote Disk"]
     Telegram["Telegram Bot API / Mini App"] --> Proxy
@@ -1457,7 +1457,7 @@ graph TD
 | :--- | :--- | :--- |
 | Reverse proxy | Caddy or Nginx container | TLS termination, gzip/brotli, static PWA serving, API reverse proxy, webhook endpoint exposure. |
 | Backend API | FastAPI container | Auth, sync, analytics, SSE, integrations, OpenAPI. |
-| Worker | Same image as backend, separate process | Integration outbox retries, scheduled Google Sheets publication, backup orchestration, cleanup jobs. |
+| Integration workers | Supabase Cron + private Edge Functions | Email verification and Google Sheets outbox processing. The Python outbox consumer is retired. |
 | Database | Persistent PostgreSQL | Canonical production data. SQLite remains available for local development. |
 | Frontend | Static Vite build served by proxy | PWA shell, asset cache, IndexedDB offline client. |
 | Backups | Encrypted remote target | Nightly database snapshots and restore drill inputs. |

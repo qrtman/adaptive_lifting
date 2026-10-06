@@ -14,6 +14,11 @@ export interface AppConfig {
   emailFrom?: string | null;
   emailProviderApiKey?: string | null;
   emailPayloadEncryptionKey?: string | null;
+  telegramBotToken?: string | null;
+  telegramWebhookSecret?: string | null;
+  googleSheetsClientId?: string | null;
+  googleSheetsClientSecret?: string | null;
+  integrationEncryptionKey?: string | null;
 }
 
 type EnvReader = (name: string) => string | undefined;
@@ -39,6 +44,11 @@ export function loadConfig(
   const rawEmailProviderKey = (read("EMAIL_PROVIDER_API_KEY") ?? read("RESEND_API_KEY"))?.trim() ?? "";
   const rawEmailPayloadKey = read("EMAIL_PAYLOAD_ENCRYPTION_KEY")?.trim() ?? "";
   const rawAppUrl = read("APP_URL")?.trim().replace(/\/$/, "") ?? "";
+  const rawTelegramBotToken = read("TELEGRAM_BOT_TOKEN")?.trim() ?? "";
+  const rawTelegramWebhookSecret = read("TELEGRAM_WEBHOOK_SECRET")?.trim() ?? "";
+  const rawSheetsClientId = read("GOOGLE_OAUTH_CLIENT_ID")?.trim() ?? "";
+  const rawSheetsClientSecret = read("GOOGLE_OAUTH_CLIENT_SECRET")?.trim() ?? "";
+  const rawIntegrationEncryptionKey = read("INTEGRATION_ENCRYPTION_KEY")?.trim() ?? "";
   const productionLike = ["production", "staging", "prod"].includes(
     (read("APP_ENV") || read("ENV") || "").trim().toLowerCase(),
   ) || ["1", "true", "yes"].includes(rawCookieSecure);
@@ -103,5 +113,10 @@ export function loadConfig(
     emailFrom: rawEmailFrom || null,
     emailProviderApiKey: rawEmailProviderKey || null,
     emailPayloadEncryptionKey: rawEmailPayloadKey || null,
+    telegramBotToken: rawTelegramBotToken || null,
+    telegramWebhookSecret: rawTelegramWebhookSecret || null,
+    googleSheetsClientId: rawSheetsClientId || null,
+    googleSheetsClientSecret: rawSheetsClientSecret || null,
+    integrationEncryptionKey: rawIntegrationEncryptionKey || null,
   };
 }

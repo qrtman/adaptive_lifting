@@ -1,5 +1,4 @@
 import json
-import threading
 from contextlib import contextmanager
 
 import pytest
@@ -33,7 +32,7 @@ def worker_sessions():
     engine.dispose()
 
 
-def test_outbox_claim_is_atomic_and_job_is_processed_once(worker_sessions, monkeypatch):
+def test_python_outbox_consumer_is_retired_for_supabase_worker(worker_sessions, monkeypatch):
     called = []
 
     def fake_process(job, db):
@@ -42,36 +41,18 @@ def test_outbox_claim_is_atomic_and_job_is_processed_once(worker_sessions, monke
         return True
 
     monkeypatch.setattr(integrations, "process_sheets_publish_job", fake_process)
-    assert integrations.process_next_outbox_job(worker_sessions) is True
     assert integrations.process_next_outbox_job(worker_sessions) is False
-    assert called == ["worker-job"]
+    assert called == []
     db = worker_sessions()
     job = db.query(IntegrationOutbox).one()
-    assert job.status == "success"
-    assert job.attempt_count == 1
+    assert job.status == "queued"
+    assert job.attempt_count == 0
     db.close()
 
 
-def test_worker_initializes_and_recovers_from_processing_error(monkeypatch):
-    initialized = []
-    attempts = []
-    stopping = threading.Event()
-
-    # run_worker imports this symbol lazily so patch the owning module.
-    import backend.main as main
-    monkeypatch.setattr(main, "on_startup", lambda: initialized.append(True))
-
-    def transient(_factory):
-        attempts.append(True)
-        if len(attempts) == 1:
-            raise RuntimeError("temporary database issue")
-        stopping.set()
-        return False
-
-    monkeypatch.setattr(integrations, "process_next_outbox_job", transient)
-    worker.run_worker(stop_event=stopping, poll_interval=0)
-    assert initialized == [True]
-    assert len(attempts) == 2
+def test_worker_entry_point_exits_without_polling(monkeypatch):
+    monkeypatch.setattr(integrations, "process_next_outbox_job", lambda *_args: pytest.fail("Python worker must not poll"))
+    assert worker.run_worker() is None
 
 
 def test_api_startup_has_no_embedded_worker(monkeypatch):
