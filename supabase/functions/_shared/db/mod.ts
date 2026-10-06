@@ -61,7 +61,7 @@ export function authRepository(db: Database): AuthRepository {
       readOne<AppUser>(
         db,
         `
-      select id, google_sub, email_verified_at,
+      select id, email, role, display_name, google_sub, email_verified_at,
         email_verification_required, email_verification_legacy_exempt, deleted_at
       from public.users where id = $1
     `,

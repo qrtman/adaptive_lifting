@@ -44,7 +44,7 @@ async function signingKeys(): Promise<
 }
 
 function fakeDatabase(
-  options: { revoked?: boolean; owns?: boolean } = {},
+  options: { revoked?: boolean; owns?: boolean; linked?: boolean } = {},
 ): Database {
   return {
     connect: () =>
@@ -76,10 +76,10 @@ function fakeDatabase(
               }] as T[],
             });
           }
-          if (query.includes("public.workouts")) {
-            assert(params?.[0] === workoutId && params?.[1] === userId);
+          if (query.includes("al_private.al_realtime_workout_access")) {
+            assert(params?.[0] === userId && params?.[1] === workoutId);
             return Promise.resolve({
-              rows: options.owns === false ? [] : [{ id: workoutId }] as T[],
+              rows: [{ allowed: options.owns !== false || options.linked === true }] as T[],
             });
           }
           throw new Error("unexpected SQL");
@@ -169,12 +169,13 @@ Deno.test("signer ignores verify-only JWK metadata and imports signing use", asy
   assert(payload.role === REALTIME_ROLE);
 });
 
-Deno.test("issuer only mints after live app session and workout ownership checks", async () => {
+Deno.test("issuer only mints for an owner or active linked coach with a live app session", async () => {
   const { signer, publicKey } = await signingKeys();
   for (
     const [db, expected] of [
       [fakeDatabase(), 200],
       [fakeDatabase({ owns: false }), 403],
+      [fakeDatabase({ owns: false, linked: true }), 200],
       [fakeDatabase({ revoked: true }), 401],
     ] as const
   ) {

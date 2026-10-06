@@ -8,18 +8,18 @@ import {
 } from "../_shared/errors/mod.ts";
 import { issueRealtimeToken, type RealtimeSigner } from "./token.ts";
 
-async function ownsWorkout(
+async function canAccessRealtimeWorkout(
   db: Database,
   workoutId: string,
   userId: string,
 ): Promise<boolean> {
   const client = await db.connect();
   try {
-    const result = await client.queryObject<{ id: string }>(
-      "select id from public.workouts where id = $1 and owner_id = $2 and deleted_at is null",
-      [workoutId, userId],
+    const result = await client.queryObject<{ allowed: boolean }>(
+      "select al_private.al_realtime_workout_access($1::text,$2::text) as allowed",
+      [userId, workoutId],
     );
-    return result.rows.length === 1;
+    return result.rows.length === 1 && result.rows[0].allowed === true;
   } finally {
     client.release();
   }
@@ -69,7 +69,7 @@ export function createRealtimeTokenHandler(
         !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(workoutId)
       ) throw new ApiError(422, "Valid workout_id required");
       const principal = await authenticate(request, authRepository(db), config);
-      if (!await ownsWorkout(db, workoutId, principal.user.id)) {
+      if (!await canAccessRealtimeWorkout(db, workoutId, principal.user.id)) {
         throw new ApiError(403, "Workout access denied");
       }
       const response = jsonResponse(

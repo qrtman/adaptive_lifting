@@ -296,8 +296,32 @@ describe('same-origin coexistence proxy', () => {
     }
   });
 
-  it('keeps all other API paths on the legacy backend', async () => {
-    for (const path of ['/api/auth/me', '/api/healthcheck', '/api/analytics/catalogue']) {
+  it('routes only the account and session-security domain to Edge', async () => {
+    const migrated: Array<[string, string]> = [
+      ['/api/auth/login', 'POST'], ['/api/auth/logout', 'POST'], ['/api/auth/me', 'GET'],
+      ['/api/auth/profile', 'PATCH'], ['/api/account/access', 'GET'],
+      ['/api/auth/coach-code', 'POST'], ['/api/auth/coach-code', 'GET'],
+      ['/api/auth/link', 'POST'], ['/api/auth/link', 'DELETE'], ['/api/auth/link-athlete', 'POST'],
+      ['/api/auth/link/athlete-1', 'DELETE'], ['/api/coach/roster', 'GET'],
+      ['/api/coach/roster/history', 'GET'], ['/api/coach/roster/history/12', 'GET'],
+      ['/api/coach/push-program', 'POST'], ['/api/security/devices', 'GET'],
+      ['/api/security/devices/device-1', 'DELETE'], ['/api/security/sessions', 'GET'],
+      ['/api/security/sessions/session-1', 'DELETE'], ['/api/security/audit-events', 'GET'],
+    ];
+    for (const [path, method] of migrated) {
+      const body = ['POST', 'PATCH'].includes(method) ? '{}' : undefined;
+      const response = await fetch(base + path, { method, ...(body ? { body } : {}) });
+      const result = await response.json();
+      expect(result.upstream, `${method} ${path}`).toBe('edge');
+      expect(result.path).toBe(`/functions/v1/api${path.slice('/api'.length)}`);
+    }
+  });
+
+  it('keeps unmigrated auth and unrelated API paths on the legacy backend', async () => {
+    for (const path of [
+      '/api/auth/register', '/api/auth/verify-email', '/api/auth/resend-verification',
+      '/api/auth/google', '/api/healthcheck', '/api/analytics/catalogue', '/api/day-notes',
+    ]) {
       const response = await fetch(base + path);
       expect(await response.json()).toEqual({ upstream: 'legacy', method: 'GET', path, cookie: null, authorization: null, body: '' });
     }

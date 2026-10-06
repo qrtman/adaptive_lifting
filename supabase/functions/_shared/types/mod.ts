@@ -5,6 +5,9 @@ export interface AppUser {
   email_verification_required: boolean;
   email_verification_legacy_exempt: boolean;
   deleted_at: string | null;
+  email?: string;
+  role?: string;
+  display_name?: string | null;
 }
 
 export interface AuthSession {

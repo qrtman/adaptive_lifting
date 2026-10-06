@@ -1321,3 +1321,32 @@ Set Log regression: `npm.cmd test` passed (39 files, 285 tests),
 `git diff --check` passed. `npm.cmd run lint` still reports only the existing
 `Deno` global and `@db/postgres` resolution diagnostics; Deno and pytest are
 unavailable. Production and `local-save` were not modified.
+
+## Offline-auth signing key (staging)
+
+The staging-only offline-auth ES256 private signing key is stored in Supabase
+Vault under the name `adaptive_lifting_offline_auth_private_key`. The account
+Edge runtime retrieves only that named value through
+`al_private.get_offline_auth_private_key()` when the optional
+`OFFLINE_AUTH_PRIVATE_KEY` Edge secret is not configured. Only
+`al_edge_catalog_runtime` can execute the getter; browser roles cannot execute
+it and have no Vault access. The getter is in the unexposed `al_private`
+schema and is not routed through the Data API. The private key remains outside
+Git and browser-visible data. Production is untouched. A future production
+deployment may use its own `OFFLINE_AUTH_PRIVATE_KEY` Edge secret instead; no
+production key has been installed or copied.
+
+Staging validation confirmed `/api/auth/me` issues an ES256 grant with the
+expected issuer, audience, current app session ID, user identity, and scopes;
+the actual frontend verifier accepts it and rejects altered signatures,
+payloads, algorithms, issuer/audience, expiry, future issue time, excessive
+lifetime, missing session/subject, mismatched user identity, invalid role, and
+invalid scope values. Browser reload with the API unavailable restores the
+cached identity and only reads owners in the signed scope. Explicit logout and
+the `auth-session-revoked` handler clear the locally stored grant. Online
+session revocation rejects subsequent online authentication immediately; an
+already-issued grant on a disconnected client remains cryptographically
+verifiable until its own expiry, bounded by the app session expiry and 24
+hours. After coach unlink, new `/auth/me` scopes and grants exclude the ended
+athlete; an older grant already held by a disconnected client may retain that
+scope only until its bounded expiry.

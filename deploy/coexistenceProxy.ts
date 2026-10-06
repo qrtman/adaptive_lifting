@@ -1,6 +1,13 @@
 import type { ProxyOptions } from 'vite';
 
-const edgePaths = ['/api/health', '/api/analytics/catalog', '/api/analytics/query'] as const;
+const edgePaths = [
+  '/api/health', '/api/analytics/catalog', '/api/analytics/query',
+  '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/profile',
+  '/api/auth/coach-code', '/api/auth/link', '/api/auth/link-athlete',
+  '/api/account/access', '/api/coach/roster', '/api/coach/roster/history',
+  '/api/coach/push-program', '/api/security/devices', '/api/security/sessions',
+  '/api/security/audit-events',
+] as const;
 
 function origin(value: string, label: string): string {
   const parsed = new URL(value);
@@ -53,6 +60,21 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
+    // Only the account/access/security capabilities in this milestone are
+    // routed here. Registration, email verification, Google login, billing,
+    // integrations, exports, and day notes remain on the legacy service.
+    for (const pattern of [
+      '^/api/auth/link/[^/?]+(?:\\?.*)?$',
+      '^/api/coach/roster/history/[^/?]+(?:\\?.*)?$',
+      '^/api/security/devices/[^/?]+(?:\\?.*)?$',
+      '^/api/security/sessions/[^/?]+(?:\\?.*)?$',
+    ]) {
+      proxy[pattern] = {
+        target: edge,
+        changeOrigin: true,
+        rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
+      };
+    }
   }
   proxy['/api'] = { target: legacy, changeOrigin: true };
   return proxy;

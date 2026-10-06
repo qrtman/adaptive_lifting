@@ -184,10 +184,6 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
 
       const owner = resolvePlanOwnerId();
       if (!owner) return;
-      // A coach's cached plan is only a convenience while this tab is already
-      // open. On an offline launch we cannot verify that the relationship is
-      // still active, so keep the cached copy hidden until the server responds.
-      if (accountRole(user) === 'COACH' && typeof navigator !== 'undefined' && !navigator.onLine) return;
       try {
         const gen = reloadGen.current;
         const cached = canReadOffline(owner) ? await getSnapshot(microcycleSnapshotKey(owner)) : null;

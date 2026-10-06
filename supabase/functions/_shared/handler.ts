@@ -17,6 +17,7 @@ import { handleUpdateSessionExercise } from "./updateExerciseRoute.ts";
 import { handleDeleteSessionExercise } from "./deleteExerciseRoute.ts";
 import { handleReplaceExerciseSets } from "./replaceExerciseSetsRoute.ts";
 import { handleSetLog } from "./setLogRoute.ts";
+import { handleAccountSecurityRoute } from "./accountSecurityRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -70,6 +71,11 @@ export function createHandler(
       }
       if (path.startsWith("/api/_staging/")) {
         throw new ApiError(404, "Not found");
+      }
+      const accountSecurityResponse = await handleAccountSecurityRoute(request, db, config);
+      if (accountSecurityResponse) {
+        for (const [key, value] of Object.entries(cors)) accountSecurityResponse.headers.set(key, value);
+        return accountSecurityResponse;
       }
       if (path === "/api/analytics/query") {
         if (request.method !== "POST") throw new ApiError(405, "Method not allowed");

@@ -5,6 +5,9 @@ export interface AppConfig {
   enforceLegacyEmailVerification: boolean;
   analyticsPastDueGraceDays: number;
   allowedOrigins: string[];
+  cookieSecure?: boolean;
+  sessionLifetimeSeconds?: number;
+  offlineAuthPrivateKey?: string | null;
 }
 
 type EnvReader = (name: string) => string | undefined;
@@ -22,6 +25,13 @@ export function loadConfig(
     .toLowerCase();
   const rawPastDueGrace = (read("SUBSCRIPTION_PAST_DUE_GRACE_DAYS") ?? "3").trim();
   const analyticsPastDueGraceDays = Number(rawPastDueGrace);
+  const rawCookieSecure = (read("COOKIE_SECURE") ?? "").trim().toLowerCase();
+  const rawOfflinePrivateKey = read("OFFLINE_AUTH_PRIVATE_KEY")?.trim().replace(/\\n/g, "\n") ?? "";
+  const productionLike = ["production", "staging", "prod"].includes(
+    (read("APP_ENV") || read("ENV") || "").trim().toLowerCase(),
+  ) || ["1", "true", "yes"].includes(rawCookieSecure);
+  const cookieSecure = ["1", "true", "yes"].includes(rawCookieSecure) ||
+    (!rawCookieSecure && productionLike);
   if (!/^\d+$/.test(rawPastDueGrace) || analyticsPastDueGraceDays > 30) {
     throw new Error("SUBSCRIPTION_PAST_DUE_GRACE_DAYS must be an integer from 0 to 30");
   }
@@ -35,12 +45,10 @@ export function loadConfig(
   if (!["1", "true", "yes", "0", "false", "no"].includes(legacy)) {
     throw new Error("EMAIL_VERIFICATION_ENFORCE_LEGACY must be a boolean");
   }
-  const productionLike = ["production", "staging", "prod"].includes(
-    (read("APP_ENV") || read("ENV") || "").trim().toLowerCase(),
-  ) ||
-    ["1", "true", "yes"].includes(
-      (read("COOKIE_SECURE") || "").trim().toLowerCase(),
-    );
+  if (rawCookieSecure && !["1", "true", "yes", "0", "false", "no"].includes(rawCookieSecure)) {
+    throw new Error("COOKIE_SECURE must be a boolean");
+  }
+  if (productionLike && !cookieSecure) throw new Error("COOKIE_SECURE must be true in production");
   if (productionLike) {
     for (
       const [name, value] of [["JWT_SECRET_CURRENT", jwtCurrent], [
@@ -71,5 +79,8 @@ export function loadConfig(
     enforceLegacyEmailVerification: ["1", "true", "yes"].includes(legacy),
     analyticsPastDueGraceDays,
     allowedOrigins: origins,
+    cookieSecure,
+    sessionLifetimeSeconds: 7 * 24 * 60 * 60,
+    offlineAuthPrivateKey: rawOfflinePrivateKey || null,
   };
 }

@@ -7,12 +7,13 @@ vi.mock('./db', () => ({ clearSnapshot: vi.fn().mockResolvedValue(undefined), ge
 
 beforeEach(async () => { vi.stubGlobal('crypto', webcrypto); await clearAuthorization(); });
 
-async function signedGrant(overrides: Record<string, unknown> = {}) {
+async function signedGrant(overrides: Record<string, unknown> = {}, alg = 'ES256') {
   const keys = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
   const now = Math.floor(Date.now() / 1000);
   const claims = { iss: 'adaptive-lifting', aud: 'adaptive-lifting-offline', iat: now, exp: now + 3600,
-    sub: 'user', sid: 'session', scopes: ['user'], user: { id: 'user', role: 'ATHLETE' }, ...overrides };
-  const content = Buffer.from(JSON.stringify({ alg: 'ES256' })).toString('base64url') + '.' + Buffer.from(JSON.stringify(claims)).toString('base64url');
+    sub: 'user', sid: 'session', scopes: ['user'],
+    user: { id: 'user', email: 'athlete@example.com', role: 'ATHLETE', displayName: 'Athlete' }, ...overrides };
+  const content = Buffer.from(JSON.stringify({ alg })).toString('base64url') + '.' + Buffer.from(JSON.stringify(claims)).toString('base64url');
   const signature = await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keys.privateKey, new TextEncoder().encode(content));
   const key = Buffer.from(await webcrypto.subtle.exportKey('spki', keys.publicKey)).toString('base64');
   return { token: content + '.' + Buffer.from(signature).toString('base64url'), key };
@@ -34,16 +35,50 @@ describe('offline authorization', () => {
 
   it('accepts only a grant signed by the pinned server key', async () => {
     const grant = await signedGrant();
-    expect(await verifyOfflineGrant(grant.token, grant.key)).toMatchObject({ user: { id: 'user' }, scopes: ['user'] });
+    expect(await verifyOfflineGrant(grant.token, grant.key)).toMatchObject({
+      user: { id: 'user', email: 'athlete@example.com', role: 'ATHLETE', displayName: 'Athlete' },
+      scopes: ['user'],
+    });
     const other = await signedGrant();
     expect(await verifyOfflineGrant(grant.token, other.key)).toBeNull();
-    expect(await verifyOfflineGrant(grant.token.replace('eyJ', 'aaJ'), grant.key)).toBeNull();
+    const [header, payload, signature] = grant.token.split('.');
+    const changedPayload = Buffer.from(JSON.stringify({ iss: 'adaptive-lifting', aud: 'adaptive-lifting-offline',
+      iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600,
+      sub: 'other', sid: 'session', scopes: ['user'], user: { id: 'user', role: 'ATHLETE' } })).toString('base64url');
+    const changedSignature = `${header}.${payload}.${signature.startsWith('A') ? 'B' : 'A'}${signature.slice(1)}`;
+    expect(await verifyOfflineGrant(`${header}.${changedPayload}.${signature}`, grant.key)).toBeNull();
+    expect(await verifyOfflineGrant(changedSignature, grant.key)).toBeNull();
+    const wrongAlg = await signedGrant({}, 'HS256');
+    expect(await verifyOfflineGrant(wrongAlg.token, wrongAlg.key)).toBeNull();
     expect(await verifyOfflineGrant(grant.token, '')).toBeNull();
   });
 
-  it.each([{ exp: 1 }, { aud: 'other' }, { user: { id: 'other', role: 'ATHLETE' } }, { exp: Math.floor(Date.now() / 1000) + 172800 }])('rejects expired, mismatched or overlong grants: %j', async claims => {
+  it.each([
+    { exp: 1 },
+    { iss: 'other' },
+    { aud: 'other' },
+    { iat: Math.floor(Date.now() / 1000) + 31 },
+    { exp: Math.floor(Date.now() / 1000) + 172800 },
+    { sid: '' },
+    { sub: '' },
+    { user: { id: 'other', role: 'ATHLETE' } },
+    { user: { id: 'user', role: 'ADMIN' } },
+    { scopes: ['user', 7] },
+  ])('rejects invalid claim values: %j', async claims => {
     const grant = await signedGrant(claims);
     expect(await verifyOfflineGrant(grant.token, grant.key)).toBeNull();
+  });
+
+  it('restores only signed scopes and persists the online grant for offline reload', async () => {
+    const grant = await signedGrant({ scopes: ['coach', 'athlete-a'] });
+    vi.stubEnv('VITE_OFFLINE_AUTH_PUBLIC_KEY', grant.key);
+    vi.mocked(getSnapshot).mockResolvedValueOnce(grant.token);
+    expect(await restoreOfflineAuthorization()).toMatchObject({ id: 'user', role: 'ATHLETE' });
+    expect(canReadOffline('athlete-a')).toBe(true);
+    expect(canReadOffline('athlete-b')).toBe(false);
+    await clearAuthorization();
+    expect(canReadOffline('athlete-a')).toBe(false);
+    vi.unstubAllEnvs();
   });
 
   it('restricts cached reads by scope and expiry and clears authority on logout', async () => {
