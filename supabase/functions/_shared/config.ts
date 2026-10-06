@@ -19,6 +19,20 @@ export interface AppConfig {
   googleSheetsClientId?: string | null;
   googleSheetsClientSecret?: string | null;
   integrationEncryptionKey?: string | null;
+  stripeBillingEnabled?: boolean;
+  stripeBillingEnabledConfigured?: boolean;
+  stripeSecretKey?: string | null;
+  stripeWebhookSecret?: string | null;
+  stripePriceCoachStarter?: string | null;
+  stripePriceCoachPro?: string | null;
+  stripePriceCoachUnlimited?: string | null;
+  stripeExpectLivemode?: boolean;
+  stripeExpectLivemodeConfigured?: boolean;
+  voucherCodeSecret?: string | null;
+  voucherBillingEnabled?: boolean;
+  voucherBillingEnabledConfigured?: boolean;
+  billingAppUrlConfigured?: boolean;
+  appEnv?: string;
 }
 
 type EnvReader = (name: string) => string | undefined;
@@ -49,6 +63,12 @@ export function loadConfig(
   const rawSheetsClientId = read("GOOGLE_OAUTH_CLIENT_ID")?.trim() ?? "";
   const rawSheetsClientSecret = read("GOOGLE_OAUTH_CLIENT_SECRET")?.trim() ?? "";
   const rawIntegrationEncryptionKey = read("INTEGRATION_ENCRYPTION_KEY")?.trim() ?? "";
+  const stripeEnabledValue = read("STRIPE_BILLING_ENABLED");
+  const stripeLiveValue = read("STRIPE_EXPECT_LIVEMODE");
+  const voucherBillingValue = read("VOUCHER_BILLING_ENABLED");
+  const stripeEnabledRaw = (stripeEnabledValue ?? "false").trim().toLowerCase();
+  const stripeLiveRaw = (stripeLiveValue ?? "false").trim().toLowerCase();
+  const voucherBillingRaw = (voucherBillingValue ?? "false").trim().toLowerCase();
   const productionLike = ["production", "staging", "prod"].includes(
     (read("APP_ENV") || read("ENV") || "").trim().toLowerCase(),
   ) || ["1", "true", "yes"].includes(rawCookieSecure);
@@ -69,6 +89,13 @@ export function loadConfig(
   }
   if (!["1", "true", "yes", "0", "false", "no"].includes(rawNewEmailVerification)) {
     throw new Error("EMAIL_VERIFICATION_NEW_ACCOUNTS must be a boolean");
+  }
+  if (!["1", "true", "yes", "0", "false", "no"].includes(voucherBillingRaw)) {
+    throw new Error("VOUCHER_BILLING_ENABLED must be a boolean");
+  }
+  if (!["1", "true", "yes", "0", "false", "no"].includes(stripeEnabledRaw) ||
+      !["1", "true", "yes", "0", "false", "no"].includes(stripeLiveRaw)) {
+    throw new Error("Stripe billing flags must be boolean");
   }
   if (rawCookieSecure && !["1", "true", "yes", "0", "false", "no"].includes(rawCookieSecure)) {
     throw new Error("COOKIE_SECURE must be a boolean");
@@ -110,6 +137,8 @@ export function loadConfig(
     newEmailVerificationEnabled: ["1", "true", "yes"].includes(rawNewEmailVerification),
     googleClientId: rawGoogleClientId || null,
     appUrl: rawAppUrl || origins[0],
+    billingAppUrlConfigured: Boolean(rawAppUrl),
+    appEnv: (read("APP_ENV") || read("ENV") || "").trim().toLowerCase(),
     emailFrom: rawEmailFrom || null,
     emailProviderApiKey: rawEmailProviderKey || null,
     emailPayloadEncryptionKey: rawEmailPayloadKey || null,
@@ -118,5 +147,17 @@ export function loadConfig(
     googleSheetsClientId: rawSheetsClientId || null,
     googleSheetsClientSecret: rawSheetsClientSecret || null,
     integrationEncryptionKey: rawIntegrationEncryptionKey || null,
+    stripeBillingEnabled: ["1", "true", "yes"].includes(stripeEnabledRaw),
+    stripeBillingEnabledConfigured: stripeEnabledValue !== undefined,
+    stripeSecretKey: read("STRIPE_SECRET_KEY")?.trim() || null,
+    stripeWebhookSecret: read("STRIPE_WEBHOOK_SECRET")?.trim() || null,
+    stripePriceCoachStarter: read("STRIPE_PRICE_COACH_STARTER")?.trim() || null,
+    stripePriceCoachPro: read("STRIPE_PRICE_COACH_PRO")?.trim() || null,
+    stripePriceCoachUnlimited: read("STRIPE_PRICE_COACH_UNLIMITED")?.trim() || null,
+    stripeExpectLivemode: ["1", "true", "yes"].includes(stripeLiveRaw),
+    stripeExpectLivemodeConfigured: stripeLiveValue !== undefined,
+    voucherCodeSecret: read("VOUCHER_CODE_SECRET")?.trim() || null,
+    voucherBillingEnabled: ["1", "true", "yes"].includes(voucherBillingRaw),
+    voucherBillingEnabledConfigured: voucherBillingValue !== undefined,
   };
 }

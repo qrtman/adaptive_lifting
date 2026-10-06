@@ -21,6 +21,7 @@ import { handleAccountSecurityRoute } from "./accountSecurityRoute.ts";
 import { handleOnboardingRoute } from "./onboardingRoute.ts";
 import { handleDayNotesRoute, handleExportRoute } from "./dayNotesExportsRoute.ts";
 import { handleIntegrationsRoute } from "./integrationsRoute.ts";
+import { handleBillingRoute } from "./billingRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
@@ -74,6 +75,11 @@ export function createHandler(
       }
       if (path.startsWith("/api/_staging/")) {
         throw new ApiError(404, "Not found");
+      }
+      const billingResponse = await handleBillingRoute(request, db, config);
+      if (billingResponse) {
+        for (const [key, value] of Object.entries(cors)) billingResponse.headers.set(key, value);
+        return billingResponse;
       }
       if (path === "/api/integrations/telegram/webhook") {
         const response = await handleIntegrationsRoute(request, db, config);

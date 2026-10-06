@@ -13,6 +13,9 @@ const edgePaths = [
   '/api/integrations/google-sheets/auth-url', '/api/integrations/google-sheets/callback',
   '/api/integrations/google-sheets/status', '/api/integrations/google-sheets',
   '/api/integrations/google-sheets/publish',
+  '/api/billing/plans', '/api/billing/stripe/checkout-session',
+  '/api/billing/stripe/portal-session', '/api/billing/stripe/webhook',
+  '/api/billing/vouchers/redeem',
 ] as const;
 
 function origin(value: string, label: string): string {
@@ -66,8 +69,8 @@ export function coexistenceProxy(legacyUrl: string, edgeUrl?: string): Record<st
       changeOrigin: true,
       rewrite: (incoming) => `/functions/v1/api${incoming.slice('/api'.length)}`,
     };
-    // Resource subroutes are explicitly enumerated; unrelated integrations and
-    // billing paths remain on the legacy service.
+    // Resource subroutes are explicitly enumerated; unrelated paths remain on
+    // the legacy service.
     for (const pattern of [
       '^/api/auth/link/[^/?]+(?:\\?.*)?$',
       '^/api/coach/roster/history/[^/?]+(?:\\?.*)?$',
