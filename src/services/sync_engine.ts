@@ -258,3 +258,18 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
 
   return postSync(`${BACKEND_URL}/api/workouts/${workout_id}/sync`, payload, pending, workout_id);
 }
+
+/** Flush preserved queues after online recovery or an authenticated sign-in. */
+export async function processPendingQueues(): Promise<any[]> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
+  const pending = await getPendingMutations();
+  const conflicts: any[] = [];
+  if (pending.some(isInsightCardMutation)) {
+    conflicts.push(...await processInsightCardSync());
+  }
+  const workoutIds = [...new Set(
+    pending.filter(m => !isInsightCardMutation(m)).map(m => m.workout_id).filter(Boolean),
+  )] as string[];
+  for (const workoutId of workoutIds) conflicts.push(...await processSyncQueue(workoutId));
+  return conflicts;
+}

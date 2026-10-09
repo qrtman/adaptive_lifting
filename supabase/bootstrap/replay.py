@@ -73,7 +73,7 @@ def summarized_evidence(evidence):
     return result
 
 
-def run_one(number, migrations, evidence):
+def run_one(number, migrations, evidence, after_replay=None):
     name = "al-bootstrap-" + uuid.uuid4().hex[:12]
     record = {"database": number, "status": "FAIL", "applied": [], "blocking_file": None}
     evidence["runs"].append(record)
@@ -136,6 +136,8 @@ def run_one(number, migrations, evidence):
         record["schema_tests"] = "PASS"
         record["extensions"] = json.loads(psql(name,
             "SELECT json_agg(json_build_object('name',extname,'version',extversion) ORDER BY extname) FROM pg_extension;").stdout)
+        if after_replay is not None:
+            record["after_replay"] = after_replay(name)
         record["blocking_file"] = None
         record["status"] = "PASS"
     except Exception as error:

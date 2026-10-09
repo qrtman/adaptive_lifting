@@ -64,6 +64,43 @@ function writeAll(db: IDBDatabase, storeName: string, records: any[]): Promise<v
   });
 }
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+/** Merge without dropping records. Conflicting copies stop migration and keep the legacy DB. */
+export function legacyStoreAdditions(
+  storeName: string,
+  sourceRecords: any[],
+  destinationRecords: any[],
+): any[] {
+  const keys: Record<string, string> = {
+    snapshots: 'id', mutations: 'mutation_id', tombstones: 'id', metadata: 'key',
+  };
+  const keyField = keys[storeName];
+  if (!keyField) throw new Error(`Unsupported legacy IndexedDB store: ${storeName}`);
+  const destination = new Map(destinationRecords.map(record => [record[keyField], record]));
+  const additions: any[] = [];
+  for (const record of sourceRecords) {
+    const key = record?.[keyField];
+    if (typeof key !== 'string' || !key) {
+      throw new Error(`Invalid ${storeName} record key; legacy database retained`);
+    }
+    const existing = destination.get(key);
+    if (existing === undefined) {
+      destination.set(key, record);
+      additions.push(record);
+    } else if (stableJson(existing) !== stableJson(record)) {
+      throw new Error(`Conflicting ${storeName} record ${key}; legacy database retained for recovery`);
+    }
+  }
+  return additions;
+}
+
 async function migrateLegacyIndexedDB(): Promise<void> {
   if (typeof indexedDB.databases !== 'function') return;
   const names = (await indexedDB.databases()).map((entry) => entry.name || '');
@@ -72,12 +109,11 @@ async function migrateLegacyIndexedDB(): Promise<void> {
   const source = await openNamed(LEGACY_DB_NAME);
   const dest = await openNamed(DB_NAME);
   try {
-    const existingSnapshots = await readAll(dest, 'snapshots');
-    if (existingSnapshots.length === 0) {
-      for (const storeName of ['snapshots', 'mutations', 'tombstones', 'metadata']) {
-        const records = await readAll(source, storeName);
-        await writeAll(dest, storeName, records);
-      }
+    for (const storeName of ['snapshots', 'mutations', 'tombstones', 'metadata']) {
+      const sourceRecords = await readAll(source, storeName);
+      const destinationRecords = await readAll(dest, storeName);
+      const additions = legacyStoreAdditions(storeName, sourceRecords, destinationRecords);
+      await writeAll(dest, storeName, additions);
     }
   } finally {
     source.close();

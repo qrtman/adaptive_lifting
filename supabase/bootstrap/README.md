@@ -26,6 +26,9 @@ The bootstrap requires an empty `public` application schema, fails on any
 existing table/view/sequence, and executes transactionally. Existing databases
 and data imports need separate procedures. Managed default grants to browser
 roles are explicitly revoked without changing the historical RLS state.
+Synthetic historical-data mapping and offline-queue compatibility rehearsal is
+documented in [`IMPORT_REHEARSAL.md`](IMPORT_REHEARSAL.md); it uses fake data
+only and does not authorize importing a real legacy backup.
 
 ## Reproduce locally
 

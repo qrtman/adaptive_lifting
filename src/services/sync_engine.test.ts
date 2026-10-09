@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SyncMutation } from './db';
 import { MATH_VERSION } from './mathEngine';
+import legacyQueue from './fixtures/legacy-offline-queue-v1.json';
 import {
   isInsightCardMutation,
   isLockSyncCode,
@@ -204,5 +205,59 @@ describe('processSyncQueue mixed payload', () => {
     const event = dispatch.mock.calls[0][0] as CustomEvent;
     expect(event.type).toBe('sync-lock');
     expect(event.detail.code).toBe('WORKOUT_LOCKED');
+  });
+});
+
+describe('legacy offline queue recovery', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+  });
+
+  it('retains an in-flight old-client mutation through session expiry and replays after sign-in', async () => {
+    const queue = structuredClone(legacyQueue) as unknown as SyncMutation[];
+    const updateMutationStatus = vi.fn(async (id: string, status: string) => {
+      const row = queue.find(m => m.mutation_id === id);
+      if (row) row.status = status as SyncMutation['status'];
+    });
+    vi.doMock('./db', () => ({
+      getPendingMutations: async () => queue.filter(m => m.status === 'PENDING' || m.status === 'IN_FLIGHT'),
+      updateMutationStatus,
+      clearSnapshot: vi.fn(async () => {}),
+      getSnapshot: vi.fn(async () => null),
+      saveSnapshot: vi.fn(async () => {}),
+    }));
+    vi.doMock('../storage/uiPrefs', () => ({
+      UI_KEYS: { deviceId: 'al_client_device_id' },
+      getUiPref: () => 'fixture-device-001',
+      setUiPref: () => {},
+    }));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ detail: 'Session expired' }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({
+        accepted_mutation_ids: ['legacy-replay-set-001'], rejected_mutations: [],
+        conflicts: [], math_version: MATH_VERSION,
+      }) });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('navigator', { onLine: true });
+    vi.stubGlobal('window', { dispatchEvent: vi.fn() });
+
+    const { processPendingQueues } = await import('./sync_engine');
+    expect(await processPendingQueues()).toEqual([]);
+    expect(queue[0].status).toBe('PENDING');
+    expect(await processPendingQueues()).toEqual([]);
+    expect(queue[0].status).toBe('ACKED');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    const posted = JSON.parse(requestInit.body);
+    expect(posted).toMatchObject({
+      schema_version: 1, mutation_type: 'workout', workout_id: 'fixture-workout-active',
+      math_version: MATH_VERSION,
+    });
+    expect(posted.changes[0]).toMatchObject({
+      entity: 'ExerciseSet', id: 'fixture-set-active',
+      mutation_id: 'legacy-replay-set-001', fields: { actual: 92.5, reps: 5, executedRpe: 8 },
+    });
   });
 });

@@ -1,7 +1,7 @@
 import { useAuth } from './AuthContext';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { countMutationsByStatus, getPendingMutations } from '../services/db';
-import { isInsightCardMutation, isLockSyncCode, processInsightCardSync, processSyncQueue } from '../services/sync_engine';
+import { isLockSyncCode, processPendingQueues } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
 import { WorkoutLockBanner } from '../components/WorkoutLockBanner';
 import { SyncQueueOverlay } from '../components/SyncQueueOverlay';
@@ -54,34 +54,20 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
 
   useEffect(() => {
     if (!user) { setPendingCount(0); setRejectedCount(0); setConflicts([]); setLocks([]); return; }
+    const flushPending = async () => {
+      try {
+        const nextConflicts = await processPendingQueues();
+        if (nextConflicts.length > 0) {
+          setConflicts((prev) => [...prev, ...nextConflicts.filter(isTrueConflict)]);
+        }
+        await refreshCounts();
+      } catch {
+        // Preserve the IndexedDB queue when storage or the network is unavailable.
+      }
+    };
     const handleOnline = () => {
       setIsOnline(true);
-      void (async () => {
-        try {
-          const pending = await getPendingMutations();
-          if (pending.some(isInsightCardMutation)) {
-            const cardConflicts = await processInsightCardSync();
-            if (cardConflicts && cardConflicts.length > 0) {
-              setConflicts((prev) => [...prev, ...cardConflicts.filter(isTrueConflict)]);
-            }
-          }
-          const workoutIds = [...new Set(
-            pending
-              .filter((m) => !isInsightCardMutation(m))
-              .map((m) => m.workout_id)
-              .filter(Boolean),
-          )] as string[];
-          for (const id of workoutIds) {
-            const nextConflicts = await processSyncQueue(id);
-            if (nextConflicts && nextConflicts.length > 0) {
-              setConflicts((prev) => [...prev, ...nextConflicts.filter(isTrueConflict)]);
-            }
-          }
-          await refreshCounts();
-        } catch {
-          // IndexedDB may not be ready
-        }
-      })();
+      void flushPending();
     };
     const handleOffline = () => setIsOnline(false);
     
@@ -109,6 +95,9 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     window.addEventListener('sync-conflicts', handleConflicts);
     window.addEventListener('sync-lock', handleLock);
 
+    // The user may reauthenticate while the browser is already online; do not
+    // wait for a future `online` event before attempting retained mutations.
+    void flushPending();
     void refreshCounts().catch(() => {
       // IndexedDB may not be ready
     });

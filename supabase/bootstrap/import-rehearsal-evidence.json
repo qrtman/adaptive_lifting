@@ -1,0 +1,5709 @@
+{
+  "data_import_rehearsal": "PASS",
+  "fixture_path": "supabase/bootstrap/synthetic_legacy_data.json",
+  "mode": "synthetic-only legacy SQLite -> local Supabase PostgreSQL import",
+  "offline_queue_compatibility": "PARTIAL",
+  "production_or_staging_connection": false,
+  "provider_side_effects": "none",
+  "repeatable_import": true,
+  "source_revision": "0011_email_verification",
+  "source_revision_expected": "0011_email_verification",
+  "source_row_counts": {
+    "access_grants": 2,
+    "accessories": 1,
+    "audit_events": 1,
+    "auth_security_events": 1,
+    "auth_security_subjects": 1,
+    "billing_checkout_reservations": 1,
+    "billing_customers": 1,
+    "client_devices": 1,
+    "coaching_history_snapshots": 1,
+    "coaching_relationships": 2,
+    "day_notes": 2,
+    "domain_events": 1,
+    "email_verification_tokens": 1,
+    "exercise_sets": 4,
+    "exercises": 2,
+    "insight_cards": 1,
+    "integration_connections": 1,
+    "integration_credentials": 1,
+    "integration_outbox": 2,
+    "invite_codes": 1,
+    "mesocycles": 1,
+    "microcycles": 1,
+    "oauth_states": 1,
+    "sessions": 4,
+    "sheet_publications": 1,
+    "subscriptions": 1,
+    "sync_mutations": 1,
+    "users": 5,
+    "voucher_redemption_limits": 1,
+    "vouchers": 2,
+    "webhook_events": 1,
+    "workout_locks": 1,
+    "workouts": 3,
+    "workspace_members": 1,
+    "workspaces": 1
+  },
+  "status": "PARTIAL",
+  "targets": [
+    {
+      "database": 1,
+      "mapping": [
+        {
+          "fields": [
+            {
+              "source": "subject_hash",
+              "source_type": "VARCHAR(64)",
+              "target": "subject_hash",
+              "target_type": "character varying(64)",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "auth_security_subjects",
+          "target_only_fields": [],
+          "target_table": "public.auth_security_subjects"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "email",
+              "source_type": "VARCHAR",
+              "target": "email",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "hashed_password",
+              "source_type": "VARCHAR",
+              "target": "hashed_password",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "role",
+              "source_type": "VARCHAR",
+              "target": "role",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "subscription_status",
+              "source_type": "VARCHAR",
+              "target": "subscription_status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "display_name",
+              "source_type": "VARCHAR",
+              "target": "display_name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "google_sub",
+              "source_type": "VARCHAR",
+              "target": "google_sub",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "email_verified_at",
+              "source_type": "DATETIME",
+              "target": "email_verified_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "email_verification_required",
+              "source_type": "BOOLEAN",
+              "target": "email_verification_required",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "email_verification_legacy_exempt",
+              "source_type": "BOOLEAN",
+              "target": "email_verification_legacy_exempt",
+              "target_type": "boolean",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 5,
+          "source_table": "users",
+          "target_only_fields": [],
+          "target_table": "public.users"
+        },
+        {
+          "fields": [
+            {
+              "source": "subject_hash",
+              "source_type": "VARCHAR",
+              "target": "subject_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "minute_started_at",
+              "source_type": "DATETIME",
+              "target": "minute_started_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "minute_count",
+              "source_type": "INTEGER",
+              "target": "minute_count",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "hour_started_at",
+              "source_type": "DATETIME",
+              "target": "hour_started_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "hour_count",
+              "source_type": "INTEGER",
+              "target": "hour_count",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "voucher_redemption_limits",
+          "target_only_fields": [],
+          "target_table": "public.voucher_redemption_limits"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "external_event_id",
+              "source_type": "VARCHAR",
+              "target": "external_event_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "received_at",
+              "source_type": "DATETIME",
+              "target": "received_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "processed_at",
+              "source_type": "DATETIME",
+              "target": "processed_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "webhook_events",
+          "target_only_fields": [
+            {
+              "default": "0",
+              "disposition": "database default or NULL",
+              "name": "attempt_count",
+              "not_null": true,
+              "type": "integer"
+            },
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "claim_token",
+              "not_null": false,
+              "type": "text"
+            },
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "lease_expires_at",
+              "not_null": false,
+              "type": "timestamp without time zone"
+            }
+          ],
+          "target_table": "public.webhook_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "actor_user_id",
+              "source_type": "VARCHAR",
+              "target": "actor_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "event_type",
+              "source_type": "VARCHAR",
+              "target": "event_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "resource_type",
+              "source_type": "VARCHAR",
+              "target": "resource_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "resource_id",
+              "source_type": "VARCHAR",
+              "target": "resource_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "metadata_json",
+              "source_type": "VARCHAR",
+              "target": "metadata_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "audit_events",
+          "target_only_fields": [],
+          "target_table": "public.audit_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "subject_hash",
+              "source_type": "VARCHAR(64)",
+              "target": "subject_hash",
+              "target_type": "character varying(64)",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "auth_security_events",
+          "target_only_fields": [],
+          "target_table": "public.auth_security_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "device_label",
+              "source_type": "VARCHAR",
+              "target": "device_label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "last_seen_at",
+              "source_type": "DATETIME",
+              "target": "last_seen_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "client_devices",
+          "target_only_fields": [],
+          "target_table": "public.client_devices"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "INTEGER",
+              "target": "id",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "coach_id",
+              "source_type": "VARCHAR",
+              "target": "coach_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "athlete_id",
+              "source_type": "VARCHAR",
+              "target": "athlete_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "ended_at",
+              "source_type": "DATETIME",
+              "target": "ended_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "coaching_relationships",
+          "target_only_fields": [],
+          "target_table": "public.coaching_relationships"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "date",
+              "source_type": "VARCHAR",
+              "target": "date",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "body",
+              "source_type": "VARCHAR",
+              "target": "body",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "day_notes",
+          "target_only_fields": [],
+          "target_table": "public.day_notes"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "token_hash",
+              "source_type": "VARCHAR(64)",
+              "target": "token_hash",
+              "target_type": "character varying(64)",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "consumed_at",
+              "source_type": "DATETIME",
+              "target": "consumed_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "invalidated_at",
+              "source_type": "DATETIME",
+              "target": "invalidated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "is_resend",
+              "source_type": "BOOLEAN",
+              "target": "is_resend",
+              "target_type": "boolean",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "email_verification_tokens",
+          "target_only_fields": [],
+          "target_table": "public.email_verification_tokens"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_user_id",
+              "source_type": "VARCHAR",
+              "target": "owner_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "config_json",
+              "source_type": "VARCHAR",
+              "target": "config_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "layout_json",
+              "source_type": "VARCHAR",
+              "target": "layout_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "insight_cards",
+          "target_only_fields": [],
+          "target_table": "public.insight_cards"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "external_account_id",
+              "source_type": "VARCHAR",
+              "target": "external_account_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "scopes",
+              "source_type": "VARCHAR",
+              "target": "scopes",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "integration_connections",
+          "target_only_fields": [],
+          "target_table": "public.integration_connections"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "coach_id",
+              "source_type": "VARCHAR",
+              "target": "coach_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "code_hash",
+              "source_type": "VARCHAR",
+              "target": "code_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "used_at",
+              "source_type": "DATETIME",
+              "target": "used_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "invite_codes",
+          "target_only_fields": [],
+          "target_table": "public.invite_codes"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "color",
+              "source_type": "VARCHAR",
+              "target": "color",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "startDate",
+              "source_type": "VARCHAR",
+              "target": "startDate",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "endDate",
+              "source_type": "VARCHAR",
+              "target": "endDate",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "mesocycles",
+          "target_only_fields": [],
+          "target_table": "public.mesocycles"
+        },
+        {
+          "fields": [
+            {
+              "source": "state_hash",
+              "source_type": "VARCHAR",
+              "target": "state_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "return_to",
+              "source_type": "VARCHAR",
+              "target": "return_to",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "oauth_states",
+          "target_only_fields": [
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "session_id",
+              "not_null": false,
+              "type": "character varying"
+            }
+          ],
+          "target_table": "public.oauth_states"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "jwt_id",
+              "source_type": "VARCHAR",
+              "target": "jwt_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 4,
+          "source_table": "sessions",
+          "target_only_fields": [],
+          "target_table": "public.sessions"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "coach_id",
+              "source_type": "VARCHAR",
+              "target": "coach_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "spreadsheet_id",
+              "source_type": "VARCHAR",
+              "target": "spreadsheet_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "worksheet_name",
+              "source_type": "VARCHAR",
+              "target": "worksheet_name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "export_profile",
+              "source_type": "VARCHAR",
+              "target": "export_profile",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "last_published_at",
+              "source_type": "DATETIME",
+              "target": "last_published_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "sheet_publications",
+          "target_only_fields": [],
+          "target_table": "public.sheet_publications"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "code_hash",
+              "source_type": "VARCHAR",
+              "target": "code_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "code_prefix",
+              "source_type": "VARCHAR",
+              "target": "code_prefix",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "duration_days",
+              "source_type": "INTEGER",
+              "target": "duration_days",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "source",
+              "source_type": "VARCHAR",
+              "target": "source",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "assigned_user_id",
+              "source_type": "VARCHAR",
+              "target": "assigned_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "payment_reference",
+              "source_type": "VARCHAR",
+              "target": "payment_reference",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "redeemed_at",
+              "source_type": "DATETIME",
+              "target": "redeemed_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "redeemed_by_user_id",
+              "source_type": "VARCHAR",
+              "target": "redeemed_by_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_by_user_id",
+              "source_type": "VARCHAR",
+              "target": "created_by_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "notes",
+              "source_type": "VARCHAR",
+              "target": "notes",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "vouchers",
+          "target_only_fields": [],
+          "target_table": "public.vouchers"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_user_id",
+              "source_type": "VARCHAR",
+              "target": "owner_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "workspaces",
+          "target_only_fields": [],
+          "target_table": "public.workspaces"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "source",
+              "source_type": "VARCHAR",
+              "target": "source",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "starts_at",
+              "source_type": "DATETIME",
+              "target": "starts_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_by_user_id",
+              "source_type": "VARCHAR",
+              "target": "created_by_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "reason",
+              "source_type": "VARCHAR",
+              "target": "reason",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "access_grants",
+          "target_only_fields": [],
+          "target_table": "public.access_grants"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "request_id",
+              "source_type": "VARCHAR",
+              "target": "request_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_checkout_session_id",
+              "source_type": "VARCHAR",
+              "target": "provider_checkout_session_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_checkout_url",
+              "source_type": "VARCHAR",
+              "target": "provider_checkout_url",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "billing_checkout_reservations",
+          "target_only_fields": [],
+          "target_table": "public.billing_checkout_reservations"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_customer_id",
+              "source_type": "VARCHAR",
+              "target": "provider_customer_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "billing_customers",
+          "target_only_fields": [],
+          "target_table": "public.billing_customers"
+        },
+        {
+          "fields": [
+            {
+              "source": "relationship_id",
+              "source_type": "INTEGER",
+              "target": "relationship_id",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "snapshot_at",
+              "source_type": "DATETIME",
+              "target": "snapshot_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "snapshot_json",
+              "source_type": "VARCHAR",
+              "target": "snapshot_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "coaching_history_snapshots",
+          "target_only_fields": [],
+          "target_table": "public.coaching_history_snapshots"
+        },
+        {
+          "fields": [
+            {
+              "source": "connection_id",
+              "source_type": "VARCHAR",
+              "target": "connection_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "credential_type",
+              "source_type": "VARCHAR",
+              "target": "credential_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "encrypted_payload",
+              "source_type": "VARCHAR",
+              "target": "encrypted_payload",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "rotated_at",
+              "source_type": "DATETIME",
+              "target": "rotated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "integration_credentials",
+          "target_only_fields": [],
+          "target_table": "public.integration_credentials"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "connection_id",
+              "source_type": "VARCHAR",
+              "target": "connection_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "payload_json",
+              "source_type": "VARCHAR",
+              "target": "payload_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "retry_after",
+              "source_type": "DATETIME",
+              "target": "retry_after",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "attempt_count",
+              "source_type": "INTEGER",
+              "target": "attempt_count",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "result",
+              "source_type": "VARCHAR",
+              "target": "result",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "encrypted_payload",
+              "source_type": "VARCHAR",
+              "target": "encrypted_payload",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "verification_token_id",
+              "source_type": "VARCHAR",
+              "target": "verification_token_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "integration_outbox",
+          "target_only_fields": [
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "claim_token",
+              "not_null": false,
+              "type": "text"
+            }
+          ],
+          "target_table": "public.integration_outbox"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "weekName",
+              "source_type": "VARCHAR",
+              "target": "weekName",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "focus",
+              "source_type": "VARCHAR",
+              "target": "focus",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "active",
+              "source_type": "BOOLEAN",
+              "target": "active",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "mesocycle_id",
+              "source_type": "VARCHAR",
+              "target": "mesocycle_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "microcycles",
+          "target_only_fields": [],
+          "target_table": "public.microcycles"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_customer_id",
+              "source_type": "VARCHAR",
+              "target": "provider_customer_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_subscription_id",
+              "source_type": "VARCHAR",
+              "target": "provider_subscription_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "current_period_start",
+              "source_type": "DATETIME",
+              "target": "current_period_start",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "current_period_end",
+              "source_type": "DATETIME",
+              "target": "current_period_end",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "cancel_at_period_end",
+              "source_type": "BOOLEAN",
+              "target": "cancel_at_period_end",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "canceled_at",
+              "source_type": "DATETIME",
+              "target": "canceled_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "ended_at",
+              "source_type": "DATETIME",
+              "target": "ended_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_event_created_at",
+              "source_type": "DATETIME",
+              "target": "provider_event_created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_event_id",
+              "source_type": "VARCHAR",
+              "target": "provider_event_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "subscriptions",
+          "target_only_fields": [],
+          "target_table": "public.subscriptions"
+        },
+        {
+          "fields": [
+            {
+              "source": "mutation_id",
+              "source_type": "VARCHAR",
+              "target": "mutation_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "client_device_id",
+              "source_type": "VARCHAR",
+              "target": "client_device_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "entity_type",
+              "source_type": "VARCHAR",
+              "target": "entity_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "entity_id",
+              "source_type": "VARCHAR",
+              "target": "entity_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "field_path",
+              "source_type": "VARCHAR",
+              "target": "field_path",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "applied_at",
+              "source_type": "DATETIME",
+              "target": "applied_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "result",
+              "source_type": "VARCHAR",
+              "target": "result",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "sync_mutations",
+          "target_only_fields": [],
+          "target_table": "public.sync_mutations"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "role",
+              "source_type": "VARCHAR",
+              "target": "role",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "workspace_members",
+          "target_only_fields": [],
+          "target_table": "public.workspace_members"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "date",
+              "source_type": "VARCHAR",
+              "target": "date",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "dayLabel",
+              "source_type": "VARCHAR",
+              "target": "dayLabel",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "title",
+              "source_type": "VARCHAR",
+              "target": "title",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "tonnage",
+              "source_type": "FLOAT",
+              "target": "tonnage",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "delta",
+              "source_type": "FLOAT",
+              "target": "delta",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "color",
+              "source_type": "VARCHAR",
+              "target": "color",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "athlete_bw",
+              "source_type": "FLOAT",
+              "target": "athlete_bw",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "block_label",
+              "source_type": "VARCHAR",
+              "target": "block_label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "week_label",
+              "source_type": "VARCHAR",
+              "target": "week_label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "microcycle_id",
+              "source_type": "VARCHAR",
+              "target": "microcycle_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 3,
+          "source_table": "workouts",
+          "target_only_fields": [],
+          "target_table": "public.workouts"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lexo_rank",
+              "source_type": "VARCHAR",
+              "target": "lexo_rank",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "prescribedSets",
+              "source_type": "VARCHAR",
+              "target": "prescribedSets",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "targetReps",
+              "source_type": "VARCHAR",
+              "target": "targetReps",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "targetRpe",
+              "source_type": "VARCHAR",
+              "target": "targetRpe",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "weight",
+              "source_type": "VARCHAR",
+              "target": "weight",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "reps",
+              "source_type": "VARCHAR",
+              "target": "reps",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "executedRpe",
+              "source_type": "VARCHAR",
+              "target": "executedRpe",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "accessories",
+          "target_only_fields": [],
+          "target_table": "public.accessories"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "event_type",
+              "source_type": "VARCHAR",
+              "target": "event_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "payload_json",
+              "source_type": "VARCHAR",
+              "target": "payload_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "domain_events",
+          "target_only_fields": [],
+          "target_table": "public.domain_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lexo_rank",
+              "source_type": "VARCHAR",
+              "target": "lexo_rank",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "title",
+              "source_type": "VARCHAR",
+              "target": "title",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "variation",
+              "source_type": "VARCHAR",
+              "target": "variation",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "tier",
+              "source_type": "VARCHAR",
+              "target": "tier",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lift_category",
+              "source_type": "VARCHAR",
+              "target": "lift_category",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "movement_pattern",
+              "source_type": "VARCHAR",
+              "target": "movement_pattern",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lift_note",
+              "source_type": "VARCHAR",
+              "target": "lift_note",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "tags_raw",
+              "source_type": "VARCHAR",
+              "target": "tags_raw",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "top",
+              "source_type": "VARCHAR",
+              "target": "top",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "vol",
+              "source_type": "VARCHAR",
+              "target": "vol",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "exercises",
+          "target_only_fields": [],
+          "target_table": "public.exercises"
+        },
+        {
+          "fields": [
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "holder_user_id",
+              "source_type": "VARCHAR",
+              "target": "holder_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "mode",
+              "source_type": "VARCHAR",
+              "target": "mode",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "version",
+              "source_type": "INTEGER",
+              "target": "version",
+              "target_type": "integer",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "workout_locks",
+          "target_only_fields": [],
+          "target_table": "public.workout_locks"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lexo_rank",
+              "source_type": "VARCHAR",
+              "target": "lexo_rank",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "label",
+              "source_type": "VARCHAR",
+              "target": "label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "scope",
+              "source_type": "VARCHAR",
+              "target": "scope",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plannedWeight",
+              "source_type": "FLOAT",
+              "target": "plannedWeight",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "plannedReps",
+              "source_type": "INTEGER",
+              "target": "plannedReps",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "plannedRpe",
+              "source_type": "FLOAT",
+              "target": "plannedRpe",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "dropPercent",
+              "source_type": "FLOAT",
+              "target": "dropPercent",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "isAuto",
+              "source_type": "BOOLEAN",
+              "target": "isAuto",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "actual",
+              "source_type": "FLOAT",
+              "target": "actual",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "reps",
+              "source_type": "INTEGER",
+              "target": "reps",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "executedRpe",
+              "source_type": "FLOAT",
+              "target": "executedRpe",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "isTop",
+              "source_type": "BOOLEAN",
+              "target": "isTop",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "intensity_type",
+              "source_type": "VARCHAR",
+              "target": "intensity_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "note",
+              "source_type": "VARCHAR",
+              "target": "note",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "velocity",
+              "source_type": "FLOAT",
+              "target": "velocity",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "readiness",
+              "source_type": "INTEGER",
+              "target": "readiness",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "hrv",
+              "source_type": "FLOAT",
+              "target": "hrv",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "exercise_id",
+              "source_type": "VARCHAR",
+              "target": "exercise_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 4,
+          "source_table": "exercise_sets",
+          "target_only_fields": [],
+          "target_table": "public.exercise_sets"
+        }
+      ],
+      "migration_count": 62,
+      "reconciliation": {
+        "billing_consistency": {
+          "active_subscriptions": 1,
+          "active_workspace_grants": 1,
+          "redeemed_vouchers_matching_grants": true
+        },
+        "fk_check": {
+          "foreign_keys_checked": 40,
+          "orphan_count": 0
+        },
+        "sequences": [
+          {
+            "advanced_after_explicit_ids": true,
+            "column": "id",
+            "next_value_after_check": 703,
+            "sequence": "public.coaching_relationships_id_seq",
+            "table": "coaching_relationships"
+          }
+        ],
+        "source_tables": [
+          {
+            "digest": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
+            "rows": 1,
+            "table": "auth_security_subjects"
+          },
+          {
+            "digest": "3a1b854add68279d3dbf811c82ae99240f0160695177840dc82b3441f4cf8a1c",
+            "rows": 5,
+            "table": "users"
+          },
+          {
+            "digest": "fd9411a5fbf66f00921e9328be5ccadb544e89ebe73479c1325d534e71dbfadf",
+            "rows": 1,
+            "table": "voucher_redemption_limits"
+          },
+          {
+            "digest": "bfb0dbe35cd0c04a06b4847eb2332a82c2ed242d431e2d669aa4b0369f9c71af",
+            "rows": 1,
+            "table": "webhook_events"
+          },
+          {
+            "digest": "27cf6a8849512ee373f6191f77826522ac67fa3f3fe4311768c9157c57a22e9d",
+            "rows": 1,
+            "table": "audit_events"
+          },
+          {
+            "digest": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
+            "rows": 1,
+            "table": "auth_security_events"
+          },
+          {
+            "digest": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
+            "rows": 1,
+            "table": "client_devices"
+          },
+          {
+            "digest": "896092ed7a9bc9c9b9134289342183950e5339924f8aa6b036589743f3ff65b8",
+            "rows": 2,
+            "table": "coaching_relationships"
+          },
+          {
+            "digest": "58167b2090404ecf80870125075e0b09923fe20e1979f53532302dc45b96cc12",
+            "rows": 2,
+            "table": "day_notes"
+          },
+          {
+            "digest": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
+            "rows": 1,
+            "table": "email_verification_tokens"
+          },
+          {
+            "digest": "19dcac30c519e9937772925c069d1be0707a87186b5707df79038349f344afaf",
+            "rows": 1,
+            "table": "insight_cards"
+          },
+          {
+            "digest": "0b947c1b417a07f241502cb9a85b45b37e2687260f31c5b5860be895a2e6ada1",
+            "rows": 1,
+            "table": "integration_connections"
+          },
+          {
+            "digest": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
+            "rows": 1,
+            "table": "invite_codes"
+          },
+          {
+            "digest": "fa3561f066cac5aa1b53ad182254048676dc7376f8581809113e36b06ef2651c",
+            "rows": 1,
+            "table": "mesocycles"
+          },
+          {
+            "digest": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
+            "rows": 1,
+            "table": "oauth_states"
+          },
+          {
+            "digest": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
+            "rows": 4,
+            "table": "sessions"
+          },
+          {
+            "digest": "ed4ea724fc62fdf8f91fe912d5ab3b01b9577b83d55357ee41d945d9e3416133",
+            "rows": 1,
+            "table": "sheet_publications"
+          },
+          {
+            "digest": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
+            "rows": 2,
+            "table": "vouchers"
+          },
+          {
+            "digest": "7a89634c71620768348409823d3650422158010783bc43ecee31b9f60a618db2",
+            "rows": 1,
+            "table": "workspaces"
+          },
+          {
+            "digest": "cb6cac2ce77dc400088aee608b85cab62718d4d8a54fbf40a19bdc571f8b801f",
+            "rows": 2,
+            "table": "access_grants"
+          },
+          {
+            "digest": "95c8fb9b48270b77b49dbc2ac3dd8962f6850edb01fbf94d3b9e9075e729b4c1",
+            "rows": 1,
+            "table": "billing_checkout_reservations"
+          },
+          {
+            "digest": "7509e4dc488820ad9f5a06a48f264716f19236e8c3d08436660b8615402dbe8f",
+            "rows": 1,
+            "table": "billing_customers"
+          },
+          {
+            "digest": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
+            "rows": 1,
+            "table": "coaching_history_snapshots"
+          },
+          {
+            "digest": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
+            "rows": 1,
+            "table": "integration_credentials"
+          },
+          {
+            "digest": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
+            "rows": 2,
+            "table": "integration_outbox"
+          },
+          {
+            "digest": "523348638f5e170e53b56b58ad3b7ce455fd719e4aa4fb276ea27a1f01a92546",
+            "rows": 1,
+            "table": "microcycles"
+          },
+          {
+            "digest": "388b792ea28731bbfc35eb0b67f215ab57253767fe757bfa58aba28f7be9b0d4",
+            "rows": 1,
+            "table": "subscriptions"
+          },
+          {
+            "digest": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
+            "rows": 1,
+            "table": "sync_mutations"
+          },
+          {
+            "digest": "f0ec79385f2f94514372d66ea23d599ef422ebd4281f9f8479628533ad255d88",
+            "rows": 1,
+            "table": "workspace_members"
+          },
+          {
+            "digest": "ac4ddea446283e6b4867cbb4eb75c2bf2a0b314b50c5ae0b8f4395d65ff0212d",
+            "rows": 3,
+            "table": "workouts"
+          },
+          {
+            "digest": "d36f91698ff80082d8086eb81d81e2df8917811e324cb35c5b8a8c7809f0addb",
+            "rows": 1,
+            "table": "accessories"
+          },
+          {
+            "digest": "14cfdeeaf996af323618e565b46681f7f34d62f468a4d94922f1d88739d998df",
+            "rows": 1,
+            "table": "domain_events"
+          },
+          {
+            "digest": "d5efeecf61785aa7822efb58f62384de502b7465ccbaf7eda29fb65690896c87",
+            "rows": 2,
+            "table": "exercises"
+          },
+          {
+            "digest": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
+            "rows": 1,
+            "table": "workout_locks"
+          },
+          {
+            "digest": "70e7820a12e781581def619fa7d850545db4907981308bf028f0823dac2af886",
+            "rows": 4,
+            "table": "exercise_sets"
+          }
+        ],
+        "table_digests_match": true,
+        "target_only_fields_defaulted_or_null": [
+          {
+            "default": "0",
+            "disposition": "database default or NULL",
+            "name": "attempt_count",
+            "not_null": true,
+            "null_rows": 0,
+            "status": "PASS",
+            "table": "webhook_events",
+            "type": "integer"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "claim_token",
+            "not_null": false,
+            "null_rows": 1,
+            "status": "PASS",
+            "table": "webhook_events",
+            "type": "text"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "lease_expires_at",
+            "not_null": false,
+            "null_rows": 1,
+            "status": "PASS",
+            "table": "webhook_events",
+            "type": "timestamp without time zone"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "session_id",
+            "not_null": false,
+            "null_rows": 1,
+            "status": "PASS",
+            "table": "oauth_states",
+            "type": "character varying"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "claim_token",
+            "not_null": false,
+            "null_rows": 2,
+            "status": "PASS",
+            "table": "integration_outbox",
+            "type": "text"
+          }
+        ],
+        "target_tables": [
+          {
+            "digest": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
+            "rows": 1,
+            "table": "auth_security_subjects"
+          },
+          {
+            "digest": "3a1b854add68279d3dbf811c82ae99240f0160695177840dc82b3441f4cf8a1c",
+            "rows": 5,
+            "table": "users"
+          },
+          {
+            "digest": "fd9411a5fbf66f00921e9328be5ccadb544e89ebe73479c1325d534e71dbfadf",
+            "rows": 1,
+            "table": "voucher_redemption_limits"
+          },
+          {
+            "digest": "bfb0dbe35cd0c04a06b4847eb2332a82c2ed242d431e2d669aa4b0369f9c71af",
+            "rows": 1,
+            "table": "webhook_events"
+          },
+          {
+            "digest": "27cf6a8849512ee373f6191f77826522ac67fa3f3fe4311768c9157c57a22e9d",
+            "rows": 1,
+            "table": "audit_events"
+          },
+          {
+            "digest": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
+            "rows": 1,
+            "table": "auth_security_events"
+          },
+          {
+            "digest": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
+            "rows": 1,
+            "table": "client_devices"
+          },
+          {
+            "digest": "896092ed7a9bc9c9b9134289342183950e5339924f8aa6b036589743f3ff65b8",
+            "rows": 2,
+            "table": "coaching_relationships"
+          },
+          {
+            "digest": "58167b2090404ecf80870125075e0b09923fe20e1979f53532302dc45b96cc12",
+            "rows": 2,
+            "table": "day_notes"
+          },
+          {
+            "digest": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
+            "rows": 1,
+            "table": "email_verification_tokens"
+          },
+          {
+            "digest": "19dcac30c519e9937772925c069d1be0707a87186b5707df79038349f344afaf",
+            "rows": 1,
+            "table": "insight_cards"
+          },
+          {
+            "digest": "0b947c1b417a07f241502cb9a85b45b37e2687260f31c5b5860be895a2e6ada1",
+            "rows": 1,
+            "table": "integration_connections"
+          },
+          {
+            "digest": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
+            "rows": 1,
+            "table": "invite_codes"
+          },
+          {
+            "digest": "fa3561f066cac5aa1b53ad182254048676dc7376f8581809113e36b06ef2651c",
+            "rows": 1,
+            "table": "mesocycles"
+          },
+          {
+            "digest": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
+            "rows": 1,
+            "table": "oauth_states"
+          },
+          {
+            "digest": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
+            "rows": 4,
+            "table": "sessions"
+          },
+          {
+            "digest": "ed4ea724fc62fdf8f91fe912d5ab3b01b9577b83d55357ee41d945d9e3416133",
+            "rows": 1,
+            "table": "sheet_publications"
+          },
+          {
+            "digest": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
+            "rows": 2,
+            "table": "vouchers"
+          },
+          {
+            "digest": "7a89634c71620768348409823d3650422158010783bc43ecee31b9f60a618db2",
+            "rows": 1,
+            "table": "workspaces"
+          },
+          {
+            "digest": "cb6cac2ce77dc400088aee608b85cab62718d4d8a54fbf40a19bdc571f8b801f",
+            "rows": 2,
+            "table": "access_grants"
+          },
+          {
+            "digest": "95c8fb9b48270b77b49dbc2ac3dd8962f6850edb01fbf94d3b9e9075e729b4c1",
+            "rows": 1,
+            "table": "billing_checkout_reservations"
+          },
+          {
+            "digest": "7509e4dc488820ad9f5a06a48f264716f19236e8c3d08436660b8615402dbe8f",
+            "rows": 1,
+            "table": "billing_customers"
+          },
+          {
+            "digest": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
+            "rows": 1,
+            "table": "coaching_history_snapshots"
+          },
+          {
+            "digest": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
+            "rows": 1,
+            "table": "integration_credentials"
+          },
+          {
+            "digest": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
+            "rows": 2,
+            "table": "integration_outbox"
+          },
+          {
+            "digest": "523348638f5e170e53b56b58ad3b7ce455fd719e4aa4fb276ea27a1f01a92546",
+            "rows": 1,
+            "table": "microcycles"
+          },
+          {
+            "digest": "388b792ea28731bbfc35eb0b67f215ab57253767fe757bfa58aba28f7be9b0d4",
+            "rows": 1,
+            "table": "subscriptions"
+          },
+          {
+            "digest": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
+            "rows": 1,
+            "table": "sync_mutations"
+          },
+          {
+            "digest": "f0ec79385f2f94514372d66ea23d599ef422ebd4281f9f8479628533ad255d88",
+            "rows": 1,
+            "table": "workspace_members"
+          },
+          {
+            "digest": "ac4ddea446283e6b4867cbb4eb75c2bf2a0b314b50c5ae0b8f4395d65ff0212d",
+            "rows": 3,
+            "table": "workouts"
+          },
+          {
+            "digest": "d36f91698ff80082d8086eb81d81e2df8917811e324cb35c5b8a8c7809f0addb",
+            "rows": 1,
+            "table": "accessories"
+          },
+          {
+            "digest": "14cfdeeaf996af323618e565b46681f7f34d62f468a4d94922f1d88739d998df",
+            "rows": 1,
+            "table": "domain_events"
+          },
+          {
+            "digest": "d5efeecf61785aa7822efb58f62384de502b7465ccbaf7eda29fb65690896c87",
+            "rows": 2,
+            "table": "exercises"
+          },
+          {
+            "digest": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
+            "rows": 1,
+            "table": "workout_locks"
+          },
+          {
+            "digest": "70e7820a12e781581def619fa7d850545db4907981308bf028f0823dac2af886",
+            "rows": 4,
+            "table": "exercise_sets"
+          }
+        ]
+      },
+      "rollback": "PASS",
+      "source_digest_map": {
+        "access_grants": "cb6cac2ce77dc400088aee608b85cab62718d4d8a54fbf40a19bdc571f8b801f",
+        "accessories": "d36f91698ff80082d8086eb81d81e2df8917811e324cb35c5b8a8c7809f0addb",
+        "audit_events": "27cf6a8849512ee373f6191f77826522ac67fa3f3fe4311768c9157c57a22e9d",
+        "auth_security_events": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
+        "auth_security_subjects": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
+        "billing_checkout_reservations": "95c8fb9b48270b77b49dbc2ac3dd8962f6850edb01fbf94d3b9e9075e729b4c1",
+        "billing_customers": "7509e4dc488820ad9f5a06a48f264716f19236e8c3d08436660b8615402dbe8f",
+        "client_devices": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
+        "coaching_history_snapshots": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
+        "coaching_relationships": "896092ed7a9bc9c9b9134289342183950e5339924f8aa6b036589743f3ff65b8",
+        "day_notes": "58167b2090404ecf80870125075e0b09923fe20e1979f53532302dc45b96cc12",
+        "domain_events": "14cfdeeaf996af323618e565b46681f7f34d62f468a4d94922f1d88739d998df",
+        "email_verification_tokens": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
+        "exercise_sets": "70e7820a12e781581def619fa7d850545db4907981308bf028f0823dac2af886",
+        "exercises": "d5efeecf61785aa7822efb58f62384de502b7465ccbaf7eda29fb65690896c87",
+        "insight_cards": "19dcac30c519e9937772925c069d1be0707a87186b5707df79038349f344afaf",
+        "integration_connections": "0b947c1b417a07f241502cb9a85b45b37e2687260f31c5b5860be895a2e6ada1",
+        "integration_credentials": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
+        "integration_outbox": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
+        "invite_codes": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
+        "mesocycles": "fa3561f066cac5aa1b53ad182254048676dc7376f8581809113e36b06ef2651c",
+        "microcycles": "523348638f5e170e53b56b58ad3b7ce455fd719e4aa4fb276ea27a1f01a92546",
+        "oauth_states": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
+        "sessions": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
+        "sheet_publications": "ed4ea724fc62fdf8f91fe912d5ab3b01b9577b83d55357ee41d945d9e3416133",
+        "subscriptions": "388b792ea28731bbfc35eb0b67f215ab57253767fe757bfa58aba28f7be9b0d4",
+        "sync_mutations": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
+        "users": "3a1b854add68279d3dbf811c82ae99240f0160695177840dc82b3441f4cf8a1c",
+        "voucher_redemption_limits": "fd9411a5fbf66f00921e9328be5ccadb544e89ebe73479c1325d534e71dbfadf",
+        "vouchers": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
+        "webhook_events": "bfb0dbe35cd0c04a06b4847eb2332a82c2ed242d431e2d669aa4b0369f9c71af",
+        "workout_locks": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
+        "workouts": "ac4ddea446283e6b4867cbb4eb75c2bf2a0b314b50c5ae0b8f4395d65ff0212d",
+        "workspace_members": "f0ec79385f2f94514372d66ea23d599ef422ebd4281f9f8479628533ad255d88",
+        "workspaces": "7a89634c71620768348409823d3650422158010783bc43ecee31b9f60a618db2"
+      },
+      "source_revision": "0011_email_verification",
+      "status": "PASS",
+      "sync_compatibility": {
+        "coach_active_relationship_allowed": true,
+        "ended_relationship_revoked": true,
+        "expired_and_revoked_sessions_rejected": true,
+        "old_client_mutation_accepted": true,
+        "provider_side_effects": "none; fixture only, worker absent, container network disabled",
+        "queued_synthetic_jobs_preserved": 1,
+        "same_mutation_replay_deduplicated": true,
+        "stale_conflict_detection": "FAIL",
+        "stale_conflict_observation": "Existing RPC accepted older updated_at and overwrote newer note",
+        "tombstoned_set_rejected": true
+      },
+      "target_only_tables_unmapped": [
+        "telegram_link_tokens"
+      ]
+    },
+    {
+      "database": 2,
+      "mapping": [
+        {
+          "fields": [
+            {
+              "source": "subject_hash",
+              "source_type": "VARCHAR(64)",
+              "target": "subject_hash",
+              "target_type": "character varying(64)",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "auth_security_subjects",
+          "target_only_fields": [],
+          "target_table": "public.auth_security_subjects"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "email",
+              "source_type": "VARCHAR",
+              "target": "email",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "hashed_password",
+              "source_type": "VARCHAR",
+              "target": "hashed_password",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "role",
+              "source_type": "VARCHAR",
+              "target": "role",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "subscription_status",
+              "source_type": "VARCHAR",
+              "target": "subscription_status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "display_name",
+              "source_type": "VARCHAR",
+              "target": "display_name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "google_sub",
+              "source_type": "VARCHAR",
+              "target": "google_sub",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "email_verified_at",
+              "source_type": "DATETIME",
+              "target": "email_verified_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "email_verification_required",
+              "source_type": "BOOLEAN",
+              "target": "email_verification_required",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "email_verification_legacy_exempt",
+              "source_type": "BOOLEAN",
+              "target": "email_verification_legacy_exempt",
+              "target_type": "boolean",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 5,
+          "source_table": "users",
+          "target_only_fields": [],
+          "target_table": "public.users"
+        },
+        {
+          "fields": [
+            {
+              "source": "subject_hash",
+              "source_type": "VARCHAR",
+              "target": "subject_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "minute_started_at",
+              "source_type": "DATETIME",
+              "target": "minute_started_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "minute_count",
+              "source_type": "INTEGER",
+              "target": "minute_count",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "hour_started_at",
+              "source_type": "DATETIME",
+              "target": "hour_started_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "hour_count",
+              "source_type": "INTEGER",
+              "target": "hour_count",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "voucher_redemption_limits",
+          "target_only_fields": [],
+          "target_table": "public.voucher_redemption_limits"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "external_event_id",
+              "source_type": "VARCHAR",
+              "target": "external_event_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "received_at",
+              "source_type": "DATETIME",
+              "target": "received_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "processed_at",
+              "source_type": "DATETIME",
+              "target": "processed_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "webhook_events",
+          "target_only_fields": [
+            {
+              "default": "0",
+              "disposition": "database default or NULL",
+              "name": "attempt_count",
+              "not_null": true,
+              "type": "integer"
+            },
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "claim_token",
+              "not_null": false,
+              "type": "text"
+            },
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "lease_expires_at",
+              "not_null": false,
+              "type": "timestamp without time zone"
+            }
+          ],
+          "target_table": "public.webhook_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "actor_user_id",
+              "source_type": "VARCHAR",
+              "target": "actor_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "event_type",
+              "source_type": "VARCHAR",
+              "target": "event_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "resource_type",
+              "source_type": "VARCHAR",
+              "target": "resource_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "resource_id",
+              "source_type": "VARCHAR",
+              "target": "resource_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "metadata_json",
+              "source_type": "VARCHAR",
+              "target": "metadata_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "audit_events",
+          "target_only_fields": [],
+          "target_table": "public.audit_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "subject_hash",
+              "source_type": "VARCHAR(64)",
+              "target": "subject_hash",
+              "target_type": "character varying(64)",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "auth_security_events",
+          "target_only_fields": [],
+          "target_table": "public.auth_security_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "device_label",
+              "source_type": "VARCHAR",
+              "target": "device_label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "last_seen_at",
+              "source_type": "DATETIME",
+              "target": "last_seen_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "client_devices",
+          "target_only_fields": [],
+          "target_table": "public.client_devices"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "INTEGER",
+              "target": "id",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "coach_id",
+              "source_type": "VARCHAR",
+              "target": "coach_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "athlete_id",
+              "source_type": "VARCHAR",
+              "target": "athlete_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "ended_at",
+              "source_type": "DATETIME",
+              "target": "ended_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "coaching_relationships",
+          "target_only_fields": [],
+          "target_table": "public.coaching_relationships"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "date",
+              "source_type": "VARCHAR",
+              "target": "date",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "body",
+              "source_type": "VARCHAR",
+              "target": "body",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "day_notes",
+          "target_only_fields": [],
+          "target_table": "public.day_notes"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "token_hash",
+              "source_type": "VARCHAR(64)",
+              "target": "token_hash",
+              "target_type": "character varying(64)",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "consumed_at",
+              "source_type": "DATETIME",
+              "target": "consumed_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "invalidated_at",
+              "source_type": "DATETIME",
+              "target": "invalidated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "is_resend",
+              "source_type": "BOOLEAN",
+              "target": "is_resend",
+              "target_type": "boolean",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "email_verification_tokens",
+          "target_only_fields": [],
+          "target_table": "public.email_verification_tokens"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_user_id",
+              "source_type": "VARCHAR",
+              "target": "owner_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "config_json",
+              "source_type": "VARCHAR",
+              "target": "config_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "layout_json",
+              "source_type": "VARCHAR",
+              "target": "layout_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "insight_cards",
+          "target_only_fields": [],
+          "target_table": "public.insight_cards"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "external_account_id",
+              "source_type": "VARCHAR",
+              "target": "external_account_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "scopes",
+              "source_type": "VARCHAR",
+              "target": "scopes",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "integration_connections",
+          "target_only_fields": [],
+          "target_table": "public.integration_connections"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "coach_id",
+              "source_type": "VARCHAR",
+              "target": "coach_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "code_hash",
+              "source_type": "VARCHAR",
+              "target": "code_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "used_at",
+              "source_type": "DATETIME",
+              "target": "used_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "invite_codes",
+          "target_only_fields": [],
+          "target_table": "public.invite_codes"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "color",
+              "source_type": "VARCHAR",
+              "target": "color",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "startDate",
+              "source_type": "VARCHAR",
+              "target": "startDate",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "endDate",
+              "source_type": "VARCHAR",
+              "target": "endDate",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "mesocycles",
+          "target_only_fields": [],
+          "target_table": "public.mesocycles"
+        },
+        {
+          "fields": [
+            {
+              "source": "state_hash",
+              "source_type": "VARCHAR",
+              "target": "state_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "return_to",
+              "source_type": "VARCHAR",
+              "target": "return_to",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "oauth_states",
+          "target_only_fields": [
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "session_id",
+              "not_null": false,
+              "type": "character varying"
+            }
+          ],
+          "target_table": "public.oauth_states"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "jwt_id",
+              "source_type": "VARCHAR",
+              "target": "jwt_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 4,
+          "source_table": "sessions",
+          "target_only_fields": [],
+          "target_table": "public.sessions"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "coach_id",
+              "source_type": "VARCHAR",
+              "target": "coach_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "spreadsheet_id",
+              "source_type": "VARCHAR",
+              "target": "spreadsheet_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "worksheet_name",
+              "source_type": "VARCHAR",
+              "target": "worksheet_name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "export_profile",
+              "source_type": "VARCHAR",
+              "target": "export_profile",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "last_published_at",
+              "source_type": "DATETIME",
+              "target": "last_published_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "sheet_publications",
+          "target_only_fields": [],
+          "target_table": "public.sheet_publications"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "code_hash",
+              "source_type": "VARCHAR",
+              "target": "code_hash",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "code_prefix",
+              "source_type": "VARCHAR",
+              "target": "code_prefix",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "duration_days",
+              "source_type": "INTEGER",
+              "target": "duration_days",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "source",
+              "source_type": "VARCHAR",
+              "target": "source",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "assigned_user_id",
+              "source_type": "VARCHAR",
+              "target": "assigned_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "payment_reference",
+              "source_type": "VARCHAR",
+              "target": "payment_reference",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "redeemed_at",
+              "source_type": "DATETIME",
+              "target": "redeemed_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "redeemed_by_user_id",
+              "source_type": "VARCHAR",
+              "target": "redeemed_by_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_by_user_id",
+              "source_type": "VARCHAR",
+              "target": "created_by_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "notes",
+              "source_type": "VARCHAR",
+              "target": "notes",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "vouchers",
+          "target_only_fields": [],
+          "target_table": "public.vouchers"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_user_id",
+              "source_type": "VARCHAR",
+              "target": "owner_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "workspaces",
+          "target_only_fields": [],
+          "target_table": "public.workspaces"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "source",
+              "source_type": "VARCHAR",
+              "target": "source",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "starts_at",
+              "source_type": "DATETIME",
+              "target": "starts_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "revoked_at",
+              "source_type": "DATETIME",
+              "target": "revoked_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_by_user_id",
+              "source_type": "VARCHAR",
+              "target": "created_by_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "reason",
+              "source_type": "VARCHAR",
+              "target": "reason",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "access_grants",
+          "target_only_fields": [],
+          "target_table": "public.access_grants"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "request_id",
+              "source_type": "VARCHAR",
+              "target": "request_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_checkout_session_id",
+              "source_type": "VARCHAR",
+              "target": "provider_checkout_session_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_checkout_url",
+              "source_type": "VARCHAR",
+              "target": "provider_checkout_url",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "billing_checkout_reservations",
+          "target_only_fields": [],
+          "target_table": "public.billing_checkout_reservations"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_customer_id",
+              "source_type": "VARCHAR",
+              "target": "provider_customer_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "billing_customers",
+          "target_only_fields": [],
+          "target_table": "public.billing_customers"
+        },
+        {
+          "fields": [
+            {
+              "source": "relationship_id",
+              "source_type": "INTEGER",
+              "target": "relationship_id",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "snapshot_at",
+              "source_type": "DATETIME",
+              "target": "snapshot_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "snapshot_json",
+              "source_type": "VARCHAR",
+              "target": "snapshot_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "coaching_history_snapshots",
+          "target_only_fields": [],
+          "target_table": "public.coaching_history_snapshots"
+        },
+        {
+          "fields": [
+            {
+              "source": "connection_id",
+              "source_type": "VARCHAR",
+              "target": "connection_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "credential_type",
+              "source_type": "VARCHAR",
+              "target": "credential_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "encrypted_payload",
+              "source_type": "VARCHAR",
+              "target": "encrypted_payload",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "rotated_at",
+              "source_type": "DATETIME",
+              "target": "rotated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "integration_credentials",
+          "target_only_fields": [],
+          "target_table": "public.integration_credentials"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "connection_id",
+              "source_type": "VARCHAR",
+              "target": "connection_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "payload_json",
+              "source_type": "VARCHAR",
+              "target": "payload_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "retry_after",
+              "source_type": "DATETIME",
+              "target": "retry_after",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "attempt_count",
+              "source_type": "INTEGER",
+              "target": "attempt_count",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "result",
+              "source_type": "VARCHAR",
+              "target": "result",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "encrypted_payload",
+              "source_type": "VARCHAR",
+              "target": "encrypted_payload",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "verification_token_id",
+              "source_type": "VARCHAR",
+              "target": "verification_token_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "integration_outbox",
+          "target_only_fields": [
+            {
+              "default": null,
+              "disposition": "database default or NULL",
+              "name": "claim_token",
+              "not_null": false,
+              "type": "text"
+            }
+          ],
+          "target_table": "public.integration_outbox"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "weekName",
+              "source_type": "VARCHAR",
+              "target": "weekName",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "focus",
+              "source_type": "VARCHAR",
+              "target": "focus",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "active",
+              "source_type": "BOOLEAN",
+              "target": "active",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "mesocycle_id",
+              "source_type": "VARCHAR",
+              "target": "mesocycle_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "microcycles",
+          "target_only_fields": [],
+          "target_table": "public.microcycles"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider",
+              "source_type": "VARCHAR",
+              "target": "provider",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_customer_id",
+              "source_type": "VARCHAR",
+              "target": "provider_customer_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_subscription_id",
+              "source_type": "VARCHAR",
+              "target": "provider_subscription_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plan_key",
+              "source_type": "VARCHAR",
+              "target": "plan_key",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "current_period_start",
+              "source_type": "DATETIME",
+              "target": "current_period_start",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "current_period_end",
+              "source_type": "DATETIME",
+              "target": "current_period_end",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "cancel_at_period_end",
+              "source_type": "BOOLEAN",
+              "target": "cancel_at_period_end",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "canceled_at",
+              "source_type": "DATETIME",
+              "target": "canceled_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "ended_at",
+              "source_type": "DATETIME",
+              "target": "ended_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_event_created_at",
+              "source_type": "DATETIME",
+              "target": "provider_event_created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "provider_event_id",
+              "source_type": "VARCHAR",
+              "target": "provider_event_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "subscriptions",
+          "target_only_fields": [],
+          "target_table": "public.subscriptions"
+        },
+        {
+          "fields": [
+            {
+              "source": "mutation_id",
+              "source_type": "VARCHAR",
+              "target": "mutation_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "client_device_id",
+              "source_type": "VARCHAR",
+              "target": "client_device_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "entity_type",
+              "source_type": "VARCHAR",
+              "target": "entity_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "entity_id",
+              "source_type": "VARCHAR",
+              "target": "entity_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "field_path",
+              "source_type": "VARCHAR",
+              "target": "field_path",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "applied_at",
+              "source_type": "DATETIME",
+              "target": "applied_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "result",
+              "source_type": "VARCHAR",
+              "target": "result",
+              "target_type": "character varying",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "sync_mutations",
+          "target_only_fields": [],
+          "target_table": "public.sync_mutations"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workspace_id",
+              "source_type": "VARCHAR",
+              "target": "workspace_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "user_id",
+              "source_type": "VARCHAR",
+              "target": "user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "role",
+              "source_type": "VARCHAR",
+              "target": "role",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "workspace_members",
+          "target_only_fields": [],
+          "target_table": "public.workspace_members"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "date",
+              "source_type": "VARCHAR",
+              "target": "date",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "dayLabel",
+              "source_type": "VARCHAR",
+              "target": "dayLabel",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "title",
+              "source_type": "VARCHAR",
+              "target": "title",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "tonnage",
+              "source_type": "FLOAT",
+              "target": "tonnage",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "delta",
+              "source_type": "FLOAT",
+              "target": "delta",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "color",
+              "source_type": "VARCHAR",
+              "target": "color",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "athlete_bw",
+              "source_type": "FLOAT",
+              "target": "athlete_bw",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "block_label",
+              "source_type": "VARCHAR",
+              "target": "block_label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "week_label",
+              "source_type": "VARCHAR",
+              "target": "week_label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "owner_id",
+              "source_type": "VARCHAR",
+              "target": "owner_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "microcycle_id",
+              "source_type": "VARCHAR",
+              "target": "microcycle_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 3,
+          "source_table": "workouts",
+          "target_only_fields": [],
+          "target_table": "public.workouts"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lexo_rank",
+              "source_type": "VARCHAR",
+              "target": "lexo_rank",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "name",
+              "source_type": "VARCHAR",
+              "target": "name",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "prescribedSets",
+              "source_type": "VARCHAR",
+              "target": "prescribedSets",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "targetReps",
+              "source_type": "VARCHAR",
+              "target": "targetReps",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "targetRpe",
+              "source_type": "VARCHAR",
+              "target": "targetRpe",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "weight",
+              "source_type": "VARCHAR",
+              "target": "weight",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "reps",
+              "source_type": "VARCHAR",
+              "target": "reps",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "executedRpe",
+              "source_type": "VARCHAR",
+              "target": "executedRpe",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "status",
+              "source_type": "VARCHAR",
+              "target": "status",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "accessories",
+          "target_only_fields": [],
+          "target_table": "public.accessories"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "event_type",
+              "source_type": "VARCHAR",
+              "target": "event_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "payload_json",
+              "source_type": "VARCHAR",
+              "target": "payload_json",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "created_at",
+              "source_type": "DATETIME",
+              "target": "created_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "domain_events",
+          "target_only_fields": [],
+          "target_table": "public.domain_events"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lexo_rank",
+              "source_type": "VARCHAR",
+              "target": "lexo_rank",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "title",
+              "source_type": "VARCHAR",
+              "target": "title",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "variation",
+              "source_type": "VARCHAR",
+              "target": "variation",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "tier",
+              "source_type": "VARCHAR",
+              "target": "tier",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lift_category",
+              "source_type": "VARCHAR",
+              "target": "lift_category",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "movement_pattern",
+              "source_type": "VARCHAR",
+              "target": "movement_pattern",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lift_note",
+              "source_type": "VARCHAR",
+              "target": "lift_note",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "tags_raw",
+              "source_type": "VARCHAR",
+              "target": "tags_raw",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "top",
+              "source_type": "VARCHAR",
+              "target": "top",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "vol",
+              "source_type": "VARCHAR",
+              "target": "vol",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 2,
+          "source_table": "exercises",
+          "target_only_fields": [],
+          "target_table": "public.exercises"
+        },
+        {
+          "fields": [
+            {
+              "source": "workout_id",
+              "source_type": "VARCHAR",
+              "target": "workout_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "holder_user_id",
+              "source_type": "VARCHAR",
+              "target": "holder_user_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "mode",
+              "source_type": "VARCHAR",
+              "target": "mode",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "expires_at",
+              "source_type": "DATETIME",
+              "target": "expires_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "version",
+              "source_type": "INTEGER",
+              "target": "version",
+              "target_type": "integer",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 1,
+          "source_table": "workout_locks",
+          "target_only_fields": [],
+          "target_table": "public.workout_locks"
+        },
+        {
+          "fields": [
+            {
+              "source": "id",
+              "source_type": "VARCHAR",
+              "target": "id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "lexo_rank",
+              "source_type": "VARCHAR",
+              "target": "lexo_rank",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "label",
+              "source_type": "VARCHAR",
+              "target": "label",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "scope",
+              "source_type": "VARCHAR",
+              "target": "scope",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "plannedWeight",
+              "source_type": "FLOAT",
+              "target": "plannedWeight",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "plannedReps",
+              "source_type": "INTEGER",
+              "target": "plannedReps",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "plannedRpe",
+              "source_type": "FLOAT",
+              "target": "plannedRpe",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "dropPercent",
+              "source_type": "FLOAT",
+              "target": "dropPercent",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "isAuto",
+              "source_type": "BOOLEAN",
+              "target": "isAuto",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "actual",
+              "source_type": "FLOAT",
+              "target": "actual",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "reps",
+              "source_type": "INTEGER",
+              "target": "reps",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "executedRpe",
+              "source_type": "FLOAT",
+              "target": "executedRpe",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "isTop",
+              "source_type": "BOOLEAN",
+              "target": "isTop",
+              "target_type": "boolean",
+              "transform": "identity"
+            },
+            {
+              "source": "intensity_type",
+              "source_type": "VARCHAR",
+              "target": "intensity_type",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "note",
+              "source_type": "VARCHAR",
+              "target": "note",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "velocity",
+              "source_type": "FLOAT",
+              "target": "velocity",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "readiness",
+              "source_type": "INTEGER",
+              "target": "readiness",
+              "target_type": "integer",
+              "transform": "identity"
+            },
+            {
+              "source": "hrv",
+              "source_type": "FLOAT",
+              "target": "hrv",
+              "target_type": "double precision",
+              "transform": "identity"
+            },
+            {
+              "source": "exercise_id",
+              "source_type": "VARCHAR",
+              "target": "exercise_id",
+              "target_type": "character varying",
+              "transform": "identity"
+            },
+            {
+              "source": "updated_at",
+              "source_type": "DATETIME",
+              "target": "updated_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            },
+            {
+              "source": "deleted_at",
+              "source_type": "DATETIME",
+              "target": "deleted_at",
+              "target_type": "timestamp without time zone",
+              "transform": "identity"
+            }
+          ],
+          "source_rows": 4,
+          "source_table": "exercise_sets",
+          "target_only_fields": [],
+          "target_table": "public.exercise_sets"
+        }
+      ],
+      "migration_count": 62,
+      "reconciliation": {
+        "billing_consistency": {
+          "active_subscriptions": 1,
+          "active_workspace_grants": 1,
+          "redeemed_vouchers_matching_grants": true
+        },
+        "fk_check": {
+          "foreign_keys_checked": 40,
+          "orphan_count": 0
+        },
+        "sequences": [
+          {
+            "advanced_after_explicit_ids": true,
+            "column": "id",
+            "next_value_after_check": 703,
+            "sequence": "public.coaching_relationships_id_seq",
+            "table": "coaching_relationships"
+          }
+        ],
+        "source_tables": [
+          {
+            "digest": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
+            "rows": 1,
+            "table": "auth_security_subjects"
+          },
+          {
+            "digest": "3a1b854add68279d3dbf811c82ae99240f0160695177840dc82b3441f4cf8a1c",
+            "rows": 5,
+            "table": "users"
+          },
+          {
+            "digest": "fd9411a5fbf66f00921e9328be5ccadb544e89ebe73479c1325d534e71dbfadf",
+            "rows": 1,
+            "table": "voucher_redemption_limits"
+          },
+          {
+            "digest": "bfb0dbe35cd0c04a06b4847eb2332a82c2ed242d431e2d669aa4b0369f9c71af",
+            "rows": 1,
+            "table": "webhook_events"
+          },
+          {
+            "digest": "27cf6a8849512ee373f6191f77826522ac67fa3f3fe4311768c9157c57a22e9d",
+            "rows": 1,
+            "table": "audit_events"
+          },
+          {
+            "digest": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
+            "rows": 1,
+            "table": "auth_security_events"
+          },
+          {
+            "digest": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
+            "rows": 1,
+            "table": "client_devices"
+          },
+          {
+            "digest": "896092ed7a9bc9c9b9134289342183950e5339924f8aa6b036589743f3ff65b8",
+            "rows": 2,
+            "table": "coaching_relationships"
+          },
+          {
+            "digest": "58167b2090404ecf80870125075e0b09923fe20e1979f53532302dc45b96cc12",
+            "rows": 2,
+            "table": "day_notes"
+          },
+          {
+            "digest": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
+            "rows": 1,
+            "table": "email_verification_tokens"
+          },
+          {
+            "digest": "19dcac30c519e9937772925c069d1be0707a87186b5707df79038349f344afaf",
+            "rows": 1,
+            "table": "insight_cards"
+          },
+          {
+            "digest": "0b947c1b417a07f241502cb9a85b45b37e2687260f31c5b5860be895a2e6ada1",
+            "rows": 1,
+            "table": "integration_connections"
+          },
+          {
+            "digest": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
+            "rows": 1,
+            "table": "invite_codes"
+          },
+          {
+            "digest": "fa3561f066cac5aa1b53ad182254048676dc7376f8581809113e36b06ef2651c",
+            "rows": 1,
+            "table": "mesocycles"
+          },
+          {
+            "digest": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
+            "rows": 1,
+            "table": "oauth_states"
+          },
+          {
+            "digest": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
+            "rows": 4,
+            "table": "sessions"
+          },
+          {
+            "digest": "ed4ea724fc62fdf8f91fe912d5ab3b01b9577b83d55357ee41d945d9e3416133",
+            "rows": 1,
+            "table": "sheet_publications"
+          },
+          {
+            "digest": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
+            "rows": 2,
+            "table": "vouchers"
+          },
+          {
+            "digest": "7a89634c71620768348409823d3650422158010783bc43ecee31b9f60a618db2",
+            "rows": 1,
+            "table": "workspaces"
+          },
+          {
+            "digest": "cb6cac2ce77dc400088aee608b85cab62718d4d8a54fbf40a19bdc571f8b801f",
+            "rows": 2,
+            "table": "access_grants"
+          },
+          {
+            "digest": "95c8fb9b48270b77b49dbc2ac3dd8962f6850edb01fbf94d3b9e9075e729b4c1",
+            "rows": 1,
+            "table": "billing_checkout_reservations"
+          },
+          {
+            "digest": "7509e4dc488820ad9f5a06a48f264716f19236e8c3d08436660b8615402dbe8f",
+            "rows": 1,
+            "table": "billing_customers"
+          },
+          {
+            "digest": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
+            "rows": 1,
+            "table": "coaching_history_snapshots"
+          },
+          {
+            "digest": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
+            "rows": 1,
+            "table": "integration_credentials"
+          },
+          {
+            "digest": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
+            "rows": 2,
+            "table": "integration_outbox"
+          },
+          {
+            "digest": "523348638f5e170e53b56b58ad3b7ce455fd719e4aa4fb276ea27a1f01a92546",
+            "rows": 1,
+            "table": "microcycles"
+          },
+          {
+            "digest": "388b792ea28731bbfc35eb0b67f215ab57253767fe757bfa58aba28f7be9b0d4",
+            "rows": 1,
+            "table": "subscriptions"
+          },
+          {
+            "digest": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
+            "rows": 1,
+            "table": "sync_mutations"
+          },
+          {
+            "digest": "f0ec79385f2f94514372d66ea23d599ef422ebd4281f9f8479628533ad255d88",
+            "rows": 1,
+            "table": "workspace_members"
+          },
+          {
+            "digest": "ac4ddea446283e6b4867cbb4eb75c2bf2a0b314b50c5ae0b8f4395d65ff0212d",
+            "rows": 3,
+            "table": "workouts"
+          },
+          {
+            "digest": "d36f91698ff80082d8086eb81d81e2df8917811e324cb35c5b8a8c7809f0addb",
+            "rows": 1,
+            "table": "accessories"
+          },
+          {
+            "digest": "14cfdeeaf996af323618e565b46681f7f34d62f468a4d94922f1d88739d998df",
+            "rows": 1,
+            "table": "domain_events"
+          },
+          {
+            "digest": "d5efeecf61785aa7822efb58f62384de502b7465ccbaf7eda29fb65690896c87",
+            "rows": 2,
+            "table": "exercises"
+          },
+          {
+            "digest": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
+            "rows": 1,
+            "table": "workout_locks"
+          },
+          {
+            "digest": "70e7820a12e781581def619fa7d850545db4907981308bf028f0823dac2af886",
+            "rows": 4,
+            "table": "exercise_sets"
+          }
+        ],
+        "table_digests_match": true,
+        "target_only_fields_defaulted_or_null": [
+          {
+            "default": "0",
+            "disposition": "database default or NULL",
+            "name": "attempt_count",
+            "not_null": true,
+            "null_rows": 0,
+            "status": "PASS",
+            "table": "webhook_events",
+            "type": "integer"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "claim_token",
+            "not_null": false,
+            "null_rows": 1,
+            "status": "PASS",
+            "table": "webhook_events",
+            "type": "text"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "lease_expires_at",
+            "not_null": false,
+            "null_rows": 1,
+            "status": "PASS",
+            "table": "webhook_events",
+            "type": "timestamp without time zone"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "session_id",
+            "not_null": false,
+            "null_rows": 1,
+            "status": "PASS",
+            "table": "oauth_states",
+            "type": "character varying"
+          },
+          {
+            "default": null,
+            "disposition": "database default or NULL",
+            "name": "claim_token",
+            "not_null": false,
+            "null_rows": 2,
+            "status": "PASS",
+            "table": "integration_outbox",
+            "type": "text"
+          }
+        ],
+        "target_tables": [
+          {
+            "digest": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
+            "rows": 1,
+            "table": "auth_security_subjects"
+          },
+          {
+            "digest": "3a1b854add68279d3dbf811c82ae99240f0160695177840dc82b3441f4cf8a1c",
+            "rows": 5,
+            "table": "users"
+          },
+          {
+            "digest": "fd9411a5fbf66f00921e9328be5ccadb544e89ebe73479c1325d534e71dbfadf",
+            "rows": 1,
+            "table": "voucher_redemption_limits"
+          },
+          {
+            "digest": "bfb0dbe35cd0c04a06b4847eb2332a82c2ed242d431e2d669aa4b0369f9c71af",
+            "rows": 1,
+            "table": "webhook_events"
+          },
+          {
+            "digest": "27cf6a8849512ee373f6191f77826522ac67fa3f3fe4311768c9157c57a22e9d",
+            "rows": 1,
+            "table": "audit_events"
+          },
+          {
+            "digest": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
+            "rows": 1,
+            "table": "auth_security_events"
+          },
+          {
+            "digest": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
+            "rows": 1,
+            "table": "client_devices"
+          },
+          {
+            "digest": "896092ed7a9bc9c9b9134289342183950e5339924f8aa6b036589743f3ff65b8",
+            "rows": 2,
+            "table": "coaching_relationships"
+          },
+          {
+            "digest": "58167b2090404ecf80870125075e0b09923fe20e1979f53532302dc45b96cc12",
+            "rows": 2,
+            "table": "day_notes"
+          },
+          {
+            "digest": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
+            "rows": 1,
+            "table": "email_verification_tokens"
+          },
+          {
+            "digest": "19dcac30c519e9937772925c069d1be0707a87186b5707df79038349f344afaf",
+            "rows": 1,
+            "table": "insight_cards"
+          },
+          {
+            "digest": "0b947c1b417a07f241502cb9a85b45b37e2687260f31c5b5860be895a2e6ada1",
+            "rows": 1,
+            "table": "integration_connections"
+          },
+          {
+            "digest": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
+            "rows": 1,
+            "table": "invite_codes"
+          },
+          {
+            "digest": "fa3561f066cac5aa1b53ad182254048676dc7376f8581809113e36b06ef2651c",
+            "rows": 1,
+            "table": "mesocycles"
+          },
+          {
+            "digest": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
+            "rows": 1,
+            "table": "oauth_states"
+          },
+          {
+            "digest": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
+            "rows": 4,
+            "table": "sessions"
+          },
+          {
+            "digest": "ed4ea724fc62fdf8f91fe912d5ab3b01b9577b83d55357ee41d945d9e3416133",
+            "rows": 1,
+            "table": "sheet_publications"
+          },
+          {
+            "digest": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
+            "rows": 2,
+            "table": "vouchers"
+          },
+          {
+            "digest": "7a89634c71620768348409823d3650422158010783bc43ecee31b9f60a618db2",
+            "rows": 1,
+            "table": "workspaces"
+          },
+          {
+            "digest": "cb6cac2ce77dc400088aee608b85cab62718d4d8a54fbf40a19bdc571f8b801f",
+            "rows": 2,
+            "table": "access_grants"
+          },
+          {
+            "digest": "95c8fb9b48270b77b49dbc2ac3dd8962f6850edb01fbf94d3b9e9075e729b4c1",
+            "rows": 1,
+            "table": "billing_checkout_reservations"
+          },
+          {
+            "digest": "7509e4dc488820ad9f5a06a48f264716f19236e8c3d08436660b8615402dbe8f",
+            "rows": 1,
+            "table": "billing_customers"
+          },
+          {
+            "digest": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
+            "rows": 1,
+            "table": "coaching_history_snapshots"
+          },
+          {
+            "digest": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
+            "rows": 1,
+            "table": "integration_credentials"
+          },
+          {
+            "digest": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
+            "rows": 2,
+            "table": "integration_outbox"
+          },
+          {
+            "digest": "523348638f5e170e53b56b58ad3b7ce455fd719e4aa4fb276ea27a1f01a92546",
+            "rows": 1,
+            "table": "microcycles"
+          },
+          {
+            "digest": "388b792ea28731bbfc35eb0b67f215ab57253767fe757bfa58aba28f7be9b0d4",
+            "rows": 1,
+            "table": "subscriptions"
+          },
+          {
+            "digest": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
+            "rows": 1,
+            "table": "sync_mutations"
+          },
+          {
+            "digest": "f0ec79385f2f94514372d66ea23d599ef422ebd4281f9f8479628533ad255d88",
+            "rows": 1,
+            "table": "workspace_members"
+          },
+          {
+            "digest": "ac4ddea446283e6b4867cbb4eb75c2bf2a0b314b50c5ae0b8f4395d65ff0212d",
+            "rows": 3,
+            "table": "workouts"
+          },
+          {
+            "digest": "d36f91698ff80082d8086eb81d81e2df8917811e324cb35c5b8a8c7809f0addb",
+            "rows": 1,
+            "table": "accessories"
+          },
+          {
+            "digest": "14cfdeeaf996af323618e565b46681f7f34d62f468a4d94922f1d88739d998df",
+            "rows": 1,
+            "table": "domain_events"
+          },
+          {
+            "digest": "d5efeecf61785aa7822efb58f62384de502b7465ccbaf7eda29fb65690896c87",
+            "rows": 2,
+            "table": "exercises"
+          },
+          {
+            "digest": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
+            "rows": 1,
+            "table": "workout_locks"
+          },
+          {
+            "digest": "70e7820a12e781581def619fa7d850545db4907981308bf028f0823dac2af886",
+            "rows": 4,
+            "table": "exercise_sets"
+          }
+        ]
+      },
+      "rollback": "PASS",
+      "source_digest_map": {
+        "access_grants": "cb6cac2ce77dc400088aee608b85cab62718d4d8a54fbf40a19bdc571f8b801f",
+        "accessories": "d36f91698ff80082d8086eb81d81e2df8917811e324cb35c5b8a8c7809f0addb",
+        "audit_events": "27cf6a8849512ee373f6191f77826522ac67fa3f3fe4311768c9157c57a22e9d",
+        "auth_security_events": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
+        "auth_security_subjects": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
+        "billing_checkout_reservations": "95c8fb9b48270b77b49dbc2ac3dd8962f6850edb01fbf94d3b9e9075e729b4c1",
+        "billing_customers": "7509e4dc488820ad9f5a06a48f264716f19236e8c3d08436660b8615402dbe8f",
+        "client_devices": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
+        "coaching_history_snapshots": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
+        "coaching_relationships": "896092ed7a9bc9c9b9134289342183950e5339924f8aa6b036589743f3ff65b8",
+        "day_notes": "58167b2090404ecf80870125075e0b09923fe20e1979f53532302dc45b96cc12",
+        "domain_events": "14cfdeeaf996af323618e565b46681f7f34d62f468a4d94922f1d88739d998df",
+        "email_verification_tokens": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
+        "exercise_sets": "70e7820a12e781581def619fa7d850545db4907981308bf028f0823dac2af886",
+        "exercises": "d5efeecf61785aa7822efb58f62384de502b7465ccbaf7eda29fb65690896c87",
+        "insight_cards": "19dcac30c519e9937772925c069d1be0707a87186b5707df79038349f344afaf",
+        "integration_connections": "0b947c1b417a07f241502cb9a85b45b37e2687260f31c5b5860be895a2e6ada1",
+        "integration_credentials": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
+        "integration_outbox": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
+        "invite_codes": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
+        "mesocycles": "fa3561f066cac5aa1b53ad182254048676dc7376f8581809113e36b06ef2651c",
+        "microcycles": "523348638f5e170e53b56b58ad3b7ce455fd719e4aa4fb276ea27a1f01a92546",
+        "oauth_states": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
+        "sessions": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
+        "sheet_publications": "ed4ea724fc62fdf8f91fe912d5ab3b01b9577b83d55357ee41d945d9e3416133",
+        "subscriptions": "388b792ea28731bbfc35eb0b67f215ab57253767fe757bfa58aba28f7be9b0d4",
+        "sync_mutations": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
+        "users": "3a1b854add68279d3dbf811c82ae99240f0160695177840dc82b3441f4cf8a1c",
+        "voucher_redemption_limits": "fd9411a5fbf66f00921e9328be5ccadb544e89ebe73479c1325d534e71dbfadf",
+        "vouchers": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
+        "webhook_events": "bfb0dbe35cd0c04a06b4847eb2332a82c2ed242d431e2d669aa4b0369f9c71af",
+        "workout_locks": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
+        "workouts": "ac4ddea446283e6b4867cbb4eb75c2bf2a0b314b50c5ae0b8f4395d65ff0212d",
+        "workspace_members": "f0ec79385f2f94514372d66ea23d599ef422ebd4281f9f8479628533ad255d88",
+        "workspaces": "7a89634c71620768348409823d3650422158010783bc43ecee31b9f60a618db2"
+      },
+      "source_revision": "0011_email_verification",
+      "status": "PASS",
+      "sync_compatibility": {
+        "coach_active_relationship_allowed": true,
+        "ended_relationship_revoked": true,
+        "expired_and_revoked_sessions_rejected": true,
+        "old_client_mutation_accepted": true,
+        "provider_side_effects": "none; fixture only, worker absent, container network disabled",
+        "queued_synthetic_jobs_preserved": 1,
+        "same_mutation_replay_deduplicated": true,
+        "stale_conflict_detection": "FAIL",
+        "stale_conflict_observation": "Existing RPC accepted older updated_at and overwrote newer note",
+        "tombstoned_set_rejected": true
+      },
+      "target_only_tables_unmapped": [
+        "telegram_link_tokens"
+      ]
+    }
+  ]
+}

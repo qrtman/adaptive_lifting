@@ -1,0 +1,122 @@
+{
+  "users": [
+    {"id":"fake-coach-001","email":"coach@example.invalid","hashed_password":"synthetic-invalid-hash","role":"COACH","subscription_status":"active","display_name":"Synthetic Coach"},
+    {"id":"fake-athlete-001","email":"athlete@example.invalid","hashed_password":"synthetic-invalid-hash","role":"ATHLETE","subscription_status":"active","display_name":"Synthetic Athlete"},
+    {"id":"fake-athlete-unlinked","email":"unlinked@example.invalid","hashed_password":"synthetic-invalid-hash","role":"ATHLETE","subscription_status":"inactive","display_name":"Former Athlete"},
+    {"id":"fake-user-deleted","email":"deleted@example.invalid","hashed_password":"synthetic-invalid-hash","role":"ATHLETE","deleted_at":"2025-01-05T00:00:00","display_name":"Deleted User"},
+    {"id":"fake-google-user","email":"google@example.invalid","hashed_password":"synthetic-invalid-hash","role":"ATHLETE","google_sub":"synthetic-google-subject"}
+  ],
+  "sessions": [
+    {"id":"fake-session-athlete-valid","user_id":"fake-athlete-001","jwt_id":"fake-session-athlete-valid","expires_at":"2099-01-01T00:00:00"},
+    {"id":"fake-session-coach-valid","user_id":"fake-coach-001","jwt_id":"fake-session-coach-valid","expires_at":"2099-01-01T00:00:00"},
+    {"id":"fake-session-expired","user_id":"fake-athlete-001","jwt_id":"fake-session-expired","expires_at":"2000-01-01T00:00:00"},
+    {"id":"fake-session-revoked","user_id":"fake-athlete-001","jwt_id":"fake-session-revoked","expires_at":"2099-01-01T00:00:00","revoked_at":"2025-01-02T00:00:00"}
+  ],
+  "coaching_relationships": [
+    {"id":701,"coach_id":"fake-coach-001","athlete_id":"fake-athlete-001","created_at":"2024-01-01T00:00:00"},
+    {"id":702,"coach_id":"fake-coach-001","athlete_id":"fake-athlete-unlinked","created_at":"2023-01-01T00:00:00","ended_at":"2024-01-01T00:00:00"}
+  ],
+  "coaching_history_snapshots": [
+    {"relationship_id":702,"snapshot_at":"2024-01-01T00:00:00","snapshot_json":"{\"fixture\":true,\"owner\":\"fake-athlete-unlinked\"}"}
+  ],
+  "mesocycles": [
+    {"id":"fake-meso-001","name":"Synthetic History","status":"COMPLETED","color":"blue","startDate":"2024-01-01","endDate":"2024-04-01","owner_id":"fake-athlete-001"}
+  ],
+  "microcycles": [
+    {"id":"fake-micro-001","weekName":"Historical Week","focus":"Strength","status":"COMPLETED","active":false,"owner_id":"fake-athlete-001","mesocycle_id":"fake-meso-001"}
+  ],
+  "workouts": [
+    {"id":"fixture-workout-active","date":"2026-09-01","dayLabel":"Day 1","title":"Synthetic Squat Session","tonnage":450,"delta":0,"color":"blue","status":"IN_PROGRESS","athlete_bw":82.5,"block_label":"Fixture Block","week_label":"Week 1","owner_id":"fake-athlete-001","microcycle_id":"fake-micro-001"},
+    {"id":"fixture-workout-deleted","date":"2025-01-01","dayLabel":"Day 2","title":"Deleted Session","color":"gray","status":"COMPLETED","owner_id":"fake-athlete-001","deleted_at":"2025-02-01T00:00:00"},
+    {"id":"fixture-workout-former-athlete","date":"2024-01-02","dayLabel":"Day 1","title":"Former Athlete Session","color":"blue","status":"COMPLETED","owner_id":"fake-athlete-unlinked"}
+  ],
+  "exercises": [
+    {"id":"fixture-exercise-active","lexo_rank":"a0","title":"Squat","variation":"Competition","tier":"Comp","lift_category":"Squat","movement_pattern":"Knee Dominant","tags_raw":"synthetic","top":"92.5kg x 5","vol":"462.5kg","workout_id":"fixture-workout-active"}
+  ],
+  "exercise_sets": [
+    {"id":"fixture-set-active","lexo_rank":"a0","label":"Top","scope":"both","plannedWeight":90,"plannedReps":5,"plannedRpe":8,"actual":90,"reps":5,"executedRpe":8,"isTop":true,"intensity_type":"RPE","exercise_id":"fixture-exercise-active"},
+    {"id":"fixture-set-deleted","lexo_rank":"a1","label":"Old Set","scope":"both","plannedWeight":80,"plannedReps":5,"deleted_at":"2025-01-01T00:00:00","exercise_id":"fixture-exercise-active"}
+  ],
+  "accessories": [
+    {"id":"fixture-exercise-accessory","lexo_rank":"a1","name":"Cable Row","prescribedSets":"2 sets","targetReps":"10","targetRpe":"8","weight":"25","reps":"10","executedRpe":"8","status":"Done","workout_id":"fixture-workout-active"}
+  ],
+  "day_notes": [
+    {"id":"fixture-note-active","owner_id":"fake-athlete-001","date":"2026-09-01","body":"Synthetic note"},
+    {"id":"fixture-note-deleted","owner_id":"fake-athlete-001","date":"2025-01-01","body":"Deleted synthetic note","deleted_at":"2025-02-01T00:00:00"}
+  ],
+  "workspaces": [
+    {"id":"fake-workspace-001","name":"Synthetic Coach Workspace","owner_user_id":"fake-coach-001"}
+  ],
+  "workspace_members": [
+    {"id":"fake-member-owner","workspace_id":"fake-workspace-001","user_id":"fake-coach-001","role":"OWNER"}
+  ],
+  "access_grants": [
+    {"id":"fake-grant-active","workspace_id":"fake-workspace-001","plan_key":"coach_beta","source":"synthetic","starts_at":"2024-01-01T00:00:00","reason":"fixture only"},
+    {"id":"fake-grant-voucher","workspace_id":"fake-workspace-001","plan_key":"coach_pro","source":"offline_payment","starts_at":"2024-02-01T00:00:00","expires_at":"2024-03-02T00:00:00","reason":"voucher:fake-voucher-redeemed"}
+  ],
+  "subscriptions": [
+    {"id":"fake-subscription-active","workspace_id":"fake-workspace-001","provider":"synthetic","provider_customer_id":"cus_fixture","provider_subscription_id":"sub_fixture","plan_key":"coach_beta","status":"ACTIVE","current_period_start":"2026-01-01T00:00:00","current_period_end":"2099-01-01T00:00:00","cancel_at_period_end":false}
+  ],
+  "billing_customers": [
+    {"id":"fake-billing-customer","workspace_id":"fake-workspace-001","provider":"synthetic","provider_customer_id":"cus_fixture"}
+  ],
+  "billing_checkout_reservations": [
+    {"id":"fake-checkout-reservation","workspace_id":"fake-workspace-001","provider":"synthetic","request_id":"req_fixture","plan_key":"coach_beta","status":"FAILED"}
+  ],
+  "vouchers": [
+    {"id":"fake-voucher-assigned","code_hash":"6cc7e239b3dfec2a4c1f34aa2d79a7c19bbf15f58985bc7075b16418b4c17200","code_prefix":"SYNTH","plan_key":"coach_pro","duration_days":30,"source":"offline_payment","assigned_user_id":"fake-coach-001","created_at":"2024-01-01T00:00:00"},
+    {"id":"fake-voucher-redeemed","code_hash":"26d7e8a48e6d1f1be3c419478b3a68f7829962fb5f30a8bc47fbb504321be107","code_prefix":"SYNTH","plan_key":"coach_pro","duration_days":30,"source":"offline_payment","assigned_user_id":"fake-coach-001","redeemed_at":"2024-02-01T00:00:00","redeemed_by_user_id":"fake-coach-001","created_at":"2024-01-01T00:00:00"}
+  ],
+  "integration_connections": [
+    {"id":"fake-integration-connection","user_id":"fake-coach-001","provider":"google_sheets","external_account_id":"synthetic-account","status":"revoked","scopes":"spreadsheets","revoked_at":"2025-01-01T00:00:00"}
+  ],
+  "integration_credentials": [
+    {"connection_id":"fake-integration-connection","credential_type":"oauth_bundle","encrypted_payload":"SYNTHETIC_CIPHERTEXT_NOT_A_SECRET","expires_at":"2025-01-01T00:00:00"}
+  ],
+  "integration_outbox": [
+    {"id":"fake-outbox-queued","provider":"synthetic-noop","connection_id":"fake-integration-connection","payload_json":"{\"fixture\":true}","status":"queued","attempt_count":0},
+    {"id":"fake-outbox-failed","provider":"synthetic-noop","connection_id":"fake-integration-connection","payload_json":"{\"fixture\":true}","status":"failed","attempt_count":1,"result":"synthetic failure"}
+  ],
+  "webhook_events": [
+    {"id":"fake-webhook-event","provider":"synthetic-noop","external_event_id":"evt_fixture","status":"failed"}
+  ],
+  "oauth_states": [
+    {"state_hash":"synthetic-state-hash-only","user_id":"fake-coach-001","provider":"google_sheets","created_at":"2024-01-01T00:00:00","expires_at":"2024-01-01T00:10:00","return_to":"/"}
+  ],
+  "audit_events": [
+    {"id":"fake-audit-event","actor_user_id":"fake-coach-001","event_type":"SYNTHETIC_FIXTURE","resource_type":"workout","resource_id":"fixture-workout-active","metadata_json":"{\"synthetic\":true}"}
+  ],
+  "domain_events": [
+    {"id":"fake-domain-event","workout_id":"fixture-workout-active","event_type":"SYNTHETIC_IMPORT_FIXTURE","payload_json":"{\"synthetic\":true}"}
+  ],
+  "client_devices": [
+    {"id":"fixture-device-001","user_id":"fake-athlete-001","device_label":"Synthetic browser","last_seen_at":"2026-09-01T11:00:00"}
+  ],
+  "sync_mutations": [
+    {"mutation_id":"legacy-already-accepted","client_device_id":"fixture-device-001","entity_type":"ExerciseSet","entity_id":"fixture-set-active","field_path":"ALL","updated_at":"2026-08-01T00:00:00","applied_at":"2026-08-01T00:00:01","result":"ACCEPTED"}
+  ],
+  "workout_locks": [
+    {"workout_id":"fixture-workout-active","holder_user_id":"fake-athlete-001","mode":"edit","expires_at":"2000-01-01T00:00:00","version":3}
+  ],
+  "invite_codes": [
+    {"id":"fake-invite-code","coach_id":"fake-coach-001","code_hash":"synthetic-code-hash","expires_at":"2099-01-01T00:00:00"}
+  ],
+  "insight_cards": [
+    {"id":"fake-insight-card","owner_user_id":"fake-athlete-001","name":"Synthetic Card","config_json":"{}","layout_json":"{\"order\":0,\"col_span\":1}"}
+  ],
+  "sheet_publications": [
+    {"id":"fake-sheet-publication","coach_id":"fake-coach-001","spreadsheet_id":"sheet_fixture","worksheet_name":"Synthetic","export_profile":"default","status":"revoked"}
+  ],
+  "voucher_redemption_limits": [
+    {"subject_hash":"synthetic-redemption-limit","minute_started_at":"2026-09-01T12:00:00","minute_count":1,"hour_started_at":"2026-09-01T12:00:00","hour_count":2}
+  ],
+  "email_verification_tokens": [
+    {"id":"fake-email-token","user_id":"fake-athlete-001","token_hash":"d5277eb7a91e5b4c403e373b456828789623464774bbf3ab5d56c065d9cbdb1d","created_at":"2026-09-01T00:00:00","expires_at":"2026-09-02T00:00:00","is_resend":false}
+  ],
+  "auth_security_subjects": [
+    {"subject_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","updated_at":"2026-09-01T00:00:00"}
+  ],
+  "auth_security_events": [
+    {"id":"fake-auth-event","subject_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","created_at":"2026-09-01T00:00:00"}
+  ]
+}
