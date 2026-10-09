@@ -1,7 +1,7 @@
 import { exportJWK, importJWK, jwtVerify, SignJWT } from "jose";
 import type { AppConfig } from "../functions/_shared/config.ts";
 import type { Database } from "../functions/_shared/db/mod.ts";
-import { createRealtimeTokenHandler } from "../functions/realtime-token-spike/handler.ts";
+import { createRealtimeTokenHandler } from "../functions/_shared/realtime/handler.ts";
 import {
   issueRealtimeToken,
   REALTIME_PURPOSE,
@@ -10,7 +10,7 @@ import {
   REALTIME_SIGNING_KID,
   signerFromEnv,
   type RealtimeSigner,
-} from "../functions/realtime-token-spike/token.ts";
+} from "../functions/_shared/realtime/token.ts";
 
 const userId = "8cae9130-ef47-4a54-889d-9b2a0899598b";
 const workoutId = "e025906e-4c21-4cb8-81b9-d2e2c057e451";
@@ -95,7 +95,7 @@ async function appRequest(): Promise<Request> {
     .setSubject(userId).setExpirationTime("5m")
     .sign(new TextEncoder().encode(secret));
   return new Request(
-    "https://staging.example.test/functions/v1/realtime-token-spike",
+    "https://staging.example.test/functions/v1/api/realtime/token",
     {
       method: "POST",
       headers: {

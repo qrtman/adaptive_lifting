@@ -1,56 +1,53 @@
-# Supabase migration foundation
+# Supabase runtime
 
-The `api` Edge Function ports these validated routes:
+Production API routes are handled by `functions/api`, with narrow private SQL
+interfaces in `al_private`. Scheduled email and Sheets work runs through the
+private `email-verification-worker` and `google-sheets-worker` Edge Functions
+with Postgres Cron/`pg_net` dispatch. The frontend uses same-origin `/api`
+paths; the production Caddy host rewrites these to `/functions/v1/api/...`.
+There is no production FastAPI, Python worker, or Python database process.
 
-| Existing route               | Function path                             | Behavior                                                                           |
-| ---------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| `GET /api/health`            | `/functions/v1/api/health`                | `SELECT 1`, then `{"status":"ok"}`                                                 |
-| `GET /api/analytics/catalog` | `/functions/v1/api/analytics/catalog`     | Existing app cookie or bearer JWT, session and user lookup, Python catalog payload |
-| `POST /api/analytics/query` | `/functions/v1/api/analytics/query` | Existing app session, narrow analytics RPC, Python-compatible calculations |
-| `GET /api/insight-cards` | `/functions/v1/api/insight-cards` | Owner-only list with transactional preset seeding |
-| `POST /api/insight-cards` | `/functions/v1/api/insight-cards` | Owner-only create with legacy config validation |
-| `PUT /api/insight-cards/{id}` | `/functions/v1/api/insight-cards/{id}` | Owner-only update; tombstones remain not found |
-| `DELETE /api/insight-cards/{id}` | `/functions/v1/api/insight-cards/{id}` | Owner-only tombstone |
-| `POST /api/insight-cards/sync` | `/functions/v1/api/insight-cards/sync` | App-session validation and transactional device-scoped mutation RPC |
+The project keeps the existing custom app authentication: an HS256 app JWT and
+`sessions` table, a separate ES256 offline grant, and a separate ES256 Realtime
+token. Supabase Auth is not adopted. Training rows remain athlete-owned.
 
-The existing same-origin reverse proxy must route these paths to the function
-before a browser rollout. Keeping the original `/api/*` URL preserves the
-HttpOnly `session_id` cookie. Direct cross-origin Function calls will not
-inherit the application's cookie. Workout sync and all other unmigrated routes
-remain on the legacy backend. Python remains available for every other route
-and as rollback.
+## Route and data boundaries
 
-## Configuration
+The API Edge handler contains explicit method/path dispatch for account and
+security, coach access, microcycles and session/exercise/set writes, Workout
+Sync, analytics, Insight Cards, day notes, exports, integrations, billing,
+health, and Realtime token issuance. It does not forward unknown paths to a
+legacy service; unmatched routes return 404. The former local/demo login and
+SSE handler are not deployed. FastAPI's schema/docs endpoints are not exposed.
 
-Set `DATABASE_URL` to a server-only PostgreSQL connection URL,
-`JWT_SECRET_CURRENT`, optional `JWT_SECRET_PREVIOUS`, `CORS_ALLOWED_ORIGINS`,
-and the same `EMAIL_VERIFICATION_ENFORCE_LEGACY` flag as Python. The function
-sets `verify_jwt = false` because Supabase's platform JWT check cannot verify
-the application's independent HS256 keys; the handler verifies JWT and database
-session on every authenticated request. This does **not** make the API public.
-The runtime login has no direct access to `insight_cards`, `client_devices`, or
-`sync_mutations`; it can execute only the narrow `al_private` card CRUD, sync,
-and analytics functions. Its session/user reads remain column-scoped. Do not
-put the URL or application signing keys in browser code.
+Runtime access is through route-specific functions and the restricted
+`al_edge_catalog_runtime` database role. Browser roles have no direct
+application table access or private schema usage. Private operator voucher
+functions are unavailable to browser and runtime roles. See
+[`STAGING_VALIDATION.md`](STAGING_VALIDATION.md) for the route reconciliation,
+staging evidence, current project posture, and known provider configuration
+gates.
 
-The catalog file was generated from `backend.analytics_registry` and
-`CatalogPayload` at `local-save` commit
-`29c81fb395c62cc2ac3c775d2a7d8ef3106d9328`. Run the parity check whenever the
-Python registry changes. The checked-in JWTs in `tests/python_tokens.json` are
-signed by Python/PyJWT with test-only keys.
+## Migrations and local checks
 
-## Local checks
+The checked-in SQL migration files are the deployment source. Apply them in
+lexical version order to a clean target project and compare the applied history
+to the release manifest. Staging retains historical version identifiers for
+21 matching migration names; the staging report records the mapping and the
+single harmless ordering swap between the independent email retry and day-note
+migrations. Do not rewrite staging migration history.
 
 ```sh
 cd supabase
 deno check functions/api/index.ts tests/auth_test.ts tests/routes_test.ts
 deno test tests/auth_test.ts tests/routes_test.ts
 cd ..
-python supabase/tests/check_catalog_parity.py
+npm test
+npm run lint
+npm run build
 ```
 
-These tests use a fake repository for failure cases. The staging validation
-workflow, restricted runtime role, same-origin development proxy, and isolated
-Realtime token prototype are described in `STAGING_VALIDATION.md`. The
-Realtime prototype is separate from the two migrated API routes and is not a
-replacement for SSE or application authentication.
+Python under `backend/` remains the authoritative compatibility reference and
+test source; it is not a production runtime dependency. The production
+frontend host and rollback preparation are documented in
+[`PRODUCTION_CUTOVER.md`](PRODUCTION_CUTOVER.md).

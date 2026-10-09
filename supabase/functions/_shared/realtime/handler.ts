@@ -1,11 +1,11 @@
-import type { AppConfig } from "../_shared/config.ts";
-import { authenticate } from "../_shared/auth/session.ts";
-import { authRepository, type Database } from "../_shared/db/mod.ts";
+import type { AppConfig } from "../config.ts";
+import { authenticate } from "../auth/session.ts";
+import { authRepository, type Database } from "../db/mod.ts";
 import {
   ApiError,
   errorResponse,
   jsonResponse,
-} from "../_shared/errors/mod.ts";
+} from "../errors/mod.ts";
 import { issueRealtimeToken, type RealtimeSigner } from "./token.ts";
 
 async function canAccessRealtimeWorkout(

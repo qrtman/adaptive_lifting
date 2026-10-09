@@ -25,8 +25,8 @@ import { handleBillingRoute } from "./billingRoute.ts";
 import catalog from "../api/catalog.json" with { type: "json" };
 import {
   createRealtimeTokenHandler,
-} from "../realtime-token-spike/handler.ts";
-import type { RealtimeSigner } from "../realtime-token-spike/token.ts";
+} from "./realtime/handler.ts";
+import type { RealtimeSigner } from "./realtime/token.ts";
 
 export function createHandler(
   config: AppConfig,

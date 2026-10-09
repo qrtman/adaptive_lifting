@@ -1425,3 +1425,370 @@ post-cleanup counts are zero for users, sessions, devices, invites,
 relationships, snapshots, audit events, notes, training rows, sync mutations,
 domain events, and locks. No temporary SQL helper was created; only the
 permanent narrow RPCs remain. Production and `local-save` were untouched.
+
+## Final pre-production audit (2026-10-09)
+
+This is a staging/repository audit only; no production project or production
+data was accessed. The starting checkpoint was `881dcc85b1eb63aabe79cda4e50deb356cfd2ae0`,
+branch `supabase-staging-validation`, with a clean worktree. The `local-save`
+ref remained `29c81fb395c62cc2ac3c775d2a7d8ef3106d9328`.
+
+### Route reconciliation and runtime
+
+The AST inventory from `local-save` found 65 explicit route registrations in
+non-test Python modules and four FastAPI generated docs/schema routes. The
+complete 69-route reconciliation, including exact method/path, handler source,
+classification, and direct staging response, is in
+[`FINAL_AUDIT_ROUTE_INVENTORY.md`](FINAL_AUDIT_ROUTE_INVENTORY.md).
+
+Results: 63 migrated to the deployed `api` Edge dispatcher; one local/demo
+login is development-only and fails closed on Edge; one old workout SSE route
+has no frontend EventSource caller and returns 404; four generated OpenAPI/docs
+routes are intentionally removed; unresolved production route count is zero.
+Direct unauthenticated calls to all 63 migrated method/path pairs included
+`sb-project-ref=admyuepbbtstayaydjmo`: 53 protected calls returned 401, five
+empty public bodies returned validation errors, three unconfigured provider
+routes returned 503, `/api/health` returned 200, and idempotent logout returned
+200. A synthetic registered athlete then completed live Edge password login,
+`/api/auth/me`, `/api/account/access`, `/api/microcycles`, analytics catalog,
+session create/delete, and logout. No request used FastAPI.
+
+Staging Edge inventory is exactly three active functions: `api` v96,
+`email-verification-worker` v3, and `google-sheets-worker` v4; all have
+platform `verify_jwt=false` because the API validates the custom application
+session and workers validate independent internal secrets. The old separate
+`realtime-token-spike` function is not deployed. Its stale repository
+entrypoint and `config.toml` deployment stanza were removed; its handler and
+token code now live under the API's internal `_shared/realtime` module. The
+API still exposes only the app-authenticated `/api/realtime/token` operation.
+
+The production Compose/Caddy configuration was corrected in this audit: the
+only service is the static frontend/Caddy host, `/api/*` is rewritten to the
+Supabase `api` Edge function, and Caddy supplies the publishable API key. The
+Python migrator, API, worker, and FastAPI upstream were removed from production
+Compose. `docker compose --env-file .env.production.example config --quiet`
+passed. The Docker daemon and local Caddy binary were unavailable, so Caddy
+container validation and a live Caddy-to-Edge staging proxy rehearsal were not run. The Vite coexistence
+proxy's Python fallback remains development-only. Production deployment is
+therefore free of a Python runtime dependency in checked-in deployment config,
+but the final Caddy forwarding path still needs a staging host rehearsal.
+Production frontend builds also ignore `VITE_BACKEND_URL`; the regression test
+verifies that an injected legacy origin cannot redirect production API calls.
+
+### Migrations, schema, functions, and privileges
+
+Repository and staging each contain 62 migration entries/files after the
+operator-access, runtime-text-encoding, and read-only-inspector audit migrations. Every repository
+migration name is represented in staging and there is no missing or unexpected
+migration name. The original 21 historical staging version identifiers differ
+from current repository filename prefixes; the three audit migrations were also
+recorded under staging-generated prefixes, so 24 current entries have version
+prefix differences. The independent
+`email_worker_clear_claim_on_retry` and `day_notes_exports_domain` migrations
+also appear in opposite order in the two histories; they change separate
+objects. No staging history was rewritten. This is recorded as historical
+version/order drift, not an unapplied migration. Name reconciliation found no
+missing or extra records. Normalized SQL statement hashes match 52 of 62
+current files. The ten differences were reconciled against the final staging
+catalog: the Realtime subscriber statement omitted comments only; the
+Realtime coach-grant statement differed in whitespace only; earlier account
+security definitions were superseded by the later parity-hardening/billing
+definitions; the old Set Log placeholder spellings were superseded by the
+encoding-correction migration; and the copied-week, exercise-add, Telegram,
+and operator-display statements contained transport-encoding variants. The
+final exercise-add and set-replacement functions use the expected dash
+placeholder, and the live copied-week, Telegram, and operator function bodies
+were repaired by `20261009170000_correct_runtime_text_encoding.sql`. The
+remaining correction-migration hash difference was a terminal blank line.
+Catalog checks found no missing migration names or unexplained final object
+effects. Thus all 62 applications are represented, all 24 version-prefix
+differences and the one independent order swap are explained, and no applied
+migration was replayed or history rewritten. The operator access inspector
+calls the existing access resolver only for an already-present OWNER
+membership, avoiding workspace creation as a side effect of diagnostics.
+Production deployment must apply all 62 current files in lexical version
+order to a clean project.
+
+The public schema currently has 37 tables, zero views/materialized views, one
+sequence, 99 indexes, 41 foreign keys, and nine non-internal triggers. Installed
+extensions are `pg_cron`, `pg_net`, `pg_stat_statements`, `pgcrypto`,
+`plpgsql`, `supabase_vault`, and `uuid-ossp`. No table/function name matching
+temporary test/debug/probe patterns was found; the two name matches are the
+permanent billing diagnostics function and Insight Card preset-seeding
+function. No temporary SQL helper remains.
+
+There are 97 application functions across `public` and `al_private`, including
+96 `SECURITY DEFINER` functions. All 96 are owned by `postgres`, use an empty
+fixed `search_path`, and contain no dynamic SQL. None grants execute to
+`PUBLIC`, `anon`, or `authenticated`; no browser role has `al_private` schema
+usage. The runtime role can execute 84 narrow functions, including route and
+worker interfaces; operator voucher functions are not executable by the
+runtime or browser roles. No generic runtime table write grants, sequence
+rights, schema creation rights, superuser, `BYPASSRLS`, or direct decrypted
+Vault access were found. The role inherits only `al_edge_catalog_reader`.
+Prior live staging evidence recorded `current_user=session_user=al_edge_catalog_runtime`;
+this audit's MCP SQL session itself runs as `postgres` and cannot independently
+repeat that connection identity check.
+
+Effective table privileges for `anon` and `authenticated` remain denied across
+all application tables. A direct REST read of `public.users` with the public
+anon key returned `401 permission denied for table users`; direct private RPC
+lookup returned 404. However, the REST Data API endpoint itself is active in
+staging, so `DATA_API_DISABLED=no`. The `list_tables` helper emitted a critical
+RLS-disabled warning for 36 tables; live effective-grant checks show no browser
+table access, which is why RLS remains intentionally disabled under the
+current grant boundary. Before production, disable the Data API as designed or
+re-verify the full browser grant boundary after project configuration. The
+Security Advisor returned one INFO: RLS enabled without a policy on
+`public.telegram_link_tokens` (fail-closed). Do not add policies to the
+36 intentionally non-RLS tables without a separate security design.
+
+The runtime role has no direct `vault` schema/table access. `anon` and
+`authenticated` also cannot read Vault. The `al_billing_secret` getter has a
+fixed name allowlist and returns only the requested configured entry; the
+voucher key and offline-auth, email-payload, and integration-encryption keys
+are all present and pairwise distinct. Secret values were not returned or
+logged. Vault names observed were the email payload key, email and Sheets
+worker URL/internal-key dispatch entries, integration encryption key, offline
+auth private key, voucher enable flag, and voucher code secret. Stripe secrets
+and prices were not configured. Separate JWT/Realtime/provider environment
+secret values cannot be inspected through this MCP; do not treat their
+independence as cryptographically re-proven by this audit.
+
+### Cron, network dispatch, and advisors
+
+The only active Cron jobs are `email-verification-edge-worker` and
+`al-google-sheets-worker`, both every minute. Each had 1,440 successful Cron
+ticks and zero failed ticks in the preceding 24 hours. There were zero pending
+`pg_net` requests. Their `SECURITY DEFINER` dispatchers read server-owned Vault
+targets and internal secrets; the Sheets target is host/path constrained, and
+email dispatch uses a single Vault-owned target. No temporary Cron jobs exist.
+Tick success is not proof of provider email/Sheets delivery.
+
+The Security Advisor returned one INFO finding as described above. The
+Performance Advisor returned 19 unindexed foreign keys, one Realtime RLS
+init-plan WARN, and six unused-index INFO findings. No index was added in this
+audit. The 19 missing FK indexes are performance findings; the hottest
+authorization/concurrency paths have supporting explicit unique/query indexes
+and prior transaction tests. Unused indexes are not removed based on staging
+statistics alone.
+
+### Current staging providers, fixture cleanup, and audit gaps
+
+Voucher enablement and its dedicated Vault secret are configured. Stripe
+billing is disabled; secret, webhook secret, and all three Prices are absent.
+The deployed webhook returned 503 when called without signature, as required
+for disabled staging. Google login, email delivery, Telegram, Sheets OAuth, and
+Stripe remain `NOT_CONFIGURED_STAGING`; production values must be configured
+independently in their target project. Supabase Auth remains unadopted.
+
+A broad text-column scan found two historical `stg-account-offline-final-*`
+workspace audit events with no corresponding fixture rows; those two synthetic
+events were removed. A fresh authenticated `stg-final-audit-*` account was
+registered, used for the live Edge smoke, logged out, and removed with its
+session, verification, outbox, training, and audit dependents. The post-cleanup
+`stg-%` scan and 41-FK integrity scan returned zero matching residue and zero
+orphans. Permanent Vault secrets, the two Cron jobs, and application functions
+were retained.
+
+The production-relevant `manage_user.py` workflows now have private,
+postgres-only Supabase procedures in
+`20261009162235_operator_access_management.sql`: promote coach, grant/revoke
+manual coach access, inspect account access, and link a Stripe customer. Live
+staging checks confirmed idempotent promotion/grant/link behavior, access
+revocation without touching voucher or subscription rows, cross-workspace
+customer conflict denial, audit events, and concurrent operations. All six
+operator procedures (including workspace initialization) have fixed empty
+search paths and are unavailable to PUBLIC, browser roles, the Edge runtime,
+and the reader role. `show-access` is migrated; `billing-status` and voucher
+create/show/revoke are already replaced by the existing private billing
+operator procedures; `set-test-subscription` is test-only and intentionally
+retired from production operations. `OPERATOR_RUNTIME_GAP=PASS` and
+`OPERATOR_PYTHON_DEPENDENCIES=0`.
+
+The project REST endpoint is reachable (a direct anonymous table read returns
+401 permission denied), so the actual Data API setting is **enabled**; denied
+table grants do not mean the Data API itself is disabled. No supported project
+settings management operation or browser surface was available in this
+session, and the setting was not changed. No current frontend feature was
+found to depend on PostgREST, but the intended disabled setting remains an
+unresolved staging configuration gate.
+
+The route inventory and one earlier authenticated athlete smoke do not replace
+the requested full authenticated staging matrix (coach/athlete relationships,
+Realtime delivery, all training consistency/tombstone paths, revocation races,
+and representative concurrency). Those gates remain NOT VERIFIED. The new
+audit operator fixtures were removed and the prefix scan returned zero users,
+workspaces, audit rows, or voucher-limit rows. No Python backend was present.
+The Caddy runtime rehearsal was not run because the Docker daemon, local Caddy
+binary, browser surface, and an existing staging host were unavailable. These
+gates, the enabled Data API setting, and incomplete reconciliation prevent a
+`CUTOVER_READINESS=READY` conclusion. Production was not changed. The
+continuation record below supersedes the rehearsal and authenticated-smoke
+status in this earlier checkpoint section; the Data API setting remains
+enabled.
+
+### Final audit continuation — 2026-10-09
+
+The audit resumed on the existing staging branch without resetting prior
+changes. The Data API project setting was independently checked using the
+authenticated Supabase project context and browser-surface inventory. The
+Dashboard control was not available to this session. Staging REST remains
+reachable, so `DATA_API_PROJECT_SETTING=enabled` and
+`DATA_API_DISABLED=no`; effective `anon`/`authenticated` table access and
+private RPC execution remain denied. No grants, schemas, or RLS policies were
+changed to simulate a disabled Data API. The one remaining configuration action
+is Dashboard → `adaptive-lifting-staging` → Integrations → Data API → Overview
+→ turn **Enable Data API** Off. This has not been performed.
+
+Four disposable staging-only users (`stg-final-audit-*`) were created using
+temporary credentials and the custom application password/session flow. Their
+email-verification marker was set only as a trusted synthetic fixture because
+email delivery is not configured; this is not evidence for the real email
+verification flow. All users, sessions, workspaces, grants, relationships,
+training rows, notes, cards, billing rows, vouchers, audit events, rate-limit
+subjects, and provider test rows were removed after validation. Exact fixture
+lookups returned zero rows. The four account IDs and temporary credentials are
+not retained in the repository.
+
+Authenticated calls below went through the deployed staging API Edge function
+(`admyuepbbtstayaydjmo`), directly or through the actual Caddy proxy. Expected
+and actual status codes matched:
+
+| Method and route | Actor | Result |
+| --- | --- | --- |
+| `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` | Athlete A/B, Coach C | 200 / 200 / 200; post-logout `/auth/me` returned 401 |
+| `PATCH /api/auth/profile` | Athlete B | 200 |
+| `GET /api/security/sessions`, `DELETE /api/security/sessions/{id}` | Two Athlete A sessions | 200; revoked session `/auth/me` 401; other session 200 |
+| `GET /api/account/access` | Athlete A/B, Coach C | 200; voucher entitlement visible after redemption |
+| `GET /api/security/devices` | Athlete A | 200 |
+| `POST /api/auth/coach-code`, `POST /api/auth/link-athlete` | Coach C, Athlete A/B | 200 |
+| `GET /api/coach/roster`, `GET /api/coach/roster/history` | Coach C | 200 |
+| `GET /api/microcycles`, `POST /api/sessions`, `PATCH /api/sessions/{id}`, `DELETE /api/sessions/{id}` | Athlete B / linked Coach C | 200; tombstoned workout read returned 404 |
+| `PATCH /api/sessions/labels`, `POST /api/sessions/copy-week` | Disposable Athlete | 200; source labels persisted and copy appeared in canonical read with requested labels |
+| `POST /api/sessions/{id}/exercises`, `PATCH .../exercises/{id}`, `DELETE .../exercises/{id}` | Athlete B | 200 |
+| `PUT /api/sessions/{id}/exercises/{id}/sets`, `POST /api/sets/log` | Athlete B | 200 |
+| `POST /api/workouts/{id}/sync` | Athlete B | 200 for live workout; 404 for tombstoned workout |
+| `GET /api/analytics/catalog`, `POST /api/analytics/query` | Athlete B | 200 |
+| `GET/POST/PUT/DELETE /api/insight-cards`, `POST /api/insight-cards/sync` | Athlete A | 200 |
+| `GET /api/day-notes`, four `PUT /api/day-notes` create/edit/clear/resurrect writes | Athlete A | 200 |
+| `GET /api/export/csv`, `GET /api/export/json` | Athlete A/B | 200 |
+| `GET /api/integrations/telegram/status`, `GET /api/integrations/google-sheets/status` | Athlete A | 200, current provider state returned |
+| `POST /api/billing/vouchers/redeem` | Athlete A, Coach X, Coach C | Athlete 403; wrong-account 400; valid redemption 200 and replay 400 |
+| `GET /api/billing/plans`, checkout, portal, webhook | Coach C | 503 fail-closed; Stripe remains unconfigured in staging |
+| `POST /api/realtime/token` | Coach C linked to B / unlinked from A; revoked session | B 200 and private WebSocket joined; A 403; revoked session 401 |
+
+The direct-route unauthenticated sweep for all 63 migrated method/path pairs
+returned the expected authentication/authorization denial. Edge API health
+returned 200 and the staging project response header identified the expected
+project. Email delivery, Google/Telegram login, Sheets OAuth/publishing, and
+Stripe provider operations remain `NOT_CONFIGURED_STAGING`; those feature
+routes retained their fail-closed behavior. Voucher redemption is live and
+does not depend on Stripe.
+
+Cross-domain checks: Set Log and set replacement raced through live Edge calls
+and both returned 200; canonical state contained one matching set. Coach
+unlink raced a write; unlink won, the racing and later coach writes were
+denied, Coach C could no longer read Athlete A, Athlete A retained owned data,
+and Athlete B remained readable. Two simultaneous session revocation contexts
+proved the revoked session could no longer call `/auth/me` or mint a Realtime
+token while the independent session remained usable. Two concurrent voucher
+redemptions returned one 200 and one generic 400. Two direct transactions each
+were serialized by their staging PostgreSQL routines: email token consume (one
+success/one invalid), Telegram link token consume (one session/one invalid),
+Sheets outbox claim (one job/one empty claim), and two different checkout
+request IDs (one `create`/one `checkout_in_progress`). These fixtures were
+removed after the races.
+
+Tombstone visibility was checked using a live Workout, tombstoned Workout,
+tombstoned Exercise, tombstoned Set, and tombstoned Microcycle. The live Edge
+canonical read omitted deleted Workout/Exercise/Set rows and retained their
+live siblings; a separate owner read omitted the tombstoned Microcycle.
+Analytics, CSV/JSON, Telegram `/today`, and the production Sheets `rowsFor`
+builder excluded the deleted Workout/Exercise/Set entities; syncing the deleted
+Workout returned 404. These were staging-owned synthetic records and were
+removed afterward.
+
+An official Caddy v2.11.7 Windows release archive was downloaded to a temporary
+tooling directory and its SHA-256 matched the digest in the official release
+metadata. The real Caddy process served the production Vite build and proxied
+the real staging Edge API; responses carried `Via: 2.0 Caddy`, the expected
+Supabase project ref, and `X-Served-By: supabase-edge-runtime`. Headless
+Playwright Chromium exercised the browser sign-in/session cookie, account and
+training APIs, exports, billing fail-closed responses, service-worker
+registration, deep-link refresh, logout, and a successful private Realtime
+WebSocket join. The browser captured 308 requests with no legacy FastAPI host
+or localhost:8000 reference. The first real proxy probe found an incorrect
+function path rewrite (404); `deploy/Caddyfile` now forwards `/api/...` as
+`/functions/v1/api/...`, and the follow-up Caddy health/browser run passed.
+The full browser run used the allowlisted local origin `http://localhost:3000`;
+the staging Edge API correctly rejected a non-allowlisted temporary HTTPS
+origin. No Python/FastAPI process or Docker container was used or required.
+
+`CADDY_RUNTIME_REHEARSAL=PASS`, `CADDY_BROWSER_ROUTING=PASS`, and
+`FULL_APP_WITHOUT_FASTAPI=PASS` for the exercised staging route families.
+The complete prefix/FK cleanup audit returned zero `stg-final-audit-*` rows
+and zero checked ownership orphans. All temporary browser/race runner files,
+the temporary Caddy configuration and binary directory, and the Caddy process
+were removed; no Edge route, SQL helper, or Cron test object was added.
+The project Data API switch remains the only unmet mandatory configuration
+gate. Security Advisor findings remain one INFO (`telegram_link_tokens` RLS
+enabled without a policy; fail-closed). Performance findings remain 19
+unindexed foreign keys, one Realtime auth init-plan WARN, and six unused-index
+INFO findings; no blanket indexing changes were made. Migration reconciliation
+remains 62 repository/62 staging migrations, 24 historical version-prefix
+mismatches, one explained ordering swap, and zero unexplained drift.
+
+Final local verification after these documentation updates: `npm.cmd test`
+passed 358 tests with one skipped; `npm.cmd run build` passed; and
+`git diff --check` passed. `npm.cmd run lint` still reports only the known
+environment diagnostics (`Deno` global unavailable and `@db/postgres`
+unresolved); Deno itself is not installed in this session. The production
+bundle emitted the existing advisory for a JavaScript chunk over 500 kB. The
+tracked-file secret scan found no live credentials; the only database-URL
+pattern was a redacted documentation placeholder. Production remains
+untouched. At that earlier checkpoint, the worktree remained intentionally
+uncommitted pending the Dashboard action; the final verification below
+supersedes that status.
+
+### Final verification after Data API was disabled — 2026-10-09
+
+The staging owner confirmed the Dashboard action **Integrations → Data API →
+Overview → Enable Data API: Off**. The current MCP exposes project URL and
+database reads, but not the project-level Data API setting itself; there is no
+Dashboard browser surface in this session, so a Management API setting
+readback was unavailable. The data-plane check used the staging publishable
+key against the generated routes: `GET /rest/v1/users?select=id&limit=1` and
+`POST /graphql/v1` both returned HTTP 503 with PostgREST `PGRST002` (schema
+cache unavailable). This independently confirms those generated endpoints
+are unavailable after the reported switch; unlike the earlier permission
+denial, this is not being described as a table-grant result. The project
+setting is recorded as dashboard-confirmed by the staging owner and
+corroborated by the endpoint probes, rather than as a direct settings API
+readback.
+
+The checks after the switch showed the API Edge health route returning HTTP
+200; the Stripe webhook returned its expected disabled HTTP 503; direct
+execution of `al_private.al_auth_me` returned the expected
+`invalid_session` denial for deliberately nonexistent identifiers; and the
+Realtime WebSocket completed its connection handshake. The `email-verification-edge-worker`
+and `al-google-sheets-worker` Cron jobs remained active on their existing
+minutely schedules, and each had three latest recorded runs in `succeeded`
+state. No migration, table, role, grant, RLS, Edge deployment, or Cron
+configuration changed for the Data API verification. Effective `anon` and
+`authenticated` table SELECT and private RPC EXECUTE remain false; the Edge
+runtime retains execute on its auth RPC and no execute on the operator-only
+billing diagnostics RPC. The previously completed authenticated route,
+authorization, tombstone, revocation, and representative concurrency results
+remain the audit evidence; the project switch did not change those database
+objects or application deployments. The previous private Realtime channel
+join evidence remains applicable, with the additional post-switch handshake
+confirming the Realtime endpoint remains reachable.
+
+Caddy is an optional staging frontend ingress used to prove one proxy path to
+the Supabase Edge API. It is not required by the Supabase backend and does not
+select the eventual production frontend host. The production deployment may
+use the selected static host directly or another reviewed proxy; it must
+preserve the API routing, cookies/CORS, deep links, service worker, exports,
+and Realtime behavior covered by the Caddy rehearsal. No FastAPI/Python
+process was involved.

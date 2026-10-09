@@ -1,57 +1,4 @@
 services:
-  migrate:
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
-    env_file:
-      - ${DEPLOY_ENV_FILE:-.env.production}
-    environment:
-      APP_ENV: ${DEPLOY_APP_ENV:-production}
-    restart: "no"
-
-  api:
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    restart: unless-stopped
-    env_file:
-      - ${DEPLOY_ENV_FILE:-.env.production}
-    environment:
-      APP_ENV: ${DEPLOY_APP_ENV:-production}
-      PORT: ${PORT:-8000}
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    expose:
-      - "${PORT:-8000}"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os; from urllib.request import urlopen; urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/api/health', timeout=3)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-
-  worker:
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    command: ["python", "-m", "backend.worker"]
-    restart: unless-stopped
-    env_file:
-      - ${DEPLOY_ENV_FILE:-.env.production}
-    environment:
-      APP_ENV: ${DEPLOY_APP_ENV:-production}
-    depends_on:
-      api:
-        condition: service_healthy
-
   web:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
@@ -65,7 +12,8 @@ services:
     restart: unless-stopped
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in the deployment environment file}
-      API_PORT: ${PORT:-8000}
+      SUPABASE_EDGE_HOST: ${SUPABASE_EDGE_HOST:?Set SUPABASE_EDGE_HOST to the Supabase project host}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set the Supabase publishable key}
     ports:
       - "80:80"
       - "443:443"
@@ -73,9 +21,6 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      api:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:8080/healthz"]
       interval: 30s

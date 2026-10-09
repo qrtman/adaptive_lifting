@@ -14,9 +14,10 @@
 
 	@api path /api /api/*
 	handle @api {
-		reverse_proxy api:{$API_PORT:8000} {
-			# Replace client-supplied forwarding chains before Uvicorn trusts them.
-			header_up X-Forwarded-For {remote_host}
+		rewrite * /functions/v1{uri}
+		reverse_proxy https://{$SUPABASE_EDGE_HOST} {
+			header_up Host {upstream_hostport}
+			header_up apikey {$SUPABASE_PUBLISHABLE_KEY}
 		}
 	}
 
