@@ -9,9 +9,9 @@ shared access through the coach-code relationship flow.
 Supabase Edge Functions and PostgreSQL are the sole active application backend.
 Private database interfaces, Postgres Cron/pg_net, and Supabase Realtime
 support API requests, workers, scheduled jobs, and live updates. The custom
-application authentication remains separate from Supabase Auth: HS256 app
-JWTs use the application sessions table; offline grants and Realtime tokens
-use separate ES256 keys.
+application authentication remains separate from Supabase Auth: HS256 app JWTs
+use the application sessions table; offline grants and Realtime tokens use
+separate ES256 keys.
 
 Cloudflare Workers Static Assets is the selected frontend host. It serves the
 Vite bundle directly with SPA fallback and invokes a small Worker only for
@@ -23,10 +23,12 @@ Supabase runtime and migration layout.
 
 ## Local development
 
-Install dependencies with npm ci, set API_EDGE_TARGET to the Supabase project
-origin, then run Vite:
+Install dependencies with npm ci, copy .env.example to .env, and set
+API_EDGE_TARGET to the Supabase project origin. Vite reads it for the Edge-only
+dev proxy. In PowerShell, set the value before starting Vite:
 
-    API_EDGE_TARGET=https://<project-ref>.supabase.co npm run dev
+    $env:API_EDGE_TARGET = "https://<project-ref>.supabase.co"
+    npm run dev
 
 Vite proxies every /api/* request to the corresponding
 /functions/v1/api/* Edge path, preserving credentials and request data. If
@@ -37,7 +39,7 @@ under backend/ is retained for compatibility and math parity tests only.
 ## Frontend hosting
 
 The app is built to dist/. Wrangler configuration uses Cloudflare Workers
-Static Assets, SPA fallback, and selective Worker-first routing for /api.
+Static Assets, SPA fallback, and selective Worker-first routing for /api/*.
 Realtime stays connected to Supabase directly. Stripe and Telegram provider
 webhooks continue to use Supabase Edge endpoints directly. Configure only
 public Vite build values; all application secrets remain in Supabase Edge/Vault
@@ -55,4 +57,4 @@ production cutover is performed by this change.
     npm run build
 
 Python compatibility tests remain under backend/; Supabase Edge tests and
-migrations are under supabase/
+migrations are under supabase/.

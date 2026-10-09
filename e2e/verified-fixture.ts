@@ -4,7 +4,7 @@ import type { APIRequestContext } from '@playwright/test';
 
 export const apiUrl = process.env.E2E_API_URL || 'http://localhost:8000';
 function fixture(input: unknown) {
-  const python = path.resolve(process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
+  const python = process.env.PYTHON ?? path.resolve(process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
   const result = spawnSync(python, ['scripts/email_verification_test_fixture.py'], {
     input: JSON.stringify(input), encoding: 'utf8', env: process.env,
   });

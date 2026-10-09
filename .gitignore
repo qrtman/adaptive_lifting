@@ -37,3 +37,7 @@ credentials*.json
 backups/
 secrets/
 certs/
+
+.dev.vars**
+
+.wrangler/

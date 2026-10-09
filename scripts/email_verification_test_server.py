@@ -13,8 +13,13 @@ os.environ['DATABASE_URL'] = 'sqlite:///' + database_path.as_posix()
 
 from alembic import command
 from alembic.config import Config
+from starlette.applications import Starlette
+from starlette.routing import Mount
 command.upgrade(Config(str(ROOT / 'alembic.ini')), 'head')
+
+from backend.main import app as api_app
+app = Starlette(routes=[Mount('/functions/v1', app=api_app), Mount('/', app=api_app)])
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run('backend.main:app', host='127.0.0.1', port=8123, access_log=False)
+    uvicorn.run(app, host='127.0.0.1', port=8123, access_log=False)

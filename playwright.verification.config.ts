@@ -24,7 +24,7 @@ process.env.OFFLINE_AUTH_PRIVATE_KEY = process.env.E2E_OFFLINE_AUTH_PRIVATE_KEY;
 process.env.VITE_OFFLINE_AUTH_PUBLIC_KEY = process.env.E2E_OFFLINE_AUTH_PUBLIC_KEY;
 process.env.E2E_BASE_URL = 'http://127.0.0.1:3011';
 process.env.E2E_API_URL = 'http://127.0.0.1:8123';
-const python = path.resolve(process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
+const python = process.env.PYTHON ?? path.resolve(process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
 
 export default defineConfig({
   testDir: './e2e', fullyParallel: false, workers: 1,
