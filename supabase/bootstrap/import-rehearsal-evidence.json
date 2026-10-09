@@ -2453,22 +2453,22 @@
             "table": "auth_security_subjects"
           },
           {
-            "digest": "f98379ad26ffe78ec3d466ccfc3700e0fb6c04e6acdb6c38f14784834466d490",
+            "digest": "6f51460ce92e48c0d8ae5240499f23f6efe528173d7228024077f63e173e8911",
             "rows": 5,
             "table": "users"
           },
           {
-            "digest": "f1f85a6fc96065e6f451f5f4775c310a92283f551c58d4aeff159d7a5386a3d5",
+            "digest": "4f04a3a3a78c030edfdf1305a8c91abdb06ef772a26f32534c2b49e1801b0fa6",
             "rows": 1,
             "table": "voucher_redemption_limits"
           },
           {
-            "digest": "cf58dcc0d3da6cf55e180e7067abab3e7b3480465ca50f1f9b48ae9f2147fc39",
+            "digest": "27203bf0d2ea3dab0343a4a529b8b056626fb7323e59464945bd09dfddd21647",
             "rows": 1,
             "table": "webhook_events"
           },
           {
-            "digest": "86ef41d93b67e7773f0fc74933da1611ab3dd9028e78146d07dc4ac0b14c8e1f",
+            "digest": "21812ae803f8163ed462bf3b11498555a2bdad848a291e255a970402a1a3e0f2",
             "rows": 1,
             "table": "audit_events"
           },
@@ -2483,12 +2483,12 @@
             "table": "client_devices"
           },
           {
-            "digest": "aa4cd5723b41380c3edb76b5657a9a1a712de54d1cc29ddafc28413f5bc45d98",
+            "digest": "edb2c3f9f8a5013e18c0eb226032df4d95258cf8388456bdce07aa78f8fffc1e",
             "rows": 2,
             "table": "coaching_relationships"
           },
           {
-            "digest": "5d6ab1ba7f388297a09e033ba4ed2001771f6ae509e74bef9ae19e12e9be702d",
+            "digest": "fb5785953406f6232b7241513fff9ab29955da03fa293f665388362ce7e5001a",
             "rows": 2,
             "table": "day_notes"
           },
@@ -2498,12 +2498,12 @@
             "table": "email_verification_tokens"
           },
           {
-            "digest": "e1f12f7f50068d020a1e9c513c70c3f86fcc1e6ba5f455cdc7cbd39da7ce35ae",
+            "digest": "6dcdc19d7c85f4579dab1d6b3aff40167ba1f22dbdfb2de67ea2e434bff1a67c",
             "rows": 1,
             "table": "insight_cards"
           },
           {
-            "digest": "688966e33aa13f2c54437ee46537b17e8486df5a6285cba33f4250b594ee7b88",
+            "digest": "b854cfc9b299e137e46ffee4304cfe57262eb6635f5c84edefd9e31101cbe58f",
             "rows": 1,
             "table": "integration_connections"
           },
@@ -2513,7 +2513,7 @@
             "table": "invite_codes"
           },
           {
-            "digest": "a801be506a6f23e83a7784554d040e95ce5db06897d61f22edb986069f1ab62d",
+            "digest": "a53a4fe94105bc2ae4ff91c1a983ab9b73e82b75fccc41a46128d2dd201f8a28",
             "rows": 1,
             "table": "mesocycles"
           },
@@ -2528,7 +2528,7 @@
             "table": "sessions"
           },
           {
-            "digest": "449a6def60a313e539956a14ce407ce8011e0773b54f76928668d8e07d9ff222",
+            "digest": "d9806ec87f61403699b4bd691710998133baa4ab0f8d4aa87362775f9519c616",
             "rows": 1,
             "table": "sheet_publications"
           },
@@ -2538,22 +2538,22 @@
             "table": "vouchers"
           },
           {
-            "digest": "697c1a5e5dff19cb42cb5c01429bf6b531d463988896a1406039e96426786d3b",
+            "digest": "4579232c95b53af03f0e382d876c63647ea389f828feef9953191837c222f5f9",
             "rows": 1,
             "table": "workspaces"
           },
           {
-            "digest": "bab3959105f029b81bc8f2d4fc466288aa53d96580783cfda526f96a6ab41412",
+            "digest": "31686e47e03324efde8d63ce42915bad0d9433c3e3c82d54ead7f29d4b140915",
             "rows": 2,
             "table": "access_grants"
           },
           {
-            "digest": "3a1d86248a3944e25755e931bca8417b4727790137b6ba4a28646c1e36c06159",
+            "digest": "bd2c36f3411eccf71dc50c082761a26019919964ccc84f52d1566ad253a43e53",
             "rows": 1,
             "table": "billing_checkout_reservations"
           },
           {
-            "digest": "5d92d2a55cc43af86cd531ea7c7fe4b140198f9849b687fd695ecd4e7f5b4bc7",
+            "digest": "fc0510a10d1c171c91d84c8c15a46086cfeaa21f45bf8d47fdd12c5ea9974d39",
             "rows": 1,
             "table": "billing_customers"
           },
@@ -2573,12 +2573,12 @@
             "table": "integration_outbox"
           },
           {
-            "digest": "6e8d7619e66035a051c1537b64553985665c70f2f7d7ad7ad84a618b24c2da73",
+            "digest": "2ef0376ac42cdda8b4b104835dc35a47c73a67b1a411481cb0efcbf94faf96b6",
             "rows": 1,
             "table": "microcycles"
           },
           {
-            "digest": "8adb6cb8149604e7874b753a897509c3ebc926207750c5ec4dbf1910602e1e07",
+            "digest": "5d535ab794df24614f6b3745f031e00f2e6b5a7c0652874d522022af94b3e762",
             "rows": 1,
             "table": "subscriptions"
           },
@@ -2588,27 +2588,27 @@
             "table": "sync_mutations"
           },
           {
-            "digest": "cc10f91e4419de283e2c30853facead66c7781b62d6695f9a1870d3ce27345d6",
+            "digest": "4a77b6a2551019d38e61d456767e106f4e38cfc8c42ee3019cdc72447c592002",
             "rows": 1,
             "table": "workspace_members"
           },
           {
-            "digest": "9ae6eb5e4c29b55ed2603d8f3deeb2b0a58fcb00f06dc0aecbcf9c7e9265771b",
+            "digest": "b75dd291bee04c23c3ddb5816dfe08f56d907a5095d9a2f194f2250b17f060b7",
             "rows": 3,
             "table": "workouts"
           },
           {
-            "digest": "c71484f36bee526998d98bc3e8b84283ec6d024578d4dd2716db4bcf478402c9",
+            "digest": "d6f8a11ff803fd9c14cef0b1afe050078d6a64b4b389e17b61454bc0fec18bde",
             "rows": 1,
             "table": "accessories"
           },
           {
-            "digest": "a718b6204630490a4b41d0200187639aa78e85d2229259c9f5f728d73bce1d81",
+            "digest": "1634d73327240bf779e7d33cf7db2da30a314158438e6dfa370849507ea8663d",
             "rows": 1,
             "table": "domain_events"
           },
           {
-            "digest": "eaee4087f7605678b753a1445b7c80be6ee7c41fedc0a11c8ca539caf83e906e",
+            "digest": "47475f58f82f07c609d17986be1682d8e0ba8cdc14dde35aefd4fc132b14c8da",
             "rows": 2,
             "table": "exercises"
           },
@@ -2618,7 +2618,7 @@
             "table": "workout_locks"
           },
           {
-            "digest": "826b4a8df634d6d1fe68024d06c66597d3883e40658f6c8f0b604bf3973b21c8",
+            "digest": "9aae79592be87b3e3e2fd80b8f17ab6b3e85404f7ddbe5aa28e7f7abc2e5057c",
             "rows": 4,
             "table": "exercise_sets"
           }
@@ -2713,22 +2713,22 @@
             "table": "auth_security_subjects"
           },
           {
-            "digest": "f98379ad26ffe78ec3d466ccfc3700e0fb6c04e6acdb6c38f14784834466d490",
+            "digest": "6f51460ce92e48c0d8ae5240499f23f6efe528173d7228024077f63e173e8911",
             "rows": 5,
             "table": "users"
           },
           {
-            "digest": "f1f85a6fc96065e6f451f5f4775c310a92283f551c58d4aeff159d7a5386a3d5",
+            "digest": "4f04a3a3a78c030edfdf1305a8c91abdb06ef772a26f32534c2b49e1801b0fa6",
             "rows": 1,
             "table": "voucher_redemption_limits"
           },
           {
-            "digest": "cf58dcc0d3da6cf55e180e7067abab3e7b3480465ca50f1f9b48ae9f2147fc39",
+            "digest": "27203bf0d2ea3dab0343a4a529b8b056626fb7323e59464945bd09dfddd21647",
             "rows": 1,
             "table": "webhook_events"
           },
           {
-            "digest": "86ef41d93b67e7773f0fc74933da1611ab3dd9028e78146d07dc4ac0b14c8e1f",
+            "digest": "21812ae803f8163ed462bf3b11498555a2bdad848a291e255a970402a1a3e0f2",
             "rows": 1,
             "table": "audit_events"
           },
@@ -2743,12 +2743,12 @@
             "table": "client_devices"
           },
           {
-            "digest": "aa4cd5723b41380c3edb76b5657a9a1a712de54d1cc29ddafc28413f5bc45d98",
+            "digest": "edb2c3f9f8a5013e18c0eb226032df4d95258cf8388456bdce07aa78f8fffc1e",
             "rows": 2,
             "table": "coaching_relationships"
           },
           {
-            "digest": "5d6ab1ba7f388297a09e033ba4ed2001771f6ae509e74bef9ae19e12e9be702d",
+            "digest": "fb5785953406f6232b7241513fff9ab29955da03fa293f665388362ce7e5001a",
             "rows": 2,
             "table": "day_notes"
           },
@@ -2758,12 +2758,12 @@
             "table": "email_verification_tokens"
           },
           {
-            "digest": "e1f12f7f50068d020a1e9c513c70c3f86fcc1e6ba5f455cdc7cbd39da7ce35ae",
+            "digest": "6dcdc19d7c85f4579dab1d6b3aff40167ba1f22dbdfb2de67ea2e434bff1a67c",
             "rows": 1,
             "table": "insight_cards"
           },
           {
-            "digest": "688966e33aa13f2c54437ee46537b17e8486df5a6285cba33f4250b594ee7b88",
+            "digest": "b854cfc9b299e137e46ffee4304cfe57262eb6635f5c84edefd9e31101cbe58f",
             "rows": 1,
             "table": "integration_connections"
           },
@@ -2773,7 +2773,7 @@
             "table": "invite_codes"
           },
           {
-            "digest": "a801be506a6f23e83a7784554d040e95ce5db06897d61f22edb986069f1ab62d",
+            "digest": "a53a4fe94105bc2ae4ff91c1a983ab9b73e82b75fccc41a46128d2dd201f8a28",
             "rows": 1,
             "table": "mesocycles"
           },
@@ -2788,7 +2788,7 @@
             "table": "sessions"
           },
           {
-            "digest": "449a6def60a313e539956a14ce407ce8011e0773b54f76928668d8e07d9ff222",
+            "digest": "d9806ec87f61403699b4bd691710998133baa4ab0f8d4aa87362775f9519c616",
             "rows": 1,
             "table": "sheet_publications"
           },
@@ -2798,22 +2798,22 @@
             "table": "vouchers"
           },
           {
-            "digest": "697c1a5e5dff19cb42cb5c01429bf6b531d463988896a1406039e96426786d3b",
+            "digest": "4579232c95b53af03f0e382d876c63647ea389f828feef9953191837c222f5f9",
             "rows": 1,
             "table": "workspaces"
           },
           {
-            "digest": "bab3959105f029b81bc8f2d4fc466288aa53d96580783cfda526f96a6ab41412",
+            "digest": "31686e47e03324efde8d63ce42915bad0d9433c3e3c82d54ead7f29d4b140915",
             "rows": 2,
             "table": "access_grants"
           },
           {
-            "digest": "3a1d86248a3944e25755e931bca8417b4727790137b6ba4a28646c1e36c06159",
+            "digest": "bd2c36f3411eccf71dc50c082761a26019919964ccc84f52d1566ad253a43e53",
             "rows": 1,
             "table": "billing_checkout_reservations"
           },
           {
-            "digest": "5d92d2a55cc43af86cd531ea7c7fe4b140198f9849b687fd695ecd4e7f5b4bc7",
+            "digest": "fc0510a10d1c171c91d84c8c15a46086cfeaa21f45bf8d47fdd12c5ea9974d39",
             "rows": 1,
             "table": "billing_customers"
           },
@@ -2833,12 +2833,12 @@
             "table": "integration_outbox"
           },
           {
-            "digest": "6e8d7619e66035a051c1537b64553985665c70f2f7d7ad7ad84a618b24c2da73",
+            "digest": "2ef0376ac42cdda8b4b104835dc35a47c73a67b1a411481cb0efcbf94faf96b6",
             "rows": 1,
             "table": "microcycles"
           },
           {
-            "digest": "8adb6cb8149604e7874b753a897509c3ebc926207750c5ec4dbf1910602e1e07",
+            "digest": "5d535ab794df24614f6b3745f031e00f2e6b5a7c0652874d522022af94b3e762",
             "rows": 1,
             "table": "subscriptions"
           },
@@ -2848,27 +2848,27 @@
             "table": "sync_mutations"
           },
           {
-            "digest": "cc10f91e4419de283e2c30853facead66c7781b62d6695f9a1870d3ce27345d6",
+            "digest": "4a77b6a2551019d38e61d456767e106f4e38cfc8c42ee3019cdc72447c592002",
             "rows": 1,
             "table": "workspace_members"
           },
           {
-            "digest": "9ae6eb5e4c29b55ed2603d8f3deeb2b0a58fcb00f06dc0aecbcf9c7e9265771b",
+            "digest": "b75dd291bee04c23c3ddb5816dfe08f56d907a5095d9a2f194f2250b17f060b7",
             "rows": 3,
             "table": "workouts"
           },
           {
-            "digest": "c71484f36bee526998d98bc3e8b84283ec6d024578d4dd2716db4bcf478402c9",
+            "digest": "d6f8a11ff803fd9c14cef0b1afe050078d6a64b4b389e17b61454bc0fec18bde",
             "rows": 1,
             "table": "accessories"
           },
           {
-            "digest": "a718b6204630490a4b41d0200187639aa78e85d2229259c9f5f728d73bce1d81",
+            "digest": "1634d73327240bf779e7d33cf7db2da30a314158438e6dfa370849507ea8663d",
             "rows": 1,
             "table": "domain_events"
           },
           {
-            "digest": "eaee4087f7605678b753a1445b7c80be6ee7c41fedc0a11c8ca539caf83e906e",
+            "digest": "47475f58f82f07c609d17986be1682d8e0ba8cdc14dde35aefd4fc132b14c8da",
             "rows": 2,
             "table": "exercises"
           },
@@ -2878,7 +2878,7 @@
             "table": "workout_locks"
           },
           {
-            "digest": "826b4a8df634d6d1fe68024d06c66597d3883e40658f6c8f0b604bf3973b21c8",
+            "digest": "9aae79592be87b3e3e2fd80b8f17ab6b3e85404f7ddbe5aa28e7f7abc2e5057c",
             "rows": 4,
             "table": "exercise_sets"
           }
@@ -2886,41 +2886,41 @@
       },
       "rollback": "PASS",
       "source_digest_map": {
-        "access_grants": "bab3959105f029b81bc8f2d4fc466288aa53d96580783cfda526f96a6ab41412",
-        "accessories": "c71484f36bee526998d98bc3e8b84283ec6d024578d4dd2716db4bcf478402c9",
-        "audit_events": "86ef41d93b67e7773f0fc74933da1611ab3dd9028e78146d07dc4ac0b14c8e1f",
+        "access_grants": "31686e47e03324efde8d63ce42915bad0d9433c3e3c82d54ead7f29d4b140915",
+        "accessories": "d6f8a11ff803fd9c14cef0b1afe050078d6a64b4b389e17b61454bc0fec18bde",
+        "audit_events": "21812ae803f8163ed462bf3b11498555a2bdad848a291e255a970402a1a3e0f2",
         "auth_security_events": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
         "auth_security_subjects": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
-        "billing_checkout_reservations": "3a1d86248a3944e25755e931bca8417b4727790137b6ba4a28646c1e36c06159",
-        "billing_customers": "5d92d2a55cc43af86cd531ea7c7fe4b140198f9849b687fd695ecd4e7f5b4bc7",
+        "billing_checkout_reservations": "bd2c36f3411eccf71dc50c082761a26019919964ccc84f52d1566ad253a43e53",
+        "billing_customers": "fc0510a10d1c171c91d84c8c15a46086cfeaa21f45bf8d47fdd12c5ea9974d39",
         "client_devices": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
         "coaching_history_snapshots": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
-        "coaching_relationships": "aa4cd5723b41380c3edb76b5657a9a1a712de54d1cc29ddafc28413f5bc45d98",
-        "day_notes": "5d6ab1ba7f388297a09e033ba4ed2001771f6ae509e74bef9ae19e12e9be702d",
-        "domain_events": "a718b6204630490a4b41d0200187639aa78e85d2229259c9f5f728d73bce1d81",
+        "coaching_relationships": "edb2c3f9f8a5013e18c0eb226032df4d95258cf8388456bdce07aa78f8fffc1e",
+        "day_notes": "fb5785953406f6232b7241513fff9ab29955da03fa293f665388362ce7e5001a",
+        "domain_events": "1634d73327240bf779e7d33cf7db2da30a314158438e6dfa370849507ea8663d",
         "email_verification_tokens": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
-        "exercise_sets": "826b4a8df634d6d1fe68024d06c66597d3883e40658f6c8f0b604bf3973b21c8",
-        "exercises": "eaee4087f7605678b753a1445b7c80be6ee7c41fedc0a11c8ca539caf83e906e",
-        "insight_cards": "e1f12f7f50068d020a1e9c513c70c3f86fcc1e6ba5f455cdc7cbd39da7ce35ae",
-        "integration_connections": "688966e33aa13f2c54437ee46537b17e8486df5a6285cba33f4250b594ee7b88",
+        "exercise_sets": "9aae79592be87b3e3e2fd80b8f17ab6b3e85404f7ddbe5aa28e7f7abc2e5057c",
+        "exercises": "47475f58f82f07c609d17986be1682d8e0ba8cdc14dde35aefd4fc132b14c8da",
+        "insight_cards": "6dcdc19d7c85f4579dab1d6b3aff40167ba1f22dbdfb2de67ea2e434bff1a67c",
+        "integration_connections": "b854cfc9b299e137e46ffee4304cfe57262eb6635f5c84edefd9e31101cbe58f",
         "integration_credentials": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
         "integration_outbox": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
         "invite_codes": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
-        "mesocycles": "a801be506a6f23e83a7784554d040e95ce5db06897d61f22edb986069f1ab62d",
-        "microcycles": "6e8d7619e66035a051c1537b64553985665c70f2f7d7ad7ad84a618b24c2da73",
+        "mesocycles": "a53a4fe94105bc2ae4ff91c1a983ab9b73e82b75fccc41a46128d2dd201f8a28",
+        "microcycles": "2ef0376ac42cdda8b4b104835dc35a47c73a67b1a411481cb0efcbf94faf96b6",
         "oauth_states": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
         "sessions": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
-        "sheet_publications": "449a6def60a313e539956a14ce407ce8011e0773b54f76928668d8e07d9ff222",
-        "subscriptions": "8adb6cb8149604e7874b753a897509c3ebc926207750c5ec4dbf1910602e1e07",
+        "sheet_publications": "d9806ec87f61403699b4bd691710998133baa4ab0f8d4aa87362775f9519c616",
+        "subscriptions": "5d535ab794df24614f6b3745f031e00f2e6b5a7c0652874d522022af94b3e762",
         "sync_mutations": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
-        "users": "f98379ad26ffe78ec3d466ccfc3700e0fb6c04e6acdb6c38f14784834466d490",
-        "voucher_redemption_limits": "f1f85a6fc96065e6f451f5f4775c310a92283f551c58d4aeff159d7a5386a3d5",
+        "users": "6f51460ce92e48c0d8ae5240499f23f6efe528173d7228024077f63e173e8911",
+        "voucher_redemption_limits": "4f04a3a3a78c030edfdf1305a8c91abdb06ef772a26f32534c2b49e1801b0fa6",
         "vouchers": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
-        "webhook_events": "cf58dcc0d3da6cf55e180e7067abab3e7b3480465ca50f1f9b48ae9f2147fc39",
+        "webhook_events": "27203bf0d2ea3dab0343a4a529b8b056626fb7323e59464945bd09dfddd21647",
         "workout_locks": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
-        "workouts": "9ae6eb5e4c29b55ed2603d8f3deeb2b0a58fcb00f06dc0aecbcf9c7e9265771b",
-        "workspace_members": "cc10f91e4419de283e2c30853facead66c7781b62d6695f9a1870d3ce27345d6",
-        "workspaces": "697c1a5e5dff19cb42cb5c01429bf6b531d463988896a1406039e96426786d3b"
+        "workouts": "b75dd291bee04c23c3ddb5816dfe08f56d907a5095d9a2f194f2250b17f060b7",
+        "workspace_members": "4a77b6a2551019d38e61d456767e106f4e38cfc8c42ee3019cdc72447c592002",
+        "workspaces": "4579232c95b53af03f0e382d876c63647ea389f828feef9953191837c222f5f9"
       },
       "source_revision": "0011_email_verification",
       "status": "PASS",
@@ -2929,6 +2929,11 @@
         "coach_active_relationship_allowed": true,
         "different_fields_same_baseline_merge": true,
         "direct_set_log_cas": true,
+        "edge_baselines_preserved_for_multiple_changes": true,
+        "edge_parser_to_local_rpc": true,
+        "edge_transport_idempotent": true,
+        "edge_transport_stale_write_rejected_without_overwrite": true,
+        "edge_transport_v1_conflict_recoverable": true,
         "ended_relationship_revoked": true,
         "expired_and_revoked_sessions_rejected": true,
         "future_client_clock_rejected_without_write": true,
@@ -5355,22 +5360,22 @@
             "table": "auth_security_subjects"
           },
           {
-            "digest": "f98379ad26ffe78ec3d466ccfc3700e0fb6c04e6acdb6c38f14784834466d490",
+            "digest": "6f51460ce92e48c0d8ae5240499f23f6efe528173d7228024077f63e173e8911",
             "rows": 5,
             "table": "users"
           },
           {
-            "digest": "f1f85a6fc96065e6f451f5f4775c310a92283f551c58d4aeff159d7a5386a3d5",
+            "digest": "4f04a3a3a78c030edfdf1305a8c91abdb06ef772a26f32534c2b49e1801b0fa6",
             "rows": 1,
             "table": "voucher_redemption_limits"
           },
           {
-            "digest": "cf58dcc0d3da6cf55e180e7067abab3e7b3480465ca50f1f9b48ae9f2147fc39",
+            "digest": "27203bf0d2ea3dab0343a4a529b8b056626fb7323e59464945bd09dfddd21647",
             "rows": 1,
             "table": "webhook_events"
           },
           {
-            "digest": "86ef41d93b67e7773f0fc74933da1611ab3dd9028e78146d07dc4ac0b14c8e1f",
+            "digest": "21812ae803f8163ed462bf3b11498555a2bdad848a291e255a970402a1a3e0f2",
             "rows": 1,
             "table": "audit_events"
           },
@@ -5385,12 +5390,12 @@
             "table": "client_devices"
           },
           {
-            "digest": "aa4cd5723b41380c3edb76b5657a9a1a712de54d1cc29ddafc28413f5bc45d98",
+            "digest": "edb2c3f9f8a5013e18c0eb226032df4d95258cf8388456bdce07aa78f8fffc1e",
             "rows": 2,
             "table": "coaching_relationships"
           },
           {
-            "digest": "5d6ab1ba7f388297a09e033ba4ed2001771f6ae509e74bef9ae19e12e9be702d",
+            "digest": "fb5785953406f6232b7241513fff9ab29955da03fa293f665388362ce7e5001a",
             "rows": 2,
             "table": "day_notes"
           },
@@ -5400,12 +5405,12 @@
             "table": "email_verification_tokens"
           },
           {
-            "digest": "e1f12f7f50068d020a1e9c513c70c3f86fcc1e6ba5f455cdc7cbd39da7ce35ae",
+            "digest": "6dcdc19d7c85f4579dab1d6b3aff40167ba1f22dbdfb2de67ea2e434bff1a67c",
             "rows": 1,
             "table": "insight_cards"
           },
           {
-            "digest": "688966e33aa13f2c54437ee46537b17e8486df5a6285cba33f4250b594ee7b88",
+            "digest": "b854cfc9b299e137e46ffee4304cfe57262eb6635f5c84edefd9e31101cbe58f",
             "rows": 1,
             "table": "integration_connections"
           },
@@ -5415,7 +5420,7 @@
             "table": "invite_codes"
           },
           {
-            "digest": "a801be506a6f23e83a7784554d040e95ce5db06897d61f22edb986069f1ab62d",
+            "digest": "a53a4fe94105bc2ae4ff91c1a983ab9b73e82b75fccc41a46128d2dd201f8a28",
             "rows": 1,
             "table": "mesocycles"
           },
@@ -5430,7 +5435,7 @@
             "table": "sessions"
           },
           {
-            "digest": "449a6def60a313e539956a14ce407ce8011e0773b54f76928668d8e07d9ff222",
+            "digest": "d9806ec87f61403699b4bd691710998133baa4ab0f8d4aa87362775f9519c616",
             "rows": 1,
             "table": "sheet_publications"
           },
@@ -5440,22 +5445,22 @@
             "table": "vouchers"
           },
           {
-            "digest": "697c1a5e5dff19cb42cb5c01429bf6b531d463988896a1406039e96426786d3b",
+            "digest": "4579232c95b53af03f0e382d876c63647ea389f828feef9953191837c222f5f9",
             "rows": 1,
             "table": "workspaces"
           },
           {
-            "digest": "bab3959105f029b81bc8f2d4fc466288aa53d96580783cfda526f96a6ab41412",
+            "digest": "31686e47e03324efde8d63ce42915bad0d9433c3e3c82d54ead7f29d4b140915",
             "rows": 2,
             "table": "access_grants"
           },
           {
-            "digest": "3a1d86248a3944e25755e931bca8417b4727790137b6ba4a28646c1e36c06159",
+            "digest": "bd2c36f3411eccf71dc50c082761a26019919964ccc84f52d1566ad253a43e53",
             "rows": 1,
             "table": "billing_checkout_reservations"
           },
           {
-            "digest": "5d92d2a55cc43af86cd531ea7c7fe4b140198f9849b687fd695ecd4e7f5b4bc7",
+            "digest": "fc0510a10d1c171c91d84c8c15a46086cfeaa21f45bf8d47fdd12c5ea9974d39",
             "rows": 1,
             "table": "billing_customers"
           },
@@ -5475,12 +5480,12 @@
             "table": "integration_outbox"
           },
           {
-            "digest": "6e8d7619e66035a051c1537b64553985665c70f2f7d7ad7ad84a618b24c2da73",
+            "digest": "2ef0376ac42cdda8b4b104835dc35a47c73a67b1a411481cb0efcbf94faf96b6",
             "rows": 1,
             "table": "microcycles"
           },
           {
-            "digest": "8adb6cb8149604e7874b753a897509c3ebc926207750c5ec4dbf1910602e1e07",
+            "digest": "5d535ab794df24614f6b3745f031e00f2e6b5a7c0652874d522022af94b3e762",
             "rows": 1,
             "table": "subscriptions"
           },
@@ -5490,27 +5495,27 @@
             "table": "sync_mutations"
           },
           {
-            "digest": "cc10f91e4419de283e2c30853facead66c7781b62d6695f9a1870d3ce27345d6",
+            "digest": "4a77b6a2551019d38e61d456767e106f4e38cfc8c42ee3019cdc72447c592002",
             "rows": 1,
             "table": "workspace_members"
           },
           {
-            "digest": "9ae6eb5e4c29b55ed2603d8f3deeb2b0a58fcb00f06dc0aecbcf9c7e9265771b",
+            "digest": "b75dd291bee04c23c3ddb5816dfe08f56d907a5095d9a2f194f2250b17f060b7",
             "rows": 3,
             "table": "workouts"
           },
           {
-            "digest": "c71484f36bee526998d98bc3e8b84283ec6d024578d4dd2716db4bcf478402c9",
+            "digest": "d6f8a11ff803fd9c14cef0b1afe050078d6a64b4b389e17b61454bc0fec18bde",
             "rows": 1,
             "table": "accessories"
           },
           {
-            "digest": "a718b6204630490a4b41d0200187639aa78e85d2229259c9f5f728d73bce1d81",
+            "digest": "1634d73327240bf779e7d33cf7db2da30a314158438e6dfa370849507ea8663d",
             "rows": 1,
             "table": "domain_events"
           },
           {
-            "digest": "eaee4087f7605678b753a1445b7c80be6ee7c41fedc0a11c8ca539caf83e906e",
+            "digest": "47475f58f82f07c609d17986be1682d8e0ba8cdc14dde35aefd4fc132b14c8da",
             "rows": 2,
             "table": "exercises"
           },
@@ -5520,7 +5525,7 @@
             "table": "workout_locks"
           },
           {
-            "digest": "826b4a8df634d6d1fe68024d06c66597d3883e40658f6c8f0b604bf3973b21c8",
+            "digest": "9aae79592be87b3e3e2fd80b8f17ab6b3e85404f7ddbe5aa28e7f7abc2e5057c",
             "rows": 4,
             "table": "exercise_sets"
           }
@@ -5615,22 +5620,22 @@
             "table": "auth_security_subjects"
           },
           {
-            "digest": "f98379ad26ffe78ec3d466ccfc3700e0fb6c04e6acdb6c38f14784834466d490",
+            "digest": "6f51460ce92e48c0d8ae5240499f23f6efe528173d7228024077f63e173e8911",
             "rows": 5,
             "table": "users"
           },
           {
-            "digest": "f1f85a6fc96065e6f451f5f4775c310a92283f551c58d4aeff159d7a5386a3d5",
+            "digest": "4f04a3a3a78c030edfdf1305a8c91abdb06ef772a26f32534c2b49e1801b0fa6",
             "rows": 1,
             "table": "voucher_redemption_limits"
           },
           {
-            "digest": "cf58dcc0d3da6cf55e180e7067abab3e7b3480465ca50f1f9b48ae9f2147fc39",
+            "digest": "27203bf0d2ea3dab0343a4a529b8b056626fb7323e59464945bd09dfddd21647",
             "rows": 1,
             "table": "webhook_events"
           },
           {
-            "digest": "86ef41d93b67e7773f0fc74933da1611ab3dd9028e78146d07dc4ac0b14c8e1f",
+            "digest": "21812ae803f8163ed462bf3b11498555a2bdad848a291e255a970402a1a3e0f2",
             "rows": 1,
             "table": "audit_events"
           },
@@ -5645,12 +5650,12 @@
             "table": "client_devices"
           },
           {
-            "digest": "aa4cd5723b41380c3edb76b5657a9a1a712de54d1cc29ddafc28413f5bc45d98",
+            "digest": "edb2c3f9f8a5013e18c0eb226032df4d95258cf8388456bdce07aa78f8fffc1e",
             "rows": 2,
             "table": "coaching_relationships"
           },
           {
-            "digest": "5d6ab1ba7f388297a09e033ba4ed2001771f6ae509e74bef9ae19e12e9be702d",
+            "digest": "fb5785953406f6232b7241513fff9ab29955da03fa293f665388362ce7e5001a",
             "rows": 2,
             "table": "day_notes"
           },
@@ -5660,12 +5665,12 @@
             "table": "email_verification_tokens"
           },
           {
-            "digest": "e1f12f7f50068d020a1e9c513c70c3f86fcc1e6ba5f455cdc7cbd39da7ce35ae",
+            "digest": "6dcdc19d7c85f4579dab1d6b3aff40167ba1f22dbdfb2de67ea2e434bff1a67c",
             "rows": 1,
             "table": "insight_cards"
           },
           {
-            "digest": "688966e33aa13f2c54437ee46537b17e8486df5a6285cba33f4250b594ee7b88",
+            "digest": "b854cfc9b299e137e46ffee4304cfe57262eb6635f5c84edefd9e31101cbe58f",
             "rows": 1,
             "table": "integration_connections"
           },
@@ -5675,7 +5680,7 @@
             "table": "invite_codes"
           },
           {
-            "digest": "a801be506a6f23e83a7784554d040e95ce5db06897d61f22edb986069f1ab62d",
+            "digest": "a53a4fe94105bc2ae4ff91c1a983ab9b73e82b75fccc41a46128d2dd201f8a28",
             "rows": 1,
             "table": "mesocycles"
           },
@@ -5690,7 +5695,7 @@
             "table": "sessions"
           },
           {
-            "digest": "449a6def60a313e539956a14ce407ce8011e0773b54f76928668d8e07d9ff222",
+            "digest": "d9806ec87f61403699b4bd691710998133baa4ab0f8d4aa87362775f9519c616",
             "rows": 1,
             "table": "sheet_publications"
           },
@@ -5700,22 +5705,22 @@
             "table": "vouchers"
           },
           {
-            "digest": "697c1a5e5dff19cb42cb5c01429bf6b531d463988896a1406039e96426786d3b",
+            "digest": "4579232c95b53af03f0e382d876c63647ea389f828feef9953191837c222f5f9",
             "rows": 1,
             "table": "workspaces"
           },
           {
-            "digest": "bab3959105f029b81bc8f2d4fc466288aa53d96580783cfda526f96a6ab41412",
+            "digest": "31686e47e03324efde8d63ce42915bad0d9433c3e3c82d54ead7f29d4b140915",
             "rows": 2,
             "table": "access_grants"
           },
           {
-            "digest": "3a1d86248a3944e25755e931bca8417b4727790137b6ba4a28646c1e36c06159",
+            "digest": "bd2c36f3411eccf71dc50c082761a26019919964ccc84f52d1566ad253a43e53",
             "rows": 1,
             "table": "billing_checkout_reservations"
           },
           {
-            "digest": "5d92d2a55cc43af86cd531ea7c7fe4b140198f9849b687fd695ecd4e7f5b4bc7",
+            "digest": "fc0510a10d1c171c91d84c8c15a46086cfeaa21f45bf8d47fdd12c5ea9974d39",
             "rows": 1,
             "table": "billing_customers"
           },
@@ -5735,12 +5740,12 @@
             "table": "integration_outbox"
           },
           {
-            "digest": "6e8d7619e66035a051c1537b64553985665c70f2f7d7ad7ad84a618b24c2da73",
+            "digest": "2ef0376ac42cdda8b4b104835dc35a47c73a67b1a411481cb0efcbf94faf96b6",
             "rows": 1,
             "table": "microcycles"
           },
           {
-            "digest": "8adb6cb8149604e7874b753a897509c3ebc926207750c5ec4dbf1910602e1e07",
+            "digest": "5d535ab794df24614f6b3745f031e00f2e6b5a7c0652874d522022af94b3e762",
             "rows": 1,
             "table": "subscriptions"
           },
@@ -5750,27 +5755,27 @@
             "table": "sync_mutations"
           },
           {
-            "digest": "cc10f91e4419de283e2c30853facead66c7781b62d6695f9a1870d3ce27345d6",
+            "digest": "4a77b6a2551019d38e61d456767e106f4e38cfc8c42ee3019cdc72447c592002",
             "rows": 1,
             "table": "workspace_members"
           },
           {
-            "digest": "9ae6eb5e4c29b55ed2603d8f3deeb2b0a58fcb00f06dc0aecbcf9c7e9265771b",
+            "digest": "b75dd291bee04c23c3ddb5816dfe08f56d907a5095d9a2f194f2250b17f060b7",
             "rows": 3,
             "table": "workouts"
           },
           {
-            "digest": "c71484f36bee526998d98bc3e8b84283ec6d024578d4dd2716db4bcf478402c9",
+            "digest": "d6f8a11ff803fd9c14cef0b1afe050078d6a64b4b389e17b61454bc0fec18bde",
             "rows": 1,
             "table": "accessories"
           },
           {
-            "digest": "a718b6204630490a4b41d0200187639aa78e85d2229259c9f5f728d73bce1d81",
+            "digest": "1634d73327240bf779e7d33cf7db2da30a314158438e6dfa370849507ea8663d",
             "rows": 1,
             "table": "domain_events"
           },
           {
-            "digest": "eaee4087f7605678b753a1445b7c80be6ee7c41fedc0a11c8ca539caf83e906e",
+            "digest": "47475f58f82f07c609d17986be1682d8e0ba8cdc14dde35aefd4fc132b14c8da",
             "rows": 2,
             "table": "exercises"
           },
@@ -5780,7 +5785,7 @@
             "table": "workout_locks"
           },
           {
-            "digest": "826b4a8df634d6d1fe68024d06c66597d3883e40658f6c8f0b604bf3973b21c8",
+            "digest": "9aae79592be87b3e3e2fd80b8f17ab6b3e85404f7ddbe5aa28e7f7abc2e5057c",
             "rows": 4,
             "table": "exercise_sets"
           }
@@ -5788,41 +5793,41 @@
       },
       "rollback": "PASS",
       "source_digest_map": {
-        "access_grants": "bab3959105f029b81bc8f2d4fc466288aa53d96580783cfda526f96a6ab41412",
-        "accessories": "c71484f36bee526998d98bc3e8b84283ec6d024578d4dd2716db4bcf478402c9",
-        "audit_events": "86ef41d93b67e7773f0fc74933da1611ab3dd9028e78146d07dc4ac0b14c8e1f",
+        "access_grants": "31686e47e03324efde8d63ce42915bad0d9433c3e3c82d54ead7f29d4b140915",
+        "accessories": "d6f8a11ff803fd9c14cef0b1afe050078d6a64b4b389e17b61454bc0fec18bde",
+        "audit_events": "21812ae803f8163ed462bf3b11498555a2bdad848a291e255a970402a1a3e0f2",
         "auth_security_events": "b2113fdb8b40a69ef1304bf89dda7c56bc6748575192036ae6888f2b5dacf9df",
         "auth_security_subjects": "e10cb25e952851d1911b6ea2119f153651e9e96d4f368d656079e0522e7b2984",
-        "billing_checkout_reservations": "3a1d86248a3944e25755e931bca8417b4727790137b6ba4a28646c1e36c06159",
-        "billing_customers": "5d92d2a55cc43af86cd531ea7c7fe4b140198f9849b687fd695ecd4e7f5b4bc7",
+        "billing_checkout_reservations": "bd2c36f3411eccf71dc50c082761a26019919964ccc84f52d1566ad253a43e53",
+        "billing_customers": "fc0510a10d1c171c91d84c8c15a46086cfeaa21f45bf8d47fdd12c5ea9974d39",
         "client_devices": "d5c384d96f1e1101b2887818f9d9fc7b1d596e24a6360b648d2b56942e05edf6",
         "coaching_history_snapshots": "82f545d94b949276641c48064c71b051fa421b2edd27efb6358e2f78106ea593",
-        "coaching_relationships": "aa4cd5723b41380c3edb76b5657a9a1a712de54d1cc29ddafc28413f5bc45d98",
-        "day_notes": "5d6ab1ba7f388297a09e033ba4ed2001771f6ae509e74bef9ae19e12e9be702d",
-        "domain_events": "a718b6204630490a4b41d0200187639aa78e85d2229259c9f5f728d73bce1d81",
+        "coaching_relationships": "edb2c3f9f8a5013e18c0eb226032df4d95258cf8388456bdce07aa78f8fffc1e",
+        "day_notes": "fb5785953406f6232b7241513fff9ab29955da03fa293f665388362ce7e5001a",
+        "domain_events": "1634d73327240bf779e7d33cf7db2da30a314158438e6dfa370849507ea8663d",
         "email_verification_tokens": "105236de0a6facb5c5a2f42b548ebcf0db5a960276b7217e48a51f31abe05ba0",
-        "exercise_sets": "826b4a8df634d6d1fe68024d06c66597d3883e40658f6c8f0b604bf3973b21c8",
-        "exercises": "eaee4087f7605678b753a1445b7c80be6ee7c41fedc0a11c8ca539caf83e906e",
-        "insight_cards": "e1f12f7f50068d020a1e9c513c70c3f86fcc1e6ba5f455cdc7cbd39da7ce35ae",
-        "integration_connections": "688966e33aa13f2c54437ee46537b17e8486df5a6285cba33f4250b594ee7b88",
+        "exercise_sets": "9aae79592be87b3e3e2fd80b8f17ab6b3e85404f7ddbe5aa28e7f7abc2e5057c",
+        "exercises": "47475f58f82f07c609d17986be1682d8e0ba8cdc14dde35aefd4fc132b14c8da",
+        "insight_cards": "6dcdc19d7c85f4579dab1d6b3aff40167ba1f22dbdfb2de67ea2e434bff1a67c",
+        "integration_connections": "b854cfc9b299e137e46ffee4304cfe57262eb6635f5c84edefd9e31101cbe58f",
         "integration_credentials": "13e590a22c17583e74f879ce9b3763ddfad330a2b292aca9c0dc61ea6316f9b3",
         "integration_outbox": "d3c44f8234b7ffea0115d45a4a0fee3a146db000f1e4dfda61abea316f34d7a8",
         "invite_codes": "c9597b6d80b1b594f02f1af5a7b53870979f9896446d0b43abee01db7f47c422",
-        "mesocycles": "a801be506a6f23e83a7784554d040e95ce5db06897d61f22edb986069f1ab62d",
-        "microcycles": "6e8d7619e66035a051c1537b64553985665c70f2f7d7ad7ad84a618b24c2da73",
+        "mesocycles": "a53a4fe94105bc2ae4ff91c1a983ab9b73e82b75fccc41a46128d2dd201f8a28",
+        "microcycles": "2ef0376ac42cdda8b4b104835dc35a47c73a67b1a411481cb0efcbf94faf96b6",
         "oauth_states": "a080f1150d318a72bce9a753444457db75d28869bc6680654e76d3fc92b89158",
         "sessions": "6f038689b04b4cee91acfe215f12c910438f729d0be7fe14afe01f645a5b6b8a",
-        "sheet_publications": "449a6def60a313e539956a14ce407ce8011e0773b54f76928668d8e07d9ff222",
-        "subscriptions": "8adb6cb8149604e7874b753a897509c3ebc926207750c5ec4dbf1910602e1e07",
+        "sheet_publications": "d9806ec87f61403699b4bd691710998133baa4ab0f8d4aa87362775f9519c616",
+        "subscriptions": "5d535ab794df24614f6b3745f031e00f2e6b5a7c0652874d522022af94b3e762",
         "sync_mutations": "375d9da545ab327501dbceea6e603846ca1b0b6d7b437ba7d977ab95e3f77a9b",
-        "users": "f98379ad26ffe78ec3d466ccfc3700e0fb6c04e6acdb6c38f14784834466d490",
-        "voucher_redemption_limits": "f1f85a6fc96065e6f451f5f4775c310a92283f551c58d4aeff159d7a5386a3d5",
+        "users": "6f51460ce92e48c0d8ae5240499f23f6efe528173d7228024077f63e173e8911",
+        "voucher_redemption_limits": "4f04a3a3a78c030edfdf1305a8c91abdb06ef772a26f32534c2b49e1801b0fa6",
         "vouchers": "f13135bf721d4eee62bb1b1768e59b4d1183f49d9b08438f1407e9e49e302f66",
-        "webhook_events": "cf58dcc0d3da6cf55e180e7067abab3e7b3480465ca50f1f9b48ae9f2147fc39",
+        "webhook_events": "27203bf0d2ea3dab0343a4a529b8b056626fb7323e59464945bd09dfddd21647",
         "workout_locks": "2f5d5e9384f0be1f25b7fb57250cc35062723c03feae82570f7b1f48c9b8903e",
-        "workouts": "9ae6eb5e4c29b55ed2603d8f3deeb2b0a58fcb00f06dc0aecbcf9c7e9265771b",
-        "workspace_members": "cc10f91e4419de283e2c30853facead66c7781b62d6695f9a1870d3ce27345d6",
-        "workspaces": "697c1a5e5dff19cb42cb5c01429bf6b531d463988896a1406039e96426786d3b"
+        "workouts": "b75dd291bee04c23c3ddb5816dfe08f56d907a5095d9a2f194f2250b17f060b7",
+        "workspace_members": "4a77b6a2551019d38e61d456767e106f4e38cfc8c42ee3019cdc72447c592002",
+        "workspaces": "4579232c95b53af03f0e382d876c63647ea389f828feef9953191837c222f5f9"
       },
       "source_revision": "0011_email_verification",
       "status": "PASS",
@@ -5831,6 +5836,11 @@
         "coach_active_relationship_allowed": true,
         "different_fields_same_baseline_merge": true,
         "direct_set_log_cas": true,
+        "edge_baselines_preserved_for_multiple_changes": true,
+        "edge_parser_to_local_rpc": true,
+        "edge_transport_idempotent": true,
+        "edge_transport_stale_write_rejected_without_overwrite": true,
+        "edge_transport_v1_conflict_recoverable": true,
         "ended_relationship_revoked": true,
         "expired_and_revoked_sessions_rejected": true,
         "future_client_clock_rejected_without_write": true,

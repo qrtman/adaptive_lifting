@@ -367,18 +367,77 @@ def _reconcile(name, source_engine, source_rows, Base, mapping, target_only_tabl
 
 def _sync_compatibility(name):
     from replay import psql
+    repo_root = HERE.parents[1]
 
     def invoke(actor, session_id, workout_id, device_id, changes):
         encoded = json.dumps(changes, separators=(",", ":")).replace("'", "''")
+        return invoke_serialized(actor, session_id, workout_id, device_id, encoded)
+
+    def invoke_serialized(actor, session_id, workout_id, device_id, encoded):
         sql = (f"SELECT al_private.al_workout_sync('{actor}','{session_id}','{workout_id}',"
                f"'{workout_id}','{device_id}',false,3,'{encoded}'::jsonb)::text;")
         return json.loads(psql(name, sql).stdout.strip())
+
+    def serialize_http_request(device_id, changes):
+        """Run the real Edge payload parser and the route's RPC serializer."""
+        payload = {
+            "schema_version": 1,
+            "client_device_id": device_id,
+            "workout_id": "fixture-workout-active",
+            "last_updated_at": "2001-01-01T00:00:00Z",
+            "changes": changes,
+        }
+        result = subprocess.run(
+            ["node", "--import", "tsx", str(HERE / "serialize_sync_request.mjs")],
+            input=json.dumps(payload), text=True, encoding="utf-8", capture_output=True,
+            cwd=repo_root, check=True,
+        )
+        serialized = json.loads(result.stdout)
+        assert json.loads(serialized) == changes, "Edge parser/serializer changed baseline fields"
+        return serialized
 
     def current_set():
         raw = psql(name, "SELECT json_build_object('revision',revision,'actual',actual,'note',note)::text FROM public.exercise_sets WHERE id='fixture-set-active';").stdout.strip()
         return json.loads(raw)
 
     actor, session_id, workout_id, device_id = "fake-athlete-001", "fake-session-athlete-valid", "fixture-workout-active", "fixture-device-001"
+    initial = current_set()
+
+    # Full transport path: frontend-shaped HTTP JSON -> real Edge parser and
+    # RPC serializer -> actual local al_workout_sync SQL function.
+    transport_changes = [
+        {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "http-baseline-actual",
+         "updated_at": "2001-01-01T00:00:00Z", "base_revision": initial["revision"],
+         "base_fields": {"actual": initial["actual"]}, "fields": {"actual": 91.25}},
+        {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "http-baseline-note",
+         "updated_at": "2001-01-01T00:00:00Z", "base_revision": initial["revision"],
+         "base_fields": {"note": initial["note"]}, "fields": {"note": "edge-parser-note"}},
+    ]
+    transport_json = serialize_http_request(device_id, transport_changes)
+    transport_result = invoke_serialized(actor, session_id, workout_id, device_id, transport_json)
+    assert set(transport_result["accepted_mutation_ids"]) == {c["mutation_id"] for c in transport_changes}, transport_result
+    assert current_set()["actual"] == 91.25 and current_set()["note"] == "edge-parser-note"
+    transport_repeat = invoke_serialized(actor, session_id, workout_id, device_id, transport_json)
+    assert set(transport_repeat["accepted_mutation_ids"]) == {c["mutation_id"] for c in transport_changes}
+    assert psql(name, "SELECT count(*) FROM public.sync_mutations WHERE client_device_id='fixture-device-001' AND mutation_id IN ('http-baseline-actual','http-baseline-note');").stdout.strip() == "2"
+
+    stale_http = [{"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "http-stale-baseline",
+                   "updated_at": "2099-01-01T00:00:00Z", "base_revision": initial["revision"],
+                   "base_fields": {"actual": initial["actual"]}, "fields": {"actual": 999.0}}]
+    stale_http_result = invoke_serialized(actor, session_id, workout_id, device_id, serialize_http_request(device_id, stale_http))
+    assert stale_http_result["denial"] == "revision_conflict", stale_http_result
+    assert current_set()["actual"] == 91.25, "Actual HTTP-to-RPC stale write overwrote the canonical value"
+
+    legacy_http = [{"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "http-v1-no-baseline",
+                    "updated_at": "2099-01-01T00:00:00Z", "fields": {"note": "recoverable-v1-edit"}}]
+    legacy_http_result = invoke_serialized(actor, session_id, workout_id, device_id, serialize_http_request(device_id, legacy_http))
+    assert legacy_http_result["denial"] == "revision_conflict"
+    assert legacy_http_result["conflicts"][0]["reason"] == "BASELINE_REQUIRED"
+    assert current_set()["note"] == "edge-parser-note"
+    assert psql(name, "SELECT count(*) FROM public.sync_mutations WHERE mutation_id='http-v1-no-baseline';").stdout.strip() == "0"
+
+    # The independent legacy-v1 assertion below compares against this state,
+    # after the successful HTTP transport mutations above.
     initial = current_set()
     legacy_v1 = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "legacy-v1-no-baseline",
                  "updated_at": "2099-01-01T00:00:00", "fields": {"note": "legacy-offline-edit"}}
@@ -528,6 +587,11 @@ def _sync_compatibility(name):
         "client_clock_skew_ignored_for_baseline": True,
         "future_client_clock_rejected_without_write": True,
         "nested_set_replace_conflict_safe": True,
+        "edge_parser_to_local_rpc": True,
+        "edge_baselines_preserved_for_multiple_changes": True,
+        "edge_transport_stale_write_rejected_without_overwrite": True,
+        "edge_transport_v1_conflict_recoverable": True,
+        "edge_transport_idempotent": True,
     }
 
 
@@ -565,7 +629,7 @@ def main():
                 target_capture = {}
 
                 # Extend the callback with the exact data exercise after the raw
-                # 62-migration replay. run_one still applies its full schema checks.
+                # 63-migration replay. run_one applies its full schema checks.
                 def complete(name, capture=target_capture):
                     catalog = replay.snapshot(name)
                     mapping, source_rows, target_only = _mapping_and_source_rows(source_engine, Base, catalog)
@@ -614,6 +678,11 @@ def main():
                 "tombstoned_set_rejected",
                 "expired_and_revoked_sessions_rejected",
                 "ended_relationship_revoked",
+                "edge_parser_to_local_rpc",
+                "edge_baselines_preserved_for_multiple_changes",
+                "edge_transport_stale_write_rejected_without_overwrite",
+                "edge_transport_v1_conflict_recoverable",
+                "edge_transport_idempotent",
             )
             offline_pass = all(
                 all(target["sync_compatibility"].get(check) is True for check in required_sync_checks)

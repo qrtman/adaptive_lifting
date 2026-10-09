@@ -100,6 +100,45 @@ Deno.test("workout RPC response preserves canonical workout-sync property names"
   assertEquals(seenParams.slice(0, 6), ["athlete-1", "session-1", "workout-1", "workout-1", "device-1", false]);
 });
 
+Deno.test("sync baselines reach the SQL RPC unchanged for every mutation", async () => {
+  const changes = [
+    { entity: "ExerciseSet", id: "set-1", mutation_id: "mut-1", updated_at: "2026-10-03T00:00:00Z", fields: { actual: null }, base_revision: 7, base_fields: { actual: 90, note: null } },
+    { entity: "ExerciseSet", id: "set-2", mutation_id: "mut-2", updated_at: "2026-10-03T00:00:00Z", fields: { note: "new" }, base_revision: 19, base_fields: { note: null } },
+  ];
+  let seenParams: unknown[] = [];
+  await handleWorkoutSync(request(basePayload({ changes })), "workout-1", config,
+    fakeDatabase({ denial: null, workout_id: "workout-1", accepted_mutation_ids: ["mut-1", "mut-2"] }, (_query, params) => { seenParams = params; }), principal);
+  assertEquals(seenParams[7], JSON.stringify(changes));
+  assertEquals(JSON.parse(seenParams[7] as string), changes);
+});
+
+Deno.test("revision-less schema-v1 changes remain parseable without an invented baseline", () => {
+  const parsed = parseWorkoutSyncPayload(basePayload({ changes: [
+    { entity: "ExerciseSet", id: "set-1", mutation_id: "v1", updated_at: "2099-01-01T00:00:00Z", fields: { note: "offline" } },
+  ] }));
+  assertEquals(Object.hasOwn(parsed.changes[0], "base_revision"), false);
+  assertEquals(Object.hasOwn(parsed.changes[0], "base_fields"), false);
+});
+
+Deno.test("malformed base revisions and base fields are rejected", async () => {
+  for (const revision of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, "3", true, null]) {
+    const error = await assertRejects(() => handleWorkoutSync(
+      request(basePayload({ changes: [{ entity: "ExerciseSet", id: "set-1", mutation_id: "bad", updated_at: "x", fields: {}, base_revision: revision }] })),
+      "workout-1", config, fakeDatabase({}), principal,
+    ), ApiError);
+    assertEquals(error.status, 422);
+  }
+  const badFields = await assertRejects(() => handleWorkoutSync(
+    request(basePayload({ changes: [{ entity: "ExerciseSet", id: "set-1", mutation_id: "bad-fields", updated_at: "x", fields: {}, base_fields: null }] })),
+    "workout-1", config, fakeDatabase({}), principal,
+  ), ApiError);
+  assertEquals(badFields.status, 422);
+  const maximum = parseWorkoutSyncPayload(basePayload({ changes: [
+    { entity: "ExerciseSet", id: "set-1", mutation_id: "max", updated_at: "x", fields: {}, base_revision: Number.MAX_SAFE_INTEGER, base_fields: { note: null } },
+  ] }));
+  assertEquals(maximum.changes[0].base_revision, Number.MAX_SAFE_INTEGER);
+});
+
 Deno.test("unresolved revision conflicts use a non-success 409 envelope for legacy clients", async () => {
   const conflicts = [{
     mutation_id: "legacy-v1-1", entity_type: "ExerciseSet", entity_id: "set-1",

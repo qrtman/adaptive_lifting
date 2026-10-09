@@ -5,7 +5,10 @@ import type { Principal } from "./types/mod.ts";
 import { MATH_VERSION } from "./analytics.ts";
 
 type JsonObject = Record<string, unknown>;
-type Change = { entity: string; id: string; mutation_id: string; updated_at: string; fields: JsonObject };
+type Change = {
+  entity: string; id: string; mutation_id: string; updated_at: string; fields: JsonObject;
+  base_revision?: number; base_fields?: JsonObject;
+};
 type Payload = {
   schema_version: number; client_device_id: string; workout_id: string;
   mutation_type: string; last_updated_at: string; math_version?: string | null; changes: Change[];
@@ -57,7 +60,25 @@ export function parseWorkoutSyncPayload(input: unknown): Payload {
       if (typeof raw[key] !== "string") schemaFailure(["changes", index, key], "Input should be a valid string", raw[key]);
     }
     if (!object(raw.fields)) schemaFailure(["changes", index, "fields"], "Input should be a valid dictionary", raw.fields);
-    return { entity: raw.entity as string, id: raw.id as string, mutation_id: raw.mutation_id as string, updated_at: raw.updated_at as string, fields: raw.fields };
+    let baseRevision: number | undefined;
+    if (raw.base_revision !== undefined) {
+      if (typeof raw.base_revision !== "number" || !Number.isSafeInteger(raw.base_revision) || raw.base_revision <= 0) {
+        schemaFailure(["changes", index, "base_revision"], "Input should be a positive safe integer", raw.base_revision);
+      }
+      baseRevision = raw.base_revision;
+    }
+    if (raw.base_fields !== undefined && !object(raw.base_fields)) {
+      schemaFailure(["changes", index, "base_fields"], "Input should be a valid dictionary", raw.base_fields);
+    }
+    return {
+      entity: raw.entity as string,
+      id: raw.id as string,
+      mutation_id: raw.mutation_id as string,
+      updated_at: raw.updated_at as string,
+      fields: raw.fields,
+      ...(baseRevision !== undefined ? { base_revision: baseRevision } : {}),
+      ...(raw.base_fields !== undefined ? { base_fields: raw.base_fields as JsonObject } : {}),
+    };
   });
   return {
     schema_version: schemaVersion,
@@ -68,6 +89,15 @@ export function parseWorkoutSyncPayload(input: unknown): Payload {
     math_version: input.math_version as string | null | undefined,
     changes,
   };
+}
+
+export function serializeWorkoutSyncChanges(changes: Change[]): string {
+  return JSON.stringify(changes);
+}
+
+/** Test/rehearsal bridge uses the same parser and serializer as the HTTP route. */
+export function serializeWorkoutSyncRequest(input: unknown): string {
+  return serializeWorkoutSyncChanges(parseWorkoutSyncPayload(input).changes);
 }
 
 function error(code: string, message: string, details?: JsonObject): ApiError {
@@ -122,7 +152,7 @@ export async function handleWorkoutSync(
         payload.client_device_id,
         config.enforceLegacyEmailVerification,
         config.analyticsPastDueGraceDays,
-        JSON.stringify(payload.changes),
+        serializeWorkoutSyncChanges(payload.changes),
       ],
     );
     const value = result.rows[0]?.payload;
