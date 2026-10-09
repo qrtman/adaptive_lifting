@@ -1,8 +1,71 @@
 # Cloudflare Workers Static Assets
 
-Cloudflare Workers Static Assets is the selected frontend host. This repository
-prepares a local configuration only; it does not create Cloudflare resources or
-deploy a Worker.
+Cloudflare Workers Static Assets is the frontend host. The isolated staging
+Worker is `adaptive-lifting-staging` at
+<https://adaptive-lifting-staging.gartman-bekaali.workers.dev>.
+
+## Staging deployment
+
+The first staging deployment used the Workers Free quota confirmed by the
+account owner. It did not create paid resources, a custom domain, or a
+production route. Supabase staging remains project `admyuepbbtstayaydjmo`.
+
+From the repository root, verify Wrangler is logged into the intended account,
+build, and check the asset bundle before deploying:
+
+    npx wrangler whoami
+    npm ci
+    npm run build
+    npx wrangler deploy --dry-run
+    npx wrangler deploy --message "staging deployment"
+
+The checked-in `wrangler.jsonc` names only `adaptive-lifting-staging`, binds
+`dist/` as Workers Static Assets, uses SPA fallback, and routes `/api/*` through
+the same-origin proxy to the Supabase staging project. Do not add a production
+route or custom domain to this config.
+
+Deployed checkpoint:
+
+- URL: <https://adaptive-lifting-staging.gartman-bekaali.workers.dev>
+- Version: `a57abdff-8e50-40b2-b97b-e484f4729cee`
+- Source: `db1daddf8313209f87a4f732f355b31d66ad5f89`
+- Initial HTTP and browser smoke: root, deep route, JS/CSS assets, service
+  worker, and `/api/health` passed. Health identified the expected Supabase
+  staging ref and returned `Cache-Control: private, no-store`.
+
+To run the Node-based browser smoke against the deployed Worker after building,
+run:
+
+    $env:STAGING_URL = "https://adaptive-lifting-staging.gartman-bekaali.workers.dev"
+    node scripts/cloudflare-staging-smoke.mjs
+
+This Playwright runner does not start the retired local FastAPI test server.
+Authenticated checks require a disposable staging account and the Supabase
+staging origin configuration described below.
+
+### Supabase origin gate
+
+The deployed Worker preserves the browser's `Origin` and `Referer` so the
+Supabase API can apply its existing CSRF checks. The staging API currently
+accepts `http://localhost:3000` but does not allow the Worker origin. Before
+authenticated browser checks, append the exact workers.dev origin to the
+staging API's `CORS_ALLOWED_ORIGINS` value, preserving every existing entry and
+without wildcards. Set staging `APP_URL` to this exact origin if the current
+staging setting points elsewhere. Keep `COOKIE_SECURE=true`; session cookies
+must remain HttpOnly, Secure, and SameSite=Lax. These settings must be changed
+in the Supabase staging project only. The deployment session had no Supabase
+secret-management or Dashboard write surface, so this gate remains pending.
+
+### Rollback
+
+For a later staging update, return to a known-good Worker version with:
+
+    npx wrangler rollback a57abdff-8e50-40b2-b97b-e484f4729cee --name adaptive-lifting-staging
+
+For a future release, record its known-good version ID and use that ID in the
+rollback command. The initial deployment had no earlier Worker version; this
+version becomes the rollback target after a later update. Rollback affects only
+this staging Worker; it does not revert Supabase settings or database changes.
 
 ## Routing
 
