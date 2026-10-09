@@ -1,0 +1,11 @@
+{
+  "mode": "local diagnostic only; never an implicit production migration repair",
+  "operation": "remove the final literal backslash-n token outside SQL; preserve all executable statements",
+  "reason": "Strict replay fails at migration 29. Four historical SQL files contain an accidental escaped newline at EOF. No historical file or database migration record is modified.",
+  "files": [
+    {"file": "20261005161820_sessions_replace_exercise_sets_private_rpc.sql", "source_sha256_lf": "2b40d3f98a4e5a3ad6d45d928dafe030bd9a5570d4bd78a98bb8b1b1db6c381e"},
+    {"file": "20261005162355_sessions_replace_exercise_sets_encoding_correction.sql", "source_sha256_lf": "2b40d3f98a4e5a3ad6d45d928dafe030bd9a5570d4bd78a98bb8b1b1db6c381e"},
+    {"file": "20261005181600_account_security_auth_rpcs.sql", "source_sha256_lf": "aa82841d47cea8f7a65426b46287332bd4e88986d39a4f70be5d63d2c50b86e5"},
+    {"file": "20261005181950_account_security_coach_rpcs.sql", "source_sha256_lf": "1637f20f412dc24b181f5ea3b94325fedec8957fd52c260c7c37269ce1942688"}
+  ]
+}
