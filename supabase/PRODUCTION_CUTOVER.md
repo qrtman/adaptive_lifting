@@ -1,227 +1,312 @@
-# Production cutover plan (not executed)
+# Production launch and cutover runbook (planning only)
 
-This is a future release procedure. The final audit changes and tests staging and repository configuration only. Production remains untouched. The Python FastAPI application, Alembic migrator, and Python worker are not part of the production runtime. Caddy has been removed. Supabase Edge/Postgres remains the sole active backend. Cloudflare Workers Static Assets is the selected frontend host; this document records release preparation and does not authorize or perform deployment.
+This is a future operator procedure. It does not deploy production or authorize
+a data migration, DNS change, provider activation, purchase, or paid-plan
+change. Core Cloudflare staging is validated; the current live production
+host, database, data, provider state, and backup health have **not** been
+independently verified. See
+[`PRODUCTION_READINESS_AUDIT.md`](PRODUCTION_READINESS_AUDIT.md) for evidence,
+owner confirmations, table mapping, current quota/cost review, and provider
+checklists. Staging evidence is in [`STAGING_VALIDATION.md`](STAGING_VALIDATION.md).
 
-## Audit status and gates
+## Architecture and current state
 
-The 2026-10-09 staging audit verification is complete; this document does not
-authorize or perform production cutover. Private
-Supabase operator replacements for coach promotion, manual grant/revocation,
-per-account access inspection, and billing-customer repair are deployed and
-verified on staging. The authenticated route-family smoke, cross-domain
-regressions, migration reconciliation, and actual Caddy/Playwright rehearsal
-are recorded in `STAGING_VALIDATION.md`. The staging owner has since disabled
-the project-level Data API switch. The final verification below records direct
-REST and GraphQL endpoint probes and confirms Edge, private PostgreSQL RPC,
-Realtime, and Cron operation after that change.
+Target architecture:
 
-## Non-secret configuration manifest
+- React/Vite PWA served as Cloudflare Workers Static Assets with SPA fallback.
+- A thin Cloudflare Worker runs only on same-origin `/api/*` and forwards to
+  Supabase API Edge Functions; it has no application database or business
+  logic.
+- Supabase Edge Functions, PostgreSQL private RPCs, Vault, Cron/pg_net, and
+  private Realtime are the application backend.
+- Original custom HS256 session JWT/cookie remains in use; offline grant and
+  private Realtime ES256 keys remain independent. Supabase Auth is not adopted.
+- Python/FastAPI, Caddy, Compose, Render, Back4app, and other backend hosts
+  are not part of the target runtime. Python migrations/model files remain
+  compatibility/history sources, not an application server.
 
-Configure values in the destination that owns them. Never put private values
-in Vite build arguments, `.env.production`, checked-in files, or browser code.
+Staging is deployed at
+`https://adaptive-lifting-staging.gartman-bekaali.workers.dev`. Production is
+not deployed by this runbook. The old production record quoted in
+`docs/serverless-migration-feasibility.md` describes a September 2026
+self-hosted stack, but that report is historical and the current production
+state is unknown. Do not describe that old Compose/Caddy stack or an
+unselected frontend host as current target architecture.
 
-| Group | Name | Classification | Requirement |
-| --- | --- | --- | --- |
-| Core auth | `DATABASE_URL` | private | Required; restricted `al_edge_catalog_runtime` connection through the project pooler. |
-| Core auth | `JWT_SECRET_CURRENT` | private | Required; unique random app signing secret. |
-| Core auth | `JWT_SECRET_PREVIOUS` | private | Optional rotation window; separate from current. |
-| Core auth | `APP_ENV` | non-secret | Required; `production`. |
-| Core auth | `COOKIE_SECURE` | non-secret | Required; `true`. |
-| Core auth | `CORS_ALLOWED_ORIGINS` | non-secret | Required; exact HTTPS application origins, no wildcard. |
-| Core auth | `EMAIL_VERIFICATION_NEW_ACCOUNTS` | non-secret | Required policy flag; normally `true`. |
-| Core auth | `EMAIL_VERIFICATION_ENFORCE_LEGACY` | non-secret | Required policy flag; set from the reviewed account policy. |
-| Frontend host | `APP_DOMAIN` | non-secret | Required in static-host environment; bare app hostname. |
-| Frontend host | `SUPABASE_EDGE_HOST` | non-secret | Required; `<project-ref>.supabase.co`. |
-| Frontend host/proxy | Supabase Edge project host | non-secret | Required by the selected host's `/api` rewrite; browser requests remain same-origin. |
-| Frontend host/proxy | Supabase publishable key | public | Use only if the selected host/proxy's Edge gateway path requires an `apikey` header; never use a secret/service-role key. |
-| Frontend | `VITE_GOOGLE_CLIENT_ID` | public | Required only when Google login is enabled. |
-| Frontend | `VITE_OFFLINE_AUTH_PUBLIC_KEY` | public | Required for offline grant verification. |
-| Realtime | `REALTIME_JWT_PRIVATE_JWK` | private | Required only when private Broadcast token issuance is enabled; independent ES256 key. |
-| Realtime | public verification JWK | public | Publish only public coordinates to the Realtime verifier; never the private JWK. |
-| Email | `EMAIL_PROVIDER_API_KEY` or `RESEND_API_KEY` | private | Required to deliver verification mail; absent configuration must stay fail-closed. |
-| Email | `EMAIL_FROM` | non-secret | Required when delivery is enabled; verified sender. |
-| Email | `EMAIL_PAYLOAD_ENCRYPTION_KEY` | private | Required for queued encrypted email payloads; independent durable key. |
-| Email | `APP_URL` | non-secret | Required exact HTTPS origin for links and billing return URLs. |
-| Google login | `GOOGLE_CLIENT_ID` | public/configuration | Required when Google login is enabled; match the browser OAuth client. |
-| Telegram | `TELEGRAM_BOT_TOKEN` | private | Required only when Telegram integration is enabled. |
-| Telegram | `TELEGRAM_WEBHOOK_SECRET` | private | Required for webhook verification; independent value. |
-| Sheets | `GOOGLE_OAUTH_CLIENT_ID` | public/configuration | Required only when Sheets OAuth is enabled. |
-| Sheets | `GOOGLE_OAUTH_CLIENT_SECRET` | private | Required only when Sheets OAuth is enabled. |
-| Integrations | `INTEGRATION_ENCRYPTION_KEY` | private | Required when encrypted provider credentials exist; stable or rotated with re-encryption. |
-| Stripe | `STRIPE_BILLING_ENABLED` | non-secret | Feature-gated; keep `false` until live-mode readiness is approved. |
-| Stripe | `STRIPE_SECRET_KEY` | private | Required only when live billing is enabled. |
-| Stripe | `STRIPE_WEBHOOK_SECRET` | private | Required only when live billing is enabled. |
-| Stripe | `STRIPE_PRICE_COACH_STARTER`, `STRIPE_PRICE_COACH_PRO`, `STRIPE_PRICE_COACH_UNLIMITED` | non-secret configuration | Required, unique recurring Price IDs when billing is enabled. |
-| Stripe | `STRIPE_EXPECT_LIVEMODE` | non-secret | Required; `true` in production. |
-| Billing | `SUBSCRIPTION_PAST_DUE_GRACE_DAYS` | non-secret | Optional integer 0–30; defaults to 3. |
-| Voucher | `VOUCHER_BILLING_ENABLED` | non-secret | Required explicit enable flag. |
-| Voucher | `VOUCHER_CODE_SECRET` | private | Required when vouchers are enabled; independent stable HMAC key, retained while codes are outstanding. |
-| Worker dispatch | project-specific Edge URL and publishable key | private configuration / public key | Configure through private Vault dispatch getters for Cron; target only the named worker functions. |
-| Worker dispatch | email and Sheets internal secrets | private | Required when those workers are enabled; distinct per worker. |
-| Database/runtime | runtime role and restricted grants | non-secret schema | Required; use the checked-in migrations and verify grants before deployment. |
+## 1. Prerequisites
 
-The staging provider matrix at audit time is: Google login not configured;
-email delivery not configured; Telegram provider not configured; Sheets OAuth
-not configured; Stripe not configured and fail-closed; vouchers configured in
-Vault and live-validated. Missing provider credentials are production setup
-requirements, not permission to copy staging secrets.
+Before scheduling a production rehearsal, obtain written owner confirmation of:
 
-## Ordered deployment procedure
+- Current public origin, legal/domain owner, registrar renewal, authoritative
+  DNS and Cloudflare zone/account access; current active host and release.
+- Current source PostgreSQL host, version, location, exact Alembic revision,
+  extension/collation/time-zone state, counts/size and read/write services.
+- Current accounts, sessions, offline devices/queues, workout/tombstone,
+  coaching, audit, integration and provider job counts.
+- Billing account/mode, customers, subscriptions, vouchers/grants,
+  pending/replayed webhooks and unresolved out-of-band entitlements.
+- Latest verified backup, independent copy, encryption-key custody, restore
+  measurements and ratified RPO/RTO.
+- Supabase production project/ref/region/organization/billing plan, cost
+  ceiling, capacity requirements and allowed data residency.
+- Provider accounts, credentials, domains, callback URLs, actual enabled
+  states, quotas, pending events and business/compliance approvals.
+- Session continuity decision: preserve valid sessions and keys, or force
+  reauthentication. Confirm queue-drain and user communication plan.
 
-1. Create or verify the production Supabase project posture, supported region,
-   backups, point-in-time recovery, Data API exposure settings, and disabled
-   Supabase Auth adoption assumption.
-2. Verify the restricted database roles, private schema, RLS/grant posture,
-   Vault, and Realtime publication against this repository and staging report.
-3. Apply the 62 checked-in migrations in lexical version order to a clean
-   production schema. Confirm no migration is skipped and capture the applied
-   versions. Do not replay the staging history or edit its records.
-4. Configure the production private values from the manifest in the Supabase
-   secret manager/Vault. Compare only secret names and safe fingerprints.
-5. Deploy the API, email worker, and Sheets worker Edge Functions from the
-   reviewed release commit. Keep platform JWT verification disabled only on
-   handlers that perform their own app-session or worker-secret checks.
-6. Configure the email and Sheets Cron jobs and verify their private dispatch
-   target, authorization, schedule, and run status. Confirm no fixture jobs are
-   enabled.
-7. Configure private Broadcast authorization and the Realtime ES256 public
-   verification key. Keep app JWT, offline-auth, and Realtime signing keys
-   separate.
-8. Verify Data API/browser table denial, private RPC ACLs, Vault getter ACLs,
-   operator-only voucher RPCs, and `al_edge_catalog_runtime` effective rights.
-9. Configure external provider callbacks/webhooks: Google login JavaScript
-   origin; Sheets OAuth callback at
-   `https://<APP_DOMAIN>/api/integrations/google-sheets/callback`; Telegram
-   webhook at `https://<APP_DOMAIN>/api/integrations/telegram/webhook`; and
-   Stripe webhook at `https://<APP_DOMAIN>/api/billing/stripe/webhook` for
-   supported subscription lifecycle events. Configure Resend's sender domain.
-10. Build the static frontend bundle from the release commit using only the
-    public Vite values required for enabled browser features. Deploy the bundle
-    to the frontend hosting provider selected for production. That host must
-    implement the same-origin API and cookie contract below; provider selection
-    is separate from the completed backend migration. Do not route application
-    traffic to Python.
-11. Run the pre-cutover smoke list below against the production candidate
-    project and host before switching user traffic.
-12. Switch frontend/API traffic to the Supabase-backed host. No database
-    ownership migration or training-data ownership change is performed by the
-    traffic switch.
-13. Run the post-cutover smoke list, then observe Edge logs, worker/Cron runs,
-    login failures, provider callback delivery, Stripe webhook outcomes, and
-    safe billing diagnostics.
-14. At the acceptance checkpoint, decide whether to continue or invoke the
-    frontend routing rollback below. Keep the legacy service available only
-    until data/API compatibility and rollback safety have been accepted.
-15. Retire the legacy backend only after release acceptance, reconciliation,
-    backup verification, and a separate explicit operational decision.
+The historical inventory and exact unresolved facts are in
+`PRODUCTION_READINESS_AUDIT.md`. Do not connect to production until the owner
+separately authorizes a read-only inventory. Do not infer a current fact from a
+historical release report.
 
-## Smoke checklist
+## 2. Readiness gates
 
-- Health, password login/logout, `/api/auth/me`, registration/verification,
-  `/api/account/access`, device/session/audit routes, and coach linking.
-- Microcycle read; session create/update/delete; exercise/set writes; Set Log;
-  Workout Sync; analytics; and Insight Cards.
-- Day Notes, CSV/JSON exports, offline grant verification, and Realtime token
-  authorization.
-- Telegram, Sheets, email worker, and billing in their configured or
-  fail-closed states. Confirm voucher redemption does not call Stripe.
-- Coach unlink, session revocation, tombstone exclusion, role/owner denial,
-  representative concurrency, and zero synthetic fixtures.
-- Confirm Edge deployment version/project ref in safe evidence and verify no
-  request is routed to FastAPI.
+All gates require dated, reviewable evidence attached to the release record:
 
-## Provider-neutral frontend host contract
+1. Production inventory is confirmed from current owner-controlled records.
+2. The clean target is reproducible: an audited schema-bootstrap artifact
+   exists, then the 62 Supabase migrations apply in a clean, version-matched
+   rehearsal database with no unexplained drift.
+3. Full data migration/import and restore rehearsal passes row, key, foreign
+   key, tombstone, identity, billing, numeric/domain, export and authorization
+   reconciliation.
+4. Latest independent backup restore passes measured, owner-ratified RPO/RTO;
+   a scheduled encrypted backup/alert path is staffed and monitored.
+5. Offline client queues are drained/acknowledged or a tested recovery path is
+   approved. No undelivered IndexedDB mutation is knowingly discarded.
+6. Staging and production secret names, least-privilege roles, private RPCs,
+   browser/Data API denial, exact CORS/CSRF origins, Secure cookies, Realtime,
+   Vault and Cron are reviewed. APP_URL-dependent URLs are proven via real
+   provider behavior before that provider is enabled.
+7. Usage tests and the selected Cloudflare/Supabase plan have enough quota
+   margin; actual account spend controls, non-spend-capped add-ons and provider
+   charges are explicitly approved.
+8. Production candidate/browser/worker/provider checks pass; logs and alerts
+   are redacted, owned, and actionable; rollback decision is approved.
 
-The frontend host is intentionally not selected or provisioned in this
-backend-migration release. The current production `API_BASE_URL` is empty, so
-the browser calls relative same-origin `/api/*` URLs. Preserve that behavior;
-do not point browser calls directly at the cross-origin Supabase project host
-under the current HttpOnly, Secure, `SameSite=Lax` session-cookie policy.
+At present, the schema bootstrap, production inventory, full data/restore
+rehearsal, provider E2E, account-specific capacity/cost, and post-write
+rollback path are blockers. Staging success is not a substitute for these
+production gates.
 
-The selected static host/proxy must:
+## 3. Future infrastructure setup
 
-- Serve the Vite bundle over HTTPS and return the SPA shell for client paths
-  such as `/verify-email` and hash routes.
-- Serve `/sw.js` and PWA assets at their expected root paths with correct
-  content types and no API rewrite.
-- Rewrite `/api/<path>?<query>` to
-  `https://<project-ref>.supabase.co/functions/v1/api/<path>?<query>`.
-- Preserve method, query, body, `Origin`, `Cookie`, `Authorization`, and
-  content headers. Return upstream status/body and `Set-Cookie` unchanged; do
-  not cache authenticated responses or rewrite cookie security attributes.
-- Forward the configured frontend origin for application Origin/Referer
-  checks. Keep CORS explicit and allowlisted; CORS does not replace the
-  same-origin cookie route.
-- Allow the browser's authenticated secure WebSocket connection to the
-  configured Supabase Realtime service without capturing it in the `/api`
-  rewrite.
+Only after separate infrastructure approval:
 
-The staging Caddy/Playwright rehearsal is retained as historical evidence that
-one proxy implementation met this contract. Caddy, its Docker image, and its
-hosting configuration are removed from the deployment architecture.
+1. Provision or designate a **separate production Supabase project** in the
+   owner-approved region and plan. Do not use staging ref
+   `admyuepbbtstayaydjmo`; do not assume another production ref exists.
+2. Apply the reviewed clean-schema bootstrap, then the checked-in Supabase
+   migrations in the rehearsed order. Do not run only those 62 migrations on
+   an empty project: they do not include a complete application-table
+   baseline. Confirm Postgres major version and extensions first.
+3. Configure restricted runtime and worker DB roles, private `al_private`
+   schema/RPC permissions, no browser table grants, Data API policy, Vault,
+   Realtime private Broadcast authorization, and exactly named Cron jobs.
+   Inspect effective grants, not only migration source.
+4. Configure production secrets only in Supabase Edge/Vault. Use unique
+   production keys; maintain temporary key overlap only where explicitly
+   needed for JWT/offline/integration ciphertext compatibility. Do not reuse
+   staging secrets or place secrets in CI build variables, Wrangler vars, or
+   Vite output.
+5. Prepare a separate production Wrangler config named for the production
+   Worker, with the exact production Supabase origin, production-only bindings,
+   `dist/`, SPA fallback, and Worker-first `/api/*`. Keep
+   `wrangler.jsonc` staging-only. Add a protected manual production workflow
+   with least-privilege credentials, reviewed commit SHA, approval, dry-run,
+   and explicit project/Worker assertions before deployment.
+6. Keep `API_BASE_URL` relative/empty in the production browser build. Public
+   Google client ID/offline public key may be built only when approved; no DB,
+   Supabase service-role, JWT private, provider, email, Stripe, webhook,
+   encryption or signing secret can enter the browser bundle.
+7. Configure exact production `APP_URL` and comma-separated HTTPS
+   `CORS_ALLOWED_ORIGINS`; `APP_ENV=production`, `COOKIE_SECURE=true`,
+   host-only session cookie, HttpOnly, Secure, SameSite=Lax and `/` path. No
+   wildcard or staging origin. Check settings by actual runtime and provider
+   flow; never add a diagnostic endpoint exposing environment values.
+8. Preserve same-origin `/api/*`, untouched Set-Cookie, private/no-store API
+   responses and direct Realtime WebSocket behavior. Select the existing
+   owner-confirmed domain if still controlled; do not purchase/transfer a
+   domain as part of this runbook.
 
-## Rollback criteria and procedure
+## 4. Data migration rehearsal
 
-Stop the traffic switch and roll back the frontend/API origin if a core route
-fails, auth/session validation regresses, authorization leaks across users,
-canonical workout values disagree, worker claims duplicate/lose work, or a
-provider event grants or removes access incorrectly. Provider configuration
-fail-closed behavior by itself is expected when a feature is intentionally
-disabled.
+Use a disposable source clone and isolated target; no live production rows in
+the first rehearsal. Build a reviewed import manifest for every table and
+column from legacy Alembic models through revision `0011_email_verification`
+and the Supabase private SQL catalog. Preserve data that is not currently read
+by the browser if it affects future auth, replay, audit, billing, integrations
+or support.
 
-Rollback the frontend/API traffic routing to the last accepted host. Disable
-or redirect new provider webhook delivery only if the target is incorrect;
-preserve provider event identity and retry/reconciliation records. Keep the
-Supabase schema forward-compatible and retain all writes. Do not run destructive
-down migrations or assume legacy code can safely use new schema state. Stop
-conflicting writers only if needed for consistency, reconcile writes made
-after the switch, and restore from backup only as a separately reviewed data
-recovery action. The rollback decision point is before legacy backend retirement.
+Rehearse, in order:
 
-## Staging rehearsal record (historical checkpoint)
+1. Reproduce target schema from the bootstrap artifact plus all 62 checked-in
+   Supabase migrations. Store catalog diff and migration SHA evidence.
+2. Restore the encrypted source snapshot into an isolated PostgreSQL instance;
+   record source schema and data digests. Use compatible `pg_dump`/`pg_restore`
+   client/server versions. Do not use Supabase staging as the production
+   rehearsal target.
+3. Import in verified FK dependency order: users; workspaces/members/grants;
+   coach links/history/invite codes; mesocycles/microcycles/workouts/exercises/
+   sets and retained raw accessories; notes/cards; devices/sessions/locks/
+   sync mutations/events/audit; billing customers/subscriptions/reservations/
+   vouchers/limits/webhook inbox; then integration connections/credentials/
+   outbox and worker state. Adjust the order to exact catalog FKs discovered
+   in rehearsal; no deferred-constraint assumption is permitted.
+4. Preserve exact IDs, password hashes, verified Google `sub`, ownership,
+   numeric values, labels, completed states, deletion tombstones, immutable
+   billing provider IDs and audit/event history. Preserve valid session state
+   only if the session/key continuity gate is approved. Expire one-time OAuth
+   and Telegram linking state; retain durable connections/events/jobs.
+5. Preserve the integer coaching relationship key and its history references;
+   re-align only verified owned sequences after explicit ID import. Check
+   unique and FK constraints. No `ON CONFLICT DO NOTHING` that silently drops
+   existing data; every rejected row must be explained and resolved.
+6. Do not run the historical accessory string parser blindly. Keep raw rows
+   and perform only a reversible, approved conversion. Missing/ambiguous
+   set/reps/RPE/weight values must not become invented canonical values.
+7. Compare exact row counts and ordered key/digest manifests for every table;
+   active/tombstone distribution; all FK/unique constraints; training domain
+   totals/sets/date/labels; role/coach access; customer/subscription/grant/
+   voucher state; webhook order/dedup; outbox checkpoints; and export/API
+   response parity. Do not expose row-level PII in evidence.
+8. Test auth, session revocation, old-client sync/replay idempotency, coach
+   unlink/history, training mutation, billing disabled paths, provider
+   webhook signature/replay, private Realtime, Cron claim/retry and restore.
+   Record and resolve every discrepancy; repeat import from a clean target.
 
-The staging Supabase host serves the migrated API directly from the `api` Edge
-Function without a Python service. The production Compose/Caddy route is
-configured to proxy `/api` to that function, and its Compose configuration
-parses. At that checkpoint, an actual Caddy/browser rehearsal had not run.
-The continuation below supersedes that historical status. The project Data API
-is enabled with browser table grants denied.
+The preferred live cutover uses a controlled write freeze rather than dual
+writes: obtain client queue-drain acknowledgement while the source is still
+available; publish maintenance notice; stop new app/admin writes and old
+outbox workers; wait for transactions/locks; handle provider webhook retries;
+take the final encrypted consistent snapshot; import to the already-tested
+target; reconcile; and only then enable target writes. No browser-local queue
+can be proven drained from database table counts alone. If its client-side
+drain state is unknown, cutover stops.
 
-### Migration history note
+## 5. Production candidate verification
 
-Staging has all 62 checked-in migration names, with no missing or extra names.
-Twenty-one pre-audit historical version-prefix differences remain; the two
-operator/text/inspector audit migrations were also recorded under generated
-staging versions, for 24 current version-prefix differences. One independent ordering swap exists
-between `email_worker_clear_claim_on_retry` and `day_notes_exports_domain`.
-No history was rewritten or replayed. Normalized SQL hashes match 52 of 62
-files. The remaining ten differences are reconciled: comment/whitespace-only
-changes; definitions superseded by later matching migrations; historical
-placeholder encoding variants; and final text-literal repairs. The live
-catalog was checked for the affected final functions and no unexplained object
-effect remains. Forward-only migration `20261009170000_correct_runtime_text_encoding.sql`
-repairs corrupted punctuation where it remained live. These differences are
-documented, not hidden by rewriting migration history.
+Use an isolated candidate host/Worker and protected candidate database before
+public traffic. Restrict access and minimize data; use synthetic data for
+functional E2E. If using any production-derived copy, require a separate
+privacy/security approval and access controls. Validate:
 
-## Final staging continuation (historical staging audit record)
+- Health and exact production project reference; static assets, hashed assets,
+  SPA/deep-link refresh, manifest/icons and root `/sw.js` update/activation.
+- Same-origin `/api` routing; no production data/API cached; no private
+  credentials in bundle/config; exact CORS, preflight and CSRF; cookies remain
+  HttpOnly/Secure/SameSite=Lax/Path=/; no forwarded-header trust.
+- Password and Google login according to chosen account policy, `/api/auth/me`,
+  refresh continuity or deliberate reauth, logout/revocation, offline grant
+  expiration and queue retention/recovery.
+- Athlete-owned data, coach-code link/unlink/frozen history, positive and
+  negative role/ownership boundaries, workout locks, tombstone behavior,
+  idempotent offline sync, notes, analytics and exports.
+- Private Realtime authorization and WebSocket, event ordering/cursor behavior,
+  database reconnect/cold start and concurrent user load.
+- Email, Google sign-in, Telegram, Sheets, Stripe and voucher checklists from
+  `PRODUCTION_READINESS_AUDIT.md`; otherwise verify each remains fail-closed.
+- Cron success/lag, outbox age/retry/claim correctness, backup freshness,
+  restore evidence, rate limits, safe operator access, alerts and quota usage.
 
-The Caddy/Playwright exercise is one staging ingress rehearsal, not a choice of
-production frontend host. The eventual hosting provider may serve the static
-bundle directly or use another reviewed proxy, provided the same API origin,
-cookie/CORS, deep-link, service-worker, export, and Realtime requirements pass.
-The backend remains Supabase-native with no FastAPI upstream.
+Do not call provider-dependent APP_URL tests passed while the providers remain
+unconfigured. Do not use live payments or real external messages during
+candidate validation.
 
-The staging owner reports turning **Enable Data API** Off in the Dashboard.
-Final probes with the staging publishable key returned HTTP 503 from both the
-autogenerated REST table endpoint and GraphQL endpoint (PostgREST error
-`PGRST002`, schema cache unavailable). The project-level dashboard value is
-not exposed by the currently available Supabase MCP read tools, so the setting
-is recorded as operator-confirmed and corroborated by endpoint unavailability,
-not as a direct Management API readback. Edge health remained HTTP 200, a
-direct call to the private `al_private.al_auth_me` RPC returned its expected
-invalid-session denial, the Realtime WebSocket accepted a connection, and both
-email and Sheets Cron jobs remained active with recent successful runs.
-Effective table reads and browser private-RPC execution remain denied; runtime
-access to its route RPC remains granted while operator-only billing diagnostics
-remain unavailable to the runtime. No grants, schema, or production settings
-were changed for this verification.
+## 6. Explicit cutover approval
+
+After gates 1–5 pass, prepare a change ticket with: owner confirmation report,
+exact source/target and release SHAs, schema/bootstrap/migration hashes,
+backup/restore/RPO/RTO evidence, row/digest/FK reconciliation, account/session
+choice, drained queue evidence, provider state, quota/cost forecast, monitoring
+owners, previous Worker version and tested rollback/recovery decision tree.
+
+The production owner must explicitly approve a named maintenance window,
+traffic/DNS action, provider callback transition, live billing state, user
+communication, and acceptance/abort authority. Approval must be separate from
+this planning document. No cutover is approved now.
+
+## 7. Cutover execution (future, approval required)
+
+1. Announce maintenance. Have all clients sync and acknowledge empty mutation
+   queues; keep source serving until this gate is met.
+2. Enter write freeze. Stop old API mutations, operator writes, old background
+   consumers, and duplicate provider receivers. Confirm in-flight work,
+   workout locks, outbox leases and final webhook event state are safe.
+3. Take the final encrypted full source backup. Verify its digest and restore
+   it to a disposable location if not already restored from the same freeze
+   artifact. Record a UTC cutover point.
+4. Import to target, run all reconciliation checks and confirm no unexplained
+   row, key, sequence, FK, billing or domain differences. Keep target writes
+   disabled until approved acceptance checks begin.
+5. Deploy the reviewed production Edge release and distinct Cloudflare Worker
+   version from the same commit, with production-only bindings. Record exact
+   Supabase function versions and Cloudflare Worker version ID. Worker
+   deployment and DNS routing are distinct steps; do not attach production
+   domain until explicit approval.
+6. Change direct provider webhook endpoints/Telegram webhook only after target
+   state is ready. Keep event delivery retryable, preserve event IDs and verify
+   signature/mode. Never acknowledge an event that wasn't durably recorded.
+7. Route the existing confirmed public app origin to the production Worker.
+   Preserve the origin where possible for host-only cookies, service worker
+   and IndexedDB. If the origin changes, the cutover must include a separate
+   queue/cookie migration plan; DNS alone does not migrate browser state.
+8. Run the candidate verification smoke in production with authorized
+   synthetic accounts, clean fixtures, monitor all components, then reopen
+   ordinary writes and document the acceptance time.
+
+## 8. Post-cutover monitoring
+
+During the owner-approved observation window monitor authentication failures,
+session revocations, CSRF denials, 5xx/latency, DB CPU/connections/size/read-only
+state, Edge limits, Worker requests/CPU, Realtime connections/messages, Cron
+last success/outbox lag, email bounces, OAuth errors, webhook retries/order,
+Stripe reconciliation, backup age/checksum and support reports. Alerts must
+route to named people and redact secrets and user training data. Compare live
+aggregate counts/digests and domain metrics to the acceptance manifest. Do not
+activate another provider or broaden traffic before the prior provider gate
+passes.
+
+## 9. Rollback and recovery
+
+Cloudflare Worker rollback to a recorded previous version can restore prior
+Worker code/config only; it does not restore Supabase data, provider state,
+DNS records, or the schema. An Edge code rollback likewise does not undo SQL
+or database writes. Never run destructive down migrations as an emergency
+shortcut.
+
+- **Before target accepts writes:** freeze, route the public origin back to
+  the previously recorded old host/version, restore provider endpoints if
+  needed, validate cookies/API/session behavior there, and retain the target
+  database for diagnosis. This is safe only if the old code still understands
+  every schema change it may encounter; otherwise keep users in maintenance
+  mode and fix forward.
+- **After target accepts writes:** do not simply roll frontend routing back.
+  Old code may be incompatible with new schema, verification fields, event
+  rows or newly written values. Stop writes, take a new target backup, preserve
+  all provider events, and choose either a forward fix or a rehearsed
+  reconciliation/backport of every target write and external side effect into
+  a compatible source. No such reverse-sync procedure has been demonstrated
+  in this repository. Until it exists, post-write rollback to old backend is
+  blocked; prefer restoring the target into a new compatible Supabase project
+  and routing forward.
+- Restore only from a verified backup after the owner accepts its recovery
+  point and potential data loss. Reconcile events/payments/messages delivered
+  after the snapshot; do not claim the Cloudflare rollback recovered them.
+- Keep the old database intact and read-only until data parity, provider
+  reconciliation, backup restore and acceptance are confirmed. Retire it only
+  after separate approval and retention/legal review.
+
+## Historical evidence retained
+
+- The 2026-09-28 production deployment snapshot and R2 restore record are
+  quoted in `docs/serverless-migration-feasibility.md`; they are not live
+  production verification.
+- The earlier Compose/Caddy rehearsal and migration reconciliation remain
+  historical records in `STAGING_VALIDATION.md`. Caddy/Compose are not active
+  target architecture.
+- Cloudflare staging deployment and final authenticated security evidence are
+  recorded in `docs/cloudflare-workers.md` and `STAGING_VALIDATION.md`.
+- Provider-specific implementation and setup notes remain in
+  `docs/email-verification.md`, `docs/integrations-supabase.md`,
+  `docs/stripe-webhooks.md`, and `docs/launch-runbook.md`.

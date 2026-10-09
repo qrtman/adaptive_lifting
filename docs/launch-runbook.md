@@ -1,13 +1,15 @@
 # Supabase launch runbook
 
-Production application traffic is served by the static frontend host and
-Supabase Edge Functions. Do not deploy `backend/main.py`, `backend/worker.py`,
-FastAPI, or a Python database process. The Python code remains a local and test
-reference only.
+The target production application runtime is the static frontend host and
+Supabase Edge Functions. Staging is deployed; current production hosting and
+data have not been independently verified. Do not deploy `backend/main.py`,
+`backend/worker.py`, FastAPI, or a Python database process as the target
+runtime. Python code remains a compatibility/migration source only.
 
-Use [the production cutover plan](../supabase/PRODUCTION_CUTOVER.md) for the
-complete non-secret configuration manifest, release order, provider setup,
-smoke checks, rollback criteria, and evidence record.
+Use [the production cutover plan](../supabase/PRODUCTION_CUTOVER.md) and
+[readiness audit](../supabase/PRODUCTION_READINESS_AUDIT.md) for prerequisites,
+owner confirmations, the schema-bootstrap gate, migration/backup rehearsal,
+provider E2E, cutover approval, monitoring, and rollback/recovery limits.
 
 ## Billing operations
 

@@ -4,7 +4,9 @@ Supabase Edge Functions and PostgreSQL are the sole active application backend.
 The API, email verification worker, Google Sheets worker, and scheduled jobs run
 through Edge Functions and Postgres Cron/pg_net. Supabase Realtime provides the
 live update channel. Cloudflare Workers Static Assets is the selected frontend
-host; the repository configuration is being prepared and has not been deployed.
+host. Staging is deployed at
+`https://adaptive-lifting-staging.gartman-bekaali.workers.dev`; production
+deployment and current legacy production state are not verified.
 
 The existing custom app authentication remains in use: an HS256 application
 JWT backed by the sessions table, a separate ES256 offline grant, and a
@@ -26,11 +28,16 @@ WebSocket traffic connects directly to Supabase.
 
 See STAGING_VALIDATION.md for staging evidence, route reconciliation, and
 provider configuration gates. Historical records there are not rewritten.
+See PRODUCTION_READINESS_AUDIT.md for the planning-only owner inventory,
+schema-bootstrap gap, migration design, cost assessment, and launch blockers.
 
 ## Migrations and local checks
 
-The checked-in SQL migrations are the deployment source. Staging has all 62
-migration names. The completed audit reconciled 24 historical migration
+The checked-in timestamped Supabase SQL migrations are deployment deltas, not
+a complete clean-database application schema bootstrap. A future clean target
+must first load an audited baseline from the legacy Alembic schema history,
+then apply the reviewed SQL deltas. Staging has all 62 migration names. The
+completed audit reconciled 24 historical migration
 version-prefix mismatches and recorded one harmless ordering swap between the
 independent email retry and day-note migrations. No staging migration history
 was rewritten or replayed.

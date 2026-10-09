@@ -5,7 +5,7 @@
 > **Foundation:** Mike Tuchscherer's Reactive Training Systems (RTS) - Autoregulated Training  
 > **Companion Document:** `design.md` (Visual Design System & Style Guide)
 
-> **Current runtime:** Supabase Edge Functions and PostgreSQL are the sole active application backend. Cloudflare Workers Static Assets is the selected frontend host. Python under backend/ is retained for compatibility and math parity tests only; it is not required by the active frontend/API runtime. FastAPI and SQLite descriptions below refer to that retained reference implementation.
+> **Selected runtime (staging validated):** Supabase Edge Functions and PostgreSQL are the application backend; Cloudflare Workers Static Assets is the selected frontend host. Current production traffic has not been independently verified and production cutover is not authorized. Python under backend/ is retained for compatibility, schema history and math parity tests only; it is not required as an application server. FastAPI and SQLite descriptions below refer to that retained reference implementation.
 
 ---
 
@@ -1441,7 +1441,7 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 ### 15.2 Target Runtime Topology
 
-The active application runtime uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. It serves the Vite/PWA build directly and runs a small Worker only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
+The selected runtime architecture uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. Staging is deployed and validated; this architecture description does not verify or assert that current production traffic has migrated. The Worker serves the Vite/PWA build directly and runs only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
 
 ```mermaid
 graph TD
@@ -1461,15 +1461,15 @@ graph TD
 | Workers | Supabase Cron/`pg_net` + private Edge Functions | Email verification and Google Sheets outbox processing. Python workers are not required. |
 | Database | Supabase PostgreSQL | Canonical application data through narrow private SQL interfaces. |
 | Realtime | Supabase Realtime | Private Broadcast authorization using short-lived app-issued ES256 grants. |
-| Backups | Supabase project backup configuration | Production backup retention and restore drills are configured independently of the frontend host. |
+| Backups | Supabase platform backup plus independent encrypted export | Production backup/retention/restore configuration is a release gate; current production backup status is unknown. |
 
 ### 15.3 Environment Strategy
 
 | Environment | Deployment | Purpose |
 | :--- | :--- | :--- |
 | Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
-| Staging | Supabase staging project plus Cloudflare Workers Static Assets preview | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
-| Production | Supabase production project plus Cloudflare Workers Static Assets | Selected hosting target; deployment remains a separate release action. |
+| Staging | Supabase staging project plus deployed Cloudflare Workers Static Assets Worker | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
+| Production | Future separately approved Supabase production project plus distinct Cloudflare Worker | Target hosting architecture; current production inventory and cutover status require owner confirmation. |
 
 Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths.
 
@@ -1479,7 +1479,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | :--- | :--- |
 | **JWT Secrets** | Must be loaded from `JWT_SECRET_CURRENT` and optional `JWT_SECRET_PREVIOUS`, never hardcoded |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
-| **Database Migrations** | Checked-in Supabase SQL migrations are applied in deterministic order before release |
+| **Database Migrations** | Apply a reviewed clean-schema bootstrap before the 62 checked-in Supabase SQL deltas; those deltas alone are not a complete empty-database bootstrap |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
 | **Backup** | PostgreSQL backups must be scheduled, retained, and restore-tested |
 | **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |
@@ -1524,14 +1524,15 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 
 ### 15.8 Deployment Non-Goals
 
-- **Frontend hosting selection:** No provider is selected by this architecture note; selection must satisfy the host contract below.
+- **Production cutover:** Cloudflare Workers Static Assets is selected and staging is deployed; production release, infrastructure, and traffic cutover require separate readiness evidence and explicit owner approval.
 - **Cross-origin browser API calls:** Do not bypass the same-origin `/api` route. The current Secure, HttpOnly, `SameSite=Lax` cookie policy is not treated as compatible with arbitrary cross-site calls to the Supabase project host.
 - **Kubernetes:** Deferred until multi-tenant SaaS scale or multiple independently scalable services justify the operational overhead.
 
 ### 15.9 Static Frontend Host Contract
 
-Cloudflare Workers Static Assets is selected. Its configuration and proxy must meet these requirements before release:
-proxy must meet these requirements before release:
+Cloudflare Workers Static Assets is selected and staging is deployed. A
+separate production configuration and approval are required. The production
+host/proxy must meet these requirements before release:
 
 - Serve the static Vite build over HTTPS and return the app shell for client
   deep links such as `/verify-email` and hash-routed views.

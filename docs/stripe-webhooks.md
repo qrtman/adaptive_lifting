@@ -65,11 +65,12 @@ infer workspace ownership from Stripe metadata. Do not manually reassign a
 customer ID between workspaces.
 
 The previous Python CLI exposed `link-billing-customer`, per-account
-`show-access`, manual access grant/revocation, and coach promotion. Those
-support actions do not yet have reviewed Supabase-native operator replacements.
-They must be migrated or explicitly retired before production cutover. The
-old Python commands are reference utilities only and must not be used as the
-production operating procedure.
+`show-access`, manual access grant/revocation, and coach promotion. Supabase-
+native private operator replacements have been deployed and verified on
+staging (see `supabase/STAGING_VALIDATION.md`). Their production deployment,
+operator access model, and recovery procedure remain unverified until a
+separate production release. The old Python commands are reference utilities
+only and must not be used as a production operating procedure.
 
 ## Hosted checkout and portal
 

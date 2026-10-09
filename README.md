@@ -16,7 +16,10 @@ separate ES256 keys.
 Cloudflare Workers Static Assets is the selected frontend host. It serves the
 Vite bundle directly with SPA fallback and invokes a small Worker only for
 same-origin /api/* requests. That Worker forwards to the Supabase api Edge
-Function. This repository prepares the configuration but does not deploy it.
+Function. Staging is deployed and validated; production hosting, database,
+data, provider and DNS state are not independently verified and no production
+cutover has occurred. See `supabase/PRODUCTION_READINESS_AUDIT.md` before
+planning a launch.
 
 See architecture.md for application contracts and supabase/README.md for the
 Supabase runtime and migration layout.
