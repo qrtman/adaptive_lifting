@@ -38,9 +38,9 @@ Deno.test("Stripe catalog and provider URLs validate without accepting arbitrary
     currency: "usd", recurring: { interval: "month" } }, "price_x"), false);
   assertEquals(billingTestHelpers.validPrice({ id: "price_x", active: true, unit_amount: 100,
     currency: "usd", recurring: { interval: "month" } }, "price_x"), false);
-  assertEquals(billingTestHelpers.trustedOrigin({ appUrl: "https://app.example", cookieSecure: true } as never), "https://app.example");
+  assertEquals(billingTestHelpers.trustedOrigin({ appUrl: "https://app.example", cookieSecure: true, billingAppUrlConfigured: true } as never), "https://app.example");
   let rejected = false;
-  try { billingTestHelpers.trustedOrigin({ appUrl: "https://app.example/path", cookieSecure: true } as never); }
+  try { billingTestHelpers.trustedOrigin({ appUrl: "https://app.example/path", cookieSecure: true, billingAppUrlConfigured: true } as never); }
   catch { rejected = true; }
   assertEquals(rejected, true);
 });

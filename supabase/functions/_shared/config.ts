@@ -19,6 +19,7 @@ export interface AppConfig {
   googleSheetsClientId?: string | null;
   googleSheetsClientSecret?: string | null;
   integrationEncryptionKey?: string | null;
+  realtimeSigningJwk?: string | null;
   stripeBillingEnabled?: boolean;
   stripeBillingEnabledConfigured?: boolean;
   stripeSecretKey?: string | null;
@@ -63,6 +64,7 @@ export function loadConfig(
   const rawSheetsClientId = read("GOOGLE_OAUTH_CLIENT_ID")?.trim() ?? "";
   const rawSheetsClientSecret = read("GOOGLE_OAUTH_CLIENT_SECRET")?.trim() ?? "";
   const rawIntegrationEncryptionKey = read("INTEGRATION_ENCRYPTION_KEY")?.trim() ?? "";
+  const rawRealtimeSigningJwk = read("REALTIME_SIGNING_JWK")?.trim() ?? "";
   const stripeEnabledValue = read("STRIPE_BILLING_ENABLED");
   const stripeLiveValue = read("STRIPE_EXPECT_LIVEMODE");
   const voucherBillingValue = read("VOUCHER_BILLING_ENABLED");
@@ -147,6 +149,7 @@ export function loadConfig(
     googleSheetsClientId: rawSheetsClientId || null,
     googleSheetsClientSecret: rawSheetsClientSecret || null,
     integrationEncryptionKey: rawIntegrationEncryptionKey || null,
+    realtimeSigningJwk: rawRealtimeSigningJwk || null,
     stripeBillingEnabled: ["1", "true", "yes"].includes(stripeEnabledRaw),
     stripeBillingEnabledConfigured: stripeEnabledValue !== undefined,
     stripeSecretKey: read("STRIPE_SECRET_KEY")?.trim() || null,

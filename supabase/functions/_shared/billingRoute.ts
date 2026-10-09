@@ -80,16 +80,20 @@ async function stripeConfig(db: Database, config: AppConfig) {
   if (!enabled || isPlaceholder(key) || !keyMode ||
       (expectLivemode ? keyMode !== "live" : keyMode !== "test") || environmentModeInvalid ||
       values.some((value) => isPlaceholder(value) || !/^price_[A-Za-z0-9]+$/.test(value)) ||
-      new Set(values).size !== 3 || !config.appUrl || !config.billingAppUrlConfigured ||
+      new Set(values).size !== 3 ||
       /^(replace|mock_|example|sample)/i.test(webhook || "")) stripeConfigurationError();
   return { key, webhook, prices, expectLivemode };
 }
 
 function trustedOrigin(config: AppConfig): string {
   const raw = (config.appUrl ?? "").trim();
+  if (!config.billingAppUrlConfigured) {
+    fail(503, "BILLING_NOT_CONFIGURED", "Billing return URL is unavailable.");
+  }
   let parsed: URL;
   try { parsed = new URL(raw); } catch { fail(503, "BILLING_NOT_CONFIGURED", "Billing return URL is unavailable."); }
-  const productionLike = Boolean(config.cookieSecure);
+  const productionLike = Boolean(config.cookieSecure) ||
+    ["production", "prod", "staging"].includes((config.appEnv ?? "").toLowerCase());
   if (!parsed!.hostname || !["https:", ...(productionLike ? [] : ["http:"])].includes(parsed!.protocol) ||
       !["", "/"].includes(parsed!.pathname) || parsed!.search || parsed!.hash || parsed!.username || parsed!.password) {
     fail(503, "BILLING_NOT_CONFIGURED", "Billing return URL is unavailable.");
@@ -134,8 +138,8 @@ function validPrice(price: Json, expectedId: string): boolean {
   const recurring = price.recurring as Json | null;
   return price.id === expectedId && price.active === true && !!recurring &&
     typeof recurring.interval === "string" && recurring.interval.length > 0 &&
-    Number.isInteger(recurring.interval_count) && Number(recurring.interval_count) > 0 &&
-    Number.isInteger(price.unit_amount) && Number(price.unit_amount) > 0 &&
+    Number.isSafeInteger(recurring.interval_count) && Number(recurring.interval_count) > 0 &&
+    Number.isSafeInteger(price.unit_amount) && Number(price.unit_amount) > 0 &&
     typeof price.currency === "string" && price.currency.length > 0;
 }
 
@@ -187,7 +191,10 @@ async function verifyStripeSignature(raw: Uint8Array, header: string | null, sec
   }
   const signed = new Uint8Array(utf8(`${timestampText}.`).length + raw.length);
   signed.set(utf8(`${timestampText}.`)); signed.set(raw, utf8(`${timestampText}.`).length);
-  const key = await crypto.subtle.importKey("raw", utf8(secretValue), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const secretBytes = utf8(secretValue);
+  const keyData = new ArrayBuffer(secretBytes.byteLength);
+  new Uint8Array(keyData).set(secretBytes);
+  const key = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const digest = await crypto.subtle.sign("HMAC", key, signed);
   const expected = [...new Uint8Array(digest)].map((part) => part.toString(16).padStart(2, "0")).join("");
   if (!signatures.some((sig) => safeEqual(sig.toLowerCase(), expected))) throw new ApiError(400, "Invalid Stripe webhook signature or payload");
@@ -196,6 +203,26 @@ async function verifyStripeSignature(raw: Uint8Array, header: string | null, sec
 }
 
 function utf8(value: string): Uint8Array { return new TextEncoder().encode(value); }
+
+function voucherSecretIsIndependent(value: string, config: AppConfig): boolean {
+  const otherSecrets = [
+    config.jwtCurrent, config.jwtPrevious, config.integrationEncryptionKey,
+    config.stripeSecretKey, config.stripeWebhookSecret,
+    config.offlineAuthPrivateKey, config.realtimeSigningJwk,
+    config.emailPayloadEncryptionKey,
+  ].filter((secretValue): secretValue is string => typeof secretValue === "string" && secretValue.length > 0);
+  return !otherSecrets.some((secretValue) => secretValue === value);
+}
+
+function trustedVoucherClientIp(headers: Headers): string {
+  // Supabase's API gateway exposes cf-connecting-ip as the requester's address.
+  // Do not fall back to caller-controlled X-Forwarded-For values.
+  const value = headers.get("cf-connecting-ip")?.trim();
+  if (!value || value.length > 128 || /[\r\n,]/.test(value)) {
+    fail(503, "VOUCHER_UNAVAILABLE", "Voucher redemption is currently unavailable.");
+  }
+  return value;
+}
 
 async function billingOwner(db: Database, principal: Principal, config: AppConfig): Promise<Json> {
   const result = await rpc<Json>(db,
@@ -214,6 +241,16 @@ async function releaseFailedCheckout(
       [principal.user.id, principal.sessionId, config.enforceLegacyEmailVerification, requestId]);
   } catch {
     // Leave CREATING intact if its safe finalization cannot be persisted.
+  }
+}
+
+async function expireProviderCheckout(sessionId: string, key: string, fetcher: Fetcher): Promise<void> {
+  const prior = await stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, key, "GET", {}, undefined, fetcher);
+  if (prior.status === "open") {
+    const expired = await stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(sessionId)}/expire`, key, "POST", {}, undefined, fetcher);
+    if (expired.status !== "expired") throw new Error("Stripe did not confirm checkout expiry");
+  } else if (prior.status !== "expired") {
+    throw new Error("Stripe checkout is not safely expirable");
   }
 }
 
@@ -238,7 +275,11 @@ async function handleWebhook(request: Request, db: Database, config: AppConfig, 
   const raw = new Uint8Array(await request.arrayBuffer());
   const event = await verifyStripeSignature(raw, request.headers.get("stripe-signature"), webhookSecret);
   if (typeof event.livemode !== "boolean" || event.livemode !== stripe.expectLivemode) throw new ApiError(400, "Stripe event mode does not match server configuration");
-  if (event.account) return jsonResponse({ status: "ignored_connect" });
+  if (Object.prototype.hasOwnProperty.call(event, "account")) return jsonResponse({ status: "ignored_connect" });
+  if (typeof event.id !== "string" || !event.id.trim() || typeof event.type !== "string" ||
+      !Number.isSafeInteger(event.created) || Number(event.created) < 0) {
+    throw new ApiError(400, "Invalid Stripe webhook signature or payload");
+  }
   const payload = await rpc<Json>(db, "select al_private.al_stripe_webhook_apply($1::jsonb,$2::integer) as payload", [JSON.stringify(event), 3]);
   if (payload.status === "failed") throw new ApiError(500, "Stripe subscription event could not be mapped safely");
   return jsonResponse({ status: payload.status ?? "processed" });
@@ -258,11 +299,11 @@ async function handleVoucher(request: Request, db: Database, principal: Principa
     fail(503, "VOUCHER_UNAVAILABLE", "Voucher redemption is currently unavailable.");
   }
   const key = await secret(db, "adaptive_lifting_voucher_code_secret", config.voucherCodeSecret);
-  if (!key || isPlaceholder(key) || new TextEncoder().encode(key).length < 32) {
+  if (!key || isPlaceholder(key) || new TextEncoder().encode(key).length < 32 ||
+      !voucherSecretIsIndependent(key, config)) {
     fail(503, "VOUCHER_UNAVAILABLE", "Voucher redemption is currently unavailable.");
   }
-  const ip = request.headers.get("cf-connecting-ip")?.trim() ||
-    request.headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean).at(-1) || "unknown";
+  const ip = trustedVoucherClientIp(request.headers);
   let limit: Json;
   try {
     limit = await rpc<Json>(db, "select al_private.al_voucher_rate_limit($1::text,$2::text) as payload", [principal.user.id, ip]);
@@ -290,8 +331,8 @@ async function handleVoucher(request: Request, db: Database, principal: Principa
 
 async function handleStripeRoute(request: Request, db: Database, principal: Principal, config: AppConfig, path: string, fetcher: Fetcher): Promise<Response> {
   const owner = await billingOwner(db, principal, config);
-  const stripe = await stripeConfig(db, config);
   if (path === "/api/billing/plans" && request.method === "GET") {
+    const stripe = await stripeConfig(db, config);
     const plans = [];
     for (const planKey of PLANS) {
       let price: Json;
@@ -306,10 +347,11 @@ async function handleStripeRoute(request: Request, db: Database, principal: Prin
     return jsonResponse({ plans });
   }
   if (path === "/api/billing/stripe/checkout-session" && request.method === "POST") {
+    const stripe = await stripeConfig(db, config);
     const origin = trustedOrigin(config);
     const body = await readJson(request);
     if (Object.keys(body).length !== 2 || typeof body.planKey !== "string" ||
-        typeof body.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId)) {
+        typeof body.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.requestId)) {
       throw new ApiError(422, "Invalid request body");
     }
     const planKey = body.planKey;
@@ -321,9 +363,7 @@ async function handleStripeRoute(request: Request, db: Database, principal: Prin
     if (claimed.action === "resume") return jsonResponse({ url: claimed.url, resumed: true });
     if (claimed.action === "expire") {
       try {
-        const prior = await stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(String(claimed.sessionId))}`, stripe.key, "GET", {}, undefined, fetcher);
-        if (prior.status === "open") await stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(String(claimed.sessionId))}/expire`, stripe.key, "POST", {}, undefined, fetcher);
-        else if (prior.status !== "expired") throw new Error("Stripe checkout is not safely expirable");
+        await expireProviderCheckout(String(claimed.sessionId), stripe.key, fetcher);
       } catch { fail(502, "BILLING_PROVIDER_ERROR", "The previous checkout could not be safely expired."); }
       const released = await rpc<Json>(db,
         "select al_private.al_billing_checkout_expired($1::text,$2::text,$3::boolean,$4::text) as payload",
@@ -392,17 +432,22 @@ async function handleStripeRoute(request: Request, db: Database, principal: Prin
     }
     if (typeof checkout!.id !== "string" || !checkout!.id.startsWith("cs_") ||
         typeof checkout!.url !== "string" || !checkout!.url.startsWith("https://checkout.stripe.com/") ||
-        !Number.isInteger(checkout!.expires_at) || Number(checkout!.expires_at) <= 0) {
+        !Number.isSafeInteger(checkout!.expires_at) || Number(checkout!.expires_at) <= 0) {
       fail(502, "BILLING_PROVIDER_ERROR", "Checkout is temporarily unavailable.");
     }
     const finalized = await rpc<Json>(db,
       "select al_private.al_billing_checkout_finalize($1::text,$2::text,$3::boolean,$4::text,$5::text,$6::text,$7::bigint) as payload",
       [principal.user.id, principal.sessionId, config.enforceLegacyEmailVerification, requestId,
         checkout!.id, checkout!.url, Number(checkout!.expires_at)]);
+    if (finalized.error === "subscription_exists" || finalized.error === "checkout_in_progress") {
+      try { await expireProviderCheckout(String(checkout!.id), stripe.key, fetcher); }
+      catch { fail(502, "BILLING_PROVIDER_ERROR", "Checkout is temporarily unavailable."); }
+    }
     mapOwner(finalized); appError(finalized);
-    return jsonResponse({ url: checkout!.url, resumed: claimed.action === "recover" });
+    return jsonResponse({ url: checkout!.url, resumed: claimed.action === "recover" || finalized.resumed === true });
   }
   if (path === "/api/billing/stripe/portal-session" && request.method === "POST") {
+    const stripe = await stripeConfig(db, config);
     const origin = trustedOrigin(config);
     const mapping = await rpc<Json>(db,
       "select al_private.al_billing_customer_context($1::text,$2::text,$3::boolean) as payload",
@@ -444,4 +489,7 @@ export async function handleBillingRoute(
   return await handleStripeRoute(request, db, principal, config, normalized, fetcher);
 }
 
-export const billingTestHelpers = { verifyStripeSignature, validPrice, stripeRequest, hmacHex, safeEqual, trustedOrigin };
+export const billingTestHelpers = {
+  verifyStripeSignature, validPrice, stripeRequest, hmacHex, safeEqual,
+  trustedOrigin, voucherSecretIsIndependent, trustedVoucherClientIp,
+};

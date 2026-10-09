@@ -35,7 +35,7 @@ function mockDatabase(responses: Record<string, unknown> = {}) {
       if (sql.includes('al_billing_checkout_claim')) return { rows: [{ payload: responses.claim ?? { action: 'create', requestId: '6f5c3b2e-1d0a-4b8c-9e7f-0123456789ab', planKey: 'coach_pro' } }] };
       if (sql.includes('al_billing_customer_context')) return { rows: [{ payload: responses.customer ?? { ...owner, customerId: 'cus_staging' } }] };
       if (sql.includes('al_billing_customer_link')) return { rows: [{ payload: responses.linked ?? { customerId: 'cus_staging' } }] };
-      if (sql.includes('al_billing_checkout_finalize')) return { rows: [{ payload: { ok: true } }] };
+      if (sql.includes('al_billing_checkout_finalize')) return { rows: [{ payload: responses.finalized ?? { ok: true } }] };
       if (sql.includes('al_billing_checkout_fail')) return { rows: [{ payload: { ok: true } }] };
       if (sql.includes('al_stripe_webhook_apply')) return { rows: [{ payload: responses.webhook ?? { status: 'processed' } }] };
       if (sql.includes('al_private.al_billing_secret')) return { rows: [{ value: null }] };
@@ -177,11 +177,43 @@ describe('billing Edge route provider boundaries', () => {
     expect(await connectResponse!.json()).toEqual({ status: 'ignored_connect' });
     expect(connectDb.calls.some((call) => call.sql.includes('al_stripe_webhook_apply'))).toBe(false);
 
+    const connectWithNullAccount = encoder.encode(JSON.stringify({ id: 'evt_connect_null', type: 'customer.subscription.created', created: now, livemode: false, account: null }));
+    const connectNullSignature = await stripeSignature(connectWithNullAccount, 'whsec_test_fake', now);
+    const connectNullDb = mockDatabase();
+    const connectNullResponse = await handleBillingRoute(new Request('https://edge.example.test/api/billing/stripe/webhook', {
+      method: 'POST', headers: { 'stripe-signature': connectNullSignature }, body: connectWithNullAccount,
+    }), connectNullDb.db, config);
+    expect(await connectNullResponse!.json()).toEqual({ status: 'ignored_connect' });
+    expect(connectNullDb.calls.some((call) => call.sql.includes('al_stripe_webhook_apply'))).toBe(false);
+
     const wrongMode = encoder.encode(JSON.stringify({ id: 'evt_live', type: 'customer.subscription.created', created: now, livemode: true, data: { object: {} } }));
     const wrongSignature = await stripeSignature(wrongMode, 'whsec_test_fake', now);
     await expect(handleBillingRoute(new Request('https://edge.example.test/api/billing/stripe/webhook', {
       method: 'POST', headers: { 'stripe-signature': wrongSignature }, body: wrongMode,
     }), mockDatabase().db, config)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('rejects a correctly signed but malformed event envelope before the webhook RPC', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const raw = encoder.encode(JSON.stringify({ type: 'customer.subscription.created', created: now, livemode: false }));
+    const signature = await stripeSignature(raw, 'whsec_test_fake', now);
+    const { db, calls } = mockDatabase();
+    await expect(handleBillingRoute(new Request('https://edge.example.test/api/billing/stripe/webhook', {
+      method: 'POST', headers: { 'stripe-signature': signature }, body: raw,
+    }), db, config)).rejects.toMatchObject({ status: 400 });
+    expect(calls.some((call) => call.sql.includes('al_stripe_webhook_apply'))).toBe(false);
+  });
+
+  it('returns the narrow ignored result for a signed unrelated Stripe event', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const raw = encoder.encode(JSON.stringify({ id: 'evt_invoice', type: 'invoice.paid', created: now, livemode: false }));
+    const signature = await stripeSignature(raw, 'whsec_test_fake', now);
+    const { db, calls } = mockDatabase({ webhook: { status: 'ignored' } });
+    const response = await handleBillingRoute(new Request('https://edge.example.test/api/billing/stripe/webhook', {
+      method: 'POST', headers: { 'stripe-signature': signature }, body: raw,
+    }), db, config);
+    expect(await response!.json()).toEqual({ status: 'ignored' });
+    expect(calls.some((call) => call.sql.includes('al_stripe_webhook_apply'))).toBe(true);
   });
 
   it('validates complete recurring price fields and a pure trusted app origin', () => {
@@ -193,11 +225,51 @@ describe('billing Edge route provider boundaries', () => {
       id: 'price_x', active: true, unit_amount: 1200, currency: 'usd',
       recurring: { interval: 'month' },
     }, 'price_x')).toBe(false);
-    expect(billingTestHelpers.trustedOrigin({ appUrl: 'https://app.example.test', cookieSecure: true } as never))
+    expect(billingTestHelpers.trustedOrigin({ appUrl: 'https://app.example.test', cookieSecure: true, billingAppUrlConfigured: true } as never))
       .toBe('https://app.example.test');
     expect(() => billingTestHelpers.trustedOrigin({
-      appUrl: 'https://app.example.test/unsafe', cookieSecure: true,
+      appUrl: 'https://app.example.test/unsafe', cookieSecure: true, billingAppUrlConfigured: true,
     } as never)).toThrow('Billing return URL is unavailable.');
+    expect(() => billingTestHelpers.trustedOrigin({
+      appUrl: 'https://app.example.test', cookieSecure: true, billingAppUrlConfigured: false,
+    } as never)).toThrow('Billing return URL is unavailable.');
+  });
+
+  it('does not release an expired checkout unless Stripe confirms it expired', async () => {
+    vi.mocked(authenticate).mockResolvedValue(principal as never);
+    const { db, calls } = mockDatabase({
+      claim: { action: 'expire', requestId: 'original-request', sessionId: 'cs_prior' },
+    });
+    await expect(handleBillingRoute(new Request('https://edge.example.test/api/billing/stripe/checkout-session', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ planKey: 'coach_pro', requestId: '6f5c3b2e-1d0a-4b8c-9e7f-0123456789ab' }),
+    }), db, config, async (input) => {
+      if (String(input).endsWith('/cs_prior')) return new Response(JSON.stringify({ status: 'open' }));
+      if (String(input).endsWith('/cs_prior/expire')) return new Response(JSON.stringify({ status: 'open' }));
+      throw new Error('unexpected Stripe request');
+    })).rejects.toMatchObject({ status: 502 });
+    expect(calls.some((call) => call.sql.includes('al_billing_checkout_expired'))).toBe(false);
+  });
+
+  it('expires a just-created Checkout if a concurrent webhook completed the reservation', async () => {
+    vi.mocked(authenticate).mockResolvedValue(principal as never);
+    const { db, calls } = mockDatabase({ finalized: { error: 'subscription_exists' } });
+    const stripeCalls: string[] = [];
+    await expect(handleBillingRoute(new Request('https://edge.example.test/api/billing/stripe/checkout-session', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ planKey: 'coach_pro', requestId: '6f5c3b2e-1d0a-4b8c-9e7f-0123456789ab' }),
+    }), db, config, async (input, init) => {
+      const url = String(input);
+      stripeCalls.push(`${init?.method}:${url}`);
+      if (url.endsWith('/v1/checkout/sessions')) {
+        return new Response(JSON.stringify({ id: 'cs_raced', url: 'https://checkout.stripe.com/c/pay', expires_at: 1_900_000_000 }));
+      }
+      if (url.endsWith('/v1/checkout/sessions/cs_raced')) return new Response(JSON.stringify({ status: 'open' }));
+      if (url.endsWith('/v1/checkout/sessions/cs_raced/expire')) return new Response(JSON.stringify({ status: 'expired' }));
+      throw new Error(`unexpected Stripe request ${url}`);
+    })).rejects.toMatchObject({ status: 409, detail: { code: 'BILLING_SUBSCRIPTION_EXISTS' } });
+    expect(stripeCalls.some((call) => call.includes('/cs_raced/expire'))).toBe(true);
+    expect(calls.some((call) => call.sql.includes('al_billing_checkout_finalize'))).toBe(true);
   });
 
   it('does not reveal provider response bodies and retains ambiguous POST state', async () => {
@@ -219,6 +291,20 @@ describe('billing Edge route provider boundaries', () => {
     } catch (error) {
       expect((error as Error & { ambiguous?: boolean }).ambiguous).toBe(false);
     }
+  });
+
+  it('uses the gateway client IP and rejects caller-supplied forwarding headers', () => {
+    expect(billingTestHelpers.trustedVoucherClientIp(new Headers({
+      'cf-connecting-ip': '203.0.113.9', 'x-forwarded-for': '198.51.100.7',
+    }))).toBe('203.0.113.9');
+    expect(() => billingTestHelpers.trustedVoucherClientIp(new Headers({
+      'x-forwarded-for': '198.51.100.7',
+    }))).toThrow('Voucher redemption is currently unavailable.');
+  });
+
+  it('rejects a voucher HMAC key reused from another configured secret', () => {
+    expect(billingTestHelpers.voucherSecretIsIndependent('dedicated-voucher-key', config)).toBe(true);
+    expect(billingTestHelpers.voucherSecretIsIndependent('sk_test_fake', config)).toBe(false);
   });
 
   it('uses deterministic keyed voucher hashes without storing plaintext', async () => {
