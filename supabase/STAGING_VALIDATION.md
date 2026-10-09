@@ -1814,3 +1814,61 @@ assumed compatible with the current cookie policy, the eventual provider must
 implement the provider-neutral same-origin rewrite contract in
 `PRODUCTION_CUTOVER.md`, including request/response cookie headers and
 allowlisted Origin/CORS behavior. No provider has been selected or provisioned.
+
+### Final Cloudflare staging security gate — 2026-10-09
+
+**Target:** `https://adaptive-lifting-staging.gartman-bekaali.workers.dev`
+(`adaptive-lifting-staging`, Worker version
+`a57abdff-8e50-40b2-b97b-e484f4729cee`). Supabase project:
+`admyuepbbtstayaydjmo`. The staging owner reported `COOKIE_SECURE=true`,
+`APP_ENV=staging`, the exact Worker origin in `CORS_ALLOWED_ORIGINS`, and the
+Worker URL in `APP_URL`. Runtime confirmed secure cookie behavior and exact
+origin acceptance. The management interface does not expose Edge Function
+environment values and OAuth/provider links are disabled, so the literal
+`APP_ENV` and `APP_URL` values and an APP_URL-based redirect remain
+owner-reported rather than independently read back.
+
+The API Edge Function received version `101` (bundle SHA
+`51bbb95beae866b79f47dc4a05da0ca279a77ab83a31e14b175909c509ffbf46`). It
+centralizes mutation-origin enforcement before route dispatch for POST, PUT,
+PATCH, and DELETE. Exact configured origins are accepted; null, missing,
+untrusted, or conflicting Origin/Referer values are rejected. Forwarded
+headers are ignored. Originless non-cookie Bearer requests remain supported.
+Safe GET/HEAD routes are unaffected. Stripe and Telegram webhooks remain
+outside the browser-origin check and retain independent signature/secret
+authentication. Custom JWT validation and existing session behavior are
+unchanged. Cloudflare Worker was not redeployed.
+
+Live Node Playwright verification on the workers.dev origin passed: health
+200; exact Cloudflare-origin CORS acceptance; cookie `HttpOnly`, `Secure`,
+`SameSite=Lax`, and `Path=/`; login; authenticated `/api/auth/me`; session
+continuity after refresh; same-origin logout revocation; training create/read/
+write; coach/athlete access boundaries; private Realtime token and WebSocket
+authorization; root-scoped service worker; SPA deep links; and provider
+fail-closed behavior. Thirteen untrusted/missing/null-origin mutation cases
+returned 403. A real cross-origin logout returned 403 and the same session
+remained valid afterward. Denied requests made no persisted state changes.
+The staging REST and GraphQL routes returned 503 PGRST002, consistent with the
+owner-confirmed Data API disabled setting.
+
+The disposable athlete, coach, outsider, sessions, workout/exercise/set,
+notes, coach relationship/invite, workspace/grant, audit rows, email
+verification/outbox, auth security events/subjects, and voucher rate-limit
+fixtures were deleted. Scoped cleanup counts were all zero afterward; an
+orphan scan across 41 public foreign keys found zero orphan rows. Production
+project settings/data and the separate `local-save` checkout were untouched.
+
+Validation completed with `npm.cmd test` (356 passed, 1 skipped),
+`npm.cmd test -- cloudflare/worker.test.ts` (5 passed),
+`npm.cmd run build` (pass; existing large-chunk advisory), and all available
+Supabase Edge tests (69 passed with Deno `--no-check`; focused changed tests
+passed 11). Deno's default type check still emits known `BufferSource`
+diagnostics in `fernet.ts` on the available Deno version.
+
+To roll back only the Worker if it is later redeployed, run:
+
+    npx wrangler rollback a57abdff-8e50-40b2-b97b-e484f4729cee --name adaptive-lifting-staging
+
+To revert API Edge version `101`, use the staging project's Supabase Dashboard
+to restore API version `100`, or redeploy the reviewed version-100 source.
+Never roll this change into production as part of staging rollback.

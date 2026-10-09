@@ -57,7 +57,9 @@ describe('offline authorization', () => {
     { exp: 1 },
     { iss: 'other' },
     { aud: 'other' },
-    { iat: Math.floor(Date.now() / 1000) + 31 },
+    // Keep the value outside the verifier's 30-second skew even if the
+    // parameterized case runs after earlier async signature checks.
+    { iat: Math.floor(Date.now() / 1000) + 61 },
     { exp: Math.floor(Date.now() / 1000) + 172800 },
     { sid: '' },
     { sub: '' },

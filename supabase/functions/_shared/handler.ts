@@ -2,6 +2,7 @@ import type { AppConfig } from "./config.ts";
 import { authenticate } from "./auth/session.ts";
 import { authRepository, checkDatabase, type Database } from "./db/mod.ts";
 import { ApiError, errorResponse, jsonResponse } from "./errors/mod.ts";
+import { enforceMutationOrigin } from "./requestOrigin.ts";
 import { handleAnalyticsQuery } from "./analyticsRoute.ts";
 import { handleInsightCardsRoute } from "./insightCardsRoute.ts";
 import { handleInsightCardSync } from "./insightCardSyncRoute.ts";
@@ -67,6 +68,9 @@ export function createHandler(
       const path = rawPath === "/api" || rawPath.startsWith("/api/")
         ? rawPath
         : `/api${rawPath}`;
+      const providerWebhook = path === "/api/billing/stripe/webhook" ||
+        path === "/api/integrations/telegram/webhook";
+      if (!providerWebhook) enforceMutationOrigin(request, config);
       if (path === "/api/realtime/token") {
         if (!realtimeTokenHandler) {
           throw new ApiError(503, "Realtime token service unavailable");

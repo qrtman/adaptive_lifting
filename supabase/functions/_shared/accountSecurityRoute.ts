@@ -94,21 +94,6 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function enforceBrowserWriteOrigin(request: Request, config: AppConfig): void {
-  if (!config.cookieSecure || ["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
-  let origin = request.headers.get("origin");
-  if (!origin) {
-    const referer = request.headers.get("referer");
-    if (referer) {
-      try { origin = new URL(referer).origin; } catch { origin = ""; }
-    }
-  }
-  const hasCookie = (request.headers.get("cookie") ?? "").split(";").some((part) => part.trim().startsWith("session_id="));
-  if ((origin && !config.allowedOrigins.includes(origin)) || (!origin && hasCookie)) {
-    throw new ApiError(403, "Untrusted request origin");
-  }
-}
-
 async function offlineGrant(
   db: Database,
   config: AppConfig,
@@ -224,7 +209,6 @@ export async function handleAccountSecurityRoute(
     path === "/api/security/sessions" || /^\/api\/security\/sessions\/[^/]+$/.test(path) ||
     path === "/api/security/audit-events";
   if (!known) return null;
-  enforceBrowserWriteOrigin(request, config);
 
   const expected = new Map<string, string[]>([
     ["/api/auth/login", ["POST"]], ["/api/auth/logout", ["POST"]],

@@ -55,14 +55,12 @@ The staging owner previously confirmed **Enable Data API: Off** in the
 Dashboard; the latest staging audit records the REST and GraphQL endpoints as
 unavailable. Production settings were not changed.
 
-The authenticated live check found a blocking cookie configuration issue. The
-`session_id` cookie was `HttpOnly; SameSite=Lax; Path=/` but did not include
-`Secure`. With the effective cookie setting off, an authenticated cross-origin
-logout probe was accepted with HTTP 200 instead of being rejected. Do not use
-this Worker for authenticated staging until the staging `api` Edge Function
-has `COOKIE_SECURE=true`, the exact Cloudflare origin in
-`CORS_ALLOWED_ORIGINS`, and `APP_URL` set to
-`https://adaptive-lifting-staging.gartman-bekaali.workers.dev`.
+The initial authenticated live check found a blocking cookie configuration
+issue: `Secure` was absent and cross-origin logout returned 200. The staging
+owner corrected the Edge Function configuration, and the final security gate
+below supersedes that initial result. The shared mutation-origin guard was
+deployed to the staging API Edge Function; the Worker itself was not changed
+or redeployed.
 
 APP_URL-dependent redirects could not be observed during this run: Stripe
 checkout and Google Sheets OAuth returned their expected fail-closed 503
@@ -73,7 +71,7 @@ environment values, so `APP_URL` also needs owner confirmation in the staging
 Dashboard. Set and verify these values in staging only; production remains
 untouched.
 
-### Live staging validation — 2026-10-09
+### Initial live staging validation — 2026-10-09 (superseded)
 
 Validation used Node Playwright against the deployed workers.dev URL and the
 Supabase staging Edge API. It did not start FastAPI or modify or redeploy the
@@ -86,10 +84,10 @@ Worker.
 | Same-origin API proxy | PASS — `/api/health` returned 200, identified project `admyuepbbtstayaydjmo`, and included `Cache-Control: private, no-store`. |
 | Credential scan | PASS — built assets contained none of the checked private credential variable names; checked-in Wrangler config contains only the staging Supabase project origin. |
 | Login, session, logout | PASS — password login and logout returned 200; `/api/auth/me` returned the same athlete after refresh and 401 after logout. |
-| Cookie security | FAIL — `HttpOnly` and `SameSite=Lax` were present; `Secure` was absent. |
+| Cookie security | FAIL at initial check — `HttpOnly` and `SameSite=Lax` were present; `Secure` was absent. Corrected and rechecked in the final security gate below. |
 | Authenticated training | PASS — synthetic athlete read microcycles, created a session and lift, wrote sets, then read the canonical training tree. |
 | Coach/athlete boundaries | PASS — linked coach read and updated the athlete's session; unrelated coach and athlete reads/writes returned 403. A repeated coach-code link was rejected as already linked. |
-| CSRF/origin protection | FAIL — the authenticated cross-origin logout probe returned 200 while `COOKIE_SECURE` was effectively off. Exact-origin preflight succeeded; attacker-origin preflight returned 405 without CORS permission. |
+| CSRF/origin protection | FAIL at initial check — the authenticated cross-origin logout probe returned 200 while `COOKIE_SECURE` was effectively off. Corrected and rechecked in the final security gate below. |
 | Private Realtime | PASS — browser WebSocket joined the exact private synthetic workout channel using the 60-second app-issued Realtime token. |
 | Provider fail-closed | PASS — Stripe plans/checkout and Google Sheets OAuth returned 503 while unconfigured; no provider redirect URL was issued. |
 | Synthetic cleanup | PASS — 3 test users, 34 app sessions, 10 workouts, 8 exercises, 16 sets, verification/outbox records, coach link/workspace/grant/invites, audit rows, and test rate-limit events were removed. Post-cleanup prefix checks were zero, and all 41 public foreign keys had zero orphan rows. |
@@ -101,9 +99,69 @@ JavaScript chunk over 500 kB. The deployed browser smoke passed assets, SPA
 fallback, service worker, health, and unauthenticated `/api/auth/me`; rerun it
 with `node scripts/cloudflare-staging-smoke.mjs` after `npm run build`.
 
-The cookie and CSRF failures block authenticated use until the staging Edge
-Function configuration is corrected. `APP_URL`-based redirects remain
-unverified while the corresponding providers are disabled.
+At the initial check, cookie and CSRF failures blocked authenticated use.
+`APP_URL`-based redirects were not observable because the relevant providers
+were disabled. See the final staging security gate below for the corrective
+Edge deployment and current verification status.
+
+### Final staging security gate — 2026-10-09
+
+The staging owner confirmed the API Edge Function configuration as
+`COOKIE_SECURE=true`, `APP_ENV=staging`,
+`APP_URL=https://adaptive-lifting-staging.gartman-bekaali.workers.dev`, and an
+exact HTTPS origin allowlist. Runtime cookie, CORS, health, and session tests
+were performed against the deployed URL. The management interface used here
+does not return Edge Function environment values, so `APP_ENV` and `APP_URL`
+could not be independently read back. Provider-dependent redirects were not
+available to observe because those integrations are disabled; keep this as an
+explicit evidence gap.
+
+The shared CSRF/origin policy is enforced before application route dispatch
+for POST, PUT, PATCH, and DELETE. It allows exact allowlisted origins, rejects
+`Origin: null`, missing or mismatched Origin/Referer, and does not use
+forwarded headers. Originless server-to-server Bearer requests remain
+compatible. Stripe and Telegram webhook routes retain their independent
+signature/secret checks. GET and HEAD behavior is unchanged. API Edge Function
+version `101` deployed this change to staging project
+`admyuepbbtstayaydjmo`; the Cloudflare Worker remained at version
+`a57abdff-8e50-40b2-b97b-e484f4729cee`.
+
+Node Playwright and direct HTTP checks against the real workers.dev origin
+passed: `/api/health` returned 200 for the staging project; login returned
+200; `session_id` carried `HttpOnly; Secure; SameSite=Lax; Path=/`; `/api/auth/me`
+remained authenticated after refresh and returned 401 after same-origin
+logout. A cross-origin logout using the real cookie returned 403 and the
+original session still authenticated. Thirteen cross-origin mutation cases
+covering auth/profile, session create/update/delete, set logging, notes,
+analytics, voucher redemption, and realtime token returned 403 without
+persisted changes. Same-origin training reads/writes, linked coach access,
+outsider denial, private Realtime channel join, PWA service-worker activation,
+and fail-closed provider responses passed. REST and GraphQL generated endpoints
+remained unavailable (HTTP 503/PGRST002), corroborating the owner-confirmed
+Data API Off setting.
+
+Disposable athlete, coach, and outsider fixtures were removed. Post-cleanup
+checks found zero synthetic users, sessions, workouts, exercises, sets, notes,
+coach links, audit rows, verification/outbox records, workspaces, grants,
+security events/subjects, or voucher limit rows. All 41 public foreign-key
+checks had zero orphan rows.
+
+The live validation commands were `node scripts/cloudflare-staging-smoke.mjs`,
+the temporary authenticated Node Playwright CSRF runner, `npm.cmd test`,
+`npm.cmd test -- cloudflare/worker.test.ts`, `npm.cmd run build`, and the
+Supabase Edge tests (69 passed with Deno `--no-check`; focused changed tests
+passed 11). The temporary credential-bearing runner was removed after the
+test. Full npm suite: 356 passed, 1 skipped. Build passed with its existing
+large-chunk advisory. Deno type-check still reports the previously known
+WebCrypto `BufferSource` diagnostics in `fernet.ts` under Deno 2.9.
+
+Rollback is staging-only. Roll back the Worker only if its own version changes:
+
+    npx wrangler rollback a57abdff-8e50-40b2-b97b-e484f4729cee --name adaptive-lifting-staging
+
+If the Edge API change must be reverted, use Supabase Dashboard project
+`admyuepbbtstayaydjmo` to restore API Function version `100`, or redeploy the
+reviewed version-100 source to that project. Do not change production.
 
 ### Rollback
 

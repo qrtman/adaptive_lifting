@@ -65,6 +65,7 @@ Deno.test("Realtime token route is unavailable without its signing key", async (
   const response = await createHandler(config, db)(
     new Request("https://example.test/functions/v1/api/api/realtime/token", {
       method: "POST",
+      headers: { Origin: "https://app.example.test" },
     }),
   );
   assert(response.status === 503);
@@ -94,6 +95,7 @@ Deno.test("catalog requires app session and matches Python registry fixture", as
     (await handler(
       new Request("https://example.test/api/analytics/catalog", {
         method: "POST",
+        headers: { Origin: "https://app.example.test" },
       }),
     )).status === 405,
   );
@@ -109,12 +111,12 @@ Deno.test("analytics query reuses app auth and returns a compatible empty result
     },
   };
   const unauthenticated = await handler(new Request("https://example.test/api/analytics/query", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method: "POST", headers: { "Content-Type": "application/json", Origin: "https://app.example.test" }, body: JSON.stringify(body),
   }));
   assert(unauthenticated.status === 401);
   const response = await handler(new Request("https://example.test/api/analytics/query", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: `session_id=${tokens.current_token}` },
+    headers: { "Content-Type": "application/json", Cookie: `session_id=${tokens.current_token}`, Origin: "https://app.example.test" },
     body: JSON.stringify(body),
   }));
   assert(response.status === 200);

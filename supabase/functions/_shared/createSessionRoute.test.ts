@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { handleCreateSession, parseSessionCreateInput } from "./createSessionRoute.ts";
 import { ApiError } from "./errors/mod.ts";
 import type { AppConfig } from "./config.ts";
@@ -127,6 +127,6 @@ Deno.test("session creation maps plan, entitlement, date, and tombstone denials 
 });
 
 Deno.test("session request parser rejects missing date and non-string labels", async () => {
-  await assertRejects(() => Promise.resolve(parseSessionCreateInput({})), ApiError);
-  await assertRejects(() => Promise.resolve(parseSessionCreateInput({ date: "2026-10-05", weekLabel: 3 })), ApiError);
+  assertThrows(() => parseSessionCreateInput({}), ApiError);
+  assertThrows(() => parseSessionCreateInput({ date: "2026-10-05", weekLabel: 3 }), ApiError);
 });
