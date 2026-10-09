@@ -4,8 +4,10 @@ Production API routes are handled by `functions/api`, with narrow private SQL
 interfaces in `al_private`. Scheduled email and Sheets work runs through the
 private `email-verification-worker` and `google-sheets-worker` Edge Functions
 with Postgres Cron/`pg_net` dispatch. The frontend uses same-origin `/api`
-paths; the production Caddy host rewrites these to `/functions/v1/api/...`.
-There is no production FastAPI, Python worker, or Python database process.
+paths; the selected static frontend host must rewrite/proxy these to
+`/functions/v1/api/...` while preserving the application session cookie. No
+frontend hosting provider is selected. There is no production FastAPI, Python
+worker, or Python database process.
 
 The project keeps the existing custom app authentication: an HS256 app JWT and
 `sessions` table, a separate ES256 offline grant, and a separate ES256 Realtime

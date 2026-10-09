@@ -1,5 +1,10 @@
 # Adaptive Lifting: serverless migration feasibility
 
+> Historical feasibility analysis from before the completed Supabase
+> migration. Its hosting/provider proposals and legacy topology are not current
+> deployment instructions. See `supabase/PRODUCTION_CUTOVER.md` for the current
+> provider-neutral frontend host contract.
+
 Assessment date: **2026-09-29**. Repository: [qrtman/adaptive_lifting](https://github.com/qrtman/adaptive_lifting), branch `local-save`. Decision: **prepare a small cloud pilot, retain FastAPI, and do not authorize production cutover or a wholesale Edge rewrite yet.**
 
 ## 1. Decision and requirement assessment

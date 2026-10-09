@@ -1,5 +1,10 @@
 # Email verification staging validation
 
+> Historical pre-migration planning and validation record (2026-09-28). Its
+> Docker/Caddy topology and proposed deployment steps are superseded. Do not use
+> this file as a deployment runbook; use `supabase/PRODUCTION_CUTOVER.md` for
+> the current provider-neutral Supabase deployment contract.
+
 **Repository:** `qrtman/adaptive_lifting`
 
 **Branch:** `local-save`

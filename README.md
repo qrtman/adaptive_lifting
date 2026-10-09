@@ -8,12 +8,12 @@ shared access through the coach-code relationship flow.
 
 Production browser requests use same-origin `/api` URLs. The selected static
 frontend host serves the Vite bundle and routes `/api` to the Supabase `api`
-Edge Function. The optional Caddy configuration demonstrates one way to serve
-the bundle and proxy those requests; Caddy is not a required Supabase backend
-component or a required production hosting choice. Supabase Edge Functions
-and private PostgreSQL interfaces own the application API, workers, and
-scheduled jobs. Production does not run the Python/FastAPI application or a
-Python worker.
+Edge Function. Frontend hosting is not selected yet. The host must provide the
+same-origin API proxy and static SPA/PWA behavior documented in
+[`PRODUCTION_CUTOVER.md`](supabase/PRODUCTION_CUTOVER.md). Supabase Edge
+Functions and private PostgreSQL interfaces own the application API, workers,
+and scheduled jobs. Production does not run the Python/FastAPI application or
+a Python worker.
 
 The custom application authentication remains separate from Supabase Auth:
 HS256 app JWTs are backed by the application `sessions` table; offline grants
@@ -47,25 +47,20 @@ python -m uvicorn backend.main:app --port 8000 --host 127.0.0.1
 The Python application and tests remain a compatibility reference. They are
 not included in the production Compose deployment.
 
-## Production frontend host
+## Production frontend hosting
 
-The optional Compose deployment contains only the static frontend and Caddy.
-It proxies `/api` to the configured Supabase project; it does not start
-FastAPI, an Alembic migrator, or a Python worker.
+The frontend remains a static Vite/PWA build. The production hosting provider
+has not been selected or provisioned. Configure only public build values from
+`.env.production.example`; application secrets remain in Supabase Edge/Vault
+configuration. Do not put private keys, database credentials, provider
+secrets, or app signing keys into the frontend build.
 
-Copy `.env.production.example` to a protected `.env.production`, configure the
-public Supabase project host and publishable key, set `APP_DOMAIN`, and provide
-the public Google client ID and offline-auth public key only when those
-features are enabled. Configure private application values in the production
-Supabase project through its managed Edge secrets/Vault setup. Never put
-private keys, database credentials, provider secrets, or app signing keys in
-the frontend build or Caddy environment.
-
-```sh
-docker compose --env-file .env.production config --quiet
-docker compose --env-file .env.production build
-docker compose --env-file .env.production up -d --wait
-```
+The selected host must serve the SPA fallback and root service-worker assets,
+and must reverse-proxy same-origin `/api/*` requests to the Supabase Edge API
+while preserving request/response headers and cookies. See the provider-neutral
+rewrite and cookie contract in [`PRODUCTION_CUTOVER.md`](supabase/PRODUCTION_CUTOVER.md).
+Do not point browser API calls directly at the cross-origin Supabase host under
+the current HttpOnly `SameSite=Lax` session-cookie policy.
 
 Use the ordered, staging-rehearsed procedure in
 [supabase/PRODUCTION_CUTOVER.md](supabase/PRODUCTION_CUTOVER.md) before any

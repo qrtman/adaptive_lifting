@@ -1,5 +1,10 @@
 # Email verification implementation report
 
+> Historical implementation report for the legacy Python deployment. File
+> inventories below describe that snapshot and are not active deployment
+> artifacts. The current runtime and hosting contract are documented in
+> `supabase/README.md` and `supabase/PRODUCTION_CUTOVER.md`.
+
 Repository: `qrtman/adaptive_lifting`. Working branch: `local-save`. Reference/unchanged HEAD: `c8c0181a90c9962e779f633c2bc48bca1b971435`. Implementation is in the working tree; no merge, push, deployment or live database changes were performed. The initial working tree was clean.
 
 ## Database changes

@@ -3,9 +3,10 @@
 This is a future release procedure. The final audit changes and tests staging
 and repository configuration only. Production remains untouched. The Python
 FastAPI application, Alembic migrator, and Python worker are not part of the
-production runtime. A chosen frontend host serves static files; Caddy is an
-optional reference proxy, while application APIs and scheduled workers run on
-Supabase Edge/Postgres.
+production runtime. Caddy has been removed from the intended deployment
+architecture. The static frontend host remains unselected; application APIs
+and scheduled workers run on Supabase Edge/Postgres. The completed Caddy
+rehearsal below is historical evidence for the host contract only.
 
 ## Audit status and gates
 
@@ -37,7 +38,8 @@ in Vite build arguments, `.env.production`, checked-in files, or browser code.
 | Core auth | `EMAIL_VERIFICATION_ENFORCE_LEGACY` | non-secret | Required policy flag; set from the reviewed account policy. |
 | Frontend host | `APP_DOMAIN` | non-secret | Required in static-host environment; bare app hostname. |
 | Frontend host | `SUPABASE_EDGE_HOST` | non-secret | Required; `<project-ref>.supabase.co`. |
-| Frontend host | `SUPABASE_PUBLISHABLE_KEY` | public | Required for the Caddy Edge proxy; publishable/anon key only. |
+| Frontend host/proxy | Supabase Edge project host | non-secret | Required by the selected host's `/api` rewrite; browser requests remain same-origin. |
+| Frontend host/proxy | Supabase publishable key | public | Use only if the selected host/proxy's Edge gateway path requires an `apikey` header; never use a secret/service-role key. |
 | Frontend | `VITE_GOOGLE_CLIENT_ID` | public | Required only when Google login is enabled. |
 | Frontend | `VITE_OFFLINE_AUTH_PUBLIC_KEY` | public | Required for offline grant verification. |
 | Realtime | `REALTIME_JWT_PRIVATE_JWK` | private | Required only when private Broadcast token issuance is enabled; independent ES256 key. |
@@ -99,13 +101,12 @@ requirements, not permission to copy staging secrets.
    webhook at `https://<APP_DOMAIN>/api/integrations/telegram/webhook`; and
    Stripe webhook at `https://<APP_DOMAIN>/api/billing/stripe/webhook` for
    supported subscription lifecycle events. Configure Resend's sender domain.
-10. Build the static frontend bundle from the release commit with the
-    production Supabase Edge host and publishable key, then deploy it to the
-    frontend hosting environment selected for production. Caddy is an optional
-    reverse-proxy/static-host configuration and was used for a staging ingress
-    rehearsal; it is not a required Supabase backend component or a required
-    production hosting choice. Any selected host/proxy must route `/api` to the
-    Supabase Edge API and must not route application traffic to Python.
+10. Build the static frontend bundle from the release commit using only the
+    public Vite values required for enabled browser features. Deploy the bundle
+    to the frontend hosting provider selected for production. That host must
+    implement the same-origin API and cookie contract below; provider selection
+    is separate from the completed backend migration. Do not route application
+    traffic to Python.
 11. Run the pre-cutover smoke list below against the production candidate
     project and host before switching user traffic.
 12. Switch frontend/API traffic to the Supabase-backed host. No database
@@ -134,6 +135,36 @@ requirements, not permission to copy staging secrets.
   representative concurrency, and zero synthetic fixtures.
 - Confirm Edge deployment version/project ref in safe evidence and verify no
   request is routed to FastAPI.
+
+## Provider-neutral frontend host contract
+
+The frontend host is intentionally not selected or provisioned in this
+backend-migration release. The current production `API_BASE_URL` is empty, so
+the browser calls relative same-origin `/api/*` URLs. Preserve that behavior;
+do not point browser calls directly at the cross-origin Supabase project host
+under the current HttpOnly, Secure, `SameSite=Lax` session-cookie policy.
+
+The selected static host/proxy must:
+
+- Serve the Vite bundle over HTTPS and return the SPA shell for client paths
+  such as `/verify-email` and hash routes.
+- Serve `/sw.js` and PWA assets at their expected root paths with correct
+  content types and no API rewrite.
+- Rewrite `/api/<path>?<query>` to
+  `https://<project-ref>.supabase.co/functions/v1/api/<path>?<query>`.
+- Preserve method, query, body, `Origin`, `Cookie`, `Authorization`, and
+  content headers. Return upstream status/body and `Set-Cookie` unchanged; do
+  not cache authenticated responses or rewrite cookie security attributes.
+- Forward the configured frontend origin for application Origin/Referer
+  checks. Keep CORS explicit and allowlisted; CORS does not replace the
+  same-origin cookie route.
+- Allow the browser's authenticated secure WebSocket connection to the
+  configured Supabase Realtime service without capturing it in the `/api`
+  rewrite.
+
+The staging Caddy/Playwright rehearsal is retained as historical evidence that
+one proxy implementation met this contract. Caddy, its Docker image, and its
+hosting configuration are removed from the deployment architecture.
 
 ## Rollback criteria and procedure
 

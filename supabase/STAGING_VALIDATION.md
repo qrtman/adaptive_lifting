@@ -1792,3 +1792,25 @@ use the selected static host directly or another reviewed proxy; it must
 preserve the API routing, cookies/CORS, deep links, service worker, exports,
 and Realtime behavior covered by the Caddy rehearsal. No FastAPI/Python
 process was involved.
+
+### Frontend hosting cleanup — 2026-10-09
+
+The decision is to remove Caddy from the intended deployment architecture and
+leave frontend provider selection for a separate decision. The completed Caddy
+and Playwright run above remains historical audit evidence for one valid
+same-origin proxy implementation; it is not a required backend component or a
+production hosting choice. The Caddyfile, Caddy-based Dockerfile, Compose
+stack, Caddy-only environment values, and Caddy deployment instructions have
+been removed. No staging database, Supabase Edge deployment, Cron, or
+production setting was changed.
+
+Frontend behavior is unchanged: production `API_BASE_URL` remains same-origin
+and relative (`/api`); API calls continue to include credentials; auth cookies
+retain `HttpOnly`, `Secure`, and `SameSite=Lax`; Vite's separate-origin
+override remains development-only; Realtime continues to use its Supabase
+WebSocket path; the static host must preserve SPA fallback, `/sw.js`, and PWA
+assets. Because cross-origin calls to the Supabase project host are not
+assumed compatible with the current cookie policy, the eventual provider must
+implement the provider-neutral same-origin rewrite contract in
+`PRODUCTION_CUTOVER.md`, including request/response cookie headers and
+allowlisted Origin/CORS behavior. No provider has been selected or provisioned.

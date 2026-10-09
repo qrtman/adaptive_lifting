@@ -1439,36 +1439,35 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 ### 15.2 Target Runtime Topology
 
-The production deployment target is a Dockerized Linux host with public HTTPS, a persistent PostgreSQL database, and scheduled database backups. The API and integration worker remain long-running services for SSE, webhooks, OAuth callbacks, and background jobs.
+The production application runtime uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/`pg_net`, and Supabase Realtime. The static frontend hosting provider is intentionally undecided. It must serve the Vite/PWA build and provide same-origin API routing so the existing HttpOnly app session cookie continues to work.
 
 ```mermaid
 graph TD
-    DNS["DNS<br/>app.example.com"] --> Proxy["Caddy / Nginx<br/>TLS + Static PWA + Reverse Proxy"]
-    Proxy --> API["FastAPI App<br/>Uvicorn/Gunicorn"]
-    API --> DB[("Persistent PostgreSQL")]
-    API --> Worker["Supabase Cron + Private Edge Workers<br/>Email Verification / Google Sheets"]
-    Worker --> DB
-    Worker --> Backup["Encrypted Backup Target<br/>Object Storage or Remote Disk"]
-    Telegram["Telegram Bot API / Mini App"] --> Proxy
-    Google["Google OAuth / Sheets API"] <--> Proxy
+    Browser["Browser / PWA"] --> Host["Selected static frontend host<br/>TLS + SPA fallback"]
+    Host -->|same-origin /api proxy| API["Supabase API Edge Function"]
+    API --> DB[("Supabase PostgreSQL<br/>private RPC interfaces")]
+    Cron["Supabase Cron / pg_net"] --> Workers["Private Edge workers"]
+    Workers --> DB
+    API --> Realtime["Supabase Realtime<br/>private Broadcast"]
+    Providers["Google / Telegram / Stripe / Resend"] <--> API
 ```
 
 | Component | Runtime | Responsibility |
 | :--- | :--- | :--- |
-| Reverse proxy | Caddy or Nginx container | TLS termination, gzip/brotli, static PWA serving, API reverse proxy, webhook endpoint exposure. |
-| Backend API | FastAPI container | Auth, sync, analytics, SSE, integrations, OpenAPI. |
-| Integration workers | Supabase Cron + private Edge Functions | Email verification and Google Sheets outbox processing. The Python outbox consumer is retired. |
-| Database | Persistent PostgreSQL | Canonical production data. SQLite remains available for local development. |
-| Frontend | Static Vite build served by proxy | PWA shell, asset cache, IndexedDB offline client. |
-| Backups | Encrypted remote target | Nightly database snapshots and restore drill inputs. |
+| Frontend host | Provider selected separately | Serve static Vite assets, deep-link fallback, root service-worker/PWA files, and a same-origin `/api/*` rewrite to Supabase Edge. |
+| API | Supabase Edge Functions | Custom app auth, training, sync, analytics, integrations, billing, exports, and provider webhooks. |
+| Workers | Supabase Cron/`pg_net` + private Edge Functions | Email verification and Google Sheets outbox processing. Python workers are not required. |
+| Database | Supabase PostgreSQL | Canonical application data through narrow private SQL interfaces. |
+| Realtime | Supabase Realtime | Private Broadcast authorization using short-lived app-issued ES256 grants. |
+| Backups | Supabase project backup configuration | Production backup retention and restore drills are configured independently of the frontend host. |
 
 ### 15.3 Environment Strategy
 
 | Environment | Deployment | Purpose |
 | :--- | :--- | :--- |
-| Local | Developer machine | Fast iteration with Vite, Uvicorn, and local SQLite. |
-| Staging | Same Docker Compose topology as production | OAuth/webhook validation, migration testing, backup restore drills. |
-| Production | Single VPS/VM Docker Compose topology | Real users, persistent volume, HTTPS, encrypted backups. |
+| Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
+| Staging | Supabase staging project plus a temporary or selected static frontend host | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
+| Production | Supabase production project plus a frontend host selected before release | Real users; host choice is separate from the completed backend migration. |
 
 Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths.
 
@@ -1478,10 +1477,12 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | :--- | :--- |
 | **JWT Secrets** | Must be loaded from `JWT_SECRET_CURRENT` and optional `JWT_SECRET_PREVIOUS`, never hardcoded |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
-| **Database Migrations** | Alembic revisions run explicitly before startup; startup verifies the recorded revision and fails if pending |
+| **Database Migrations** | Checked-in Supabase SQL migrations are applied in deterministic order before release |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
 | **Backup** | PostgreSQL backups must be scheduled, retained, and restore-tested |
-| **Scaling** | PostgreSQL is the production database; API and worker use the same `DATABASE_URL` |
+| **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |
+| **API routing** | Browser requests remain relative `/api/*`; the selected host maps them to the Supabase Edge Function path and preserves method, query, body, `Origin`, `Cookie`, `Authorization`, and response headers |
+| **Realtime** | Permit secure WebSocket connections to the configured Supabase Realtime endpoint; do not route them to the API function |
 
 ### 15.5 Backup & Restore Contract
 
@@ -1501,7 +1502,6 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | `DATABASE_URL` | Yes | Persistent PostgreSQL URL in production; local SQLite is the development default. |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated production frontend origins. |
 | `COOKIE_SECURE` | Yes | Must be `true` outside local development. |
-| `PORT` | No | Backend listener port; defaults to 8000 and is passed to Caddy. |
 | `SENTRY_DSN` | No | Client/server error reporting endpoint. |
 | `BACKUP_ENCRYPTION_KEY` | Production | Encrypts database backups. |
 | `TELEGRAM_BOT_TOKEN` | Telegram enabled | Bot token used for outbound Telegram API calls. |
@@ -1522,35 +1522,36 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 
 ### 15.8 Deployment Non-Goals
 
-- **Static-only hosting:** Not sufficient because Telegram Mini App session verification, Telegram webhooks, Google OAuth callbacks, SSE, auth cookies, and sync require a backend.
-- **Pure serverless:** Deferred because long-lived SSE connections and background outbox jobs need long-running processes.
+- **Frontend hosting selection:** No provider is selected by this architecture note; selection must satisfy the host contract below.
+- **Cross-origin browser API calls:** Do not bypass the same-origin `/api` route. The current Secure, HttpOnly, `SameSite=Lax` cookie policy is not treated as compatible with arbitrary cross-site calls to the Supabase project host.
 - **Kubernetes:** Deferred until multi-tenant SaaS scale or multiple independently scalable services justify the operational overhead.
 
-### 15.9 Included Docker Compose Deployment
+### 15.9 Static Frontend Host Contract
 
-The repository's production deployment uses the root `docker-compose.yml`. The `web` service builds and serves the Vite frontend through Caddy, which obtains and renews HTTPS certificates for `APP_DOMAIN` and proxies `/api/*` to the private `api` service. Only Caddy publishes host ports (80/tcp, 443/tcp, and 443/udp). The API has no host-published port.
+The production frontend host has not been selected. Any selected provider or
+proxy must meet these requirements before release:
 
-The API and standalone integration worker connect to the same persistent PostgreSQL database through `DATABASE_URL`. The worker runs as a separate Compose service using `python -m backend.worker`; API replicas do not start integration consumers. The one-shot `migrate` service applies Alembic revisions and must succeed before the API starts.
+- Serve the static Vite build over HTTPS and return the app shell for client
+  deep links such as `/verify-email` and hash-routed views.
+- Serve `/sw.js` and PWA assets from the expected root paths with correct
+  content types; do not rewrite static assets or the service worker to API.
+- Keep browser API calls same-origin and relative to `/api`. Rewrite
+  `/api/<path>?<query>` to
+  `https://<project-ref>.supabase.co/functions/v1/api/<path>?<query>`.
+- Preserve method, query, request body, `Origin`, `Cookie`, `Authorization`,
+  and content headers. Return upstream status/body and `Set-Cookie` headers
+  unchanged; do not cache authenticated API responses or modify cookie
+  `HttpOnly`, `Secure`, `SameSite=Lax`, or path attributes.
+- Forward the exact configured origin for server Origin/Referer validation.
+  CORS must stay allowlisted to actual app origins; it is not a substitute for
+  the same-origin cookie proxy and must not use a wildcard with credentials.
+- Permit the browser's authenticated secure WebSocket connection to the
+  configured Supabase Realtime service. The `/api` rewrite must not capture or
+  transform Realtime WebSocket traffic.
 
-On a Linux host, install Docker Engine with the Compose plugin, point `APP_DOMAIN` DNS at the host, allow inbound 80/443, and prepare private secrets:
-
-```sh
-cp .env.production.example .env.production
-chmod 600 .env.production
-```
-
-Set `APP_DOMAIN`, `APP_URL`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, a unique random `JWT_SECRET_CURRENT`, and a stable random `INTEGRATION_ENCRYPTION_KEY`. Keep `APP_ENV=production` and `COOKIE_SECURE=true`; configure integration credentials when enabled. Start or update with:
-
-```sh
-docker compose --env-file .env.production build
-docker compose --env-file .env.production up -d
-```
-
-For updates, back up PostgreSQL, stop `api` and `worker`, build images, run `docker compose --env-file .env.production run --rm migrate`, and then start the stack. This keeps old application writers off the database while schema changes are applied.
-
-The same environment file is passed to the migration, API, and worker services. Caddy receives only `APP_DOMAIN` and the API port. The environment file is excluded from Docker build contexts. Check status with `docker compose ps` and logs with `docker compose logs -f migrate api worker web`. The API health check is `/api/health`; Caddy's internal health check is `http://127.0.0.1:8080/healthz`.
-
-Schedule PostgreSQL backups using the database provider or `pg_dump`, keep them off the application host, and restore a copy to staging periodically. The Compose setup does not schedule or upload backups.
+The Caddy staging exercise recorded in `supabase/STAGING_VALIDATION.md` proves
+one instance of this contract only. It is not a selected provider, required
+production service, or commitment to Caddy.
 
 See README.md for tested dump/restore commands, encryption-key retention, and
 rollback to a new empty database. Production rejects SQLite URLs. PostgreSQL
@@ -1624,4 +1625,4 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | Enable SQLite WAL locally | Accepted | Read-heavy dashboard views benefit from better SQLite concurrency during development. |
 | Treat accessory work as Exercise + ExerciseSet with `tier = Accessory` | Accepted | Isolation movements need the same per-set logging, numeric fields, INOL/tonnage, and sync path as competition lifts. |
 | Start Google Sheets as one-way publish | Accepted | Spreadsheet cells are weakly typed and should not become canonical training data without an explicit import review workflow. |
-| Deploy production behind Caddy with persistent PostgreSQL | Accepted | SSE, Telegram Mini App sessions, webhooks, OAuth callbacks, and background jobs need long-running services; database persistence is independent of application filesystems. |
+| Supabase-native backend with provider-neutral static frontend host | Accepted | The frontend host serves the PWA and preserves the same-origin API/cookie contract; Edge Functions, Postgres, Cron, and Realtime own backend services. |
