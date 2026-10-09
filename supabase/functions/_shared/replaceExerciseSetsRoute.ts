@@ -19,7 +19,7 @@ type SetInput = {
   executedRpe: number | null;
   dropPercent: number | null;
 };
-type RpcResult = { denial: string | null; exercise?: unknown };
+type RpcResult = { denial: string | null; exercise?: unknown; conflict?: unknown };
 
 function isObject(value: unknown): value is JsonObject {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -163,16 +163,21 @@ export async function handleReplaceExerciseSets(
   try { body = await request.json(); } catch {
     throw new ApiError(422, [{ type: "json_invalid", loc: ["body", 0], msg: "JSON decode error" }]);
   }
+  if (!isObject(body) || !Number.isSafeInteger(body.expected_revision) || Number(body.expected_revision) < 1) {
+    throw new ApiError(409, { error: { code: "SYNC_CONFLICT_REVIEW", message: "Reload the lift before replacing its sets." } });
+  }
+  const expectedRevision = Number(body.expected_revision);
   const sets = parseReplaceExerciseSetsInput(body);
   const client: SqlClient = await db.connect();
   try {
     const result = await client.queryObject<{ payload: unknown }>(
-      "select al_private.al_session_replace_exercise_sets($1::text,$2::text,$3::text,$4::text,$5::boolean,$6::integer,$7::jsonb) as payload",
+      "select al_private.al_session_replace_exercise_sets_checked($1::text,$2::text,$3::text,$4::text,$5::bigint,$6::boolean,$7::integer,$8::jsonb) as payload",
       [
         principal.user.id,
         principal.sessionId,
         sessionId,
         exerciseId,
+        expectedRevision,
         config.enforceLegacyEmailVerification,
         config.analyticsPastDueGraceDays,
         JSON.stringify(sets),
@@ -180,6 +185,9 @@ export async function handleReplaceExerciseSets(
     );
     if (!result.rows[0]) throw new Error("Set replacement interface returned no result");
     const payload = parseResult(result.rows[0].payload);
+    if (payload.denial === "revision_conflict") {
+      throw new ApiError(409, { error: { code: "SYNC_CONFLICT_REVIEW", message: "The lift changed since it was loaded.", details: { conflicts: [payload.conflict] } } });
+    }
     if (payload.denial) raiseDenial(payload.denial);
     if (!isObject(payload.exercise) || !Array.isArray(payload.exercise.sets)) {
       throw new Error("Set replacement interface returned an invalid exercise");

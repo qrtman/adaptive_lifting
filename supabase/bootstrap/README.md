@@ -61,7 +61,11 @@ original bytes. Regenerate the canonical baseline with `python supabase/bootstra
 
 Each replay invocation creates **two independent empty clusters**, each with database
 name `postgres` (required by historical CONNECT grants and pg_cron), applies
-prerequisites then the baseline, and replays the 62 filenames in lexical order.
+prerequisites then the baseline, and replays every migration in lexical order.
+The first 62 files are compared with the retained staging catalog snapshot before
+the new forward-only workout-revision migration is applied. That later migration
+adds server-issued revisions to workouts, exercises, and exercise sets; the
+resulting catalog delta is intentional and is not represented as staging parity.
 Each migration receives its own transaction with `ON_ERROR_STOP=1`; input bytes
 are streamed without newline conversion or content rewriting. Image entrypoint
 initializers are bypassed so no inherited application/managed migration state
@@ -73,7 +77,7 @@ run `managed-prerequisites.sql`, (3) apply `application.sql` to that empty
 project using a reviewed direct PostgreSQL session, (4) link the CLI to the
 verified project reference, (5) inspect `supabase migration list` and
 `supabase db push --dry-run`, and (6) run `supabase db push` to apply and record
-the 62 migrations in timestamp order. This is a documented future procedure,
+all migrations in timestamp order. This is a documented future procedure,
 not an action authorized or performed here. Do not run the bootstrap on an
 existing project, and do not run `supabase migration repair` for this
 source-only correction.

@@ -83,7 +83,9 @@ export class ApiRequestError extends Error {
 export async function apiRequestError(response: Response, fallback: string): Promise<ApiRequestError> {
   const data = await response.json().catch(() => ({}));
   const detail = data && typeof data === 'object' ? (data as { detail?: unknown }).detail : undefined;
-  const structured = detail && typeof detail === 'object' ? detail as Record<string, unknown> : null;
+  const envelope = detail && typeof detail === 'object' ? detail as Record<string, unknown> : null;
+  const nested = envelope?.error && typeof envelope.error === 'object' ? envelope.error as Record<string, unknown> : null;
+  const structured = nested || envelope;
   const code = typeof structured?.code === 'string' ? structured.code : undefined;
   if (response.status === 401 || code === 'EMAIL_VERIFICATION_REQUIRED') {
     void clearAuthorization();
@@ -287,20 +289,26 @@ export const apiService = {
     note?: string,
     velocity?: number | null,
     readiness?: number | null,
-    hrv?: number | null
+    hrv?: number | null,
+    expectedRevision: number = 0
   ): Promise<MicrocycleData[]> {
+    let directConflict: ApiRequestError | null = null;
     try {
       const response = await fetch(`${BACKEND_URL}/api/sets/log`, {
         method: 'POST',
         headers: getHeaders(),
         credentials: 'include',
-        body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv })
+        body: JSON.stringify({ workoutId, exerciseId, setId, weight, reps, rpe, note, velocity, readiness, hrv, expected_revision: expectedRevision })
       });
       if (!response.ok) throw await apiRequestError(response, 'API set log request failed');
       return await response.json();
     } catch (err) {
-      if (err instanceof ApiRequestError) throw err;
-      console.warn('Backend server save failed. Queueing set on IndexedDB snapshot.', err);
+      if (err instanceof ApiRequestError) {
+        if (err.code !== 'SYNC_CONFLICT_REVIEW') throw err;
+        directConflict = err;
+      } else {
+        console.warn('Backend server save failed. Queueing set on IndexedDB snapshot.', err);
+      }
     }
 
     // The Mini App uses the same scoped cache policy as the web session.
@@ -345,6 +353,12 @@ export const apiService = {
     if (exercise) {
       const set = exercise.sets.find((s: any) => s.id === setId);
       if (set) {
+        const baseFields = {
+          actual: set.actual ?? null, reps: set.reps ?? null, executedRpe: set.executedRpe ?? null,
+          scope: set.scope ?? 'both', note: set.note ?? null, velocity: set.velocity ?? null,
+          readiness: set.readiness ?? null, hrv: set.hrv ?? null,
+        };
+        const baseRevision = expectedRevision > 0 ? expectedRevision : set.revision;
         if (set.scope === 'plan') set.scope = 'both';
         set.actual = trainingNumber(weight);
         set.reps = trainingInt(reps);
@@ -359,7 +373,7 @@ export const apiService = {
           ...(velocity !== undefined ? { velocity: set.velocity } : {}),
           ...(readiness !== undefined ? { readiness: set.readiness } : {}),
           ...(hrv !== undefined ? { hrv: set.hrv } : {}),
-        });
+        }, { revision: baseRevision, fields: baseFields, snapshot_key: microcycleSnapshotKey(ownerId) });
       }
     }
 
@@ -367,6 +381,9 @@ export const apiService = {
     recalculateWorkoutMetrics(workoutObj, prevWorkoutTonnage);
     
     await saveOfflineMicrocycles(data, ownerId);
+    if (directConflict) {
+      console.warn('Server rejected a stale set edit. The original edit is retained for conflict review.', directConflict.message);
+    }
     return data;
   },
 
@@ -866,13 +883,15 @@ export const apiService = {
       actual?: number | null;
       reps?: number | null;
       executedRpe?: number | null;
-    }>
+    }>,
+    expectedRevision: number = 0
   ): Promise<import('../types').ExerciseData> {
     const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/exercises/${exerciseId}/sets`, {
       method: 'PUT',
       headers: getHeaders(),
       credentials: 'include',
       body: JSON.stringify({
+        expected_revision: expectedRevision,
         sets: sets.map((row) => ({
           id: row.id,
           label: row.label,

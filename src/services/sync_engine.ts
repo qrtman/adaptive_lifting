@@ -1,5 +1,5 @@
 import { clearAuthorization } from './authAuthorization';
-import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus } from './db';
+import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus, updateMutationConflict } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
 import { API_BASE_URL } from './apiBase';
@@ -71,13 +71,43 @@ export function parseSyncErrorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+function parseSyncErrorDetails(body: unknown): Record<string, any> | null {
+  if (!body || typeof body !== 'object') return null;
+  const root = body as { detail?: unknown; error?: { details?: unknown } };
+  const value = (root.detail && typeof root.detail === 'object'
+    ? (root.detail as { error?: { details?: unknown }; details?: unknown }).error?.details
+      ?? (root.detail as { details?: unknown }).details
+    : root.error?.details);
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : null;
+}
+
 export function isLockSyncCode(code: string | null | undefined): boolean {
   return Boolean(code && LOCK_SYNC_CODES.has(code));
 }
 
-export async function queueMutation(workout_id: string, entity_type: string, entity_id: string, fields: Record<string, any>) {
+export async function queueMutation(
+  workout_id: string,
+  entity_type: string,
+  entity_id: string,
+  fields: Record<string, any>,
+  baseline: { revision?: number; fields?: Record<string, any>; snapshot_key?: string } = {},
+) {
   if (entity_type === 'InsightCard' || workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
     await queueInsightCardMutation(entity_id, fields);
+    return;
+  }
+  const prior = (await getPendingMutations(workout_id)).find(m =>
+    m.entity_type === entity_type && m.entity_id === entity_id && m.status === 'PENDING'
+  );
+  if (prior) {
+    prior.fields = entity_type === 'Exercise' ? fields : { ...prior.fields, ...fields };
+    // Keep the first server-observed baseline for this coalesced local edit.
+    prior.base_revision ??= baseline.revision;
+    prior.base_fields ??= baseline.fields;
+    prior.snapshot_key ??= baseline.snapshot_key;
+    prior.updated_at = new Date().toISOString();
+    await saveMutation(prior);
+    scheduleSync(workout_id);
     return;
   }
   const mut: SyncMutation = {
@@ -88,6 +118,9 @@ export async function queueMutation(workout_id: string, entity_type: string, ent
     entity_id,
     field_path: 'ALL',
     fields,
+    base_revision: baseline.revision,
+    base_fields: baseline.fields,
+    snapshot_key: baseline.snapshot_key,
     updated_at: new Date().toISOString(),
     status: 'PENDING',
     retry_count: 0
@@ -170,15 +203,45 @@ async function postSync(
       for (const id of result.accepted_mutation_ids || []) {
         await updateMutationStatus(id, 'ACKED');
       }
+      const returnedConflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
+      const conflictingIds = new Set(returnedConflicts.map((item: any) => item?.mutation_id).filter((id: unknown): id is string => typeof id === 'string'));
       for (const id of result.rejected_mutations || result.rejected_mutation_ids || []) {
-        await updateMutationStatus(id, 'REJECTED');
+        if (!conflictingIds.has(id)) await updateMutationStatus(id, 'REJECTED');
       }
-
-      return result.conflicts || [];
+      for (const conflict of returnedConflicts) {
+        const mutation = pending.find(item => item.mutation_id === conflict?.mutation_id);
+        if (mutation) await updateMutationConflict(mutation.mutation_id, { ...conflict, client_fields: mutation.fields });
+      }
+      if ((result.accepted_mutation_ids || []).length > 0 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sync-server-state-restored'));
+      }
+      return returnedConflicts;
     } else if (response.status === 409) {
       const err = await response.json().catch(() => ({}));
       const code = parseSyncErrorCode(err) || '409_CONFLICT';
       const message = parseSyncErrorMessage(err, 'This workout is locked right now.');
+      if (code === 'SYNC_CONFLICT_REVIEW') {
+        const details = parseSyncErrorDetails(err) || {};
+        const conflicts = Array.isArray(details.conflicts) ? details.conflicts : [];
+        const acceptedIds = Array.isArray(details.accepted_mutation_ids) ? details.accepted_mutation_ids : [];
+        for (const id of acceptedIds) await updateMutationStatus(id, 'ACKED');
+        const conflictingIds = new Set<string>();
+        for (const conflict of conflicts) {
+          if (typeof conflict.mutation_id !== 'string') continue;
+          conflictingIds.add(conflict.mutation_id);
+          await updateMutationConflict(conflict.mutation_id, conflict);
+        }
+        for (const m of pending) {
+          if (!acceptedIds.includes(m.mutation_id) && !conflictingIds.has(m.mutation_id)) {
+            await updateMutationStatus(m.mutation_id, 'PENDING');
+          }
+        }
+        return conflicts.map((conflict: any) => ({
+          ...conflict,
+          reason: conflict.reason || code,
+          message,
+        }));
+      }
       for (const m of pending) await updateMutationStatus(m.mutation_id, 'PENDING');
       if (code === 'MATH_VERSION_MISMATCH') {
         return [{ reason: code, workout_id: lockWorkoutId, message }];
@@ -223,6 +286,8 @@ export async function processInsightCardSync(): Promise<any[]> {
       id: m.entity_id,
       mutation_id: m.mutation_id,
       updated_at: m.updated_at,
+      ...(m.base_revision !== undefined ? { base_revision: m.base_revision } : {}),
+      ...(m.base_fields !== undefined ? { base_fields: m.base_fields } : {}),
       fields: m.fields
     }))
   };
@@ -252,6 +317,8 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
       id: m.entity_id,
       mutation_id: m.mutation_id,
       updated_at: m.updated_at,
+      ...(m.base_revision !== undefined ? { base_revision: m.base_revision } : {}),
+      ...(m.base_fields !== undefined ? { base_fields: m.base_fields } : {}),
       fields: m.fields
     }))
   };

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 import sys
@@ -369,25 +370,128 @@ def _sync_compatibility(name):
 
     def invoke(actor, session_id, workout_id, device_id, changes):
         encoded = json.dumps(changes, separators=(",", ":")).replace("'", "''")
-        sql = ("SELECT al_private.al_workout_sync(" + ",".join([
-            f"'{actor}'::text", f"'{session_id}'::text", f"'{workout_id}'::text", f"'{workout_id}'::text",
-            f"'{device_id}'::text", "false::boolean", "3::integer", f"'{encoded}'::jsonb",
-        ]) + ")::text;")
+        sql = (f"SELECT al_private.al_workout_sync('{actor}','{session_id}','{workout_id}',"
+               f"'{workout_id}','{device_id}',false,3,'{encoded}'::jsonb)::text;")
         return json.loads(psql(name, sql).stdout.strip())
 
+    def current_set():
+        raw = psql(name, "SELECT json_build_object('revision',revision,'actual',actual,'note',note)::text FROM public.exercise_sets WHERE id='fixture-set-active';").stdout.strip()
+        return json.loads(raw)
+
+    actor, session_id, workout_id, device_id = "fake-athlete-001", "fake-session-athlete-valid", "fixture-workout-active", "fixture-device-001"
+    initial = current_set()
+    legacy_v1 = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "legacy-v1-no-baseline",
+                 "updated_at": "2099-01-01T00:00:00", "fields": {"note": "legacy-offline-edit"}}
+    old_result = invoke(actor, session_id, workout_id, device_id, [legacy_v1])
+    old_repeat = invoke(actor, session_id, workout_id, device_id, [legacy_v1])
+    assert old_result["denial"] == "revision_conflict" and old_result["conflicts"][0]["reason"] == "BASELINE_REQUIRED"
+    assert old_repeat["conflicts"][0]["mutation_id"] == legacy_v1["mutation_id"]
+    assert current_set() == initial
+    assert psql(name, "SELECT count(*) FROM public.sync_mutations WHERE mutation_id='legacy-v1-no-baseline';").stdout.strip() == "0"
+
     change = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "legacy-replay-set-001",
-              "updated_at": "2026-09-01T12:00:00", "fields": {"actual": 92.5, "reps": 5, "executedRpe": 8}}
-    accepted = invoke("fake-athlete-001", "fake-session-athlete-valid", "fixture-workout-active", "fixture-device-001", [change])
+              "updated_at": "2001-01-01T00:00:00", "base_revision": initial["revision"],
+              "base_fields": {"actual": initial["actual"], "reps": 5, "executedRpe": 8},
+              "fields": {"actual": 92.5, "reps": 5, "executedRpe": 8}}
+    accepted = invoke(actor, session_id, workout_id, device_id, [change])
     assert accepted.get("denial") is None and accepted["accepted_mutation_ids"] == [change["mutation_id"]], accepted
-    repeated = invoke("fake-athlete-001", "fake-session-athlete-valid", "fixture-workout-active", "fixture-device-001", [change])
+    repeated = invoke(actor, session_id, workout_id, device_id, [change])
     assert repeated["accepted_mutation_ids"] == [change["mutation_id"]], repeated
     assert psql(name, "SELECT count(*) FROM public.sync_mutations WHERE client_device_id='fixture-device-001' AND mutation_id='legacy-replay-set-001';").stdout.strip() == "1"
     assert psql(name, "SELECT actual::text FROM public.exercise_sets WHERE id='fixture-set-active';").stdout.strip() == "92.5"
 
+    # The direct online Set Log REST path uses the same compare-and-swap token.
+    direct_baseline = current_set()["revision"]
+    direct_write = psql(name, "SELECT al_private.al_set_log_checked('fake-athlete-001','fake-session-athlete-valid',"
+        "'fixture-workout-active','fixture-exercise-active','fixture-set-active',93,5,8,NULL,NULL,NULL,NULL,false,3,"
+        + str(direct_baseline) + ")::text;")
+    direct_result = json.loads(direct_write.stdout.strip())
+    assert direct_result.get("denial") is None, direct_result
+    assert current_set()["actual"] == 93
+    direct_stale = psql(name, "SELECT al_private.al_set_log_checked('fake-athlete-001','fake-session-athlete-valid',"
+        "'fixture-workout-active','fixture-exercise-active','fixture-set-active',94,5,8,NULL,NULL,NULL,NULL,false,3,"
+        + str(direct_baseline) + ")::text;")
+    direct_stale_result = json.loads(direct_stale.stdout.strip())
+    assert direct_stale_result["denial"] == "revision_conflict", direct_stale_result
+    assert current_set()["actual"] == 93
+
+    # Device A goes offline at revision N. Device B commits the same field;
+    # A reconnects with a clock behind. The server must preserve B's value.
+    before = current_set()
+    stale = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "device-a-stale-note",
+             "updated_at": "2001-01-01T00:00:00", "base_revision": before["revision"],
+             "base_fields": {"note": None}, "fields": {"note": "offline-device-a-edit"}}
+    psql(name, "UPDATE public.exercise_sets SET note='newer-device-b-value' WHERE id='fixture-set-active';")
+    stale_result = invoke(actor, session_id, workout_id, device_id, [stale])
+    assert stale_result["denial"] == "revision_conflict"
+    conflict = stale_result["conflicts"][0]
+    assert conflict["server_fields"]["note"] == "newer-device-b-value"
+    assert conflict["client_fields"]["note"] == "offline-device-a-edit"
+    assert current_set()["note"] == "newer-device-b-value"
+    stale_repeat = invoke(actor, session_id, workout_id, device_id, [stale])
+    assert stale_repeat["denial"] == "revision_conflict"
+    assert stale_repeat["conflicts"] == stale_result["conflicts"]
+    assert current_set()["note"] == "newer-device-b-value"
+
+    # A valid baseline cannot use a far-future client clock to force a write.
+    before = current_set()
+    future = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "future-client-clock",
+              "updated_at": "2099-01-01T00:00:00", "base_revision": before["revision"],
+              "base_fields": {"actual": before["actual"]}, "fields": {"actual": 999.0}}
+    future_result = invoke(actor, session_id, workout_id, device_id, [future])
+    assert future["mutation_id"] in future_result["rejected_mutations"]
+    assert any(item["reason"] == "CLIENT_CLOCK_SKEW" for item in future_result["conflicts"])
+    assert current_set()["actual"] == before["actual"]
+
+    # Different fields observed at the same baseline remain independently writable.
+    before = current_set()
+    disjoint = [
+        {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "disjoint-actual",
+         "updated_at": "2001-01-01T00:00:00", "base_revision": before["revision"],
+         "base_fields": {"actual": before["actual"]}, "fields": {"actual": 101.0}},
+        {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "disjoint-note",
+         "updated_at": "2001-01-01T00:00:00", "base_revision": before["revision"],
+         "base_fields": {"note": before["note"]}, "fields": {"note": "disjoint-device-note"}},
+    ]
+    disjoint_result = invoke(actor, session_id, workout_id, device_id, disjoint)
+    assert set(disjoint_result["accepted_mutation_ids"]) == {item["mutation_id"] for item in disjoint}, disjoint_result
+    assert current_set()["actual"] == 101 and current_set()["note"] == "disjoint-device-note"
+
+    # True concurrent calls share a baseline for the same field. Exactly one commits.
+    before = current_set()
+    concurrent = []
+    for value, mutation_id in ((111.0, "concurrent-a"), (112.0, "concurrent-b")):
+        concurrent.append({"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": mutation_id,
+                           "updated_at": "2001-01-01T00:00:00", "base_revision": before["revision"],
+                           "base_fields": {"actual": before["actual"]}, "fields": {"actual": value}})
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        concurrent_results = list(pool.map(
+            lambda pair: invoke(actor, session_id, workout_id, pair[0], [pair[1]]),
+            [("concurrent-device-a", concurrent[0]), ("concurrent-device-b", concurrent[1])],
+        ))
+    assert sum(result.get("accepted_mutation_ids") == [item["mutation_id"]] for result, item in zip(concurrent_results, concurrent)) == 1
+    assert sum(result.get("denial") == "revision_conflict" for result in concurrent_results) == 1
+    assert current_set()["actual"] in (111, 112)
+
+    # A child set write advances the parent exercise revision, so a full-list
+    # replacement based on the older parent revision cannot tombstone that write.
+    exercise_revision = int(psql(name, "SELECT revision FROM public.exercises WHERE id='fixture-exercise-active';").stdout.strip())
+    child = current_set()
+    child_change = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "nested-child-edit",
+                    "updated_at": "2001-01-01T00:00:00", "base_revision": child["revision"],
+                    "base_fields": {"note": child["note"]}, "fields": {"note": "new-child-value"}}
+    assert invoke(actor, session_id, workout_id, device_id, [child_change])["accepted_mutation_ids"] == [child_change["mutation_id"]]
+    nested = psql(name, "SELECT al_private.al_session_replace_exercise_sets_checked('fake-athlete-001','fake-session-athlete-valid','fixture-workout-active','fixture-exercise-active',"
+        + str(exercise_revision) + ",false,3,'[]'::jsonb)::text;")
+    nested_result = json.loads(nested.stdout.strip())
+    assert nested_result["denial"] == "revision_conflict"
+    assert current_set()["note"] == "new-child-value"
+
     tombstone = {"entity": "ExerciseSet", "id": "fixture-set-deleted", "mutation_id": "legacy-deleted-set-002",
-                 "updated_at": "2026-09-01T12:00:00", "fields": {"actual": 100, "reps": 1}}
-    denied_tombstone = invoke("fake-athlete-001", "fake-session-athlete-valid", "fixture-workout-active", "fixture-device-001", [tombstone])
-    assert denied_tombstone["rejected_mutations"] == [tombstone["mutation_id"]]
+                 "updated_at": "2026-09-01T12:00:00", "base_revision": 1, "base_fields": {"actual": None}, "fields": {"actual": 100, "reps": 1}}
+    denied_tombstone = invoke(actor, session_id, workout_id, device_id, [tombstone])
+    assert denied_tombstone["denial"] == "revision_conflict"
+    assert denied_tombstone["conflicts"][0]["mutation_id"] == tombstone["mutation_id"]
     assert any(item["reason"] == "TOMBSTONE_CONFLICT" for item in denied_tombstone["conflicts"])
 
     expired = invoke("fake-athlete-001", "fake-session-expired", "fixture-workout-active", "fixture-device-001", [])
@@ -400,20 +504,12 @@ def _sync_compatibility(name):
     ended = psql(name, "UPDATE public.coaching_relationships SET ended_at=clock_timestamp() WHERE id=701;")
     assert ended.returncode == 0
     coach_revoked = invoke("fake-coach-001", "fake-session-coach-valid", "fixture-workout-active", "coach-fixture-device", [])
-    assert coach_revoked["denial"] == "workout_not_found", coach_revoked
+    assert coach_revoked["denial"] == "coach_relationship_required", coach_revoked
 
-    # Probe the current implementation's concurrency contract. This intentionally
-    # reports, rather than masks, stale writes that the SQL boundary accepts.
-    psql(name, "UPDATE public.exercise_sets SET note='server-newer-value',updated_at='2026-10-10 00:00:00' WHERE id='fixture-set-active';")
-    stale = {"entity": "ExerciseSet", "id": "fixture-set-active", "mutation_id": "legacy-stale-conflict-003",
-             "updated_at": "2026-10-09T00:00:00", "fields": {"note": "offline-stale-value"}}
-    stale_result = invoke("fake-athlete-001", "fake-session-athlete-valid", "fixture-workout-active", "fixture-device-001", [stale])
-    stale_value = psql(name, "SELECT note FROM public.exercise_sets WHERE id='fixture-set-active';").stdout.strip()
-    stale_overwrote = stale_result.get("accepted_mutation_ids") == [stale["mutation_id"]] and stale_value == "offline-stale-value"
     pending_jobs = int(psql(name, "SELECT count(*) FROM public.integration_outbox WHERE status='queued';").stdout.strip())
     assert pending_jobs == 1, f"Synthetic provider outbox job count changed unexpectedly: {pending_jobs}"
     return {
-        "old_client_mutation_accepted": True,
+        "old_client_mutation_accepted": False,
         "same_mutation_replay_deduplicated": True,
         "tombstoned_set_rejected": True,
         "expired_and_revoked_sessions_rejected": True,
@@ -421,8 +517,17 @@ def _sync_compatibility(name):
         "ended_relationship_revoked": True,
         "provider_side_effects": "none; fixture only, worker absent, container network disabled",
         "queued_synthetic_jobs_preserved": pending_jobs,
-        "stale_conflict_detection": "FAIL" if stale_overwrote else "PASS",
-        "stale_conflict_observation": "Existing RPC accepted older updated_at and overwrote newer note" if stale_overwrote else "stale update rejected or conflict reported",
+        "legacy_v1_missing_baseline_conflicted": True,
+        "legacy_v1_original_edit_retained_in_conflict": True,
+        "legacy_v1_mutation_not_acknowledged": True,
+        "stale_server_value_preserved": True,
+        "stale_conflict_repeat_stable": True,
+        "direct_set_log_cas": True,
+        "different_fields_same_baseline_merge": True,
+        "same_field_concurrent_cas": True,
+        "client_clock_skew_ignored_for_baseline": True,
+        "future_client_clock_rejected_without_write": True,
+        "nested_set_replace_conflict_safe": True,
     }
 
 
@@ -472,11 +577,16 @@ def main():
                                     "rollback": rollback, "reconciliation": reconciliation,
                                     "compatibility": compatibility})
 
-                replay.run_one(number, sorted((ROOT / "supabase/migrations").glob("*.sql")),
-                               {"runs": []}, after_replay=complete)
+                migration_files = sorted((ROOT / "supabase/migrations").glob("*.sql"))
+                replay_evidence = {"runs": []}
+                replay.run_one(number, migration_files,
+                               replay_evidence, after_replay=complete,
+                               staging_path=HERE / "staging-catalog.json")
                 digest_map = {item["table"]: item["digest"] for item in target_capture["reconciliation"]["source_tables"]}
                 evidence["targets"].append({
-                    "database": number, "status": "PASS", "migration_count": 62,
+                    "database": number, "status": "PASS", "migration_count": len(migration_files),
+                    "original_62_migration_staging_parity": replay_evidence["runs"][0].get("original_62_migration_staging_parity"),
+                    "intentional_forward_schema_delta": replay_evidence["runs"][0].get("intentional_forward_schema_delta"),
                     "source_revision": revision, "mapping": target_capture["mapping"],
                     "target_only_tables_unmapped": target_capture["target_only_tables"],
                     "rollback": target_capture["rollback"],
@@ -490,8 +600,25 @@ def main():
                 target["reconciliation"]["table_digests_match"] and target["rollback"] == "PASS"
                 for target in evidence["targets"]
             )
-            offline_pass = all(target["sync_compatibility"]["stale_conflict_detection"] == "PASS"
-                               for target in evidence["targets"])
+            required_sync_checks = (
+                "legacy_v1_missing_baseline_conflicted",
+                "legacy_v1_original_edit_retained_in_conflict",
+                "legacy_v1_mutation_not_acknowledged",
+                "stale_server_value_preserved",
+                "stale_conflict_repeat_stable",
+                "direct_set_log_cas",
+                "different_fields_same_baseline_merge",
+                "same_field_concurrent_cas",
+                "future_client_clock_rejected_without_write",
+                "nested_set_replace_conflict_safe",
+                "tombstoned_set_rejected",
+                "expired_and_revoked_sessions_rejected",
+                "ended_relationship_revoked",
+            )
+            offline_pass = all(
+                all(target["sync_compatibility"].get(check) is True for check in required_sync_checks)
+                for target in evidence["targets"]
+            )
             evidence["data_import_rehearsal"] = "PASS" if core_import_pass else "FAIL"
             evidence["offline_queue_compatibility"] = "PASS" if offline_pass else "PARTIAL"
             evidence["status"] = "PASS" if core_import_pass and offline_pass else "PARTIAL" if core_import_pass else "FAIL"

@@ -62,7 +62,7 @@ def summarized_evidence(evidence):
     """Keep catalog hashes/counts rather than four redundant schema copies."""
     result = json.loads(json.dumps(evidence))
     for run in result["runs"]:
-        for phase in ("baseline", "final"):
+        for phase in ("baseline", "pre_forward", "final"):
             catalog = run.pop(phase + "_catalog", None)
             if catalog is not None:
                 serialized = json.dumps(catalog, sort_keys=True, separators=(",", ":")).encode()
@@ -73,7 +73,7 @@ def summarized_evidence(evidence):
     return result
 
 
-def run_one(number, migrations, evidence, after_replay=None):
+def run_one(number, migrations, evidence, after_replay=None, staging_path=None):
     name = "al-bootstrap-" + uuid.uuid4().hex[:12]
     record = {"database": number, "status": "FAIL", "applied": [], "blocking_file": None}
     evidence["runs"].append(record)
@@ -121,16 +121,33 @@ def run_one(number, migrations, evidence, after_replay=None):
         assert psql(name, "SELECT to_regclass('public.bootstrap_transaction_probe') IS NULL;").stdout.strip() == "t"
         assert snapshot(name) == record["baseline_catalog"], "Failed delta changed schema"
         record["failed_migration_rollback"] = "PASS"
-        for path in migrations:
+        for index, path in enumerate(migrations):
+            if index == 62:
+                record["pre_forward_catalog"] = snapshot(name)
+                validate_final(record["pre_forward_catalog"])
+                if staging_path and staging_path.is_file():
+                    staging = json.loads(staging_path.read_text(encoding="utf-8"))["catalog"]
+                    baseline_differences = compare(record["pre_forward_catalog"], staging)
+                    assert not baseline_differences, json.dumps(baseline_differences, indent=2)
+                    record["original_62_migration_staging_parity"] = "PASS"
             record["blocking_file"] = path.name
             # Send the checked-in migration file as bytes, preserving its exact
             # content, BOM, and newline sequence at execution time.
             psql(name, path.read_bytes(), transaction=True)
             record["applied"].append(path.name)
-            print(f"database {number}: {len(record['applied'])}/62 {path.name}", flush=True)
+            print(f"database {number}: {len(record['applied'])}/{len(migrations)} {path.name}", flush=True)
         record["blocking_file"] = None
         record["final_catalog"] = snapshot(name)
-        validate_final(record["final_catalog"])
+        if len(migrations) == 63:
+            from test_schema import validate_revision_delta
+            validate_revision_delta(record["pre_forward_catalog"], record["final_catalog"])
+            record["intentional_forward_schema_delta"] = {
+                "migration": migrations[-1].name,
+                "additions": ["workouts.revision", "exercises.revision", "exercise_sets.revision"],
+                "staging_updated": False,
+            }
+        else:
+            validate_final(record["final_catalog"])
         record["structural_validation"] = "PASS"
         behavioral_checks(lambda sql: psql(name, sql).stdout)
         record["schema_tests"] = "PASS"
@@ -157,7 +174,13 @@ def main():
     parser.add_argument("--staging-catalog", type=Path, default=HERE / "staging-catalog.json")
     args = parser.parse_args()
     migrations = sorted((ROOT / "supabase/migrations").glob("*.sql"))
-    assert len(migrations) == 62, "Review migration count/order before changing the harness"
+    assert len(migrations) in (62, 63), "Review migration count/order before changing the harness"
+    if len(migrations) == 63:
+        historical = json.loads((HERE / "verification-strict.json").read_text(encoding="utf-8"))
+        assert len(historical["migrations"]) == 62
+        current_history = [(p.name, hashlib.sha256(p.read_bytes()).hexdigest()) for p in migrations[:62]]
+        pinned_history = [(item["file"], item["sha256_raw"]) for item in historical["migrations"]]
+        assert current_history == pinned_history, "One of the validated historical migration files changed"
     malformed = [path.name for path in migrations if path.read_bytes().rstrip().endswith(b"\\n")]
     assert not malformed, f"Migrations must be executed byte-for-byte; invalid EOF escape(s): {malformed}"
     command([sys.executable, str(HERE / "generate.py"), "--check"])
@@ -176,13 +199,15 @@ def main():
         "managed_dependencies": {"Vault": "real extension", "Cron": "real extension; jobs disabled",
                                  "pg_net": "real extension; network none", "Realtime": "SQL fixture only; no service"},
         "runs": [], "status": "FAIL",
+        "historical_62_migration_evidence": "verification-strict.json" if len(migrations) == 63 else None,
         "replay_mode": "STRICT_UNMODIFIED_BYTES",
     }
     try:
         errors = []
+        staging_path = args.staging_catalog if args.staging_catalog.is_file() else None
         for number in (1, 2):
             try:
-                run_one(number, migrations, evidence)
+                run_one(number, migrations, evidence, staging_path=staging_path)
             except Exception as error:
                 errors.append(str(error))
                 print(f"database {number}: FAIL: {error}", flush=True)
@@ -197,9 +222,19 @@ def main():
         if args.staging_catalog.is_file():
             staging = json.loads(args.staging_catalog.read_text(encoding="utf-8"))
             differences = compare(evidence["runs"][0]["final_catalog"], staging["catalog"])
-            evidence["staging_comparison"] = {"status": "DIFFERENCES" if differences else "PASS",
-                                              "differences": differences,
-                                              "source": str(args.staging_catalog.name)}
+            if len(migrations) == 63:
+                evidence["staging_comparison"] = {
+                    "status": "ORIGINAL_62_BASELINE_PASS_FORWARD_REVISION_DELTA_EXPECTED",
+                    "original_baseline": "PASS",
+                    "forward_delta": "workouts.revision, exercises.revision, exercise_sets.revision plus positive-value checks",
+                    "staging_updated": False,
+                    "differences": differences,
+                    "source": str(args.staging_catalog.name),
+                }
+            else:
+                evidence["staging_comparison"] = {"status": "DIFFERENCES" if differences else "PASS",
+                                                  "differences": differences,
+                                                  "source": str(args.staging_catalog.name)}
         else:
             evidence["staging_comparison"] = {"status": "UNAVAILABLE"}
         evidence["status"] = "PASS"

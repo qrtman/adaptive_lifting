@@ -140,6 +140,11 @@ export async function handleWorkoutSync(
       case "device_revoked": throw new ApiError(403, "Client device is revoked or belongs to another user");
       case "workout_locked": throw error("WORKOUT_LOCKED", "This workout is locked right now.");
       case "invalid_request": throw new ApiError(422, "Invalid request");
+      case "revision_conflict":
+        throw error("SYNC_CONFLICT_REVIEW", "An offline workout edit needs review before it can be applied.", {
+          conflicts: response.conflicts ?? [],
+          accepted_mutation_ids: response.accepted_mutation_ids ?? [],
+        });
       case null: break;
       default: throw new Error("Workout sync interface rejected the request");
     }

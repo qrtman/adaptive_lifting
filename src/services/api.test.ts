@@ -208,15 +208,39 @@ describe('Mini App logging authorization', () => {
   });
 
   it('preserves authorized offline logging in the scoped snapshot and sync queue', async () => {
-    const cached = [{ id: 'cycle', workouts: [{ id: 'workout', exercises: [{ id: 'exercise', sets: [{ id: 'set', scope: 'both' }] }] }] }];
+    const cached = [{ id: 'cycle', workouts: [{ id: 'workout', exercises: [{ id: 'exercise', sets: [{ id: 'set', scope: 'both', revision: 7 }] }] }] }];
     getSnapshot.mockResolvedValue(cached);
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
     const { setOnlineAuthorization } = await import('./authAuthorization');
     setOnlineAuthorization({ id: 'athlete', role: 'ATHLETE' }, new Date(Date.now() + 60000).toISOString());
     const { apiService } = await import('./api');
     await apiService.logSet('workout', 'exercise', 'set', 100, 5, 7);
-    expect(queueMutation).toHaveBeenCalledWith('workout', 'ExerciseSet', 'set', expect.objectContaining({ actual: 100, reps: 5, executedRpe: 7 }));
+    expect(queueMutation).toHaveBeenCalledWith('workout', 'ExerciseSet', 'set', expect.objectContaining({ actual: 100, reps: 5, executedRpe: 7 }), expect.objectContaining({ revision: 7 }));
     expect(getSnapshot).toHaveBeenCalledWith('microcycles:athlete');
+    expect(saveSnapshot).toHaveBeenCalledWith('microcycles:athlete', cached);
+  });
+
+  it('parks an online revision conflict with its original baseline for durable review', async () => {
+    const cached = [{ id: 'cycle', workouts: [{ id: 'workout', exercises: [{ id: 'exercise', sets: [{
+      id: 'set', scope: 'both', revision: 4, actual: 90, reps: 3, executedRpe: 7,
+    }] }] }] }];
+    getSnapshot.mockResolvedValue(cached);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: { error: {
+      code: 'SYNC_CONFLICT_REVIEW', message: 'The set changed since it was loaded.',
+    } } }), { status: 409 })));
+    const { setOnlineAuthorization } = await import('./authAuthorization');
+    setOnlineAuthorization({ id: 'athlete', role: 'ATHLETE' }, new Date(Date.now() + 60000).toISOString());
+    const { apiService } = await import('./api');
+
+    await apiService.logSet('workout', 'exercise', 'set', 100, 5, 8, undefined, undefined, undefined, undefined, 4);
+
+    expect(queueMutation).toHaveBeenCalledWith('workout', 'ExerciseSet', 'set', expect.objectContaining({
+      actual: 100, reps: 5, executedRpe: 8,
+    }), expect.objectContaining({
+      revision: 4,
+      fields: expect.objectContaining({ actual: 90, reps: 3, executedRpe: 7 }),
+      snapshot_key: 'microcycles:athlete',
+    }));
     expect(saveSnapshot).toHaveBeenCalledWith('microcycles:athlete', cached);
   });
 

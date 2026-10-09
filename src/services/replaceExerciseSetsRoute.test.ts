@@ -74,14 +74,14 @@ describe('Set replacement request contract', () => {
     const response = await handleReplaceExerciseSets(
       new Request('https://local/api/sessions/w-1/exercises/e-1/sets', {
         method: 'PUT', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sets: [{ id: 's-client', plannedWeight: 180 }] }),
+        body: JSON.stringify({ expected_revision: 4, sets: [{ id: 's-client', plannedWeight: 180 }] }),
       }), 'w-1', 'e-1', db, principal, config,
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(exercise);
-    expect(query).toContain('al_private.al_session_replace_exercise_sets');
+    expect(query).toContain('al_private.al_session_replace_exercise_sets_checked');
     expect(params).toEqual([
-      'athlete', 'app-session', 'w-1', 'e-1', false, 3,
+      'athlete', 'app-session', 'w-1', 'e-1', 4, false, 3,
       JSON.stringify([{
         id: 's-client', label: null, scope: 'both', plannedWeight: 180,
         plannedReps: null, plannedRpe: null, intensityType: null,
@@ -104,7 +104,7 @@ describe('Set replacement request contract', () => {
       }) } as any;
       await expect(handleReplaceExerciseSets(
         new Request('https://local/api/sessions/w-1/exercises/e-1/sets', {
-          method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sets: [] }),
+          method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expected_revision: 4, sets: [] }),
         }), 'w-1', 'e-1', db, principal, config,
       )).rejects.toMatchObject({ status, detail });
     }

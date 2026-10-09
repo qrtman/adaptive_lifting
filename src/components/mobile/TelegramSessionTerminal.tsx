@@ -287,7 +287,8 @@ export default function TelegramSessionTerminal() {
         buf.note,
         buf.velocity,
         buf.readiness,
-        buf.hrv
+        buf.hrv,
+        fallbackSet.revision ?? 0
       );
       
       onUpdate(updatedData);
@@ -332,7 +333,8 @@ export default function TelegramSessionTerminal() {
         buf.note,
         buf.velocity,
         buf.readiness,
-        buf.hrv
+        buf.hrv,
+        fallbackSet.revision ?? 0
       );
 
       onUpdate(updatedData);
@@ -362,7 +364,11 @@ export default function TelegramSessionTerminal() {
           0,
           0,
           0,
-          'Skipped'
+          'Skipped',
+          undefined,
+          undefined,
+          undefined,
+          activeExercise.sets.find(s => s.id === setId)?.revision ?? 0
         );
 
         onUpdate(updatedData);

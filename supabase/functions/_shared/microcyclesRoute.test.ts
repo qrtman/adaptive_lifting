@@ -62,7 +62,7 @@ Deno.test("microcycles read calls only the narrow RPC and preserves the optional
   );
   assertEquals(response.status, 200);
   assertEquals(await response.json(), tree);
-  assertEquals(query, "select al_private.al_microcycles_read($1::text,$2::text,$3::text,$4::boolean) as payload");
+    assertEquals(query, "select al_private.al_microcycles_read_with_revisions($1::text,$2::text,$3::text,$4::boolean) as payload");
   assertEquals(params, ["athlete-a", "session-a", "athlete-b", false]);
 });
 

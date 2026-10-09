@@ -31,7 +31,7 @@ async function readMicrocycles(
   const client: SqlClient = await db.connect();
   try {
     const result = await client.queryObject<{ payload: unknown }>(
-      "select al_private.al_microcycles_read($1::text,$2::text,$3::text,$4::boolean) as payload",
+      "select al_private.al_microcycles_read_with_revisions($1::text,$2::text,$3::text,$4::boolean) as payload",
       [
         principal.user.id,
         principal.sessionId,

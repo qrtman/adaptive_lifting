@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import unittest
+from collections import Counter
 
 import sqlalchemy as sa
 from sqlalchemy.schema import AddConstraint, CreateIndex
@@ -76,6 +77,29 @@ def validate_final(catalog):
     pk = next(c for c in catalog["constraints"] if c["name"] == "sync_mutations_pkey")
     assert pk["definition"] == "PRIMARY KEY (client_device_id, mutation_id)"
     assert len(catalog["tables"]) == 36
+
+
+def validate_revision_delta(baseline, final):
+    """Allow only the three forward-only revision columns and their checks."""
+    for section in ("tables", "indexes", "sequences"):
+        assert final[section] == baseline[section], f"Unexpected post-baseline {section} changes"
+    expected_columns = {
+        ("workouts", "revision"), ("exercises", "revision"), ("exercise_sets", "revision"),
+    }
+    base_columns = {(row["table"], row["name"]) for row in baseline["columns"]}
+    final_columns = {(row["table"], row["name"]) for row in final["columns"]}
+    assert final_columns - base_columns == expected_columns
+    assert base_columns <= final_columns
+    for row in final["columns"]:
+        if (row["table"], row["name"]) in expected_columns:
+            assert row["type"] == "bigint" and row["not_null"]
+            assert "1" in str(row["default"])
+    base_cons = Counter((row["table"], row["name"], row["type"], row["definition"]) for row in baseline["constraints"])
+    final_cons = Counter((row["table"], row["name"], row["type"], row["definition"]) for row in final["constraints"])
+    added = final_cons - base_cons
+    assert len(added) == 3, f"Unexpected constraints added by revision migration: {added}"
+    assert all(table in {"workouts", "exercises", "exercise_sets"} and kind == "c"
+               and "revision > 0" in definition for table, _, kind, definition in added.elements())
 
 
 def behavioral_checks(execute):

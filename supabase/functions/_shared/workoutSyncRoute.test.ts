@@ -99,3 +99,18 @@ Deno.test("workout RPC response preserves canonical workout-sync property names"
   assertEquals(seenQuery.includes("al_private.al_workout_sync"), true);
   assertEquals(seenParams.slice(0, 6), ["athlete-1", "session-1", "workout-1", "workout-1", "device-1", false]);
 });
+
+Deno.test("unresolved revision conflicts use a non-success 409 envelope for legacy clients", async () => {
+  const conflicts = [{
+    mutation_id: "legacy-v1-1", entity_type: "ExerciseSet", entity_id: "set-1",
+    reason: "BASELINE_REQUIRED", client_fields: { actual: 100 }, server_fields: { actual: 95 },
+  }];
+  const error = await assertRejects(() => handleWorkoutSync(
+    request(basePayload()), "workout-1", config,
+    fakeDatabase({ denial: "revision_conflict", conflicts, accepted_mutation_ids: [] }),
+    principal,
+  ), ApiError);
+  assertEquals(error.status, 409);
+  assertEquals((error.detail as { error: { code: string } }).error.code, "SYNC_CONFLICT_REVIEW");
+  assertEquals((error.detail as { error: { details: { conflicts: unknown[] } } }).error.details.conflicts, conflicts);
+});

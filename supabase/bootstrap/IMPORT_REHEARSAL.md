@@ -1,7 +1,7 @@
 # Synthetic legacy data import rehearsal
 
 This procedure establishes whether legacy application records can be copied into
-a clean database created by `application.sql` and all 62 Supabase migrations.
+a clean database created by `application.sql` and all current Supabase migrations.
 It uses fake data only. It does not connect to Supabase, Cloudflare, production,
 staging, or external providers.
 
@@ -18,7 +18,7 @@ python supabase/bootstrap/import_rehearsal.py
 The command creates a temporary SQLite database and upgrades it using the
 retained Alembic history through `0011_email_verification`. It creates two
 independent disposable PostgreSQL targets, applies the canonical bootstrap and
-replays all 62 checked-in Supabase SQL migrations in order, then imports the
+replays all 63 checked-in Supabase SQL migrations in order, then imports the
 synthetic rows into each target. Container networking is disabled. The targets
 are removed after the run. Machine-readable counts, table digests, field maps,
 reconciliation results, and queue checks are written to
@@ -51,16 +51,33 @@ the script fails if a source table or column has no target mapping.
 
 ## Verified behavior and current limit
 
-The synthetic queued v1 `ExerciseSet` mutation is accepted by the current
-workout sync RPC; replaying its mutation ID creates no duplicate mutation.
-Tombstoned sets are rejected, expired/revoked sessions are denied, an active
-coach relationship is allowed, and ending that relationship revokes access.
-The test also proves a limitation: an older `updated_at` mutation is currently
-accepted and overwrites a newer note. Therefore import-level row preservation
-is repeatable, but replaying every historical offline queue is **not yet safe**
-when concurrent newer edits may exist. Do not replay such queues into a live
-account until a conflict policy is implemented and verified. Preserve queued
-mutations for explicit recovery; do not discard them.
+The new forward-only migration `20261010120000_workout_offline_conflict_revisions.sql`
+adds server-issued row revisions and transactional compare-before-write checks.
+The first 62 migrations still match the retained staging catalog snapshot;
+the revision columns and positive-value constraints are the intentional
+post-checkpoint delta. Staging has not received this migration.
+
+The rehearsal proves that an old schema-v1 `ExerciseSet` mutation with no
+revision baseline receives `BASELINE_REQUIRED`, creates no sync receipt, and
+leaves its original edit and mutation ID available for review. With a valid
+baseline, an offline stale note is rejected while the newer server note remains
+unchanged. Replaying an accepted mutation ID is idempotent. Two concurrent
+writers with the same baseline yield one winner, while distinct fields at the
+same baseline can merge. A child set edit advances the parent exercise revision,
+so stale full-set replacement cannot erase it. Future client timestamps remain
+rejected by the existing clock-skew rule; an old client timestamp does not
+defeat revision comparison. Tombstones, expired/revoked sessions, and ended
+coach links remain rejected. These tests run against two independently
+replayed and imported disposable targets.
+
+On a conflict, the browser stores the unresolved mutation in IndexedDB as
+`CONFLICTED`, omits it from automatic retries and cleanup, displays server and
+local values, and offers explicit Keep Server or JSON export. Keep Server
+requires confirmation, updates any matching cached workout snapshot in the same
+IndexedDB transaction as the resolution status, and retains the original edit
+for 28 days from resolution. Force Mine is not offered; users must explicitly
+review/export before making a fresh mutation against a newly observed revision.
+No real historical offline queue was replayed.
 
 Queued outbox rows are copied as data only; the rehearsal runs no provider
 worker and causes no external side effect. A real import must quarantine or
@@ -82,8 +99,9 @@ legacy encryption key and a controlled owner decision.
 - Confirm credential-key availability and disposition of pending OAuth states,
   outbox jobs, and webhook records. Active provider state may require provider
   reconciliation rather than blind copying.
-- Decide how stale queued writes should surface as conflicts. The current RPC
-  does not compare source timestamps for stale-write rejection.
+- Decide the user-support and import policy for unresolved schema-v1 queue
+  conflicts. The client preserves and surfaces those edits, but reconciliation
+  with a real backup and its account owners remains a separate decision.
 - The source fixture exercises schema and representative rows, not a real
   backup, production identity provider, Supabase Auth, Realtime delivery, Edge
   Function runtime, or provider behavior. No conclusion here authorizes import
@@ -91,6 +109,6 @@ legacy encryption key and a controlled owner decision.
 
 The bootstrap SQL is intentionally outside `supabase/migrations/`. A future
 new empty project requires explicit application of the bootstrap before the
-62-version migration sequence; `supabase db push` does not apply it. Follow
+63-version migration sequence; `supabase db push` does not apply it. Follow
 `README.md` for bootstrap and managed-service prerequisites. Never bootstrap an
 existing database.

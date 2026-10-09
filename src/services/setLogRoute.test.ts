@@ -11,6 +11,7 @@ const base = {
   weight: 100,
   reps: 5,
   rpe: 8,
+  expected_revision: 3,
 };
 
 const config: AppConfig = {
@@ -61,7 +62,7 @@ describe("Set Log request parity", () => {
       hrv: -1.25,
     })).toEqual({
       workoutId: "w1", exerciseId: "e1", setId: "s1",
-      weight: -12.5, reps: 0, rpe: 0,
+      weight: -12.5, reps: 0, rpe: 0, expectedRevision: 3,
       note: null, velocity: 0, readiness: 0, hrv: -1.25,
     });
     expect(parseSetLogInput({ ...base, reps: 5.0 }).reps).toBe(5);
@@ -81,7 +82,7 @@ describe("Set Log request parity", () => {
 
   it.each([
     ["workoutId", undefined], ["exerciseId", undefined], ["setId", undefined],
-    ["weight", undefined], ["reps", undefined], ["rpe", undefined],
+    ["weight", undefined], ["reps", undefined], ["rpe", undefined], ["expected_revision", undefined],
   ])("requires %s", (key, value) => {
     const body = { ...base } as Record<string, unknown>;
     if (value === undefined) delete body[key]; else body[key] = value;
@@ -110,12 +111,12 @@ describe("Set Log request parity", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: "mc1", workouts: [{ id: "w1" }] }]);
-    expect(db.calls[0].query).toContain("al_private.al_set_log");
+    expect(db.calls[0].query).toContain("al_private.al_set_log_checked");
     expect(db.calls[0].params).toEqual([
       "athlete-a", "session-a", "w1", "e1", "s1", 100, 5, 8,
-      "", null, null, null, false,
+      "", null, null, null, false, 3, 3,
     ]);
-    expect(db.calls[1].query).toContain("al_private.al_microcycles_read");
+    expect(db.calls[1].query).toContain("al_private.al_microcycles_read_with_revisions");
     expect(db.calls[1].params).toEqual(["athlete-a", "session-a", null, false]);
   });
 

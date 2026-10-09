@@ -15,9 +15,10 @@ type SetLogInput = {
   velocity: number | null;
   readiness: number | null;
   hrv: number | null;
+  expectedRevision: number;
 };
 
-type LogResult = { denial: string | null };
+type LogResult = { denial: string | null; conflict?: unknown };
 type JsonObject = Record<string, unknown>;
 
 function object(value: unknown): value is JsonObject {
@@ -139,6 +140,7 @@ export function parseSetLogInput(value: unknown): SetLogInput {
     velocity: optionalNumber(value, "velocity", issues),
     readiness: optionalNumber(value, "readiness", issues, true),
     hrv: optionalNumber(value, "hrv", issues),
+    expectedRevision: requiredNumber(value, "expected_revision", issues, true),
   };
   if (issues.length) throw new ApiError(422, issues);
   return result;
@@ -176,11 +178,11 @@ export async function handleSetLog(
   const client: SqlClient = await db.connect();
   try {
     const result = await client.queryObject<{ payload: LogResult }>(
-      `select al_private.al_set_log(
+      `select al_private.al_set_log_checked(
         $1::text, $2::text, $3::text, $4::text, $5::text,
         $6::double precision, $7::integer, $8::double precision,
         $9::text, $10::double precision, $11::integer, $12::double precision,
-        $13::boolean
+        $13::boolean, $14::integer, $15::bigint
       ) as payload`,
       [
         principal.user.id,
@@ -196,10 +198,15 @@ export async function handleSetLog(
         payload.readiness,
         payload.hrv,
         config.enforceLegacyEmailVerification,
+        config.analyticsPastDueGraceDays,
+        payload.expectedRevision,
       ],
     );
     const response = result.rows[0]?.payload;
     if (!response) throw new Error("Set Log interface returned no result");
+    if (response.denial === "revision_conflict") {
+      throw new ApiError(409, { error: { code: "SYNC_CONFLICT_REVIEW", message: "The set changed since it was loaded.", details: { conflicts: [response.conflict] } } });
+    }
     if (response.denial) raiseDenial(response.denial);
   } finally {
     client.release();

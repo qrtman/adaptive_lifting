@@ -2,6 +2,7 @@ import type { MovementPattern } from './services/exerciseCatalog';
 
 export interface SetData {
   id: string;
+  revision?: number;
   label: string;
   scope?: 'both' | 'plan' | 'log';
   plannedWeight: number | null;
@@ -35,6 +36,7 @@ export type LiftMetaPatch = {
 
 export interface ExerciseData {
   id: string;
+  revision?: number;
   title: string;
   variation: string;
   tier?: 'Comp' | 'Variation' | 'Accessory';
@@ -126,6 +128,7 @@ export interface DayNote {
 
 export interface WorkoutData {
   id: string;
+  revision?: number;
   date: string; // YYYY-MM-DD
   dayLabel: string; // slot "1"…"7" or custom; ISO date means unlabeled
   title: string;
