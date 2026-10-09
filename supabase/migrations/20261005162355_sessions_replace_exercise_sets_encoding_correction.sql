@@ -826,4 +826,3 @@ $function$;
 revoke all on function al_private.al_workout_sync(text,text,text,text,boolean,integer,jsonb) from public, anon, authenticated;
 grant execute on function al_private.al_workout_sync(text,text,text,text,boolean,integer,jsonb) to al_edge_catalog_runtime;
 
-\n

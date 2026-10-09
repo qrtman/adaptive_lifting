@@ -20,7 +20,9 @@ IMAGE = "supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb
 
 
 def command(args, sql=None, check=True):
-    result = subprocess.run(args, input=sql, text=True, encoding="utf-8", capture_output=True)
+    binary = isinstance(sql, bytes)
+    result = subprocess.run(args, input=sql, text=not binary,
+                            encoding=None if binary else "utf-8", capture_output=True)
     if check and result.returncode:
         raise RuntimeError(f"Command failed: {args[0]} {args[1]}\n{result.stderr}\n{result.stdout}")
     return result
@@ -71,19 +73,7 @@ def summarized_evidence(evidence):
     return result
 
 
-def migration_sql(path, reviewed_repair):
-    sql = path.read_text(encoding="utf-8")
-    if reviewed_repair:
-        repairs = json.loads((HERE / "replay-repair.json").read_text(encoding="utf-8"))["files"]
-        repair = next((r for r in repairs if r["file"] == path.name), None)
-        if repair:
-            assert digest(path) == repair["source_sha256_lf"], "Repair must be reviewed again after any source change"
-            assert sql.endswith("\n\\n")
-            return sql[:-2]
-    return sql
-
-
-def run_one(number, migrations, evidence, reviewed_repair=False):
+def run_one(number, migrations, evidence):
     name = "al-bootstrap-" + uuid.uuid4().hex[:12]
     record = {"database": number, "status": "FAIL", "applied": [], "blocking_file": None}
     evidence["runs"].append(record)
@@ -133,7 +123,9 @@ def run_one(number, migrations, evidence, reviewed_repair=False):
         record["failed_migration_rollback"] = "PASS"
         for path in migrations:
             record["blocking_file"] = path.name
-            psql(name, migration_sql(path, reviewed_repair), transaction=True)
+            # Send the checked-in migration file as bytes, preserving its exact
+            # content, BOM, and newline sequence at execution time.
+            psql(name, path.read_bytes(), transaction=True)
             record["applied"].append(path.name)
             print(f"database {number}: {len(record['applied'])}/62 {path.name}", flush=True)
         record["blocking_file"] = None
@@ -161,11 +153,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, default=HERE / "verification.json")
     parser.add_argument("--staging-catalog", type=Path, default=HERE / "staging-catalog.json")
-    parser.add_argument("--reviewed-local-repair", action="store_true",
-                        help="Diagnostic ONLY: omit hash-pinned malformed trailing literals; history stays unchanged")
     args = parser.parse_args()
     migrations = sorted((ROOT / "supabase/migrations").glob("*.sql"))
     assert len(migrations) == 62, "Review migration count/order before changing the harness"
+    malformed = [path.name for path in migrations if path.read_bytes().rstrip().endswith(b"\\n")]
+    assert not malformed, f"Migrations must be executed byte-for-byte; invalid EOF escape(s): {malformed}"
     command([sys.executable, str(HERE / "generate.py"), "--check"])
     command(["docker", "image", "inspect", IMAGE])
     evidence = {
@@ -175,20 +167,20 @@ def main():
         "bootstrap_sha256_lf": digest(HERE / "application.sql"),
         "tooling_sources_sha256_lf": {name: digest(HERE / name) for name in (
             "generate.py", "replay.py", "test_schema.py", "test_behavior.sql", "catalog.sql",
-            "managed-prerequisites.sql", "local-managed-fixture.sql", "replay-repair.json", "staging-catalog.json")},
-        "migrations": [{"file": p.name, "sha256_lf": digest(p)} for p in migrations],
+            "managed-prerequisites.sql", "local-managed-fixture.sql", "replay-repair.json",
+            "sql-eof-correction-audit.json", "staging-catalog.json", "README.md")},
+        "migrations": [{"file": p.name, "sha256_raw": hashlib.sha256(p.read_bytes()).hexdigest(),
+                        "sha256_lf": digest(p)} for p in migrations],
         "managed_dependencies": {"Vault": "real extension", "Cron": "real extension; jobs disabled",
                                  "pg_net": "real extension; network none", "Realtime": "SQL fixture only; no service"},
         "runs": [], "status": "FAIL",
-        "replay_mode": "DIAGNOSTIC_REPAIRED" if args.reviewed_local_repair else "STRICT_UNMODIFIED",
+        "replay_mode": "STRICT_UNMODIFIED_BYTES",
     }
-    if args.reviewed_local_repair:
-        evidence["repair"] = json.loads((HERE / "replay-repair.json").read_text(encoding="utf-8"))
     try:
         errors = []
         for number in (1, 2):
             try:
-                run_one(number, migrations, evidence, args.reviewed_local_repair)
+                run_one(number, migrations, evidence)
             except Exception as error:
                 errors.append(str(error))
                 print(f"database {number}: FAIL: {error}", flush=True)
@@ -212,7 +204,7 @@ def main():
     finally:
         args.evidence.write_text(json.dumps(summarized_evidence(evidence), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         print(f"Evidence: {args.evidence}", flush=True)
-    print("Two clean replays and schema validation: PASS (" + evidence["replay_mode"] + ")")
+    print("Two clean byte-for-byte replays and schema validation: PASS")
 
 
 if __name__ == "__main__":

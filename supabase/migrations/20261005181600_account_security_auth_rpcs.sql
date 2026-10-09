@@ -310,4 +310,3 @@ grant execute on function al_private.al_auth_me(text,text,boolean) to al_edge_ca
 grant execute on function al_private.al_auth_profile(text,text,text,boolean) to al_edge_catalog_runtime;
 grant execute on function al_private.al_account_access_state(text,text,boolean,integer) to al_edge_catalog_runtime;
 
-\n

@@ -588,4 +588,3 @@ grant execute on function al_private.al_security_sessions(text,text,text,boolean
 grant execute on function al_private.al_security_audit_events(text,text,boolean) to al_edge_catalog_runtime;
 
 
-\n

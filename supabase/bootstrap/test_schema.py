@@ -1,6 +1,7 @@
 """Structural and behavioral tests for the historical foundation and SQL replay."""
 import ast
 import datetime
+import hashlib
 import json
 import re
 import unittest
@@ -160,13 +161,25 @@ class CatalogTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             validate_final(catalog)
 
-    def test_repair_is_opt_in_and_hash_pinned(self):
-        from replay import migration_sql
-        path = ROOT / "supabase/migrations/20261005161820_sessions_replace_exercise_sets_private_rpc.sql"
-        original = path.read_text(encoding="utf-8")
-        self.assertEqual(migration_sql(path, False), original)
-        self.assertEqual(migration_sql(path, True), original[:-2])
-        self.assertTrue(path.read_text(encoding="utf-8").endswith("\\n"))
+    def test_original_source_hashes_are_pinned_in_audit(self):
+        # Retain the original source hashes as history; strict replay never
+        # imports the diagnostic correction manifest or rewrites SQL bytes.
+        manifest = json.loads((HERE / "replay-repair.json").read_text(encoding="utf-8"))
+        audit = json.loads((HERE / "sql-eof-correction-audit.json").read_text(encoding="utf-8"))
+        expected = {item["file"]: item["source_sha256_lf"] for item in manifest["files"]}
+        actual = {item["file"]: item["original_sha256_lf_normalized"] for item in audit["files"]}
+        self.assertEqual(actual, expected)
+        for item in audit["files"]:
+            path = ROOT / "supabase/migrations" / item["file"]
+            source = path.read_bytes()
+            self.assertFalse(source.rstrip().endswith(b"\\n"), item["file"])
+            self.assertEqual(hashlib.sha256(source.replace(b"\r\n",b"\n")).hexdigest(),
+                             item["corrected_sha256_lf_normalized"])
+
+    def test_no_supabase_migration_has_literal_eof_escape(self):
+        files = sorted((ROOT / "supabase/migrations").glob("*.sql"))
+        bad = [p.name for p in files if p.read_bytes().rstrip().endswith(b"\\n")]
+        self.assertEqual(bad, [])
 
 
 if __name__ == "__main__":

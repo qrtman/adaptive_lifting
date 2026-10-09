@@ -42,36 +42,51 @@ python supabase/bootstrap/test_schema.py
 python supabase/bootstrap/replay.py --evidence supabase/bootstrap/verification-strict.json
 ```
 
-**Strict replay currently exits nonzero at file 29.** Four historical files
-contain a literal backslash followed by `n` at EOF, outside any SQL statement:
+The four historical files previously contained a literal backslash followed
+by `n` at EOF, outside SQL. Only those exact two bytes were removed after
+matching the hash-pinned diagnostic manifest. The byte-for-byte source changes,
+original and corrected hashes, preserved BOMs, and unchanged migration IDs are
+recorded in `sql-eof-correction-audit.json`. Each Git blob before correction is
+available in Git history. No executable SQL or database migration record changed.
 
-- `20261005161820_sessions_replace_exercise_sets_private_rpc.sql`
-- `20261005162355_sessions_replace_exercise_sets_encoding_correction.sql`
-- `20261005181600_account_security_auth_rpcs.sql`
-- `20261005181950_account_security_coach_rpcs.sql`
+`replay-repair.json`, `verification-strict-before-eof-fix.json`, and
+`verification-repaired.json` are retained as historical evidence of the
+original defect and diagnostic run. The replay tool has no repair flag or SQL
+rewriter. It rejects any migration whose last non-whitespace bytes contain a
+literal `\n` token, then sends each checked-in migration file to `psql` as
+original bytes. Regenerate the canonical baseline with `python supabase/bootstrap/generate.py`, then repeat the strict checks above.
 
-The source files and migration records are untouched. The expected strict
-failure is checked evidence, not a completed unmodified migration replay.
-`replay-repair.json` pins each malformed source hash and describes a narrowly
-scoped **local diagnostic** removal of that final token. To test all later
-SQL statements and compare the resulting catalog, run explicitly:
-
-```text
-python supabase/bootstrap/replay.py --reviewed-local-repair --evidence supabase/bootstrap/verification-repaired.json
-```
-
-This opt-in mode is not a production migration policy or authorization to
-rewrite history. Resolve the source/execution policy transparently before
-using the history on any future target. The harness never silently repairs
-files. Regenerating the canonical baseline is `python
-supabase/bootstrap/generate.py`, followed by the checks above.
-
-Each replay creates **two independent empty clusters**, each with database
+Each replay invocation creates **two independent empty clusters**, each with database
 name `postgres` (required by historical CONNECT grants and pg_cron), applies
 prerequisites then the baseline, and replays the 62 filenames in lexical order.
-Each delta runs in its own transaction with `ON_ERROR_STOP=1`. Image entrypoint
+Each migration receives its own transaction with `ON_ERROR_STOP=1`; input bytes
+are streamed without newline conversion or content rewriting. Image entrypoint
 initializers are bypassed so no inherited application/managed migration state
 is present. No Supabase migration-history rows are fabricated or restamped.
+
+The CLI-managed path is intentionally separate. For a future **new, empty**
+managed project: (1) provision the project and required managed services, (2)
+run `managed-prerequisites.sql`, (3) apply `application.sql` to that empty
+project using a reviewed direct PostgreSQL session, (4) link the CLI to the
+verified project reference, (5) inspect `supabase migration list` and
+`supabase db push --dry-run`, and (6) run `supabase db push` to apply and record
+the 62 migrations in timestamp order. This is a documented future procedure,
+not an action authorized or performed here. Do not run the bootstrap on an
+existing project, and do not run `supabase migration repair` for this
+source-only correction.
+
+`application.sql` lives in `supabase/bootstrap/`, outside the CLI's local
+`supabase/migrations/` directory. Therefore `supabase db push` does **not**
+discover or apply the bootstrap. The operator must apply it explicitly before
+the first migration push. The CLI compares local migration timestamps with
+`supabase_migrations.schema_migrations` and records versions after applying
+SQL; it does not compare the SQL file hashes. Thus the four byte-only source
+corrections retain their existing 62 version identifiers and do not require
+rewriting applied staging history. The local harness does not model this CLI
+ledger or platform orchestration; it applies raw SQL to disposable databases
+and tests schema outcome. See Supabase's [migration guide](https://supabase.com/docs/guides/deployment/database-migrations)
+and [`db push` reference](https://supabase.com/docs/reference/cli/supabase-db-push)
+for the managed workflow and ledger behavior.
 
 Containers have no external network, no published ports, no host/database
 mounts, and a temporary filesystem. Synthetic constraint tests roll back; the
@@ -120,21 +135,26 @@ Evidence recorded on 2026-10-09:
 | Check | Result |
 | --- | --- |
 | Deterministic generation and retained-model parity | PASS |
-| Python schema/regression tests | 10 passed |
+| Python schema/regression tests | 11 passed (10 existing plus EOF/hash regression) |
 | Baseline structural validation in two independent clusters | PASS; identical catalogs |
 | Reject bootstrap on nonempty schema; preserve catalog | PASS |
 | Roll back an SQL file ending in an invalid psql command | PASS; no partial schema persists |
-| Strict unmodified replay, both clean databases | FAIL at file 29; 28/62 applied |
-| Explicit repaired diagnostic replay, both clean databases | PASS; 62/62 applied |
+| Strict byte-for-byte replay, two invocations; two databases each | PASS; 62/62 in all four databases |
+| Baseline repeatability across clean databases | PASS; exact match |
+| Final schema repeatability across clean databases | PASS; exact match |
 | Final application catalog versus read-only staging snapshot | PASS; exact match |
+| SQL behavior tests, failed-file rollback, literal-EOF guard | PASS |
 | Final schema size | 36 tables, 299 columns, 96 constraints, 98 indexes, one sequence |
 | PK/FK/unique/check/default/sequence behavioral checks | PASS |
 | Device-scoped idempotency and browser-role denial | PASS |
 | Realtime SQL policy, valid topic vs mismatched identity | PASS; fixture only |
 | Full managed-service runtime equivalence | NOT TESTED |
 
-Machine-readable evidence is in `verification-strict.json` and
-`verification-repaired.json`, including image digest, source hashes, migration
-order, exact failure, schema hashes/counts, comparison result and cleanup.
+Machine-readable current evidence is in `verification-strict.json`. Historical
+evidence is retained in `verification-strict-before-eof-fix.json`,
+`verification-repaired.json`, and `replay-repair.json`. Evidence records the
+image digest, raw and normalized migration hashes, migration order, schema
+hashes/counts, comparison result and cleanup. The correction-level old/new raw
+and normalized hashes are in `sql-eof-correction-audit.json`.
 Future migration application must use a separately approved empty target;
 this work does not authorize production setup or cutover.
