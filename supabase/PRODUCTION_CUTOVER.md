@@ -1,12 +1,6 @@
 # Production cutover plan (not executed)
 
-This is a future release procedure. The final audit changes and tests staging
-and repository configuration only. Production remains untouched. The Python
-FastAPI application, Alembic migrator, and Python worker are not part of the
-production runtime. Caddy has been removed from the intended deployment
-architecture. The static frontend host remains unselected; application APIs
-and scheduled workers run on Supabase Edge/Postgres. The completed Caddy
-rehearsal below is historical evidence for the host contract only.
+This is a future release procedure. The final audit changes and tests staging and repository configuration only. Production remains untouched. The Python FastAPI application, Alembic migrator, and Python worker are not part of the production runtime. Caddy has been removed. Supabase Edge/Postgres remains the sole active backend. Cloudflare Workers Static Assets is the selected frontend host; this document records release preparation and does not authorize or perform deployment.
 
 ## Audit status and gates
 
@@ -209,7 +203,7 @@ effect remains. Forward-only migration `20261009170000_correct_runtime_text_enco
 repairs corrupted punctuation where it remained live. These differences are
 documented, not hidden by rewriting migration history.
 
-## Final staging continuation
+## Final staging continuation (historical staging audit record)
 
 The Caddy/Playwright exercise is one staging ingress rehearsal, not a choice of
 production frontend host. The eventual hosting provider may serve the static

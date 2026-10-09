@@ -5,6 +5,8 @@
 > **Foundation:** Mike Tuchscherer's Reactive Training Systems (RTS) - Autoregulated Training  
 > **Companion Document:** `design.md` (Visual Design System & Style Guide)
 
+> **Current runtime:** Supabase Edge Functions and PostgreSQL are the sole active application backend. Cloudflare Workers Static Assets is the selected frontend host. Python under backend/ is retained for compatibility and math parity tests only; it is not required by the active frontend/API runtime. FastAPI and SQLite descriptions below refer to that retained reference implementation.
+
 ---
 
 ## Table of Contents
@@ -115,17 +117,17 @@ graph TD
         Cache[("IndexedDB<br/>Hydration Window & Queues")]
     end
 
-    subgraph Server ["Backend (FastAPI)"]
+    subgraph Server ["Backend (Supabase Edge Functions)"]
         Router["API Routers<br/>Auth / CRUD / Analytics"]
-        SSE["SSE Broadcaster<br/>Live Telemetry"]
+        SSE["Supabase Realtime<br/>Private Broadcast"]
         Integrations["Integration Adapters<br/>Telegram / Google Sheets"]
         Service["Service Layer<br/>Business Logic"]
         Math["Math Engine<br/>e1RM / INOL / ACWR"]
-        Repo["Repository Layer<br/>SQLAlchemy ORM"]
+        Repo["Private PostgreSQL interfaces"]
     end
 
     subgraph Data ["Persistence"]
-        DB[("PostgreSQL production / SQLite local")]
+        DB[("Supabase PostgreSQL")]
     end
 
     subgraph External ["External Platforms"]
@@ -1261,10 +1263,10 @@ Shared formula fixtures live in `tests/math_vectors.json` (`math_version` plus e
 | **Styling** | Tailwind CSS v4 | Utility-first, zero-runtime, matches the dark ink theme system |
 | **State Management** | React Context + Custom Hooks | Lightweight, no external deps, sufficient for single-user session state |
 | **Offline Storage** | IndexedDB | Durable structured storage for mutation queues and cached workout trees |
-| **Backend API** | FastAPI (Python 3.10+) | Async-native, auto-generated OpenAPI docs, Pydantic validation |
-| **ORM** | SQLAlchemy | Mature, flexible, excellent migration ecosystem |
-| **Database** | PostgreSQL production / SQLite local | Persistent production storage with zero-config local development |
-| **Auth** | PyJWT + bcrypt | Industry-standard JWT signing with secure password hashing |
+| **Backend API** | Supabase Edge Functions (TypeScript) | Sole active API runtime and route validation |
+| **ORM / reference implementation** | SQLAlchemy under backend/ | Compatibility and parity tests only; not active runtime |
+| **Database** | Supabase PostgreSQL | Persistent production storage with zero-config local development |
+| **Auth** | Custom application sessions and tokens | Implemented in Supabase Edge Functions; Supabase Auth is not adopted |
 | **Telegram Integration** | Telegram Mini App + Bot Webhooks | Low-friction Telegram-native surface for workout logging, summaries, and coach alerts |
 | **Google Sheets Integration** | Google OAuth + Sheets API | Coach-controlled spreadsheet publishing without making Sheets canonical |
 
@@ -1294,7 +1296,7 @@ adaptive_lifting/
 |       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
 |       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |
-\-- backend/                        # FastAPI Server
+\-- backend/                        # Python compatibility and parity reference
     +-- main.py                     # App entrypoint, routers, middleware
     +-- database.py                 # SQLAlchemy engine, session factory, models
     +-- analytics_router.py         # Catalog, query, saved insight cards
@@ -1434,16 +1436,16 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 ### 15.1 Development Environment
 
 - Frontend: `npm run dev` (Vite dev server with HMR)
-- Backend: `uvicorn backend.main:app --reload`
-- Database: SQLite file initialized by the explicit Alembic migration command before first boot
+- API: Supabase Edge Functions, reached through the local API_EDGE_TARGET Vite proxy
+- Database: Supabase PostgreSQL; Python/SQLite references are test-only
 
 ### 15.2 Target Runtime Topology
 
-The production application runtime uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/`pg_net`, and Supabase Realtime. The static frontend hosting provider is intentionally undecided. It must serve the Vite/PWA build and provide same-origin API routing so the existing HttpOnly app session cookie continues to work.
+The active application runtime uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. It serves the Vite/PWA build directly and runs a small Worker only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
 
 ```mermaid
 graph TD
-    Browser["Browser / PWA"] --> Host["Selected static frontend host<br/>TLS + SPA fallback"]
+    Browser["Browser / PWA"] --> Host["Cloudflare Workers Static Assets<br/>TLS + SPA fallback"]
     Host -->|same-origin /api proxy| API["Supabase API Edge Function"]
     API --> DB[("Supabase PostgreSQL<br/>private RPC interfaces")]
     Cron["Supabase Cron / pg_net"] --> Workers["Private Edge workers"]
@@ -1454,7 +1456,7 @@ graph TD
 
 | Component | Runtime | Responsibility |
 | :--- | :--- | :--- |
-| Frontend host | Provider selected separately | Serve static Vite assets, deep-link fallback, root service-worker/PWA files, and a same-origin `/api/*` rewrite to Supabase Edge. |
+| Frontend host | Cloudflare Workers Static Assets | Serve Vite assets directly with SPA/PWA support; run a Worker only for /api/* and forward those requests to Supabase Edge. |
 | API | Supabase Edge Functions | Custom app auth, training, sync, analytics, integrations, billing, exports, and provider webhooks. |
 | Workers | Supabase Cron/`pg_net` + private Edge Functions | Email verification and Google Sheets outbox processing. Python workers are not required. |
 | Database | Supabase PostgreSQL | Canonical application data through narrow private SQL interfaces. |
@@ -1466,8 +1468,8 @@ graph TD
 | Environment | Deployment | Purpose |
 | :--- | :--- | :--- |
 | Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
-| Staging | Supabase staging project plus a temporary or selected static frontend host | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
-| Production | Supabase production project plus a frontend host selected before release | Real users; host choice is separate from the completed backend migration. |
+| Staging | Supabase staging project plus Cloudflare Workers Static Assets preview | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
+| Production | Supabase production project plus Cloudflare Workers Static Assets | Selected hosting target; deployment remains a separate release action. |
 
 Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths.
 
@@ -1481,7 +1483,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
 | **Backup** | PostgreSQL backups must be scheduled, retained, and restore-tested |
 | **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |
-| **API routing** | Browser requests remain relative `/api/*`; the selected host maps them to the Supabase Edge Function path and preserves method, query, body, `Origin`, `Cookie`, `Authorization`, and response headers |
+| **API routing** | Browser requests remain relative /api/*; Cloudflare maps requests to the Supabase Edge API and preserves method, query, body, Origin, Cookie, Authorization, and response headers |
 | **Realtime** | Permit secure WebSocket connections to the configured Supabase Realtime endpoint; do not route them to the API function |
 
 ### 15.5 Backup & Restore Contract
@@ -1528,7 +1530,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 
 ### 15.9 Static Frontend Host Contract
 
-The production frontend host has not been selected. Any selected provider or
+Cloudflare Workers Static Assets is selected. Its configuration and proxy must meet these requirements before release:
 proxy must meet these requirements before release:
 
 - Serve the static Vite build over HTTPS and return the app shell for client
@@ -1549,7 +1551,7 @@ proxy must meet these requirements before release:
   configured Supabase Realtime service. The `/api` rewrite must not capture or
   transform Realtime WebSocket traffic.
 
-The Caddy staging exercise recorded in `supabase/STAGING_VALIDATION.md` proves
+The Caddy staging exercise in supabase/STAGING_VALIDATION.md is historical evidence for the host contract. Caddy is removed; Cloudflare Workers Static Assets is the selected frontend host.
 one instance of this contract only. It is not a selected provider, required
 production service, or commitment to Caddy.
 

@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type ViteDevServer } from 'vite';
-import { createServer as createHttpServer, type Server } from 'node:http';
-import { coexistenceProxy } from '../../deploy/coexistenceProxy';
-import { sessionCreateProxyPlugin } from '../../deploy/sessionCreateProxy';
+import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { edgeOnlyProxy } from '../../deploy/edgeOnlyProxy';
+import { edgeTargetRequiredPlugin } from '../../deploy/edgeTargetRequired';
 
 let edge: Server;
-let legacy: Server;
 let vite: ViteDevServer;
 let base: string;
+let seen: { method?: string; path?: string; cookie?: string; authorization?: string; body?: string };
 
 async function listen(server: Server): Promise<string> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -21,39 +21,28 @@ async function close(server: Server): Promise<void> {
 }
 
 beforeAll(async () => {
-  edge = createHttpServer((request, response) => {
-    response.setHeader('content-type', 'application/json');
+  seen = {};
+  edge = createHttpServer((request: IncomingMessage, response: ServerResponse) => {
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => chunks.push(chunk));
-    request.on('end', () => response.end(JSON.stringify({
-      upstream: 'edge',
-      method: request.method,
-      path: request.url,
-      cookie: request.headers.cookie ?? null,
-      authorization: request.headers.authorization ?? null,
-      body: Buffer.concat(chunks).toString(),
-    })));
-  });
-  legacy = createHttpServer((request, response) => {
-    response.setHeader('content-type', 'application/json');
-    const chunks: Buffer[] = [];
-    request.on('data', (chunk: Buffer) => chunks.push(chunk));
-    request.on('end', () => response.end(JSON.stringify({
-      upstream: 'legacy', method: request.method, path: request.url,
-      cookie: request.headers.cookie ?? null,
-      authorization: request.headers.authorization ?? null,
-      body: Buffer.concat(chunks).toString(),
-    })));
+    request.on('end', () => {
+      seen = {
+        method: request.method, path: request.url,
+        cookie: request.headers.cookie, authorization: request.headers.authorization,
+        body: Buffer.concat(chunks).toString(),
+      };
+      response.statusCode = 409;
+      response.setHeader('content-type', 'application/json');
+      response.setHeader('set-cookie', ['session_id=next; HttpOnly; Secure; SameSite=Lax; Path=/', 'csrf=next; Secure; SameSite=Lax; Path=/']);
+      response.end(JSON.stringify({ detail: 'upstream conflict' }));
+    });
   });
   const edgeUrl = await listen(edge);
-  const legacyUrl = await listen(legacy);
   vite = await createServer({
     configFile: false,
-    plugins: [sessionCreateProxyPlugin(edgeUrl), {
-      name: 'coexistence-proxy-test',
-    }],
+    plugins: [edgeTargetRequiredPlugin(true)],
     optimizeDeps: { noDiscovery: true },
-    server: { host: '127.0.0.1', port: 0, proxy: coexistenceProxy(legacyUrl, edgeUrl) },
+    server: { host: '127.0.0.1', port: 0, proxy: edgeOnlyProxy(edgeUrl) },
   });
   await vite.listen();
   const address = vite.httpServer?.address();
@@ -64,311 +53,55 @@ beforeAll(async () => {
 afterAll(async () => {
   await vite?.close();
   if (edge) await close(edge);
-  if (legacy) await close(legacy);
 });
 
-describe('same-origin coexistence proxy', () => {
-  it('sends only migrated paths to Edge and preserves method, body, and credentials', async () => {
-    for (const path of ['/api/health', '/api/analytics/catalog?limit=1']) {
-      const response = await fetch(base + path, {
-        headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      });
-      expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({
-        upstream: 'edge',
-        method: 'GET',
-        path: `/functions/v1/api${path.slice('/api'.length)}`,
-        cookie: 'session_id=app-token',
-        authorization: 'Bearer app-token',
-        body: '',
-      });
-    }
-    const body = JSON.stringify({ athlete_id: 'stg-athlete', config: { metrics: ['tonnage'] } });
-    const response = await fetch(`${base}/api/analytics/query?debug=1`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+describe('Edge-only local API routing', () => {
+  it('routes every API path to Edge and preserves URL, method, body, credentials, status, and cookies', async () => {
+    const body = JSON.stringify({ name: 'session' });
+    const response = await fetch(`${base}/api/future/new-route?cursor=a%2Fb&limit=4`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: 'session_id=old; csrf=old',
+        Authorization: 'Bearer application-token',
+      },
       body,
     });
-    expect(await response.json()).toEqual({
-      upstream: 'edge', method: 'POST', path: '/functions/v1/api/analytics/query?debug=1',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
-    });
-  });
-
-  it('routes Insight Card CRUD and sync to Edge', async () => {
-    const cases = [
-      { method: 'GET', path: '/api/insight-cards?view=all', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards?view=all' },
-      { method: 'POST', path: '/api/insight-cards', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards' },
-      { method: 'PUT', path: '/api/insight-cards/card-1', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards/card-1' },
-      { method: 'DELETE', path: '/api/insight-cards/card-1', upstream: 'edge', edgePath: '/functions/v1/api/insight-cards/card-1' },
-    ];
-    for (const item of cases) {
-      const body = item.method === 'GET' || item.method === 'DELETE' ? '' : JSON.stringify({ name: 'Card' });
-      const response = await fetch(base + item.path, {
-        method: item.method,
-        headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-        ...(body ? { body } : {}),
-      });
-      const result = await response.json();
-      expect(result.upstream).toBe(item.upstream);
-      expect(result.method).toBe(item.method);
-      expect(result.path).toBe(item.edgePath);
-      expect(result.cookie).toBe('session_id=app-token');
-      expect(result.authorization).toBe('Bearer app-token');
-      expect(result.body).toBe(body);
-    }
-    const syncBody = JSON.stringify({ math_version: 'legacy' });
-    const sync = await fetch(`${base}/api/insight-cards/sync?cursor=1`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' }, body: syncBody,
-    });
-    expect(await sync.json()).toEqual({ upstream: 'edge', method: 'POST', path: '/functions/v1/api/insight-cards/sync?cursor=1', cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: syncBody });
-    const syncCardId = await fetch(`${base}/api/insight-cards/sync`, {
-      method: 'DELETE', headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-    });
-    const syncCardResult = await syncCardId.json();
-    expect(syncCardResult.upstream).toBe('edge');
-    expect(syncCardResult.method).toBe('DELETE');
-    expect(syncCardResult.path).toBe('/functions/v1/api/insight-cards/sync');
-  });
-
-  it('routes only workout sync to Edge and keeps other workout routes on legacy', async () => {
-    const body = JSON.stringify({ mutation_type: 'workout', workout_id: 'w-stg' });
-    const response = await fetch(`${base}/api/workouts/w-stg/sync?cursor=1`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ detail: 'upstream conflict' });
+    expect(seen).toEqual({
+      method: 'PATCH',
+      path: '/functions/v1/api/future/new-route?cursor=a%2Fb&limit=4',
+      cookie: 'session_id=old; csrf=old',
+      authorization: 'Bearer application-token',
       body,
     });
-    expect(await response.json()).toEqual({
-      upstream: 'edge', method: 'POST', path: '/functions/v1/api/workouts/w-stg/sync?cursor=1',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
+    expect(response.headers.getSetCookie()).toEqual([
+      'session_id=next; HttpOnly; Secure; SameSite=Lax; Path=/',
+      'csrf=next; Secure; SameSite=Lax; Path=/',
+    ]);
+  });
+
+  it('rejects an unconfigured Edge target instead of falling back to localhost:8000', async () => {
+    const missing = await createServer({
+      configFile: false,
+      plugins: [edgeTargetRequiredPlugin(false)],
+      optimizeDeps: { noDiscovery: true },
+      server: { host: '127.0.0.1', port: 0 },
     });
-    for (const path of ['/api/workouts/w-stg', '/api/workouts/w-stg/exercises', '/api/workouts/w-stg/sync/other']) {
-      const fallback = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-      expect((await fallback.json()).upstream).toBe('legacy');
+    try {
+      await missing.listen();
+      const address = missing.httpServer?.address();
+      if (!address || typeof address === 'string') throw new Error('Expected Vite TCP address');
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ detail: 'API_EDGE_TARGET is required for local API requests' });
+    } finally {
+      await missing.close();
     }
   });
 
-  it('routes only GET /api/microcycles to Edge and preserves its query string', async () => {
-    const response = await fetch(`${base}/api/microcycles?athlete_id=athlete-a`, {
-      headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-    });
-    expect(await response.json()).toEqual({
-      upstream: 'edge', method: 'GET', path: '/functions/v1/api/microcycles?athlete_id=athlete-a',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
-    });
-
-    const futureSubroute = await fetch(`${base}/api/microcycles/mc-a`, { method: 'DELETE' });
-    expect((await futureSubroute.json()).upstream).toBe('legacy');
-  });
-
-  it('routes migrated session writes and Add Exercise to Edge without capturing adjacent routes', async () => {
-    const body = JSON.stringify({ date: '2026-10-05', title: 'Squat' });
-    const created = await fetch(`${base}/api/sessions?source=calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body,
-    });
-    expect(await created.json()).toEqual({
-      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body,
-    });
-
-    const copyBody = JSON.stringify({ sessionIds: ['w-1'], dateOffsetDays: -5, copyMode: 'lifts' });
-    const copied = await fetch(`${base}/api/sessions/copy-week?source=calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: copyBody,
-    });
-    expect(await copied.json()).toEqual({
-      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions/copy-week?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: copyBody,
-    });
-
-    for (const method of ['GET', 'DELETE']) {
-      const fallback = await fetch(`${base}/api/sessions`, { method });
-      expect((await fallback.json()).upstream).toBe('legacy');
-    }
-    const patchBody = JSON.stringify({ title: 'Updated title' });
-    const updated = await fetch(`${base}/api/sessions/w-1?from=calendar`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: patchBody,
-    });
-    expect(await updated.json()).toEqual({
-      upstream: 'edge', method: 'PATCH', path: '/functions/v1/api/sessions/w-1?from=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: patchBody,
-    });
-
-    const deleted = await fetch(`${base}/api/sessions/w-1?from=calendar`, {
-      method: 'DELETE',
-      headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-    });
-    expect(await deleted.json()).toEqual({
-      upstream: 'edge', method: 'DELETE', path: '/functions/v1/api/sessions/w-1?from=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
-    });
-
-    const labelsBody = JSON.stringify({
-      sessionIds: ['w-1', 'missing'],
-      blockLabel: 'Block4',
-      athleteId: 'ignored-target',
-    });
-    const labels = await fetch(base + '/api/sessions/labels?source=calendar', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: labelsBody,
-    });
-    expect(await labels.json()).toEqual({
-      upstream: 'edge', method: 'PATCH', path: '/functions/v1/api/sessions/labels?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: labelsBody,
-    });
-
-    const addExerciseBody = JSON.stringify({ title: ' Squat ', liftCategory: 'Squat', plannedWeight: 180 });
-    const addExercise = await fetch(`${base}/api/sessions/w-1/exercises?source=calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: addExerciseBody,
-    });
-    expect(await addExercise.json()).toEqual({
-      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sessions/w-1/exercises?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: addExerciseBody,
-    });
-
-    const updateExerciseBody = JSON.stringify({ move: 'UP' });
-    const updateExercise = await fetch(`${base}/api/sessions/w-1/exercises/e-1?source=calendar`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: updateExerciseBody,
-    });
-    expect(await updateExercise.json()).toEqual({
-      upstream: 'edge', method: 'PATCH', path: '/functions/v1/api/sessions/w-1/exercises/e-1?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: updateExerciseBody,
-    });
-
-    const deleteExercise = await fetch(`${base}/api/sessions/w-1/exercises/e-1?source=calendar`, {
-      method: 'DELETE',
-      headers: { Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-    });
-    expect(await deleteExercise.json()).toEqual({
-      upstream: 'edge', method: 'DELETE', path: '/functions/v1/api/sessions/w-1/exercises/e-1?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: '',
-    });
-
-    const replaceSetsBody = JSON.stringify({ sets: [] });
-    const replaceSets = await fetch(`${base}/api/sessions/w-1/exercises/e-1/sets?source=calendar`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: replaceSetsBody,
-    });
-    expect(await replaceSets.json()).toEqual({
-      upstream: 'edge', method: 'PUT', path: '/functions/v1/api/sessions/w-1/exercises/e-1/sets?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: replaceSetsBody,
-    });
-
-    const setLogBody = JSON.stringify({ workoutId: 'w-1', exerciseId: 'e-1', setId: 's-1', weight: 100, reps: 5, rpe: 8 });
-    const setLog = await fetch(`${base}/api/sets/log?source=calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: 'session_id=app-token', Authorization: 'Bearer app-token' },
-      body: setLogBody,
-    });
-    expect(await setLog.json()).toEqual({
-      upstream: 'edge', method: 'POST', path: '/functions/v1/api/sets/log?source=calendar',
-      cookie: 'session_id=app-token', authorization: 'Bearer app-token', body: setLogBody,
-    });
-
-    for (const [path, method] of [
-      ['/api/sessions/labels', 'POST'],
-      ['/api/sessions/w-1/exercises', 'GET'],
-      ['/api/sessions/w-1/exercises/e-1/sets', 'POST'],
-      ['/api/sets/log/extra', 'POST'],
-    ]) {
-      const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
-      const fallbackResult = await fallback.json();
-      expect(fallbackResult.upstream, `${method} ${path} should remain on legacy`).toBe('legacy');
-    }
-    for (const [path, method] of [
-      ['/api/sessions/copy-week', 'GET'],
-      ['/api/sessions/copy-week', 'PATCH'],
-      ['/api/sessions/copy-week/source-1', 'POST'],
-    ]) {
-      const fallback = await fetch(`${base}${path}`, { method, body: method === 'GET' ? undefined : '{}' });
-      expect((await fallback.json()).upstream).toBe('legacy');
-    }
-  });
-
-  it('routes account, session-security, and onboarding routes to Edge', async () => {
-    const migrated: Array<[string, string]> = [
-      ['/api/auth/login', 'POST'], ['/api/auth/logout', 'POST'], ['/api/auth/me', 'GET'],
-      ['/api/auth/register', 'POST'], ['/api/auth/verify-email', 'POST'],
-      ['/api/auth/resend-verification', 'POST'], ['/api/auth/google', 'POST'],
-      ['/api/auth/profile', 'PATCH'], ['/api/account/access', 'GET'],
-      ['/api/auth/coach-code', 'POST'], ['/api/auth/coach-code', 'GET'],
-      ['/api/auth/link', 'POST'], ['/api/auth/link', 'DELETE'], ['/api/auth/link-athlete', 'POST'],
-      ['/api/auth/link/athlete-1', 'DELETE'], ['/api/coach/roster', 'GET'],
-      ['/api/coach/roster/history', 'GET'], ['/api/coach/roster/history/12', 'GET'],
-      ['/api/coach/push-program', 'POST'], ['/api/security/devices', 'GET'],
-      ['/api/security/devices/device-1', 'DELETE'], ['/api/security/sessions', 'GET'],
-      ['/api/security/sessions/session-1', 'DELETE'], ['/api/security/audit-events', 'GET'],
-    ];
-    for (const [path, method] of migrated) {
-      const body = ['POST', 'PATCH'].includes(method) ? '{}' : undefined;
-      const response = await fetch(base + path, { method, ...(body ? { body } : {}) });
-      const result = await response.json();
-      expect(result.upstream, `${method} ${path}`).toBe('edge');
-      expect(result.path).toBe(`/functions/v1/api${path.slice('/api'.length)}`);
-    }
-  });
-
-  it('routes only Day Notes and CSV/JSON export endpoints to Edge', async () => {
-    for (const [path, method] of [
-      ['/api/day-notes', 'GET'], ['/api/day-notes?athlete_id=ath-1', 'GET'],
-      ['/api/day-notes', 'PUT'], ['/api/export/csv', 'GET'],
-      ['/api/export/csv?lift_category=Squat&tier=Comp', 'GET'], ['/api/export/json', 'GET'],
-    ]) {
-      const response = await fetch(base + path, { method, ...(method === 'PUT' ? { body: '{}' } : {}) });
-      const result = await response.json();
-      expect(result.upstream, `${method} ${path}`).toBe('edge');
-      expect(result.path).toBe(`/functions/v1/api${path.split('?')[0].slice('/api'.length)}${path.includes('?') ? `?${path.split('?')[1]}` : ''}`);
-    }
-  });
-
-  it('routes only the Telegram and Google Sheets integration paths to Edge', async () => {
-    const migrated: Array<[string, string]> = [
-      ['/api/integrations/telegram/link-token', 'POST'],
-      ['/api/integrations/telegram/miniapp/session', 'POST'],
-      ['/api/integrations/telegram/status', 'GET'],
-      ['/api/integrations/telegram', 'DELETE'],
-      ['/api/integrations/telegram/webhook', 'POST'],
-      ['/api/integrations/google-sheets/auth-url', 'GET'],
-      ['/api/integrations/google-sheets/callback?code=x&state=s', 'GET'],
-      ['/api/integrations/google-sheets/status', 'GET'],
-      ['/api/integrations/google-sheets', 'DELETE'],
-      ['/api/integrations/google-sheets/publish', 'POST'],
-    ];
-    for (const [path, method] of migrated) {
-      const response = await fetch(base + path, { method, ...(method === 'POST' ? { body: '{}' } : {}) });
-      const result = await response.json();
-      const cleanPath = path.split('?')[0];
-      expect(result.upstream, `${method} ${path}`).toBe('edge');
-      expect(result.path).toBe(`/functions/v1/api${cleanPath.slice('/api'.length)}${path.includes('?') ? `?${path.split('?')[1]}` : ''}`);
-    }
-    const later = await fetch(`${base}/api/integrations/slack`);
-    expect((await later.json()).upstream).toBe('legacy');
-  });
-
-  it('keeps later auth and unrelated API paths on the legacy backend', async () => {
-    for (const path of [
-      '/api/auth/verify-email/token', '/api/auth/register/extra',
-      '/api/healthcheck', '/api/analytics/catalogue', '/api/day-notes/extra',
-      '/api/export/other', '/api/integrations', '/api/billing',
-    ]) {
-      const response = await fetch(base + path);
-      expect(await response.json()).toEqual({ upstream: 'legacy', method: 'GET', path, cookie: null, authorization: null, body: '' });
-    }
-  });
-
-  it('rejects non-local HTTP Edge targets and does not invent an Edge target', () => {
-    expect(() => coexistenceProxy('http://localhost:8000', 'http://untrusted.example')).toThrow();
-    expect(Object.keys(coexistenceProxy('http://localhost:8000'))).toEqual(['/api']);
+  it('rejects non-HTTPS non-loopback targets', () => {
+    expect(() => edgeOnlyProxy('http://untrusted.example')).toThrow();
   });
 });

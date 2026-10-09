@@ -33,6 +33,6 @@ export default defineConfig({
   webServer: [
     { command: `"${python}" scripts/email_verification_test_server.py`, url: 'http://127.0.0.1:8123/api/health', reuseExistingServer: false },
     { command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 3011 --strictPort', url: 'http://127.0.0.1:3011', reuseExistingServer: false,
-      env: { API_PROXY_TARGET: 'http://127.0.0.1:8123', VITE_BACKEND_URL: '' } },
+      env: { API_EDGE_TARGET: 'http://127.0.0.1:8123', VITE_BACKEND_URL: '' } },
   ],
 });
