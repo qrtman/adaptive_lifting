@@ -1826,7 +1826,8 @@ Worker URL in `APP_URL`. Runtime confirmed secure cookie behavior and exact
 origin acceptance. The management interface does not expose Edge Function
 environment values and OAuth/provider links are disabled, so the literal
 `APP_ENV` and `APP_URL` values and an APP_URL-based redirect remain
-owner-reported rather than independently read back.
+owner-reported rather than independently read back. This is an evidence gap
+for provider activation, not a failed core staging application test.
 
 The API Edge Function received version `101` (bundle SHA
 `51bbb95beae866b79f47dc4a05da0ca279a77ab83a31e14b175909c509ffbf46`). It
@@ -1872,3 +1873,22 @@ To roll back only the Worker if it is later redeployed, run:
 To revert API Edge version `101`, use the staging project's Supabase Dashboard
 to restore API version `100`, or redeploy the reviewed version-100 source.
 Never roll this change into production as part of staging rollback.
+
+**Final classification:**
+
+```text
+CLOUDFLARE_STAGING_CORE=PASS
+COOKIE_SECURITY=PASS
+CSRF_ORIGIN_VALIDATION=PASS
+AUTHENTICATED_BROWSER_E2E=PASS
+APP_URL_CONFIGURATION=OWNER_REPORTED
+APP_URL_RUNTIME_READBACK=UNAVAILABLE
+APP_URL_PROVIDER_REDIRECT_E2E=NOT_CONFIGURED_STAGING
+PROVIDER_ACTIVATION_READINESS=REQUIRES_SEPARATE_VALIDATION
+PRODUCTION_CUTOVER=NOT_AUTHORIZED
+```
+
+Keep each external provider disabled until its staging flow exercises and
+confirms APP_URL-dependent redirects using the actual provider integration.
+Do not add a diagnostic endpoint or treat the absent provider redirect test as
+a failure of the already-passing core staging validation.

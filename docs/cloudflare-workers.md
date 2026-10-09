@@ -62,14 +62,14 @@ below supersedes that initial result. The shared mutation-origin guard was
 deployed to the staging API Edge Function; the Worker itself was not changed
 or redeployed.
 
-APP_URL-dependent redirects could not be observed during this run: Stripe
-checkout and Google Sheets OAuth returned their expected fail-closed 503
-responses because those providers are unconfigured, and the email delivery
-worker is not configured to send verification links. The authenticated
-Supabase management surface in this session does not expose Edge Function
-environment values, so `APP_URL` also needs owner confirmation in the staging
-Dashboard. Set and verify these values in staging only; production remains
-untouched.
+At the time of this initial audit, APP_URL-dependent redirects could not be
+observed: Stripe checkout and Google Sheets OAuth returned their expected
+fail-closed 503 responses because those providers were unconfigured, and the
+email delivery worker was not configured to send verification links. The
+management surface did not expose Edge Function environment values. The
+staging owner has since reported the intended APP_URL; that value remains
+owner-reported until verified through an actual provider flow. Keep providers
+disabled until that separate validation is complete.
 
 ### Initial live staging validation — 2026-10-09 (superseded)
 
@@ -106,7 +106,7 @@ Edge deployment and current verification status.
 
 ### Final staging security gate — 2026-10-09
 
-The staging owner confirmed the API Edge Function configuration as
+The staging owner reported the API Edge Function configuration as
 `COOKIE_SECURE=true`, `APP_ENV=staging`,
 `APP_URL=https://adaptive-lifting-staging.gartman-bekaali.workers.dev`, and an
 exact HTTPS origin allowlist. Runtime cookie, CORS, health, and session tests
@@ -114,7 +114,8 @@ were performed against the deployed URL. The management interface used here
 does not return Edge Function environment values, so `APP_ENV` and `APP_URL`
 could not be independently read back. Provider-dependent redirects were not
 available to observe because those integrations are disabled; keep this as an
-explicit evidence gap.
+explicit provider-validation gap, not a failed application test. The core
+Cloudflare staging application and authenticated browser validation passed.
 
 The shared CSRF/origin policy is enforced before application route dispatch
 for POST, PUT, PATCH, and DELETE. It allows exact allowlisted origins, rejects
@@ -139,6 +140,15 @@ outsider denial, private Realtime channel join, PWA service-worker activation,
 and fail-closed provider responses passed. REST and GraphQL generated endpoints
 remained unavailable (HTTP 503/PGRST002), corroborating the owner-confirmed
 Data API Off setting.
+
+Classification: `CLOUDFLARE_STAGING_CORE=PASS`,
+`COOKIE_SECURITY=PASS`, `CSRF_ORIGIN_VALIDATION=PASS`, and
+`AUTHENTICATED_BROWSER_E2E=PASS`. `APP_URL_CONFIGURATION=OWNER_REPORTED`,
+`APP_URL_RUNTIME_READBACK=UNAVAILABLE`, and
+`APP_URL_PROVIDER_REDIRECT_E2E=NOT_CONFIGURED_STAGING`.
+`PROVIDER_ACTIVATION_READINESS=REQUIRES_SEPARATE_VALIDATION`: verify APP_URL
+through an actual provider flow before enabling that provider.
+`PRODUCTION_CUTOVER=NOT_AUTHORIZED`.
 
 Disposable athlete, coach, and outsider fixtures were removed. Post-cleanup
 checks found zero synthetic users, sessions, workouts, exercises, sets, notes,
