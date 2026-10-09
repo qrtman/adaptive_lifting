@@ -251,3 +251,56 @@ bundle and Static Assets manifest without uploading or deploying:
     npx wrangler deploy --dry-run
 
 No production or staging Supabase database is touched by these checks.
+
+## Staging offline conflict release — 2026-10-10
+
+Release commit `d72a45dd1e72a11059fb9622f44eff445d3b7a18` was deployed to the
+existing staging project `admyuepbbtstayaydjmo` and Worker
+`adaptive-lifting-staging` at
+`https://adaptive-lifting-staging.gartman-bekaali.workers.dev`. Migration
+`20261010120000_workout_offline_conflict_revisions` was applied from its
+checked-in SQL after a pre-change schema/data checkpoint. The exact version was
+then recorded with targeted Supabase migration repair. The ledger contains 63
+entries; the preceding 62 version/name pairs were verified unchanged. The
+release migration SHA-256 was
+`A3E3B2842D806D9792A7E89AB5592681CE3968D4688A4FAA1301167BE413681B`.
+
+The `api` Edge Function is version `103`. The Cloudflare Worker is version
+`0d4bc0a0-3399-4354-b1b5-c2d977753b11`. The Worker still serves the Vite static
+assets and routes only `/api/*` to the staging Supabase origin. No Worker
+secret or private credential is part of the frontend build.
+
+The live Node Playwright regression used two isolated browser contexts on the
+workers.dev origin. Both authenticated with the custom session cookie, whose
+`HttpOnly`, `Secure`, `SameSite=Lax`, and `Path=/` attributes were asserted.
+Device A queued an edit at exercise revision 16 while offline. Device B saved
+a newer value, advancing the revision to 18. On reconnect, the API returned
+HTTP 409 `STALE_REVISION`; the canonical server value remained `130`, while
+the queued `125` edit remained in IndexedDB. The conflict survived refresh,
+export retained the original mutation, and confirmed Keep Server persisted
+`RESOLVED_SERVER` locally without changing the canonical value. A schema-v1
+mutation without a baseline returned HTTP 409 `BASELINE_REQUIRED`, remained
+recoverable, and did not change the server value. Cross-origin logout returned
+403 while `/api/auth/me` remained authenticated; same-origin logout then
+revoked that session.
+
+Post-deployment static smoke passed: JS/CSS assets returned 200, the
+`/verify-email` SPA route loaded, the root service worker activated,
+`/api/health` reached the staging project with `private, no-store`, and
+unauthenticated `/api/auth/me` returned 401 with `private, no-store`. The
+private Realtime channel flow had passed its separate live staging validation
+and its route was not changed by this release. External providers remain
+disabled pending their separate `APP_URL` redirect tests.
+
+After verification, the disposable staging account and its 38 sessions,
+workout, exercise/set, microcycle, eight client devices, eight sync mutation
+records, verification token, queued verification job, and eight workout domain
+events were removed. Scoped counts returned to zero. Existing staging user,
+session, workout, audit, and outbox totals returned to their pre-release
+values. Migration 63 remains applied.
+
+The migration changes the API function contract. If a release problem occurs,
+halt staging writes while assessing it and use a reviewed forward fix. Do not
+assume that restoring only the prior Edge Function or Worker restores
+compatibility with migration 63. Verify live authenticated reads, writes, and
+conflict recovery before resuming writes. Production and DNS were untouched.

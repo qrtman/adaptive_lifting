@@ -1892,3 +1892,64 @@ Keep each external provider disabled until its staging flow exercises and
 confirms APP_URL-dependent redirects using the actual provider integration.
 Do not add a diagnostic endpoint or treat the absent provider redirect test as
 a failure of the already-passing core staging validation.
+
+### Offline conflict revision release — 2026-10-10
+
+The staging-only release was deployed from `production-bootstrap` commit
+`d72a45dd1e72a11059fb9622f44eff445d3b7a18` to project
+`admyuepbbtstayaydjmo` and Worker
+`https://adaptive-lifting-staging.gartman-bekaali.workers.dev`.
+
+Before the database write, the migration ledger and schema showed migration 63
+and its revision columns absent. A pre-change staging schema/data checkpoint
+and canonical 62-entry ledger snapshot were captured outside the repository.
+The exact checked-in migration
+`20261010120000_workout_offline_conflict_revisions.sql` (SHA-256
+`A3E3B2842D806D9792A7E89AB5592681CE3968D4688A4FAA1301167BE413681B`) was
+applied in a transaction. Only after schema verification, the exact version
+was recorded with targeted `supabase migration repair`. The ledger now has 63
+entries and the prior 62 version/name entries are unchanged. The migration
+adds server-maintained workout, exercise, and exercise-set revisions and
+revision-aware write guards; it does not change the historical 62 migrations.
+
+The API Edge Function is version `103`; the staging Worker is version
+`0d4bc0a0-3399-4354-b1b5-c2d977753b11`. The Worker remains a same-origin proxy
+to this staging project. No production Supabase project, Worker, domain, DNS,
+or provider configuration was changed.
+
+Two-device live browser validation passed on the actual workers.dev URL.
+Custom login cookies were checked for `HttpOnly`, `Secure`, `SameSite=Lax`,
+and `Path=/`. Device A read exercise revision 16 and queued actual `125`
+offline. Device B saved actual `130`, advancing the revision to 18. Device A's
+replay received HTTP 409 `STALE_REVISION`; the canonical API read remained
+`130`, and IndexedDB retained the original mutation and local `125` edit. The
+conflict card showed the server and local set values, persisted across refresh,
+and exported the original mutation. Confirmed Keep Server changed the local
+mutation to `RESOLVED_SERVER`; the canonical server value remained `130`.
+
+A historical schema-v1 payload with no `base_revision` received HTTP 409
+`BASELINE_REQUIRED`; it remained in the queue as `CONFLICTED` and did not
+overwrite `130`. Cross-origin logout returned 403 and left the authenticated
+session valid. Same-origin logout then revoked it. The full suite also
+verified the new release with `npm.cmd test` (368 passed, 1 skipped) and
+`npm.cmd run build` (pass; existing large-chunk advisory). This includes five
+Worker tests. `node scripts/cloudflare-staging-smoke.mjs` passed its credential
+scan, static asset, SPA deep-link, service-worker, API health, and no-store
+checks against the deployed Worker.
+
+The disposable account was removed after validation, together with its 38
+sessions, workout/exercise/set, microcycle, eight client devices, eight sync
+mutation records, verification token/outbox job, and eight workout domain
+events. A post-cleanup read found zero account, session, workout, microcycle,
+device, verification-token, or verification-outbox rows for the fixture. The
+pre-existing staging user, session, workout, audit, and outbox totals returned
+to their recorded pre-release values. The app Realtime route and policy were
+not changed; private Realtime channel behavior has its separate prior live
+staging evidence. Disabled providers remain disabled pending provider-specific
+`APP_URL` redirect validation.
+
+Migration 63 is forward-only for release recovery. If a staging release issue
+requires writes to stop, keep them halted until a reviewed forward correction
+is live. Restoring an earlier Edge or Worker version alone does not prove
+compatibility with the new revision guards; verify authenticated reads,
+normal writes, and offline conflict recovery before resuming staging writes.
