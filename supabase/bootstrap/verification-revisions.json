@@ -409,6 +409,15 @@
       "blocking_file": null,
       "container_removed": true,
       "database": 1,
+      "empty_database_checkpoint": {
+        "relation_count": 19,
+        "restorable_backup": false,
+        "routine_count": 61,
+        "schema_count": 6,
+        "sha256": "6b9d6086a6123f8065767e6247cfaf9153bac728036d19e38aabfaccfa6b66bd",
+        "status": "PASS",
+        "type_count": 11
+      },
       "extensions": [
         {
           "name": "pg_cron",
@@ -548,6 +557,15 @@
       "blocking_file": null,
       "container_removed": true,
       "database": 2,
+      "empty_database_checkpoint": {
+        "relation_count": 19,
+        "restorable_backup": false,
+        "routine_count": 61,
+        "schema_count": 6,
+        "sha256": "6b9d6086a6123f8065767e6247cfaf9153bac728036d19e38aabfaccfa6b66bd",
+        "status": "PASS",
+        "type_count": 11
+      },
       "extensions": [
         {
           "name": "pg_cron",
@@ -608,7 +626,7 @@
       "structural_validation": "PASS"
     }
   ],
-  "source_commit": "fd887c35618a3670f170009b45ab9d29d23c106e",
+  "source_commit": "c7c1a9eb1c4fabc62cba7af6b1d234c2f778f27c",
   "staging_comparison": {
     "differences": [
       {
@@ -722,17 +740,26 @@
   },
   "status": "PASS",
   "tooling_sources_sha256_lf": {
-    "README.md": "ea6b0fe64747ec52ff3cbcc7d3cf17b11de532ac08a64c0d617108d0f6c2dfcb",
+    "PRODUCTION_REALTIME_E2E.md": "27d6b671aae3d76ab611b5b3b2f5b01c68fe56da70eaff45cd081e9680512254",
+    "README.md": "dfcdd10844f128fc98827b76dc14a0bd1db9e4cbac4393daefc9079839dcdae1",
     "catalog.sql": "d3a0994c3b72a42f4c004a95dc3787dee7eb46a6bc1ff7b77a65e8abdd1317a8",
+    "deploy-managed.ps1": "b88d7b6d19afbdfd617bbca5b6ea68205e8e5dd19317b9fbaa7aee57fa3bc88f",
     "generate.py": "8aabde3fbcbf59096bfeb75708cc5295532c8b91068363f20d3a264b002f8b7c",
     "local-managed-fixture.sql": "b37094dd23cd8aeacd16d53b06dbbd8b64890e33cdcf33c6fd24e41807dddb3d",
+    "managed-bootstrap-guards.Tests.ps1": "e04778cecaf0808e4c8968d125d007df0a079bd273576f87e9c36081e1638555",
+    "managed-bootstrap-guards.psm1": "7912fd5f2fe0ca23265d75d4dffbab93e8ef920fd8b7775e52f9216b466b8a77",
+    "managed-empty-checkpoint.sql": "ed4988d18840b3b56896ce90beb0bd2463b9a0b43c34440782cb1ec409b8f82a",
+    "managed-preflight.sql": "90e6fe895b8fbf55eee145b917c5a6692f06d310529d7fe386011236de4a7ce0",
     "managed-prerequisites.sql": "b4aca7714e6bd828b50f69860aaf409d620317c22bbf61cab320d3e4e3d168c9",
+    "managed-realtime-inspect.sql": "73c7f41e0d79e832160864eab19a12d1edb72198e6535ce86bac7b6a4a131875",
     "replay-repair.json": "1cebdb5b13089a53ea4e3f166b0da53e7628c2068b6b5671bc43fd42ec263128",
-    "replay.py": "fea7fe0bca2e16a6b346c301a0fe1e12c25a7b769856510f269d5a97c7f08706",
+    "replay.py": "47dd8e66695ad76aa631ada0422337bdcd990f035a860ea7ea9c6b971127b863",
     "sql-eof-correction-audit.json": "8676ffc22d35d015ae3656c47f792f3bce9daf625eda3982b09d08d0487f131e",
     "staging-catalog.json": "3557e3dc31cf0d7a734f087e68dab6c7a3dd95843105d47a17b2da7e0af21b34",
-    "test_behavior.sql": "147bb151be40cf892a3f8e7495d96754986cc293b0b1385b9e2b6dfa980c7498",
-    "test_schema.py": "410ef6234fb00a0549f15dbed1d8edf69ed3df83895a47104230ccae098d9145"
+    "test_behavior.sql": "80bfb15e308e3538f20ba3bf04d0d7a83dce616df780c9706cf35618f3f448c0",
+    "test_realtime_policy.sql": "7db8570df53262b920d12ee7658d2f34fe96a11db4ca614523747dbeb31d3be8",
+    "test_schema.py": "3e71a6c15dfaf66473aab938f898381ea817b1e0ffc89c90c0c7a9446f63b731",
+    "test_sequence_behavior.sql": "7e1c62bcc5f36e13c845b1412b5d586e49aa451a64d2affbf0014e3daeeeb85e"
   },
-  "verified_at_utc": "2026-10-09T15:45:04Z"
+  "verified_at_utc": "2026-10-10T15:28:05Z"
 }
