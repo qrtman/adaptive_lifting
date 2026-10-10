@@ -3,8 +3,14 @@ param(
   [ValidatePattern('^[a-z0-9]{20}$')]
   [string]$ProjectRef,
 
-  [ValidatePattern('^db\.[a-z0-9]{20}\.supabase\.(co|com)$')]
   [string]$DatabaseHost,
+
+  [int]$DatabasePort = 5432,
+
+  [string]$DatabaseUsername,
+
+  [ValidateSet('Direct', 'SessionPooler')]
+  [string]$ConnectionMode = 'Direct',
 
   [string]$CheckpointDirectory,
   [switch]$Apply,
@@ -14,6 +20,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $bootstrap = Join-Path $root 'supabase\bootstrap'
+$guardModule = Join-Path $bootstrap 'managed-bootstrap-guards.psm1'
+Import-Module $guardModule -Force
 $migrationDir = Join-Path $root 'supabase\migrations'
 $evidencePath = Join-Path $bootstrap 'verification-revisions.json'
 $historicalEvidencePath = Join-Path $bootstrap 'verification-strict.json'
@@ -75,16 +83,13 @@ function Get-VersionIds([string]$Text) {
 }
 
 function Assert-VersionList([string[]]$Actual, [string[]]$Expected, [string]$Label) {
-  $a = @($Actual | Sort-Object -Unique)
-  $e = @($Expected | Sort-Object -Unique)
-  if (($a -join ',') -ne ($e -join ',')) {
-    Stop-Safely "$Label version set differs from the checked-in 63 migrations"
-  }
+  try { Assert-ManagedVersionList -Actual $Actual -Expected $Expected -Label $Label }
+  catch { Stop-Safely $_.Exception.Message }
 }
 
 function Invoke-DbQuery([string]$Sql) {
   $result = & $script:psqlPath --no-password --no-psqlrc --quiet --tuples-only --no-align `
-    --set ON_ERROR_STOP=1 --host $DatabaseHost --port 5432 --username postgres --dbname postgres `
+    --set ON_ERROR_STOP=1 --host $script:dbTarget.Host --port $script:dbTarget.Port --username $script:dbTarget.Username --dbname postgres `
     --command $Sql 2>&1 | Out-String
   if ($LASTEXITCODE -ne 0) { Stop-Safely "read-only psql query failed: $result" }
   return $result.Trim()
@@ -92,7 +97,7 @@ function Invoke-DbQuery([string]$Sql) {
 
 function Invoke-DbFile([string]$Path) {
   $result = & $script:psqlPath --no-password --no-psqlrc --quiet `
-    --set ON_ERROR_STOP=1 --host $DatabaseHost --port 5432 --username postgres --dbname postgres `
+    --set ON_ERROR_STOP=1 --host $script:dbTarget.Host --port $script:dbTarget.Port --username $script:dbTarget.Username --dbname postgres `
     --file $Path 2>&1 | Out-String
   if ($LASTEXITCODE -ne 0) { Stop-Safely "SQL file failed; target may be partially changed. Preserve it and inspect before recovery: $result" }
   if ($result.Trim()) { Write-Host $result.Trim() }
@@ -100,20 +105,20 @@ function Invoke-DbFile([string]$Path) {
 
 function Invoke-DbCaptureFile([string]$Path) {
   $result = & $script:psqlPath --no-password --no-psqlrc --quiet --tuples-only --no-align `
-    --set ON_ERROR_STOP=1 --host $DatabaseHost --port 5432 --username postgres --dbname postgres `
+    --set ON_ERROR_STOP=1 --host $script:dbTarget.Host --port $script:dbTarget.Port --username $script:dbTarget.Username --dbname postgres `
     --file $Path 2>&1 | Out-String
   if ($LASTEXITCODE -ne 0) { Stop-Safely "catalog query failed: $result" }
   return $result.Trim()
 }
 
 function Invoke-Supabase([string[]]$Arguments, [switch]$Capture) {
-  if ($Capture) {
-    $output = & $script:supabasePath @Arguments 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) { Stop-Safely "Supabase CLI failed: $output" }
-    return $output
-  }
-  & $script:supabasePath @Arguments
-  if ($LASTEXITCODE -ne 0) { Stop-Safely "Supabase CLI failed with exit code $LASTEXITCODE" }
+  $output = & $script:supabasePath @Arguments 2>&1 | Out-String
+  $exitCode = $LASTEXITCODE
+  try {
+    $output = Complete-ManagedCliResult -ExitCode $exitCode -Output $output -Label 'Supabase CLI' -Secret $env:SUPABASE_DB_PASSWORD
+  } catch { Stop-Safely $_.Exception.Message }
+  if ($Capture) { return $output }
+  if ($output.Trim()) { Write-Host $output.Trim() }
 }
 
 try {
@@ -123,10 +128,17 @@ try {
     exit 0
   }
 
-  if ($ProjectRef -notmatch '^[a-z0-9]{20}$') { Stop-Safely 'provide an exact 20-character Supabase project reference' }
-  if ($DatabaseHost -notmatch '^db\.[a-z0-9]{20}\.supabase\.(co|com)$') { Stop-Safely 'provide the exact direct database hostname shown by the Supabase Dashboard' }
-  if ($ProjectRef -eq $stagingRef) { Stop-Safely 'the staging project is not a production bootstrap target' }
-  if ($DatabaseHost -notmatch "^db\.$([regex]::Escape($ProjectRef))\.supabase\.(co|com)$") { Stop-Safely 'database host does not match the explicitly supplied project reference' }
+  if (-not $ProjectRef) { Stop-Safely 'provide an exact 20-character Supabase project reference' }
+  if (-not $DatabaseHost) { Stop-Safely 'provide an explicitly approved database hostname' }
+  if (-not $DatabaseUsername) {
+    if ($ConnectionMode -eq 'SessionPooler') { $DatabaseUsername = "postgres.$ProjectRef" }
+    else { $DatabaseUsername = 'postgres' }
+  }
+  try {
+    $script:dbTarget = Assert-ManagedTarget -ProjectRef $ProjectRef -DatabaseHost $DatabaseHost `
+      -DatabasePort $DatabasePort -DatabaseUsername $DatabaseUsername -ConnectionMode $ConnectionMode `
+      -StagingRef $stagingRef
+  } catch { Stop-Safely $_.Exception.Message }
   if (-not $env:SUPABASE_DB_PASSWORD) { Stop-Safely 'set SUPABASE_DB_PASSWORD in the local process environment; never pass it as a CLI argument or store it in a file' }
   $env:PGPASSWORD = $env:SUPABASE_DB_PASSWORD
   $env:PGSSLMODE = 'require'
@@ -164,6 +176,17 @@ try {
     exit 0
   }
   if (-not $CheckpointDirectory) { Stop-Safely 'provide a protected checkpoint directory outside the repository' }
+  # Detect Windows Application Control or other client execution failures
+  # before the typed confirmation and before any database writes.
+  try { $pgDumpPath = (Get-Command pg_dump -ErrorAction Stop).Source }
+  catch { Stop-Safely 'pg_dump is unavailable; obtain an administrator-approved PostgreSQL client or approved execution environment before writing' }
+  try {
+    Assert-CheckpointTool -ToolPath $pgDumpPath -Runner {
+      param($path)
+      $versionOutput = & $path --version 2>&1 | Out-String
+      [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $versionOutput }
+    } | Out-Null
+  } catch { Stop-Safely 'pg_dump failed its execution check; obtain an administrator-approved PostgreSQL client or approved execution environment before writing' }
   $checkpoint = [IO.Path]::GetFullPath($CheckpointDirectory)
   if ($checkpoint.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
     Stop-Safely 'checkpoint directory must be outside the repository'
@@ -173,10 +196,9 @@ try {
   if (Test-Path -LiteralPath $checkpoint) { Stop-Safely 'checkpoint directory already exists; refusing to overwrite evidence' }
   New-Item -ItemType Directory -Path $checkpoint | Out-Null
 
-  $pgDumpPath = (Get-Command pg_dump -ErrorAction Stop).Source
   $emptySchemaPath = Join-Path $checkpoint 'empty-public-schema.sql'
-  & $pgDumpPath --no-password --schema-only --schema=public --host $DatabaseHost --port 5432 `
-    --username postgres --dbname postgres --file $emptySchemaPath
+  & $pgDumpPath --no-password --schema-only --schema=public --host $script:dbTarget.Host --port $script:dbTarget.Port `
+    --username $script:dbTarget.Username --dbname postgres --file $emptySchemaPath
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $emptySchemaPath)) {
     Stop-Safely 'could not establish the pre-change empty-schema checkpoint; no SQL changes were attempted'
   }
@@ -214,14 +236,16 @@ enabled = false
 '@ | ForEach-Object { [IO.File]::WriteAllText((Join-Path $supabaseDir 'config.toml'), $_, [Text.UTF8Encoding]::new($false)) }
   Copy-Item (Join-Path $migrationDir '*.sql') (Join-Path $supabaseDir 'migrations')
 
-  Invoke-Supabase -Arguments @('--workdir', $workdir, 'link', '--project-ref', $ProjectRef)
-  $migrationList = Invoke-Supabase -Arguments @('--workdir', $workdir, 'migration', 'list', '--linked') -Capture
-  Assert-VersionList (Get-VersionIds $migrationList) $versions 'linked migration list'
-  $dryRun = Invoke-Supabase -Arguments @('--workdir', $workdir, 'db', 'push', '--linked', '--dry-run', '--skip-vault') -Capture
+  $migrationListArgs = Get-ManagedMigrationCliArguments -Action List -Workdir $workdir -ProjectRef $ProjectRef -DbUrl $script:dbTarget.CliDbUrl
+  $migrationList = Invoke-Supabase -Arguments $migrationListArgs -Capture
+  Assert-VersionList (Get-VersionIds $migrationList) $versions 'explicit-target migration list'
+  $dryRunArgs = Get-ManagedMigrationCliArguments -Action DryRun -Workdir $workdir -ProjectRef $ProjectRef -DbUrl $script:dbTarget.CliDbUrl
+  $dryRun = Invoke-Supabase -Arguments $dryRunArgs -Capture
   Assert-VersionList (Get-VersionIds $dryRun) $versions 'migration dry run'
   Write-Host 'Dry run PASS: exactly the 63 checked-in version IDs would be applied.'
 
-  Invoke-Supabase -Arguments @('--workdir', $workdir, 'db', 'push', '--linked', '--skip-vault')
+  $pushArgs = Get-ManagedMigrationCliArguments -Action Push -Workdir $workdir -ProjectRef $ProjectRef -DbUrl $script:dbTarget.CliDbUrl
+  Invoke-Supabase -Arguments $pushArgs
   $ledgerOutput = Invoke-DbQuery 'SELECT version FROM supabase_migrations.schema_migrations ORDER BY version;'
   $ledger = @($ledgerOutput -split "`r?`n" | Where-Object { $_ -match '^\d{14}$' })
   Assert-VersionList $ledger $versions 'database migration ledger'
@@ -233,7 +257,8 @@ enabled = false
   if ($LASTEXITCODE -ne 0) { Stop-Safely "managed catalog differs from validated schema: $comparison" }
   Write-Host $comparison.Trim()
   Invoke-DbFile (Join-Path $bootstrap 'test_behavior.sql')
-  $finalList = Invoke-Supabase -Arguments @('--workdir', $workdir, 'migration', 'list', '--linked') -Capture
+  $finalListArgs = Get-ManagedMigrationCliArguments -Action List -Workdir $workdir -ProjectRef $ProjectRef -DbUrl $script:dbTarget.CliDbUrl
+  $finalList = Invoke-Supabase -Arguments $finalListArgs -Capture
   Assert-VersionList (Get-VersionIds $finalList) $versions 'final CLI migration list'
   Write-Host 'Managed bootstrap PASS: explicit baseline, 63/63 migrations, exact ledger and postflight assertions.'
   Write-Host 'Preserve checkpoint and project state. Synthetic tests should use dedicated test accounts and clean only their own records.'

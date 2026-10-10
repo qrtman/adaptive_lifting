@@ -75,8 +75,9 @@ initializers are bypassed so no inherited application/managed migration state
 is present. No Supabase migration-history rows are fabricated or restamped.
 
 The executable managed workflow is in [`deploy-managed.ps1`](deploy-managed.ps1).
-It verifies the authenticated account's exact project reference and matching
-direct database hostname, rejects the validated staging ref, and runs
+It verifies the authenticated account's exact project reference and either a
+matching direct database hostname or the specifically approved production
+Session Pooler endpoint, rejects the validated staging ref, and runs
 `managed-preflight.sql` before any writes. The preflight requires an empty
 `public` application schema, empty migration history, and zero Supabase Auth
 users/Storage objects if those managed tables exist. Its default mode performs
@@ -86,8 +87,8 @@ schema-only empty-public checkpoint before applying anything.
 
 The ordered application procedure is: managed prerequisites, explicit
 `application.sql` application, isolated temporary Supabase CLI workdir with
-only these 63 migration files, linked migration-list inspection, dry run,
-strict dry-run version-set assertion, `db push --skip-vault`, exact ledger
+only these 63 migration files, explicit-target migration-list inspection, dry
+run, strict dry-run version-set assertion, `db push --skip-vault`, exact ledger
 version assertion, managed postflight, and rollback-only synthetic
 `test_behavior.sql`. The script deliberately does not use `--include-all`, seed
 files, `migration repair`, or automatic reset. It stops on any mismatch and
@@ -98,15 +99,48 @@ is refused. For a future preflight-only check:
 .\supabase\bootstrap\deploy-managed.ps1 -ValidateFilesOnly
 ```
 
-After a production project exists and the owner has separately approved its
-setup, use its verified project reference and direct DB hostname. Set
-`SUPABASE_DB_PASSWORD` in the local process environment (not in a command
-argument or file), then run without `-Apply` to perform remote read-only
-identity/emptiness checks. Only the separately authorized bootstrap procedure
-uses `-Apply`; it changes no existing database by design because any
-application table, user, storage object, or migration record causes refusal.
-The isolated CLI workdir avoids using the repository's staging link and has
-seeding disabled. `--skip-vault` prevents deployment-time Vault secret sync.
+For the authorized Seoul production Session Pooler, the exact target is
+`gadusaizqnshxqcckibq` / `aws-0-ap-northeast-2.pooler.supabase.com:5432` /
+`postgres.gadusaizqnshxqcckibq`. Port 6543 is rejected. The script also
+supports a matching direct `db.<project-ref>.supabase.co` or `.com` connection
+where IPv6 is available. It will not accept arbitrary pooler endpoints.
+
+Set `SUPABASE_DB_PASSWORD` only in the local process environment (never a
+command argument, transcript, log, or file), then run the script without
+`-Apply` for read-only identity/emptiness checks. Example target arguments:
+
+```powershell
+.\supabase\bootstrap\deploy-managed.ps1 `
+  -ProjectRef gadusaizqnshxqcckibq `
+  -DatabaseHost aws-0-ap-northeast-2.pooler.supabase.com `
+  -DatabasePort 5432 `
+  -DatabaseUsername postgres.gadusaizqnshxqcckibq `
+  -ConnectionMode SessionPooler
+```
+
+`psql` receives the same exact host, port and username; the Supabase CLI gets
+the corresponding password-free connection URI pinned to this project. The
+secret is inherited only through the process environment; no password is
+included in CLI arguments. The isolated CLI
+workdir contains no staging link, and migration list/dry-run/push all receive
+the explicit project ref and `--db-url`; `--linked` is not used. `--skip-vault`
+prevents deployment-time Vault secret sync. An interactive exact-project
+confirmation remains required before a checkpoint or SQL write.
+
+Before the confirmation prompt, `-Apply` requires `pg_dump --version` to run.
+The pre-bootstrap schema checkpoint is mandatory. If Windows Application
+Control blocks the installed PostgreSQL 18.6 `pg_dump`, do not disable or work
+around that control. Obtain an administrator-approved PostgreSQL client
+installation, or use a separately approved secured execution environment with
+database access and the same reviewed commit. Re-run this guarded workflow
+there and retain the checkpoint outside the repository. A missing or blocked
+checkpoint tool stops before any database write. A newer `pg_dump` can read an
+older PostgreSQL server, but the tool must be permitted to execute and the
+checkpoint itself must succeed.
+
+Only the separately authorized bootstrap procedure uses `-Apply`; it refuses
+any application table, user, storage object, or migration record. Do not use
+this workflow on staging or an existing application database.
 
 The migration creates `al_edge_catalog_runtime` as a restricted LOGIN role;
 it does not create or embed its password. After the schema is ready and before
