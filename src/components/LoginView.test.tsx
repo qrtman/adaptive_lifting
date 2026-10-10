@@ -79,6 +79,21 @@ describe('LoginView authentication modes', () => {
     expect(register).not.toHaveBeenCalled();
   });
 
+  it('clearly fails closed when production email verification is not configured', async () => {
+    register.mockRejectedValue(new ApiRequestError('Email verification is temporarily unavailable', 503));
+    await act(async () => { container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="false"]')?.click(); });
+    const inputs = container.querySelectorAll('input');
+    await enter(inputs[0], 'new@example.com');
+    await enter(inputs[1], 'password123');
+    await enter(inputs[2], 'password123');
+    await submit();
+    expect(register).toHaveBeenCalledOnce();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'New account registration is not ready because verification email delivery is not configured.',
+    );
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
   it('keeps normal sign-in working', async () => {
     const user = { id: 'existing-user', email: 'existing@example.com', role: 'ATHLETE' };
     login.mockResolvedValue({ user });

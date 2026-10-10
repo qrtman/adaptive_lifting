@@ -1441,7 +1441,7 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 ### 15.2 Target Runtime Topology
 
-The selected runtime architecture uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. Staging is deployed and validated; this architecture description does not verify or assert that current production traffic has migrated. The Worker serves the Vite/PWA build directly and runs only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
+The selected runtime architecture uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. Staging is deployed and validated. The legacy production application is offline; the new production app is not deployed. Its confirmed domain is `app.goatedmethod.me`, and the owner has decided it will use a fresh empty application database and new user accounts, with no historical data import. The Worker serves the Vite/PWA build directly and runs only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
 
 ```mermaid
 graph TD
@@ -1469,15 +1469,15 @@ graph TD
 | :--- | :--- | :--- |
 | Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
 | Staging | Supabase staging project plus deployed Cloudflare Workers Static Assets Worker | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
-| Production | Future separately approved Supabase production project plus distinct Cloudflare Worker | Target hosting architecture; current production inventory and cutover status require owner confirmation. |
+| Production | Future separately approved empty Supabase production project plus distinct Cloudflare Worker at `app.goatedmethod.me` | Fresh launch target; project is not provisioned and no production cutover has occurred. |
 
-Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths.
+Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths. Production starts without legacy accounts, sessions, training data, billing state, provider credentials, or queued jobs. The existing legacy database, backups, and Tunnel are retained separately and are not reset or imported.
 
 ### 15.4 Production Considerations
 
 | Concern | Strategy |
 | :--- | :--- |
-| **JWT Secrets** | Must be loaded from `JWT_SECRET_CURRENT` and optional `JWT_SECRET_PREVIOUS`, never hardcoded |
+| **JWT Secrets** | Fresh production uses a new `JWT_SECRET_CURRENT`; leave `JWT_SECRET_PREVIOUS` unset because no old sessions are carried forward. Never hardcode either key. |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
 | **Database Migrations** | Apply the reviewed clean-schema bootstrap before the 63 checked-in Supabase SQL migrations; those migrations alone are not a complete empty-database bootstrap |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
@@ -1485,6 +1485,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |
 | **API routing** | Browser requests remain relative /api/*; Cloudflare maps requests to the Supabase Edge API and preserves method, query, body, Origin, Cookie, Authorization, and response headers |
 | **Realtime** | Permit secure WebSocket connections to the configured Supabase Realtime endpoint; do not route them to the API function |
+| **Browser storage** | Production uses a distinct `production-fresh-v1` IndexedDB/localStorage namespace. Legacy stores remain inert and old offline mutations or authorization grants are never imported. Account-scoped queue records are not replayed by another account. |
 
 ### 15.5 Backup & Restore Contract
 

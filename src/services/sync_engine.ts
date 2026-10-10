@@ -3,6 +3,7 @@ import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus, 
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
 import { API_BASE_URL } from './apiBase';
+import { IS_FRESH_PRODUCTION_CLIENT } from './clientDataBoundary';
 
 let syncTimeout: number | null = null;
 let insightSyncTimeout: number | null = null;
@@ -92,11 +93,12 @@ export async function queueMutation(
   fields: Record<string, any>,
   baseline: { revision?: number; fields?: Record<string, any>; snapshot_key?: string } = {},
 ) {
+  const accountId = IS_FRESH_PRODUCTION_CLIENT ? getUiPref(UI_KEYS.userId) || undefined : undefined;
   if (entity_type === 'InsightCard' || workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
-    await queueInsightCardMutation(entity_id, fields);
+    await queueInsightCardMutation(entity_id, fields, accountId);
     return;
   }
-  const prior = (await getPendingMutations(workout_id)).find(m =>
+  const prior = (await getPendingMutations(workout_id, accountId)).find(m =>
     m.entity_type === entity_type && m.entity_id === entity_id && m.status === 'PENDING'
   );
   if (prior) {
@@ -107,11 +109,12 @@ export async function queueMutation(
     prior.snapshot_key ??= baseline.snapshot_key;
     prior.updated_at = new Date().toISOString();
     await saveMutation(prior);
-    scheduleSync(workout_id);
+    scheduleSync(workout_id, accountId);
     return;
   }
   const mut: SyncMutation = {
     mutation_id: generateMutationId(),
+    ...(accountId ? { account_id: accountId } : {}),
     client_device_id: getDeviceId(),
     workout_id,
     entity_type,
@@ -127,12 +130,13 @@ export async function queueMutation(
   };
 
   await saveMutation(mut);
-  scheduleSync(workout_id);
+  scheduleSync(workout_id, accountId);
 }
 
-export async function queueInsightCardMutation(entity_id: string, fields: Record<string, any>) {
+export async function queueInsightCardMutation(entity_id: string, fields: Record<string, any>, accountId?: string) {
   const mut: SyncMutation = {
     mutation_id: generateMutationId(),
+    ...(accountId ? { account_id: accountId } : {}),
     client_device_id: getDeviceId(),
     entity_type: 'InsightCard',
     entity_id,
@@ -143,30 +147,30 @@ export async function queueInsightCardMutation(entity_id: string, fields: Record
     retry_count: 0
   };
   await saveMutation(mut);
-  scheduleInsightCardSync();
+  scheduleInsightCardSync(accountId);
 }
 
-function scheduleSync(workout_id: string) {
+function scheduleSync(workout_id: string, accountId?: string) {
   if (syncTimeout) {
     clearTimeout(syncTimeout);
   }
 
   syncTimeout = window.setTimeout(async () => {
     syncTimeout = null;
-    const conflicts = await processSyncQueue(workout_id);
+    const conflicts = await processSyncQueue(workout_id, accountId);
     if (conflicts && conflicts.length > 0) {
       window.dispatchEvent(new CustomEvent('sync-conflicts', { detail: conflicts }));
     }
   }, SYNC_DEBOUNCE_MS);
 }
 
-function scheduleInsightCardSync() {
+function scheduleInsightCardSync(accountId?: string) {
   if (insightSyncTimeout) {
     clearTimeout(insightSyncTimeout);
   }
   insightSyncTimeout = window.setTimeout(async () => {
     insightSyncTimeout = null;
-    const conflicts = await processInsightCardSync();
+    const conflicts = await processInsightCardSync(accountId);
     if (conflicts && conflicts.length > 0) {
       window.dispatchEvent(new CustomEvent('sync-conflicts', { detail: conflicts }));
     }
@@ -269,10 +273,10 @@ async function postSync(
   return [];
 }
 
-export async function processInsightCardSync(): Promise<any[]> {
+export async function processInsightCardSync(accountId?: string): Promise<any[]> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
 
-  const pending = mutationsForInsightCards(await getPendingMutations());
+  const pending = mutationsForInsightCards(await getPendingMutations(undefined, accountId));
   if (pending.length === 0) return [];
 
   const payload = {
@@ -295,13 +299,13 @@ export async function processInsightCardSync(): Promise<any[]> {
   return postSync(`${BACKEND_URL}/api/insight-cards/sync`, payload, pending);
 }
 
-export async function processSyncQueue(workout_id: string): Promise<any[]> {
+export async function processSyncQueue(workout_id: string, accountId?: string): Promise<any[]> {
   if (workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
-    return processInsightCardSync();
+    return processInsightCardSync(accountId);
   }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
 
-  const pendingAll = await getPendingMutations();
+  const pendingAll = await getPendingMutations(undefined, accountId);
   const pending = mutationsForWorkout(pendingAll, workout_id);
   if (pending.length === 0) return [];
 
@@ -327,16 +331,16 @@ export async function processSyncQueue(workout_id: string): Promise<any[]> {
 }
 
 /** Flush preserved queues after online recovery or an authenticated sign-in. */
-export async function processPendingQueues(): Promise<any[]> {
+export async function processPendingQueues(accountId?: string): Promise<any[]> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
-  const pending = await getPendingMutations();
+  const pending = await getPendingMutations(undefined, accountId);
   const conflicts: any[] = [];
   if (pending.some(isInsightCardMutation)) {
-    conflicts.push(...await processInsightCardSync());
+    conflicts.push(...await processInsightCardSync(accountId));
   }
   const workoutIds = [...new Set(
     pending.filter(m => !isInsightCardMutation(m)).map(m => m.workout_id).filter(Boolean),
   )] as string[];
-  for (const workoutId of workoutIds) conflicts.push(...await processSyncQueue(workoutId));
+  for (const workoutId of workoutIds) conflicts.push(...await processSyncQueue(workoutId, accountId));
   return conflicts;
 }

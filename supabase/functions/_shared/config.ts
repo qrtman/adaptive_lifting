@@ -92,6 +92,9 @@ export function loadConfig(
   if (!["1", "true", "yes", "0", "false", "no"].includes(rawNewEmailVerification)) {
     throw new Error("EMAIL_VERIFICATION_NEW_ACCOUNTS must be a boolean");
   }
+  if (productionLike && !["1", "true", "yes"].includes(rawNewEmailVerification)) {
+    throw new Error("EMAIL_VERIFICATION_NEW_ACCOUNTS must be true in production");
+  }
   if (!["1", "true", "yes", "0", "false", "no"].includes(voucherBillingRaw)) {
     throw new Error("VOUCHER_BILLING_ENABLED must be a boolean");
   }

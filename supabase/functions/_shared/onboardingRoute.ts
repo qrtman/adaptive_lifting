@@ -7,6 +7,7 @@ import { fernetEncrypt } from "./fernet.ts";
 import { verifyGoogleIdToken } from "./googleIdToken.ts";
 import { sessionResponse } from "./sessionResponse.ts";
 import { tryProcessEmailVerificationJob } from "./emailWorkerCore.ts";
+import { requireEmailRegistrationReady } from "./emailReadiness.ts";
 
 type Json = Record<string, unknown>;
 const GENERIC_MESSAGE = "If this address is eligible, a verification email will arrive shortly. Verify your email, then sign in.";
@@ -109,6 +110,19 @@ async function register(request: Request, db: Database, config: AppConfig): Prom
   let tokenHash = "";
   let ciphertext = "";
   if (requiresEmail) {
+    try {
+      await requireEmailRegistrationReady(config, async () => {
+        const client = await db.connect();
+        try {
+          const result = await client.queryObject<{ config: { apiKey?: string; emailFrom?: string; appUrl?: string } }>(
+            "select al_private.al_email_delivery_config() as config",
+          );
+          return result.rows[0]?.config ?? {};
+        } finally { client.release(); }
+      });
+    } catch {
+      throw new ApiError(503, "Email verification is temporarily unavailable");
+    }
     const key = await emailPayloadKey(db, config);
     token = randomToken();
     tokenHash = await sha256Hex(token);

@@ -1,4 +1,11 @@
-export const DB_NAME = 'adaptive_lifting_db';
+import {
+  databaseNameForBoundary,
+  IS_FRESH_PRODUCTION_CLIENT,
+  legacyIndexedDbImportAllowed,
+  mutationVisibleToAccount,
+} from './clientDataBoundary';
+
+export const DB_NAME = databaseNameForBoundary(IS_FRESH_PRODUCTION_CLIENT);
 const LEGACY_DB_NAME = 'obsidian_kinetic_db';
 export const DB_VERSION = 1;
 
@@ -6,6 +13,8 @@ let openPromise: Promise<IDBDatabase> | null = null;
 
 export interface SyncMutation {
   mutation_id: string;
+  /** Actor account that created the local edit; required for production queue isolation. */
+  account_id?: string;
   client_device_id: string;
   workout_id?: string;
   entity_type: string;
@@ -114,6 +123,10 @@ export function legacyStoreAdditions(
 }
 
 async function migrateLegacyIndexedDB(): Promise<void> {
+  // Keep historical browser data inert on the fresh production installation.
+  // The old database is left intact for explicit user recovery; it is never
+  // opened, copied, replayed, or deleted by production code.
+  if (!legacyIndexedDbImportAllowed(IS_FRESH_PRODUCTION_CLIENT)) return;
   if (typeof indexedDB.databases !== 'function') return;
   const names = (await indexedDB.databases()).map((entry) => entry.name || '');
   if (!names.includes(LEGACY_DB_NAME)) return;
@@ -163,7 +176,7 @@ export async function saveMutation(mutation: SyncMutation): Promise<void> {
   });
 }
 
-export async function getPendingMutations(workout_id?: string): Promise<SyncMutation[]> {
+export async function getPendingMutations(workout_id?: string, accountId?: string): Promise<SyncMutation[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('mutations', 'readonly');
@@ -171,24 +184,26 @@ export async function getPendingMutations(workout_id?: string): Promise<SyncMuta
     const req = store.getAll();
     req.onsuccess = () => {
       const all = req.result as SyncMutation[];
-      const pending = all.filter(m => m.status === 'PENDING' || m.status === 'IN_FLIGHT');
+      const pending = all.filter(m => (m.status === 'PENDING' || m.status === 'IN_FLIGHT') &&
+        mutationVisibleToAccount(m, accountId, IS_FRESH_PRODUCTION_CLIENT));
       resolve(workout_id ? pending.filter((m) => m.workout_id === workout_id) : pending);
     };
     req.onerror = () => reject(req.error);
   });
 }
 
-export async function getConflictedMutations(): Promise<SyncMutation[]> {
+export async function getConflictedMutations(accountId?: string): Promise<SyncMutation[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('mutations', 'readonly');
     const req = tx.objectStore('mutations').getAll();
-    req.onsuccess = () => resolve((req.result as SyncMutation[]).filter(m => m.status === 'CONFLICTED'));
+    req.onsuccess = () => resolve((req.result as SyncMutation[]).filter(m =>
+      m.status === 'CONFLICTED' && mutationVisibleToAccount(m, accountId, IS_FRESH_PRODUCTION_CLIENT)));
     req.onerror = () => reject(req.error);
   });
 }
 
-export async function countMutationsByStatus(status: SyncMutation['status']): Promise<number> {
+export async function countMutationsByStatus(status: SyncMutation['status'], accountId?: string): Promise<number> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('mutations', 'readonly');
@@ -196,7 +211,8 @@ export async function countMutationsByStatus(status: SyncMutation['status']): Pr
     const req = store.getAll();
     req.onsuccess = () => {
       const all = req.result as SyncMutation[];
-      resolve(all.filter((m) => m.status === status).length);
+      resolve(all.filter((m) => m.status === status &&
+        mutationVisibleToAccount(m, accountId, IS_FRESH_PRODUCTION_CLIENT)).length);
     };
     req.onerror = () => reject(req.error);
   });
@@ -289,7 +305,7 @@ export function applyServerFields(data: any[], mutation: SyncMutation): any[] {
 }
 
 /** Resolve only after the server snapshot update and status change commit atomically. */
-export async function resolveMutationKeepServer(mutationId: string): Promise<void> {
+export async function resolveMutationKeepServer(mutationId: string, accountId?: string): Promise<void> {
   const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(['mutations', 'snapshots'], 'readwrite');
@@ -298,7 +314,8 @@ export async function resolveMutationKeepServer(mutationId: string): Promise<voi
     const req = mutations.get(mutationId);
     req.onsuccess = () => {
       const mutation = req.result as SyncMutation | undefined;
-      if (!mutation || mutation.status !== 'CONFLICTED') { tx.abort(); return; }
+      if (!mutation || mutation.status !== 'CONFLICTED' ||
+          !mutationVisibleToAccount(mutation, accountId, IS_FRESH_PRODUCTION_CLIENT)) { tx.abort(); return; }
       const finish = (rows: any[]) => {
         for (const row of rows) {
           if (!Array.isArray(row?.data)) continue;
@@ -346,12 +363,15 @@ export async function resolveMutationKeepServer(mutationId: string): Promise<voi
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('sync-server-state-restored'));
 }
 
-export async function exportConflictMutation(mutationId: string): Promise<SyncMutation | null> {
+export async function exportConflictMutation(mutationId: string, accountId?: string): Promise<SyncMutation | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('mutations', 'readonly');
     const req = tx.objectStore('mutations').get(mutationId);
-    req.onsuccess = () => resolve((req.result as SyncMutation | undefined) || null);
+    req.onsuccess = () => {
+      const mutation = req.result as SyncMutation | undefined;
+      resolve(mutation && mutationVisibleToAccount(mutation, accountId, IS_FRESH_PRODUCTION_CLIENT) ? mutation : null);
+    };
     req.onerror = () => reject(req.error);
   });
 }

@@ -8,16 +8,14 @@ import { AuthProvider } from './contexts/AuthContext';
 import { PeriodizationProvider } from './contexts/PeriodizationContext';
 import { AccessProvider } from './contexts/AccessContext';
 import { migrateAndPurgeLegacyStorage } from './storage/uiPrefs';
+import { IS_FRESH_PRODUCTION_CLIENT } from './services/clientDataBoundary';
+import { registerAppServiceWorker } from './services/serviceWorkerRegistration';
 
 migrateAndPurgeLegacyStorage();
 
 // Register Service Worker for offline PWA capabilities
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('PWA ServiceWorker successfully registered:', reg.scope))
-      .catch(err => console.error('PWA ServiceWorker registration failed:', err));
-  });
+  registerAppServiceWorker(navigator.serviceWorker, window, IS_FRESH_PRODUCTION_CLIENT);
 }
 
 createRoot(document.getElementById('root')!).render(

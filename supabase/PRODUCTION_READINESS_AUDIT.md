@@ -1,10 +1,37 @@
 # Production readiness audit (planning only)
 
+> **Superseded launch decision (2026-10-10):** the owner has finalized a
+> completely fresh production application database. Historical users,
+> passwords, sessions, training records, billing, provider credentials and
+> queued jobs will not be imported. Historical import/reconciliation and
+> session continuity sections below are retained only as dated audit evidence;
+> they are not production launch gates. Follow the current
+> [fresh production launch runbook](PRODUCTION_CUTOVER.md). The production
+> domain is confirmed as `https://app.goatedmethod.me`; no production project
+> has been provisioned.
+
 **Assessment date:** 2026-10-09  
 **Repository state reviewed:** `supabase-staging-validation` at
 `0a3b8d8f08dd9a58240b897ce9ae718c53ea6611`  
 **Production action:** none. No production account, service, database, DNS, or
 provider was accessed or changed.
+
+## Current launch status after the owner decision
+
+- **Ready:** staging validation; 63-migration strict replay; synthetic-only
+  historical compatibility evidence retained for engineering; isolated
+  production Wrangler template; guarded clean-project bootstrap; production
+  browser storage generation boundary.
+- **Pending:** owner selection/approval of a new project, region and plan;
+  fresh production keys; verified email sender and delivery worker before
+  opening password registration; Data API disabled/restricted; production
+  backup/restore rehearsal; isolated Worker/API deployment; existing hostname
+  route cutover; live smoke tests.
+- **Removed from launch path:** historical account/data import, session
+  continuity, legacy billing reconciliation, and legacy provider-key recovery.
+  No historical import decision is pending.
+- **Not authorized:** project creation, plan selection, secret provisioning,
+  production deployment, provider activation, or domain route/DNS change.
 
 This audit treats staging results as evidence for the application design, not
 as proof of the current production environment. It does not authorize a

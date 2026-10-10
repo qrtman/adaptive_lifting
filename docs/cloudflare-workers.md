@@ -316,6 +316,15 @@ closed. It contains no service-role/publishable key, JWT or provider secret and
 has `workers_dev` disabled. The staging `wrangler.jsonc` and existing Worker
 remain unchanged.
 
+The production Vite build sets `VITE_CLIENT_DATA_GENERATION=production-fresh-v1`.
+On `app.goatedmethod.me`, the app opens a separate IndexedDB database and uses
+a namespaced localStorage keyspace. It does not migrate old IndexedDB records,
+offline grants, device IDs, or queued mutations. New mutation records are
+scoped to the authenticated account, and account switches hide the prior
+account's pending/conflict UI. Staging keeps its existing database and
+legacy-migration behavior. The production service worker has a distinct cache
+identity and checks for updates before continuing under a newly activated app.
+
 Validate it and build an isolated production frontend with:
 
 ```text

@@ -67,6 +67,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const reloadGen = useRef(0);
   const liveFetchedRef = useRef(false);
   const snapshotOwnerRef = useRef<string | null>(null);
+  const snapshotAccountRef = useRef<string | null>(null);
 
   const planAthleteId = useMemo(() => {
     const role = accountRole(user);
@@ -95,6 +96,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       if (accountRole(user) === 'COACH' && owner && error instanceof ApiRequestError && error.status === 403) {
         snapshotOwnerRef.current = null;
+        snapshotAccountRef.current = null;
         liveFetchedRef.current = false;
         setMicrocycles([]);
         if (activeAthleteId === owner) {
@@ -108,6 +110,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     }
     if (gen !== reloadGen.current) return;
     snapshotOwnerRef.current = owner ?? null;
+    snapshotAccountRef.current = user.id;
     liveFetchedRef.current = true;
     setMicrocycles(data);
     if (owner) {
@@ -126,6 +129,31 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       removeUiPref(UI_KEYS.activeAthleteId);
     }
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      reloadGen.current += 1;
+      snapshotAccountRef.current = null;
+      snapshotOwnerRef.current = null;
+      liveFetchedRef.current = false;
+      setMicrocycles([]);
+      setActiveAthleteIdState(null);
+      setActiveWorkoutId(null);
+      setActiveMicrocycleId(null);
+      return;
+    }
+    reloadGen.current += 1;
+    snapshotAccountRef.current = null;
+    snapshotOwnerRef.current = null;
+    liveFetchedRef.current = false;
+    setMicrocycles([]);
+    setActiveAthleteIdState(null);
+    setActiveWorkoutId(null);
+    setActiveMicrocycleId(null);
+    removeUiPref(UI_KEYS.activeAthleteId);
+    removeUiPref(UI_KEYS.activeWorkoutId);
+    removeUiPref(UI_KEYS.activeMicrocycleId);
+  }, [user?.id]);
 
   useEffect(() => {
     if (accountRole(user) !== 'COACH') return;
@@ -190,6 +218,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         if (gen !== reloadGen.current) return;
         if (liveFetchedRef.current && snapshotOwnerRef.current === owner) return;
         if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
+          snapshotAccountRef.current = user.id;
+          snapshotOwnerRef.current = owner;
           setMicrocycles(cached);
         }
       } catch (err) {
@@ -256,7 +286,8 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('sync-server-state-restored', restoreServerSnapshot);
   }, [reloadMicrocycles, planAthleteId]);
 
-  const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
+  const visibleMicrocycles = user && snapshotAccountRef.current === user.id ? microcycles : [];
+  const activeMicro = visibleMicrocycles.find(m => m.id === activeMicrocycleId);
   const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
   const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
@@ -345,7 +376,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   return (
     <PeriodizationContext.Provider
       value={{
-        microcycles,
+        microcycles: visibleMicrocycles,
         setMicrocycles,
         mesocycles,
         activeAthleteId,

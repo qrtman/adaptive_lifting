@@ -46,7 +46,12 @@ export const LoginView = () => {
       }
     } catch (err: any) {
       if (err instanceof ApiRequestError && err.code === 'EMAIL_VERIFICATION_REQUIRED') setPending(true);
-      setError(err.message || 'Login failed');
+      if (mode === 'signup' && err instanceof ApiRequestError && err.status === 503 &&
+          /email verification is temporarily unavailable/i.test(err.message)) {
+        setError('New account registration is not ready because verification email delivery is not configured. Please try again later.');
+      } else {
+        setError(err.message || (mode === 'signup' ? 'Registration failed' : 'Login failed'));
+      }
     } finally {
       setLoading(false);
     }

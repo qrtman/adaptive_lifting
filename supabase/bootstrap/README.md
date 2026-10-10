@@ -28,7 +28,10 @@ and data imports need separate procedures. Managed default grants to browser
 roles are explicitly revoked without changing the historical RLS state.
 Synthetic historical-data mapping and offline-queue compatibility rehearsal is
 documented in [`IMPORT_REHEARSAL.md`](IMPORT_REHEARSAL.md); it uses fake data
-only and does not authorize importing a real legacy backup.
+only. The owner has finalized a fresh production launch: this importer and its
+evidence are archived engineering tools, not production launch steps. No
+historical accounts, sessions, workout data, billing state, provider secrets,
+or queued jobs are to be imported.
 
 ## Reproduce locally
 
@@ -112,7 +115,8 @@ deploying the API, set a unique role password through an interactive secure
 TLS database URL only in the production Edge secret manager. Configure the
 non-secret settings from `supabase/production.env.example`, plus the required
 private secret names listed there; `REALTIME_JWT_PRIVATE_JWK` is required by
-the current API entrypoint at process startup. Keep
+the current API entrypoint at process startup. Do not configure
+`JWT_SECRET_PREVIOUS` for fresh production. Keep
 `supabase/config.toml`'s custom JWT `verify_jwt=false` setting so the existing
 custom cookie/session verifier remains the auth boundary. Disable the Data API
 in the project settings and verify REST/GraphQL are unavailable; SQL cannot

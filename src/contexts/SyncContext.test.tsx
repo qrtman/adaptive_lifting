@@ -5,10 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const { authState, processPendingQueues, getPendingMutations, getConflictedMutations, countMutationsByStatus, conflictCard } = vi.hoisted(() => ({
   authState: { user: null as null | { id: string } },
-  processPendingQueues: vi.fn(async () => []),
-  getPendingMutations: vi.fn(async () => []),
-  getConflictedMutations: vi.fn(async () => []),
-  countMutationsByStatus: vi.fn(async () => 0),
+  processPendingQueues: vi.fn(async (_accountId?: string) => []),
+  getPendingMutations: vi.fn(async (_workoutId?: string, _accountId?: string) => []),
+  getConflictedMutations: vi.fn(async (_accountId?: string) => []),
+  countMutationsByStatus: vi.fn(async (_status?: string, _accountId?: string) => 0),
   conflictCard: vi.fn(() => null),
 }));
 
@@ -48,7 +48,9 @@ it('flushes retained mutations when a user reauthenticates while already online'
   await act(async () => root.render(<SyncProvider><span>app</span></SyncProvider>));
 
   expect(processPendingQueues).toHaveBeenCalledTimes(1);
+  expect(processPendingQueues).toHaveBeenCalledWith('synthetic-user');
   expect(getPendingMutations).toHaveBeenCalled();
+  expect(getPendingMutations.mock.calls.some(([_, accountId]) => accountId === 'synthetic-user')).toBe(true);
 });
 
 it('reloads a persisted conflict into the review card after authentication', async () => {
@@ -61,8 +63,27 @@ it('reloads a persisted conflict into the review card after authentication', asy
   authState.user = { id: 'synthetic-user' };
   await act(async () => root.render(<SyncProvider><span>app</span></SyncProvider>));
   expect(getConflictedMutations).toHaveBeenCalled();
+  expect(getConflictedMutations).toHaveBeenCalledWith('synthetic-user');
   expect(conflictCard).toHaveBeenCalledWith(expect.objectContaining({
     mutationId: 'old-v1-edit', entityType: 'ExerciseSet', entityId: 'set-1',
     serverFields: { actual: 105 }, clientFields: { actual: 100 },
   }), undefined);
+});
+
+it('does not display the prior account conflict while the next account is loading', async () => {
+  const conflict = {
+    mutation_id: 'account-a-edit', entity_type: 'ExerciseSet', entity_id: 'set-a',
+    fields: { actual: 100 }, conflict: { reason: 'BASELINE_REQUIRED', server_fields: { actual: 105 } },
+  };
+  getConflictedMutations.mockImplementation(async (accountId?: string) => accountId === 'account-a' ? [conflict] as any : []);
+  const { SyncProvider } = await import('./SyncContext');
+  authState.user = { id: 'account-a' };
+  await act(async () => root.render(<SyncProvider><span>app</span></SyncProvider>));
+  expect(conflictCard).toHaveBeenCalledWith(expect.objectContaining({ mutationId: 'account-a-edit' }), undefined);
+
+  conflictCard.mockClear();
+  authState.user = { id: 'account-b' };
+  await act(async () => root.render(<SyncProvider><span>app</span></SyncProvider>));
+  expect(getConflictedMutations).toHaveBeenLastCalledWith('account-b');
+  expect(conflictCard).not.toHaveBeenCalled();
 });

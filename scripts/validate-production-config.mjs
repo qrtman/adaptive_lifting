@@ -7,8 +7,9 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const productionConfigPath = join(root, 'wrangler.production.jsonc');
 const stagingConfigPath = join(root, 'wrangler.jsonc');
 const envExamplePath = join(root, 'supabase', 'production.env.example');
+const viteEnvExamplePath = join(root, '.env.production.example');
 const migrationDir = join(root, 'supabase', 'migrations');
-const publicViteKeys = new Set(['VITE_BACKEND_URL', 'VITE_OFFLINE_AUTH_PUBLIC_KEY', 'VITE_GOOGLE_CLIENT_ID']);
+const publicViteKeys = new Set(['VITE_BACKEND_URL', 'VITE_OFFLINE_AUTH_PUBLIC_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_CLIENT_DATA_GENERATION']);
 const stagingRef = 'admyuepbbtstayaydjmo';
 const productionOriginPlaceholder = 'https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co';
 const expectedEnv = {
@@ -19,6 +20,7 @@ const expectedEnv = {
   STRIPE_BILLING_ENABLED: 'false',
   STRIPE_EXPECT_LIVEMODE: 'false',
   VOUCHER_BILLING_ENABLED: 'false',
+  EMAIL_VERIFICATION_ENFORCE_LEGACY: 'false',
 };
 
 function fail(message) {
@@ -34,9 +36,9 @@ function readJson(path) {
   }
 }
 
-function parseEnvExample() {
+function parseEnvFile(path) {
   const values = new Map();
-  for (const line of readFileSync(envExamplePath, 'utf8').split(/\r?\n/)) {
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
     const item = line.trim();
     if (!item || item.startsWith('#')) continue;
     const match = /^([A-Z0-9_]+)=(.*)$/.exec(item);
@@ -44,13 +46,25 @@ function parseEnvExample() {
     if (values.has(match[1])) fail(`duplicate environment key ${match[1]}`);
     values.set(match[1], match[2]);
   }
+  return values;
+}
+
+function parseEnvExamples() {
+  const values = parseEnvFile(envExamplePath);
+  const viteValues = parseEnvFile(viteEnvExamplePath);
   for (const [key, expected] of Object.entries(expectedEnv)) {
     if (values.get(key) !== expected) fail(`${key} must equal ${expected}`);
   }
   if (values.get('EMAIL_VERIFICATION_NEW_ACCOUNTS') !== 'true') {
     fail('new password accounts must require email verification');
   }
-  return values;
+  if (values.has('JWT_SECRET_PREVIOUS')) {
+    fail('JWT_SECRET_PREVIOUS must be unset for fresh production');
+  }
+  if (viteValues.get('VITE_CLIENT_DATA_GENERATION') !== 'production-fresh-v1') {
+    fail('production browser data generation must be production-fresh-v1');
+  }
+  return { values, viteValues };
 }
 
 function verifyMigrationOrder() {
@@ -105,7 +119,7 @@ export function validateProductionConfig({ local = false } = {}) {
   const configPath = local ? join(root, 'wrangler.production.local.jsonc') : productionConfigPath;
   const prod = readJson(configPath);
   const staging = readJson(stagingConfigPath);
-  const env = parseEnvExample();
+  const { values: env, viteValues } = parseEnvExamples();
   const versions = verifyMigrationOrder();
   verifyRuntimeBoundaries();
   const prodText = JSON.stringify(prod);
@@ -137,7 +151,7 @@ export function validateProductionConfig({ local = false } = {}) {
     fail('production Worker config contains staging, a credential, or an unintended workers.dev route');
   }
   if (env.get('APP_URL') !== env.get('CORS_ALLOWED_ORIGINS')) fail('application URL and exact CORS origin differ');
-  return { prod, staging, env, versions };
+  return { prod, staging, env, viteValues, versions };
 }
 
 function listFiles(directory) {
@@ -150,7 +164,12 @@ function listFiles(directory) {
 function buildAndScan() {
   const result = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--mode', 'production'], {
     cwd: root,
-    env: { ...process.env, API_EDGE_TARGET: '', VITE_BACKEND_URL: '' },
+    env: {
+      ...process.env,
+      API_EDGE_TARGET: '',
+      VITE_BACKEND_URL: '',
+      VITE_CLIENT_DATA_GENERATION: 'production-fresh-v1',
+    },
     encoding: 'utf8',
     stdio: 'inherit',
   });

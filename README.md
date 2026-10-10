@@ -16,10 +16,11 @@ separate ES256 keys.
 Cloudflare Workers Static Assets is the selected frontend host. It serves the
 Vite bundle directly with SPA fallback and invokes a small Worker only for
 same-origin /api/* requests. That Worker forwards to the Supabase api Edge
-Function. Staging is deployed and validated; production hosting, database,
-data, provider and DNS state are not independently verified and no production
-cutover has occurred. See `supabase/PRODUCTION_READINESS_AUDIT.md` before
-planning a launch.
+Function. Staging is deployed and validated. The legacy production application
+is offline; the new production app is not deployed and will start with an empty
+database and new accounts at `app.goatedmethod.me`. The existing Tunnel and
+historical data are retained separately and are not imported. See
+`supabase/PRODUCTION_CUTOVER.md` for the current fresh-launch procedure.
 
 See architecture.md for application contracts and supabase/README.md for the
 Supabase runtime and migration layout.
@@ -49,9 +50,11 @@ public Vite build values; all application secrets remain in Supabase Edge/Vault
 configuration. Never put private keys, database credentials, provider secrets,
 or app signing keys into the frontend build.
 
-See docs/cloudflare-workers.md for preview and configuration details and
-supabase/PRODUCTION_CUTOVER.md for release preparation. No deployment or
-production cutover is performed by this change.
+Production uses its separate fail-closed Wrangler config and a
+`production-fresh-v1` browser-storage namespace, leaving historical browser
+stores inert. See docs/cloudflare-workers.md and
+supabase/PRODUCTION_CUTOVER.md. No production deployment or cutover is
+performed by this change.
 
 ## Checks
 

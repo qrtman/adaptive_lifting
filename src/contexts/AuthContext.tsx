@@ -1,6 +1,7 @@
 import { authorizationExpiresAt, clearAuthorization, rememberOfflineGrant, restoreOfflineAuthorization, setOnlineAuthorization } from '../services/authAuthorization';
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { UI_KEYS, getUiPref, removeUiPref, setUiPref } from '../storage/uiPrefs';
+import { UI_KEYS, clearAccountSelectionForSwitch, getUiPref, removeUiPref, setUiPref } from '../storage/uiPrefs';
+import { IS_FRESH_PRODUCTION_CLIENT } from '../services/clientDataBoundary';
 import { ApiRequestError, apiService } from '../services/api';
 
 export type RoleMode = 'coach' | 'athlete';
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setOnlineAuthorization(data.user, data.sessionExpiresAt, data.scopes);
         await rememberOfflineGrant(data.offlineGrant);
         if (active && generation === authGeneration.current) {
+          if (data.user?.id) setUiPref(UI_KEYS.userId, String(data.user.id));
           setUser(data.user);
           setRoleMode(String(data.user.role).toLowerCase() === 'coach' ? 'coach' : 'athlete');
         }
@@ -91,6 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await apiService.session();
     if (generation !== authGeneration.current) return;
     const nextUser = data.user;
+    const previousUserId = getUiPref(UI_KEYS.userId);
+    if (previousUserId && String(nextUser?.id || '') !== previousUserId) {
+      clearAccountSelectionForSwitch(IS_FRESH_PRODUCTION_CLIENT);
+    }
     setOnlineAuthorization(nextUser, data.sessionExpiresAt, data.scopes);
     await rememberOfflineGrant(data.offlineGrant);
     if (generation !== authGeneration.current) return;

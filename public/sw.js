@@ -1,4 +1,9 @@
-const CACHE_NAME = 'adaptive-lifting-v4';
+const IS_FRESH_PRODUCTION_CLIENT = self.location.hostname === 'app.goatedmethod.me';
+// Keep staging's validated cache identity unchanged. Production uses a new
+// shell cache so an older application shell cannot satisfy the fresh launch.
+const CACHE_NAME = IS_FRESH_PRODUCTION_CLIENT
+  ? 'adaptive-lifting-production-fresh-v1-v5'
+  : 'adaptive-lifting-v4';
 const CORE_ASSETS = ['/', '/index.html', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {
