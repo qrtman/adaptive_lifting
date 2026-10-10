@@ -79,11 +79,11 @@ It verifies the authenticated account's exact project reference and either a
 matching direct database hostname or the specifically approved production
 Session Pooler endpoint, rejects the validated staging ref, and runs
 `managed-preflight.sql` before any writes. The preflight requires an empty
-`public` application schema, empty migration history, and zero Supabase Auth
-users/Storage objects if those managed tables exist. Its default mode performs
-only those checks. `-Apply` also requires a protected checkpoint directory
-outside the repository and typed confirmation of the project ref; it writes a
-schema-only empty-public checkpoint before applying anything.
+`public` application schema, no `al_*` application schemas, empty migration
+history, and zero Auth users/identities/sessions, Storage objects/buckets, or
+Cron jobs when those managed tables exist. Its default mode performs only
+those checks. `-Apply` requires a private checkpoint directory outside the
+repository and typed confirmation of the project ref before applying anything.
 
 The ordered application procedure is: managed prerequisites, explicit
 `application.sql` application, isolated temporary Supabase CLI workdir with
@@ -105,9 +105,10 @@ For the authorized Seoul production Session Pooler, the exact target is
 supports a matching direct `db.<project-ref>.supabase.co` or `.com` connection
 where IPv6 is available. It will not accept arbitrary pooler endpoints.
 
-Set `SUPABASE_DB_PASSWORD` only in the local process environment (never a
-command argument, transcript, log, or file), then run the script without
-`-Apply` for read-only identity/emptiness checks. Example target arguments:
+Enter the database password locally into the current PowerShell process
+environment only (never a command argument, transcript, log, or file). Then
+run the first command without `-Apply` for read-only identity/emptiness checks.
+The command does not echo or accept the password as an argument. Example:
 
 ```powershell
 .\supabase\bootstrap\deploy-managed.ps1 `
@@ -127,16 +128,44 @@ the explicit project ref and `--db-url`; `--linked` is not used. `--skip-vault`
 prevents deployment-time Vault secret sync. An interactive exact-project
 confirmation remains required before a checkpoint or SQL write.
 
-Before the confirmation prompt, `-Apply` requires `pg_dump --version` to run.
-The pre-bootstrap schema checkpoint is mandatory. If Windows Application
-Control blocks the installed PostgreSQL 18.6 `pg_dump`, do not disable or work
-around that control. Obtain an administrator-approved PostgreSQL client
-installation, or use a separately approved secured execution environment with
-database access and the same reviewed commit. Re-run this guarded workflow
-there and retain the checkpoint outside the repository. A missing or blocked
-checkpoint tool stops before any database write. A newer `pg_dump` can read an
-older PostgreSQL server, but the tool must be permitted to execute and the
-checkpoint itself must succeed.
+By default, `-Apply` verifies `pg_dump --version` and captures the existing
+schema-only checkpoint. The narrowly scoped `-EmptyDatabasePsqlCheckpoint`
+alternative is available only for this exact production project through the
+approved Session Pooler and only after the complete empty-target preflight.
+It uses `psql` to save a catalog-only JSON snapshot, project/database identity,
+PostgreSQL version, exact baseline and 63 migration hashes, and a second
+prewrite emptiness/catalog recheck. Checkpoint files are placed in a Windows
+directory with inheritance disabled and access limited to the current owner,
+SYSTEM, and local Administrators; files are marked read-only. A failed write,
+missing artifact, changed catalog, nonempty table/schema, or unexpected
+migration record stops before SQL changes. The checkpoint is explicitly **not
+a restorable backup**. Do not bypass Windows Application Control to run
+`pg_dump`.
+
+Both checkpoint modes are evidence only and are not independent backups. Before
+public launch, arrange an independent encrypted database backup and complete a
+successful restore rehearsal. Backup availability and restoration are not
+verified by this bootstrap workflow.
+
+The psql-only option for the approved empty production project is:
+
+```powershell
+$CheckpointDirectory = Join-Path $env:TEMP ("adaptive-lifting-production-" + [guid]::NewGuid().ToString('N'))
+.\supabase\bootstrap\deploy-managed.ps1 `
+  -ProjectRef gadusaizqnshxqcckibq `
+  -DatabaseHost aws-0-ap-northeast-2.pooler.supabase.com `
+  -DatabasePort 5432 `
+  -DatabaseUsername postgres.gadusaizqnshxqcckibq `
+  -ConnectionMode SessionPooler `
+  -CheckpointDirectory $CheckpointDirectory `
+  -EmptyDatabasePsqlCheckpoint -Apply
+```
+
+The read-only invocation above must pass immediately before this apply
+invocation. Use a new checkpoint directory outside the checkout for each
+attempt. The script asks for the exact typed project confirmation, captures
+the protected catalog evidence, and repeats the emptiness check before the
+first database write.
 
 Only the separately authorized bootstrap procedure uses `-Apply`; it refuses
 any application table, user, storage object, or migration record. Do not use

@@ -41,6 +41,21 @@ def snapshot(name):
     return json.loads(psql(name, (HERE / "catalog.sql").read_text(encoding="utf-8")).stdout)
 
 
+def empty_checkpoint_snapshot(name):
+    """Execute the psql-only checkpoint query on an isolated empty target."""
+    sql = (HERE / "managed-empty-checkpoint.sql").read_text(encoding="utf-8")
+    raw = psql(name, sql).stdout
+    catalog = json.loads(raw)
+    assert catalog["format"] == "adaptive-lifting-empty-database-catalog-v1"
+    assert catalog["database"] == "postgres"
+    assert catalog["effective_user"] == "postgres"
+    assert int(catalog["server_version_num"]) // 10000 == 17
+    assert catalog["migration_ledger"]["exists"] is False
+    assert any(row["name"] == "public" for row in catalog["schemas"])
+    assert not any(row["name"] == "al_private" for row in catalog["schemas"])
+    return catalog, hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def compare(actual, expected):
     differences = []
     for section in sorted(set(actual) | set(expected)):
@@ -103,9 +118,24 @@ def run_one(number, migrations, evidence, after_replay=None, staging_path=None):
         else:
             raise RuntimeError("PostgreSQL startup failed: " + command(["docker", "logs", name]).stdout)
         record["server_version"] = psql(name, "SHOW server_version;").stdout.strip()
-        for file in ("local-managed-fixture.sql", "managed-prerequisites.sql", "application.sql"):
+        for file in ("local-managed-fixture.sql", "managed-prerequisites.sql"):
             record["blocking_file"] = file
             psql(name, (HERE / file).read_text(encoding="utf-8"))
+        record["blocking_file"] = "managed-preflight.sql"
+        psql(name, (HERE / "managed-preflight.sql").read_text(encoding="utf-8"))
+        record["blocking_file"] = "managed-empty-checkpoint.sql"
+        checkpoint_catalog, checkpoint_hash = empty_checkpoint_snapshot(name)
+        record["empty_database_checkpoint"] = {
+            "status": "PASS",
+            "sha256": checkpoint_hash,
+            "schema_count": len(checkpoint_catalog["schemas"]),
+            "relation_count": len(checkpoint_catalog["relations"]),
+            "routine_count": len(checkpoint_catalog["routines"]),
+            "type_count": len(checkpoint_catalog["types"]),
+            "restorable_backup": False,
+        }
+        record["blocking_file"] = "application.sql"
+        psql(name, (HERE / "application.sql").read_text(encoding="utf-8"))
         record["baseline_catalog"] = snapshot(name)
         # Validate the historical baseline separately before any Supabase delta.
         from test_schema import validate_baseline, validate_final, behavioral_checks
@@ -192,8 +222,9 @@ def main():
         "bootstrap_sha256_lf": digest(HERE / "application.sql"),
         "tooling_sources_sha256_lf": {name: digest(HERE / name) for name in (
             "generate.py", "replay.py", "test_schema.py", "test_behavior.sql", "catalog.sql",
-            "managed-prerequisites.sql", "local-managed-fixture.sql", "replay-repair.json",
-            "sql-eof-correction-audit.json", "staging-catalog.json", "README.md")},
+            "managed-prerequisites.sql", "managed-preflight.sql", "managed-empty-checkpoint.sql",
+            "local-managed-fixture.sql", "replay-repair.json", "sql-eof-correction-audit.json",
+            "staging-catalog.json", "README.md")},
         "migrations": [{"file": p.name, "sha256_raw": hashlib.sha256(p.read_bytes()).hexdigest(),
                         "sha256_lf": digest(p)} for p in migrations],
         "managed_dependencies": {"Vault": "real extension", "Cron": "real extension; jobs disabled",

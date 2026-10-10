@@ -6,6 +6,21 @@ $stagingRef = 'admyuepbbtstayaydjmo'
 $poolerHost = 'aws-0-ap-northeast-2.pooler.supabase.com'
 $expectedPoolerUser = "postgres.$prodRef"
 
+function New-EmptyTestState {
+  $counts = @{}
+  foreach ($table in @('auth.users','auth.identities','auth.sessions','auth.refresh_tokens','auth.mfa_factors','storage.objects','storage.buckets','cron.job')) { $counts[$table] = 0 }
+  return [pscustomobject]@{
+    Database = 'postgres'
+    EffectiveUser = 'postgres'
+    ServerVersionMajor = 17
+    PublicObjects = 0
+    MigrationLedgerExists = $false
+    MigrationLedgerRows = 0
+    ApplicationSchemaCount = 0
+    UserDataCounts = $counts
+  }
+}
+
 Describe 'Managed bootstrap target guards' {
   It 'accepts only the authorized production session pooler target' {
     $target = Assert-ManagedTarget -ProjectRef $prodRef -DatabaseHost $poolerHost -DatabasePort 5432 `
@@ -53,6 +68,97 @@ Describe 'Managed bootstrap target guards' {
   It 'rejects arbitrary hosts, including another pooler endpoint' {
     { Assert-ManagedTarget -ProjectRef $prodRef -DatabaseHost 'aws-0-ap-northeast-1.pooler.supabase.com' -DatabasePort 5432 `
         -DatabaseUsername $expectedPoolerUser -ConnectionMode SessionPooler -StagingRef $stagingRef } | Should Throw
+  }
+}
+
+Describe 'psql empty-database checkpoint gates' {
+  It 'permits the fallback only for the exact production Session Pooler target' {
+    $target = Assert-ManagedTarget -ProjectRef $prodRef -DatabaseHost $poolerHost -DatabasePort 5432 `
+      -DatabaseUsername $expectedPoolerUser -ConnectionMode SessionPooler -StagingRef $stagingRef
+    Assert-EmptyPsqlCheckpointAllowed -Target $target | Should Be $true
+  }
+
+  It 'rejects the fallback for direct mode, another project, or another host' {
+    $direct = Assert-ManagedTarget -ProjectRef $prodRef -DatabaseHost "db.$prodRef.supabase.co" -DatabasePort 5432 `
+      -DatabaseUsername 'postgres' -ConnectionMode Direct -StagingRef $stagingRef
+    { Assert-EmptyPsqlCheckpointAllowed -Target $direct } | Should Throw
+    $bad = [pscustomobject]@{ ProjectRef=$prodRef; Mode='SessionPooler'; Host='aws-0-ap-northeast-1.pooler.supabase.com'; Port=5432; Username=$expectedPoolerUser }
+    { Assert-EmptyPsqlCheckpointAllowed -Target $bad } | Should Throw
+    $bad = [pscustomobject]@{ ProjectRef=$prodRef; Mode='SessionPooler'; Host=$poolerHost; Port=6543; Username=$expectedPoolerUser }
+    { Assert-EmptyPsqlCheckpointAllowed -Target $bad } | Should Throw
+    $bad = [pscustomobject]@{ ProjectRef=$prodRef; Mode='SessionPooler'; Host=$poolerHost; Port=5432; Username='postgres' }
+    { Assert-EmptyPsqlCheckpointAllowed -Target $bad } | Should Throw
+    $bad = [pscustomobject]@{ ProjectRef=$stagingRef; Mode='SessionPooler'; Host=$poolerHost; Port=5432; Username="postgres.$stagingRef" }
+    { Assert-EmptyPsqlCheckpointAllowed -Target $bad } | Should Throw
+  }
+
+  It 'accepts a fully empty database state' {
+    Assert-EmptyDatabaseState -State (New-EmptyTestState) | Should Be $true
+  }
+
+  It 'rejects public objects, application schemas, migration history, and wrong server identity/version' {
+    foreach ($property in @('PublicObjects','ApplicationSchemaCount','MigrationLedgerRows')) {
+      $state = New-EmptyTestState
+      $state.$property = 1
+      { Assert-EmptyDatabaseState -State $state } | Should Throw
+    }
+    $state = New-EmptyTestState; $state.EffectiveUser = 'other'
+    { Assert-EmptyDatabaseState -State $state } | Should Throw
+    $state = New-EmptyTestState; $state.ServerVersionMajor = 18
+    { Assert-EmptyDatabaseState -State $state } | Should Throw
+  }
+
+  It 'rejects nonzero rows in each Auth or Storage user-data table' {
+    foreach ($table in @('auth.users','auth.identities','auth.sessions','auth.refresh_tokens','auth.mfa_factors','storage.objects','storage.buckets','cron.job')) {
+      $state = New-EmptyTestState
+      $state.UserDataCounts[$table] = 1
+      { Assert-EmptyDatabaseState -State $state } | Should Throw
+    }
+  }
+
+  It 'rejects a missing user-data check instead of treating it as empty' {
+    $state = New-EmptyTestState
+    $state.UserDataCounts.Remove('auth.identities')
+    { Assert-EmptyDatabaseState -State $state } | Should Throw
+  }
+
+  It 'rejects a catalog that changed between capture and prewrite recheck' {
+    { Assert-CatalogSnapshotStable -BeforeSha256 ('a' * 64) -AfterSha256 ('b' * 64) } | Should Throw
+    Assert-CatalogSnapshotStable -BeforeSha256 ('a' * 64) -AfterSha256 ('a' * 64) | Should Be $true
+  }
+
+  It 'creates a private checkpoint directory outside the repository and refuses an existing target' {
+    $temp = Join-Path $env:TEMP ("bootstrap-acl-test-" + [guid]::NewGuid().ToString('N'))
+    try {
+      $created = New-ManagedProtectedCheckpointDirectory -Path $temp -RepositoryRoot $PSScriptRoot
+      (Get-Acl -LiteralPath $created).AreAccessRulesProtected | Should Be $true
+      { New-ManagedProtectedCheckpointDirectory -Path $temp -RepositoryRoot $PSScriptRoot } | Should Throw
+      { New-ManagedProtectedCheckpointDirectory -Path (Join-Path $PSScriptRoot 'checkpoint-test') -RepositoryRoot $PSScriptRoot } | Should Throw
+    } finally {
+      if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
+    }
+  }
+
+  It 'rejects a missing checkpoint parent before attempting to create evidence' {
+    $missingParent = Join-Path $env:TEMP ("missing-parent-" + [guid]::NewGuid().ToString('N'))
+    { New-ManagedProtectedCheckpointDirectory -Path (Join-Path $missingParent 'checkpoint') -RepositoryRoot $PSScriptRoot } | Should Throw
+  }
+
+  It 'writes nonempty checkpoint files atomically and marks them read-only' {
+    $dir = Join-Path $env:TEMP ("bootstrap-file-test-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    $file = Join-Path $dir 'snapshot.json'
+    try {
+      $result = Write-ManagedReadOnlyCheckpointFile -Path $file -Content '{"snapshot":true}'
+      $result.Length | Should BeGreaterThan 0
+      $result.ReadOnly | Should Be $true
+      ((Get-Item -LiteralPath $file).Attributes -band [IO.FileAttributes]::ReadOnly) | Should Not Be 0
+      { Write-ManagedReadOnlyCheckpointFile -Path $file -Content 'overwrite' } | Should Throw
+      { Write-ManagedReadOnlyCheckpointFile -Path (Join-Path $dir 'empty.json') -Content '' } | Should Throw
+    } finally {
+      if (Test-Path -LiteralPath $file) { [IO.File]::SetAttributes($file, [IO.FileAttributes]::Normal) }
+      Remove-Item -LiteralPath $dir -Recurse -Force
+    }
   }
 }
 

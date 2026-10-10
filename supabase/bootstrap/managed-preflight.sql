@@ -3,6 +3,7 @@
 DO $preflight$
 DECLARE
   v_count bigint;
+  v_relation text;
 BEGIN
   IF current_database() <> 'postgres' THEN
     RAISE EXCEPTION 'Expected the Supabase postgres database';
@@ -16,6 +17,13 @@ BEGIN
     RAISE EXCEPTION 'Refusing nonempty public application schema (% objects)', v_count;
   END IF;
 
+  SELECT count(*) INTO v_count
+  FROM pg_catalog.pg_namespace
+  WHERE nspname LIKE 'al\_%' ESCAPE '\';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'Refusing a target with pre-existing application schemas';
+  END IF;
+
   IF pg_catalog.to_regclass('supabase_migrations.schema_migrations') IS NOT NULL THEN
     EXECUTE 'SELECT count(*) FROM supabase_migrations.schema_migrations' INTO v_count;
     IF v_count <> 0 THEN
@@ -23,18 +31,18 @@ BEGIN
     END IF;
   END IF;
 
-  IF pg_catalog.to_regclass('auth.users') IS NOT NULL THEN
-    EXECUTE 'SELECT count(*) FROM auth.users' INTO v_count;
-    IF v_count <> 0 THEN RAISE EXCEPTION 'Refusing target with existing Auth users'; END IF;
-  END IF;
-  IF pg_catalog.to_regclass('storage.objects') IS NOT NULL THEN
-    EXECUTE 'SELECT count(*) FROM storage.objects' INTO v_count;
-    IF v_count <> 0 THEN RAISE EXCEPTION 'Refusing target with existing Storage objects'; END IF;
-  END IF;
-  IF pg_catalog.to_regclass('storage.buckets') IS NOT NULL THEN
-    EXECUTE 'SELECT count(*) FROM storage.buckets' INTO v_count;
-    IF v_count <> 0 THEN RAISE EXCEPTION 'Refusing target with existing Storage buckets'; END IF;
-  END IF;
+  FOREACH v_relation IN ARRAY ARRAY[
+    'auth.users', 'auth.identities', 'auth.sessions', 'auth.refresh_tokens',
+    'auth.mfa_factors', 'storage.objects', 'storage.buckets', 'cron.job'
+  ] LOOP
+    IF pg_catalog.to_regclass(v_relation) IS NOT NULL THEN
+      EXECUTE format('SELECT count(*) FROM %s', pg_catalog.to_regclass(v_relation)) INTO v_count;
+      IF v_count <> 0 THEN
+        RAISE EXCEPTION 'Refusing target with existing user data in %', v_relation;
+      END IF;
+    END IF;
+  END LOOP;
+
 END
 $preflight$;
 

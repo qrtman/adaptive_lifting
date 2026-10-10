@@ -13,6 +13,7 @@ param(
   [string]$ConnectionMode = 'Direct',
 
   [string]$CheckpointDirectory,
+  [switch]$EmptyDatabasePsqlCheckpoint,
   [switch]$Apply,
   [switch]$ValidateFilesOnly
 )
@@ -111,6 +112,50 @@ function Invoke-DbCaptureFile([string]$Path) {
   return $result.Trim()
 }
 
+function Get-ManagedEmptyState {
+  Invoke-DbFile (Join-Path $bootstrap 'managed-preflight.sql')
+  $identityParts = (Invoke-DbQuery "SELECT current_database() || '|' || current_user;") -split '\|', 2
+  $publicCount = [int64](Invoke-DbQuery "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S','f');")
+  $ledgerExists = (Invoke-DbQuery "SELECT (pg_catalog.to_regclass('supabase_migrations.schema_migrations') IS NOT NULL)::text;") -eq 'true'
+  $ledgerCount = 0
+  if ($ledgerExists) { $ledgerCount = [int64](Invoke-DbQuery 'SELECT count(*) FROM supabase_migrations.schema_migrations;') }
+  $applicationSchemaCount = [int64](Invoke-DbQuery "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname LIKE 'al\_%' ESCAPE '\';")
+  $dataCounts = @{}
+  foreach ($table in @('auth.users','auth.identities','auth.sessions','auth.refresh_tokens','auth.mfa_factors','storage.objects','storage.buckets','cron.job')) {
+    $exists = (Invoke-DbQuery "SELECT (pg_catalog.to_regclass('$table') IS NOT NULL)::text;") -eq 'true'
+    $dataCounts[$table] = if ($exists) { [int64](Invoke-DbQuery "SELECT count(*) FROM $table;") } else { 0 }
+  }
+  $state = [pscustomobject]@{
+    Database = $identityParts[0]
+    EffectiveUser = $identityParts[1]
+    ServerVersionMajor = [int](Invoke-DbQuery "SELECT current_setting('server_version_num')::integer / 10000;")
+    ServerVersion = Invoke-DbQuery "SELECT current_setting('server_version');"
+    PublicObjects = $publicCount
+    MigrationLedgerExists = $ledgerExists
+    MigrationLedgerRows = $ledgerCount
+    ApplicationSchemaCount = $applicationSchemaCount
+    UserDataCounts = $dataCounts
+  }
+  try { Assert-EmptyDatabaseState -State $state | Out-Null }
+  catch { Stop-Safely $_.Exception.Message }
+  return $state
+}
+
+function Get-Utf8Sha256([string]$Text) {
+  $bytes = [Text.UTF8Encoding]::new($false).GetBytes($Text)
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
+  finally { $sha.Dispose() }
+}
+
+function Assert-CheckpointArtifact([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Stop-Safely "checkpoint artifact was not created: $([IO.Path]::GetFileName($Path))" }
+  $item = Get-Item -LiteralPath $Path
+  if ($item.Length -le 0 -or -not ($item.Attributes -band [IO.FileAttributes]::ReadOnly)) {
+    Stop-Safely "checkpoint artifact is empty or not read-only: $([IO.Path]::GetFileName($Path))"
+  }
+}
+
 function Invoke-Supabase([string[]]$Arguments, [switch]$Capture) {
   $output = & $script:supabasePath @Arguments 2>&1 | Out-String
   $exitCode = $LASTEXITCODE
@@ -155,20 +200,10 @@ try {
   $matches = @($projects | Where-Object { $_.ref -eq $ProjectRef -or $_.id -eq $ProjectRef -or $_.project_ref -eq $ProjectRef })
   if ($matches.Count -ne 1) { Stop-Safely 'authenticated Supabase account does not identify exactly one project with this reference' }
 
-  # Read-only identity and emptiness checks. This transaction is the recovery
-  # checkpoint for a new empty target; it deliberately contains only counts.
+  # Read-only identity and emptiness checks. No database changes occur here.
   $identity = Invoke-DbQuery "SELECT current_database() || '|' || current_user;"
   if ($identity -ne 'postgres|postgres') { Stop-Safely 'database identity is not postgres/postgres' }
-  $serverMajor = [int](Invoke-DbQuery "SELECT current_setting('server_version_num')::integer / 10000;")
-  if ($serverMajor -ne 17) { Stop-Safely "expected validated PostgreSQL major 17; found $serverMajor" }
-  Invoke-DbFile (Join-Path $bootstrap 'managed-preflight.sql')
-  $publicCount = [int](Invoke-DbQuery "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S','f');")
-  if ($publicCount -ne 0) { Stop-Safely "public application schema is not empty ($publicCount objects)" }
-  $ledgerExists = Invoke-DbQuery "SELECT (pg_catalog.to_regclass('supabase_migrations.schema_migrations') IS NOT NULL)::text;"
-  if ($ledgerExists -eq 'true') {
-    $ledgerCount = [int](Invoke-DbQuery 'SELECT count(*) FROM supabase_migrations.schema_migrations;')
-    if ($ledgerCount -ne 0) { Stop-Safely "migration ledger is not empty ($ledgerCount rows)" }
-  }
+  $initialEmptyState = Get-ManagedEmptyState
   Write-Host "Read-only preflight PASS: project $ProjectRef; database postgres; public schema empty; migration ledger empty."
 
   if (-not $Apply) {
@@ -176,43 +211,122 @@ try {
     exit 0
   }
   if (-not $CheckpointDirectory) { Stop-Safely 'provide a protected checkpoint directory outside the repository' }
-  # Detect Windows Application Control or other client execution failures
-  # before the typed confirmation and before any database writes.
-  try { $pgDumpPath = (Get-Command pg_dump -ErrorAction Stop).Source }
-  catch { Stop-Safely 'pg_dump is unavailable; obtain an administrator-approved PostgreSQL client or approved execution environment before writing' }
-  try {
-    Assert-CheckpointTool -ToolPath $pgDumpPath -Runner {
-      param($path)
-      $versionOutput = & $path --version 2>&1 | Out-String
-      [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $versionOutput }
-    } | Out-Null
-  } catch { Stop-Safely 'pg_dump failed its execution check; obtain an administrator-approved PostgreSQL client or approved execution environment before writing' }
-  $checkpoint = [IO.Path]::GetFullPath($CheckpointDirectory)
-  if ($checkpoint.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-    Stop-Safely 'checkpoint directory must be outside the repository'
+  if ($EmptyDatabasePsqlCheckpoint) {
+    try { Assert-EmptyPsqlCheckpointAllowed -Target $script:dbTarget | Out-Null }
+    catch { Stop-Safely $_.Exception.Message }
+  }
+  $pgDumpPath = $null
+  if (-not $EmptyDatabasePsqlCheckpoint) {
+    # Detect Windows Application Control before confirmation or database writes.
+    try { $pgDumpPath = (Get-Command pg_dump -ErrorAction Stop).Source }
+    catch { Stop-Safely 'pg_dump is unavailable; use the guarded psql empty-database checkpoint only for the authorized empty production target, or obtain an approved client' }
+    try {
+      Assert-CheckpointTool -ToolPath $pgDumpPath -Runner {
+        param($path)
+        $versionOutput = & $path --version 2>&1 | Out-String
+        [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $versionOutput }
+      } | Out-Null
+    } catch { Stop-Safely 'pg_dump failed its execution check; use the guarded psql empty-database checkpoint only for the authorized empty production target, or obtain an approved client' }
   }
   $typed = Read-Host "Type APPLY EMPTY SUPABASE PROJECT $ProjectRef to proceed"
   if ($typed -cne "APPLY EMPTY SUPABASE PROJECT $ProjectRef") { Stop-Safely 'typed target confirmation did not match' }
-  if (Test-Path -LiteralPath $checkpoint) { Stop-Safely 'checkpoint directory already exists; refusing to overwrite evidence' }
-  New-Item -ItemType Directory -Path $checkpoint | Out-Null
+  try { $checkpoint = New-ManagedProtectedCheckpointDirectory -Path $CheckpointDirectory -RepositoryRoot $root }
+  catch { Stop-Safely $_.Exception.Message }
 
-  $emptySchemaPath = Join-Path $checkpoint 'empty-public-schema.sql'
-  & $pgDumpPath --no-password --schema-only --schema=public --host $script:dbTarget.Host --port $script:dbTarget.Port `
-    --username $script:dbTarget.Username --dbname postgres --file $emptySchemaPath
-  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $emptySchemaPath)) {
-    Stop-Safely 'could not establish the pre-change empty-schema checkpoint; no SQL changes were attempted'
+  $checkpointFiles = @()
+  if ($EmptyDatabasePsqlCheckpoint) {
+    $emptyStateBeforeSnapshot = Get-ManagedEmptyState
+    $catalogSqlPath = Join-Path $bootstrap 'managed-empty-checkpoint.sql'
+    $catalogSnapshot = Invoke-DbCaptureFile $catalogSqlPath
+    if ([string]::IsNullOrWhiteSpace($catalogSnapshot)) { Stop-Safely 'read-only catalog snapshot returned no content' }
+    $catalogDigest = Get-Utf8Sha256 $catalogSnapshot
+    $snapshotPath = Join-Path $checkpoint 'production-empty-database-catalog.json'
+    $snapshotArtifact = Write-ManagedReadOnlyCheckpointFile -Path $snapshotPath -Content ($catalogSnapshot + "`n")
+    Assert-CheckpointArtifact $snapshotPath
+
+    $projectIdentity = [ordered]@{ project_ref = $ProjectRef }
+    foreach ($field in @('name','organization_id','region','status','id')) {
+      if ($matches[0].PSObject.Properties.Name -contains $field) { $projectIdentity[$field] = $matches[0].$field }
+    }
+    $hashEvidence = @($evidence.migrations | ForEach-Object { [ordered]@{ file = $_.file; sha256_raw = $_.sha256_raw } })
+    $checkpointManifest = [ordered]@{
+      checkpoint_kind = 'psql-read-only-empty-database-catalog'
+      restorable_backup = $false
+      warning = 'NOT A RESTORABLE BACKUP. This catalog snapshot cannot restore this database.'
+      project_identity = $projectIdentity
+      connection = [ordered]@{ mode = 'SessionPooler'; host = $script:dbTarget.Host; port = $script:dbTarget.Port; username = $script:dbTarget.Username; sslmode = 'require' }
+      database = [ordered]@{ name = 'postgres'; role = 'postgres'; server_version = $emptyStateBeforeSnapshot.ServerVersion; server_major = $emptyStateBeforeSnapshot.ServerVersionMajor }
+      empty_state = [ordered]@{
+        public_objects = $emptyStateBeforeSnapshot.PublicObjects
+        migration_ledger_exists = $emptyStateBeforeSnapshot.MigrationLedgerExists
+        migration_ledger_rows = $emptyStateBeforeSnapshot.MigrationLedgerRows
+        application_schema_count = $emptyStateBeforeSnapshot.ApplicationSchemaCount
+        relevant_user_data_rows = $emptyStateBeforeSnapshot.UserDataCounts
+      }
+      catalog_snapshot = [ordered]@{ file = [IO.Path]::GetFileName($snapshotPath); bytes = $snapshotArtifact.Length; sha256 = $snapshotArtifact.Sha256; query_digest = $catalogDigest }
+      application_baseline_sha256_lf = Get-LfSha256 (Join-Path $bootstrap 'application.sql')
+      migrations = $hashEvidence
+      captured_at_utc = [DateTime]::UtcNow.ToString('o')
+      note = 'Protected, read-only structural catalog evidence for a verified empty project; not a data dump or restore point.'
+    }
+    $manifestPath = Join-Path $checkpoint 'checkpoint-manifest.json'
+    Write-ManagedReadOnlyCheckpointFile -Path $manifestPath -Content ($checkpointManifest | ConvertTo-Json -Depth 8) | Out-Null
+    Assert-CheckpointArtifact $manifestPath
+    $checkpointFiles += $snapshotPath, $manifestPath
+
+    # Re-run emptiness and catalog checks after the checkpoint files exist.
+    $emptyStateAfterSnapshot = Get-ManagedEmptyState
+    $catalogAfterSnapshot = Invoke-DbCaptureFile $catalogSqlPath
+    try { Assert-CatalogSnapshotStable -BeforeSha256 $catalogDigest -AfterSha256 (Get-Utf8Sha256 $catalogAfterSnapshot) | Out-Null }
+    catch { Stop-Safely $_.Exception.Message }
+    $recheck = [ordered]@{
+      project_ref = $ProjectRef
+      checked_at_utc = [DateTime]::UtcNow.ToString('o')
+      result = 'EMPTY_AND_CATALOG_UNCHANGED'
+      server_version = $emptyStateAfterSnapshot.ServerVersion
+      public_objects = $emptyStateAfterSnapshot.PublicObjects
+      migration_ledger_exists = $emptyStateAfterSnapshot.MigrationLedgerExists
+      migration_ledger_rows = $emptyStateAfterSnapshot.MigrationLedgerRows
+      application_schema_count = $emptyStateAfterSnapshot.ApplicationSchemaCount
+      relevant_user_data_rows = $emptyStateAfterSnapshot.UserDataCounts
+      catalog_sha256 = Get-Utf8Sha256 $catalogAfterSnapshot
+    }
+    $recheckPath = Join-Path $checkpoint 'prewrite-empty-recheck.json'
+    Write-ManagedReadOnlyCheckpointFile -Path $recheckPath -Content ($recheck | ConvertTo-Json -Depth 6) | Out-Null
+    Assert-CheckpointArtifact $recheckPath
+    $checkpointFiles += $recheckPath
+  } else {
+    $emptyStateBeforeCheckpoint = Get-ManagedEmptyState
+    $emptySchemaPath = Join-Path $checkpoint 'empty-public-schema.sql'
+    & $pgDumpPath --no-password --schema-only --schema=public --host $script:dbTarget.Host --port $script:dbTarget.Port `
+      --username $script:dbTarget.Username --dbname postgres --file $emptySchemaPath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $emptySchemaPath) -or (Get-Item -LiteralPath $emptySchemaPath).Length -eq 0) {
+      Stop-Safely 'could not establish the pre-change schema checkpoint; no SQL changes were attempted'
+    }
+    [IO.File]::SetAttributes($emptySchemaPath, (Get-Item $emptySchemaPath).Attributes -bor [IO.FileAttributes]::ReadOnly)
+    Assert-CheckpointArtifact $emptySchemaPath
+    $checkpointManifest = [ordered]@{
+      checkpoint_kind = 'pg_dump-public-schema-only'
+      restorable_backup = $false
+      warning = 'NOT A RESTORABLE BACKUP. This schema-only checkpoint does not contain database data.'
+      project_identity = [ordered]@{ project_ref = $ProjectRef }
+      connection = [ordered]@{ mode = $ConnectionMode; host = $script:dbTarget.Host; port = $script:dbTarget.Port; username = $script:dbTarget.Username; sslmode = 'require' }
+      database = [ordered]@{ name = 'postgres'; role = 'postgres'; server_version = $emptyStateBeforeCheckpoint.ServerVersion; server_major = $emptyStateBeforeCheckpoint.ServerVersionMajor }
+      public_schema_objects = $emptyStateBeforeCheckpoint.PublicObjects
+      migration_ledger_exists = $emptyStateBeforeCheckpoint.MigrationLedgerExists
+      migration_ledger_rows = $emptyStateBeforeCheckpoint.MigrationLedgerRows
+      migrations = @($evidence.migrations | ForEach-Object { [ordered]@{ file = $_.file; sha256_raw = $_.sha256_raw } })
+      application_bootstrap_sha256_lf = Get-LfSha256 (Join-Path $bootstrap 'application.sql')
+      recorded_at_utc = [DateTime]::UtcNow.ToString('o')
+    }
+    $manifestPath = Join-Path $checkpoint 'checkpoint-manifest.json'
+    Write-ManagedReadOnlyCheckpointFile -Path $manifestPath -Content ($checkpointManifest | ConvertTo-Json -Depth 8) | Out-Null
+    Assert-CheckpointArtifact $manifestPath
+    $checkpointFiles += $emptySchemaPath, $manifestPath
+    Get-ManagedEmptyState | Out-Null
   }
-  $checkpointManifest = [ordered]@{
-    project_ref = $ProjectRef
-    database = 'postgres'
-    public_schema_objects = 0
-    migration_ledger_rows = 0
-    migration_versions = $versions
-    application_bootstrap_sha256_lf = Get-LfSha256 (Join-Path $bootstrap 'application.sql')
-    recorded_at_utc = [DateTime]::UtcNow.ToString('o')
-    note = 'Schema-only pre-bootstrap checkpoint; no user data. Not a verified restore rehearsal.'
-  }
-  $checkpointManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $checkpoint 'checkpoint.json') -Encoding utf8
+  foreach ($artifactPath in $checkpointFiles) { Assert-CheckpointArtifact $artifactPath }
+  Write-Host "Checkpoint PASS: $($checkpointFiles.Count) protected artifacts outside the repository. This is NOT a restorable backup."
 
   # Managed extensions/services first, then the explicit historical baseline.
   Invoke-DbFile (Join-Path $bootstrap 'managed-prerequisites.sql')

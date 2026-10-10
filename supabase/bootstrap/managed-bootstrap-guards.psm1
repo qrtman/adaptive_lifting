@@ -56,6 +56,133 @@ function Assert-ManagedVersionList {
   }
 }
 
+function Assert-EmptyPsqlCheckpointAllowed {
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][psobject]$Target)
+  if ($Target.ProjectRef -cne $script:ProductionProjectRef -or
+      $Target.Mode -cne 'SessionPooler' -or
+      $Target.Host -cne $script:ProductionSessionPoolerHost -or
+      [int]$Target.Port -ne 5432 -or
+      $Target.Username -cne "postgres.$script:ProductionProjectRef") {
+    throw 'psql empty-database checkpoint is restricted to the authorized production Session Pooler target'
+  }
+  return $true
+}
+
+function Assert-EmptyDatabaseState {
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][psobject]$State)
+  if ($State.Database -cne 'postgres' -or $State.EffectiveUser -cne 'postgres') { throw 'database identity differs from postgres/postgres' }
+  if ([int]$State.ServerVersionMajor -ne 17) { throw 'expected PostgreSQL major version 17' }
+  if ([int64]$State.PublicObjects -ne 0) { throw 'public application schema is not empty' }
+  if ([int64]$State.MigrationLedgerRows -ne 0) { throw 'migration history is not empty' }
+  if ([int64]$State.ApplicationSchemaCount -ne 0) { throw 'application schema already exists' }
+  $requiredDataChecks = @(
+    'auth.users', 'auth.identities', 'auth.sessions', 'auth.refresh_tokens',
+    'auth.mfa_factors', 'storage.objects', 'storage.buckets', 'cron.job'
+  )
+  foreach ($name in $requiredDataChecks) {
+    if (-not $State.UserDataCounts.Contains($name)) { throw "required emptiness check is missing: $name" }
+    if ([int64]$State.UserDataCounts[$name] -ne 0) { throw "existing user data detected in $name" }
+  }
+  return $true
+}
+
+function Assert-CatalogSnapshotStable {
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][string]$BeforeSha256, [Parameter(Mandatory)][string]$AfterSha256)
+  if ($BeforeSha256 -cnotmatch '^[a-f0-9]{64}$' -or $AfterSha256 -cnotmatch '^[a-f0-9]{64}$' -or $BeforeSha256 -cne $AfterSha256) {
+    throw 'database catalog changed while the empty-project checkpoint was being established'
+  }
+  return $true
+}
+
+function New-ManagedProtectedCheckpointDirectory {
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$RepositoryRoot)
+  $fullPath = [IO.Path]::GetFullPath($Path)
+  $repo = [IO.Path]::GetFullPath($RepositoryRoot).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+  if ($fullPath.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) -or $fullPath -eq $repo.TrimEnd([IO.Path]::DirectorySeparatorChar)) {
+    throw 'checkpoint directory must be outside the repository'
+  }
+  if (Test-Path -LiteralPath $fullPath) { throw 'checkpoint directory already exists; refusing to overwrite evidence' }
+  if (-not $env:OS -or $env:OS -ne 'Windows_NT') { throw 'private checkpoint ACL setup requires Windows NTFS' }
+  $parentPath = Split-Path -Parent $fullPath
+  if (-not (Test-Path -LiteralPath $parentPath -PathType Container)) { throw 'checkpoint parent directory must already exist' }
+  $ancestor = Get-Item -LiteralPath $parentPath -Force
+  while ($null -ne $ancestor) {
+    if ($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'checkpoint path cannot traverse a reparse point or symbolic link' }
+    $ancestorPath = Split-Path -Parent $ancestor.FullName
+    if (-not $ancestorPath -or $ancestorPath -eq $ancestor.FullName) { break }
+    $ancestor = Get-Item -LiteralPath $ancestorPath -Force -ErrorAction SilentlyContinue
+  }
+
+  New-Item -ItemType Directory -Path $fullPath -ErrorAction Stop | Out-Null
+  try {
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $systemSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+    $adminsSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+    $acl = Get-Acl -LiteralPath $fullPath
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner($currentSid)
+    $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    foreach ($sid in @($currentSid, $systemSid, $adminsSid)) {
+      $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+        $sid,
+        [Security.AccessControl.FileSystemRights]::FullControl,
+        $inheritance,
+        [Security.AccessControl.PropagationFlags]::None,
+        [Security.AccessControl.AccessControlType]::Allow
+      )
+      $acl.AddAccessRule($rule)
+    }
+    Set-Acl -LiteralPath $fullPath -AclObject $acl -ErrorAction Stop
+    $verified = Get-Acl -LiteralPath $fullPath
+    if (-not $verified.AreAccessRulesProtected) { throw 'checkpoint ACL inheritance was not disabled' }
+    $allowed = @($currentSid.Value, $systemSid.Value, $adminsSid.Value)
+    foreach ($rule in $verified.Access) {
+      $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+      if ($sid -notin $allowed -or $rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) {
+        throw 'checkpoint directory has an unexpected ACL entry'
+      }
+    }
+    return $fullPath
+  } catch {
+    # Preserve a directory if ACL verification fails so the failure is visible;
+    # no database write is attempted before this function succeeds.
+    throw
+  }
+}
+
+function Write-ManagedReadOnlyCheckpointFile {
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][AllowEmptyString()][string]$Content)
+  if ([string]::IsNullOrWhiteSpace($Content)) { throw 'checkpoint content is empty' }
+  $fullPath = [IO.Path]::GetFullPath($Path)
+  $parent = Split-Path -Parent $fullPath
+  if (-not (Test-Path -LiteralPath $parent -PathType Container)) { throw 'checkpoint directory is unavailable' }
+  if (Test-Path -LiteralPath $fullPath) { throw 'checkpoint artifact already exists; refusing to overwrite evidence' }
+  $tempPath = Join-Path $parent ('.checkpoint-' + [guid]::NewGuid().ToString('N') + '.tmp')
+  $encoding = [Text.UTF8Encoding]::new($false)
+  try {
+    [IO.File]::WriteAllText($tempPath, $Content, $encoding)
+    if (-not (Test-Path -LiteralPath $tempPath -PathType Leaf) -or (Get-Item -LiteralPath $tempPath).Length -eq 0) {
+      throw 'temporary checkpoint artifact was not written'
+    }
+    [IO.File]::Move($tempPath, $fullPath)
+    $item = Get-Item -LiteralPath $fullPath
+    if ($item.Length -eq 0) { throw 'checkpoint artifact is empty after write' }
+    [IO.File]::SetAttributes($fullPath, $item.Attributes -bor [IO.FileAttributes]::ReadOnly)
+    $bytes = [IO.File]::ReadAllBytes($fullPath)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+    return [pscustomobject]@{ Path = $fullPath; Length = $bytes.Length; Sha256 = $hash; ReadOnly = $true }
+  } finally {
+    if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+  }
+}
+
 function Complete-ManagedCliResult {
   [CmdletBinding()]
   param(
@@ -104,4 +231,4 @@ function Assert-CheckpointTool {
   return $ToolPath
 }
 
-Export-ModuleMember -Function Assert-ManagedTarget, Assert-ManagedVersionList, Complete-ManagedCliResult, Get-ManagedMigrationCliArguments, Assert-CheckpointTool
+Export-ModuleMember -Function Assert-ManagedTarget, Assert-ManagedVersionList, Assert-EmptyPsqlCheckpointAllowed, Assert-EmptyDatabaseState, Assert-CatalogSnapshotStable, New-ManagedProtectedCheckpointDirectory, Write-ManagedReadOnlyCheckpointFile, Complete-ManagedCliResult, Get-ManagedMigrationCliArguments, Assert-CheckpointTool
