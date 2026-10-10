@@ -163,6 +163,49 @@ Describe 'psql empty-database checkpoint gates' {
 }
 
 Describe 'Managed migration CLI safety' {
+  It 'captures informational native stderr under Stop without losing the successful exit code' {
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Stop'
+    try {
+      $result = Invoke-ManagedNativeCommand -ExecutablePath $env:ComSpec -Arguments @('/c', 'echo cli-stdout & echo DRY RUN: informational-cli-stderr 1>&2 & exit /b 0')
+      $result.ExitCode | Should Be 0
+      $result.Output | Should Match 'cli-stdout'
+      $result.Output | Should Match 'informational-cli-stderr'
+      $ErrorActionPreference | Should Be 'Stop'
+    } finally { $ErrorActionPreference = $previousPreference }
+  }
+
+  It 'retains all 63 dry-run versions when stderr diagnostics are present' {
+    $evidence = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'verification-revisions.json') -Raw | ConvertFrom-Json
+    $cmdPath = Join-Path $env:TEMP ("cli-dry-run-output-" + [guid]::NewGuid().ToString('N') + '.cmd')
+    $lines = @('@echo off', 'echo DRY RUN: migrations will not be pushed 1>&2', 'echo {"migrations":[')
+    for ($index = 0; $index -lt 63; $index++) {
+      $suffix = if ($index -lt 62) { ',' } else { '' }
+      $lines += ('echo "' + $evidence.migrations[$index].file + '"' + $suffix)
+    }
+    $lines += @('echo ]}', 'exit /b 0')
+    [IO.File]::WriteAllLines($cmdPath, $lines, [Text.Encoding]::ASCII)
+    try {
+      $result = Invoke-ManagedNativeCommand -ExecutablePath $env:ComSpec -Arguments @('/c', $cmdPath)
+      $result.ExitCode | Should Be 0
+      $result.Output | Should Match 'DRY RUN: migrations will not be pushed'
+      $actual = @([regex]::Matches($result.Output, '(?<!\d)\d{14}(?!\d)') | ForEach-Object { $_.Value } | Sort-Object -Unique)
+      $expected = @($evidence.migrations | ForEach-Object { if ($_.file -match '^(\d{14})_') { $Matches[1] } })
+      Assert-ManagedVersionList -Actual $actual -Expected $expected -Label 'stderr-mixed dry run'
+      $actual.Count | Should Be 63
+    } finally { Remove-Item -LiteralPath $cmdPath -Force -ErrorAction SilentlyContinue }
+  }
+
+  It 'keeps a nonzero native CLI exit as a failure and redacts its output' {
+    $result = Invoke-ManagedNativeCommand -ExecutablePath $env:ComSpec -Arguments @('/c', 'echo test-only-secret-marker 1>&2 & exit /b 7')
+    $result.ExitCode | Should Be 7
+    $message = ''
+    try { Complete-ManagedCliResult -ExitCode $result.ExitCode -Output $result.Output -Label 'migration dry run' -Secret 'test-only-secret-marker' | Out-Null }
+    catch { $message = $_.Exception.Message }
+    $message | Should Match '\[redacted\]'
+    $message | Should Not Match 'test-only-secret-marker'
+  }
+
   It 'uses only the exact password-free production URL for list, dry-run and push without a linked ref' {
     $url = "postgresql://$expectedPoolerUser@$poolerHost`:5432/postgres?sslmode=require"
     $previousTestPassword = $env:SUPABASE_DB_PASSWORD

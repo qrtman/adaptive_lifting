@@ -200,6 +200,28 @@ function Complete-ManagedCliResult {
   return $safeOutput
 }
 
+function Invoke-ManagedNativeCommand {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$ExecutablePath,
+    [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Arguments
+  )
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    # Windows PowerShell 5.1 converts native stderr lines to NativeCommandError
+    # records. With the caller's Stop preference, ordinary CLI diagnostics can
+    # terminate before LASTEXITCODE is captured. Continue is scoped to this
+    # invocation; stderr is still captured and a nonzero native exit is still
+    # rejected by Complete-ManagedCliResult.
+    $ErrorActionPreference = 'Continue'
+    $output = & $ExecutablePath @Arguments 2>&1 | Out-String
+    $exitCode = $LASTEXITCODE
+    return [pscustomobject]@{ ExitCode = $exitCode; Output = $output }
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
 function Assert-SupabaseCliVersion {
   [CmdletBinding()]
   param(
@@ -295,4 +317,4 @@ function Assert-CheckpointTool {
   return $ToolPath
 }
 
-Export-ModuleMember -Function Assert-ManagedTarget, Assert-ManagedVersionList, Assert-EmptyPsqlCheckpointAllowed, Assert-EmptyDatabaseState, Assert-CatalogSnapshotStable, New-ManagedProtectedCheckpointDirectory, Write-ManagedReadOnlyCheckpointFile, Complete-ManagedCliResult, Assert-SupabaseCliVersion, New-ManagedCheckpointManifest, Get-ManagedMigrationCliArguments, Assert-CheckpointTool
+Export-ModuleMember -Function Assert-ManagedTarget, Assert-ManagedVersionList, Assert-EmptyPsqlCheckpointAllowed, Assert-EmptyDatabaseState, Assert-CatalogSnapshotStable, New-ManagedProtectedCheckpointDirectory, Write-ManagedReadOnlyCheckpointFile, Complete-ManagedCliResult, Invoke-ManagedNativeCommand, Assert-SupabaseCliVersion, New-ManagedCheckpointManifest, Get-ManagedMigrationCliArguments, Assert-CheckpointTool

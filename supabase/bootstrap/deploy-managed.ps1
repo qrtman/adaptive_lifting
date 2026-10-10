@@ -157,10 +157,9 @@ function Assert-CheckpointArtifact([string]$Path) {
 }
 
 function Invoke-Supabase([string[]]$Arguments, [switch]$Capture) {
-  $output = & $script:supabasePath @Arguments 2>&1 | Out-String
-  $exitCode = $LASTEXITCODE
+  $nativeResult = Invoke-ManagedNativeCommand -ExecutablePath $script:supabasePath -Arguments $Arguments
   try {
-    $output = Complete-ManagedCliResult -ExitCode $exitCode -Output $output -Label 'Supabase CLI' -Secret $env:SUPABASE_DB_PASSWORD
+    $output = Complete-ManagedCliResult -ExitCode $nativeResult.ExitCode -Output $nativeResult.Output -Label 'Supabase CLI' -Secret $env:SUPABASE_DB_PASSWORD
   } catch { Stop-Safely $_.Exception.Message }
   if ($Capture) { return $output }
   if ($output.Trim()) { Write-Host $output.Trim() }
@@ -192,9 +191,8 @@ try {
   $setPgPassword = $true
   $script:psqlPath = (Get-Command psql -ErrorAction Stop).Source
   $script:supabasePath = (Get-Command supabase -ErrorAction Stop).Source
-  $cliVersionOutput = & $script:supabasePath --version 2>&1 | Out-String
-  $cliVersionExitCode = $LASTEXITCODE
-  try { $validatedCliVersion = Assert-SupabaseCliVersion -ExitCode $cliVersionExitCode -Output $cliVersionOutput }
+  $cliVersionResult = Invoke-ManagedNativeCommand -ExecutablePath $script:supabasePath -Arguments @('--version')
+  try { $validatedCliVersion = Assert-SupabaseCliVersion -ExitCode $cliVersionResult.ExitCode -Output $cliVersionResult.Output }
   catch { Stop-Safely $_.Exception.Message }
   Write-Host "Supabase CLI compatibility PASS: version $validatedCliVersion; explicit --db-url mode only."
   $script:pythonPath = (Get-Command python -ErrorAction Stop).Source
