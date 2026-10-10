@@ -91,8 +91,15 @@ SQL write, apply managed prerequisites, apply explicit `application.sql`, then
 use the isolated temporary Supabase CLI workdir containing only these 63
 migration files for migration-list inspection, a second dry run, strict
 version-set assertion, `db push --skip-vault`, exact ledger version assertion,
-managed postflight, and rollback-only synthetic `test_behavior.sql`. The
-script deliberately does not use `--include-all`, seed files,
+managed postflight, and rollback-only core database checks in `test_behavior.sql`.
+The production core file uses explicit relationship IDs because PostgreSQL
+sequence increments survive rollback. The local harness separately checks
+sequence advancement in `test_sequence_behavior.sql` and runs
+`test_realtime_policy.sql` against its Realtime SQL fixture, which supplies a
+default partition. Production SQL verification does not depend on
+service-created Realtime partitions; live private-channel behavior has a
+separate authenticated end-to-end procedure.
+The deploy script deliberately does not use `--include-all`, seed files,
 `migration repair`, or automatic reset. It stops on any mismatch and requires
 a forward recovery review; rerunning from an already nonempty schema is
 refused. For a future preflight-only check:
@@ -243,11 +250,19 @@ root key in temporary memory-backed storage for each run. No key is printed,
 checked in, reused, or copied from a managed project. Cron jobs are registered
 but automatic execution is disabled; pg_net has no external network.
 
-The Realtime server normally creates `realtime.messages` and `realtime.topic()`.
-The harness supplies their required SQL interface as a clearly marked fixture
-and tests the real PostgreSQL RLS policy. It does **not** run Realtime WebSocket
-delivery, managed partition retention, Auth, PostgREST, Edge Functions, Cron
-dispatch, or provider calls. Passing SQL replay is not full managed-service E2E.
+The Realtime server normally creates `realtime.messages` and `realtime.topic()`;
+managed partitions may not exist until a WebSocket client connects. The harness
+supplies their required SQL interface as a clearly marked fixture, including a
+default partition, and tests the real PostgreSQL RLS policy in
+`test_realtime_policy.sql`. Production's `test_behavior.sql` checks core
+database constraints and grants without reading or writing `realtime.messages`
+or consuming sequence values. Use `managed-realtime-inspect.sql` for read-only
+inspection of the managed table, partition metadata, policy, role, and grants.
+The local harness does **not** run Realtime WebSocket delivery, managed
+partition retention, Auth, PostgREST, Edge Functions, Cron dispatch, or provider
+calls. Passing SQL replay is not full managed-service E2E. See
+[`PRODUCTION_REALTIME_E2E.md`](PRODUCTION_REALTIME_E2E.md) for the separate live
+test procedure and its authorization prerequisites.
 No plaintext substitutes for Vault, pg_net, or Cron are used.
 
 ## Verification evidence

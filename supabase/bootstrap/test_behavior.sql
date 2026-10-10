@@ -2,7 +2,7 @@ BEGIN;
 INSERT INTO public.users(id,email,hashed_password,role) VALUES
   ('bootstrap-athlete','bootstrap-athlete@example.invalid','not-a-login-hash','ATHLETE'),
   ('bootstrap-coach','bootstrap-coach@example.invalid','not-a-login-hash','COACH');
-DO $$ DECLARE a integer; b integer; BEGIN
+DO $$ BEGIN
   IF NOT (SELECT email_verification_required AND NOT email_verification_legacy_exempt
           FROM public.users WHERE id='bootstrap-athlete') THEN
     RAISE EXCEPTION 'Secure verification defaults missing';
@@ -16,14 +16,18 @@ DO $$ DECLARE a integer; b integer; BEGIN
     INSERT INTO public.sessions(id,user_id,expires_at) VALUES ('bad-fk','no-user',now());
     RAISE EXCEPTION 'Session FK not enforced';
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
-  INSERT INTO public.coaching_relationships(coach_id,athlete_id) VALUES ('bootstrap-coach','bootstrap-athlete') RETURNING id INTO a;
+  -- Use explicit IDs here: PostgreSQL nextval() is not rolled back, so the
+  -- production rollback-only core check must not consume sequence values.
+  INSERT INTO public.coaching_relationships(id,coach_id,athlete_id)
+    VALUES (-910001,'bootstrap-coach','bootstrap-athlete');
   BEGIN
-    INSERT INTO public.coaching_relationships(coach_id,athlete_id) VALUES ('bootstrap-coach','bootstrap-athlete');
+    INSERT INTO public.coaching_relationships(id,coach_id,athlete_id)
+      VALUES (-910002,'bootstrap-coach','bootstrap-athlete');
     RAISE EXCEPTION 'Active relationship uniqueness not enforced';
   EXCEPTION WHEN unique_violation THEN NULL; END;
-  UPDATE public.coaching_relationships SET ended_at=now() WHERE id=a;
-  INSERT INTO public.coaching_relationships(coach_id,athlete_id) VALUES ('bootstrap-coach','bootstrap-athlete') RETURNING id INTO b;
-  IF b<=a THEN RAISE EXCEPTION 'Relationship sequence does not advance'; END IF;
+  UPDATE public.coaching_relationships SET ended_at=now() WHERE id=-910001;
+  INSERT INTO public.coaching_relationships(id,coach_id,athlete_id)
+    VALUES (-910003,'bootstrap-coach','bootstrap-athlete');
   INSERT INTO public.workspaces(id,name,owner_user_id,created_at,updated_at)
     VALUES ('bootstrap-workspace','fixture','bootstrap-coach',now(),now());
   BEGIN
@@ -98,24 +102,4 @@ DO $$ BEGIN
     RAISE EXCEPTION 'Cron definitions missing';
   END IF;
 END $$;
--- Realtime fixture authorization only, never an assertion about WebSocket delivery.
-INSERT INTO realtime.messages(topic,extension,private) VALUES
-  ('workout:bootstrap-workout','broadcast',true),('workout:other','broadcast',true);
-SET LOCAL ROLE al_realtime_subscriber;
-SET LOCAL realtime.topic='workout:bootstrap-workout';
-SET LOCAL request.jwt.claims='{"rt_topic":"workout:bootstrap-workout","workout_id":"bootstrap-workout","sub":"bootstrap-athlete","app_user_id":"bootstrap-athlete","purpose":"adaptive_lifting_realtime"}';
-DO $$ BEGIN
-  -- Realtime's managed authorization query selects the requested topic.
-  -- The policy authorizes the channel context, not arbitrary SQL row browsing.
-  IF (SELECT count(*) FROM realtime.messages WHERE topic=realtime.topic())<>1 THEN
-    RAISE EXCEPTION 'Realtime SQL policy did not authorize the requested workout';
-  END IF;
-END $$;
-SET LOCAL request.jwt.claims='{"rt_topic":"workout:bootstrap-workout","workout_id":"bootstrap-workout","sub":"different-user","app_user_id":"bootstrap-athlete","purpose":"adaptive_lifting_realtime"}';
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM realtime.messages) THEN
-    RAISE EXCEPTION 'Realtime SQL policy allowed mismatched identity';
-  END IF;
-END $$;
-SET LOCAL ROLE postgres;
 ROLLBACK;

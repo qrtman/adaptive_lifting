@@ -103,9 +103,15 @@ def validate_revision_delta(baseline, final):
 
 
 def behavioral_checks(execute):
-    # All synthetic inserts roll back. Exercise FK/unique/check/default/sequence
-    # enforcement rather than just checking catalog object names.
+    # Core synthetic inserts roll back and do not depend on a running Realtime
+    # service or its managed partition lifecycle.
     execute((HERE / "test_behavior.sql").read_text(encoding="utf-8"))
+    # Sequence advancement is not transactional in PostgreSQL, so exercise it
+    # only in disposable local replay databases.
+    execute((HERE / "test_sequence_behavior.sql").read_text(encoding="utf-8"))
+    # The local fixture has a DEFAULT partition. Keep SQL policy authorization
+    # tests here, separate from production core database verification.
+    execute((HERE / "test_realtime_policy.sql").read_text(encoding="utf-8"))
 
 
 class CatalogTests(unittest.TestCase):

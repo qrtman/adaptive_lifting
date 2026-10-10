@@ -89,27 +89,33 @@ function Assert-VersionList([string[]]$Actual, [string[]]$Expected, [string]$Lab
 }
 
 function Invoke-DbQuery([string]$Sql) {
-  $result = & $script:psqlPath --no-password --no-psqlrc --quiet --tuples-only --no-align `
-    --set ON_ERROR_STOP=1 --host $script:dbTarget.Host --port $script:dbTarget.Port --username $script:dbTarget.Username --dbname postgres `
-    --command $Sql 2>&1 | Out-String
-  if ($LASTEXITCODE -ne 0) { Stop-Safely "read-only psql query failed: $result" }
-  return $result.Trim()
+  $nativeResult = Invoke-ManagedNativeCommand -ExecutablePath $script:psqlPath -Arguments @(
+    '--no-password', '--no-psqlrc', '--quiet', '--tuples-only', '--no-align',
+    '--set', 'ON_ERROR_STOP=1', '--host', $script:dbTarget.Host, '--port', [string]$script:dbTarget.Port,
+    '--username', $script:dbTarget.Username, '--dbname', 'postgres', '--command', $Sql
+  )
+  if ($nativeResult.ExitCode -ne 0) { Stop-Safely "read-only psql query failed: $($nativeResult.Output)" }
+  return $nativeResult.Output.Trim()
 }
 
 function Invoke-DbFile([string]$Path) {
-  $result = & $script:psqlPath --no-password --no-psqlrc --quiet `
-    --set ON_ERROR_STOP=1 --host $script:dbTarget.Host --port $script:dbTarget.Port --username $script:dbTarget.Username --dbname postgres `
-    --file $Path 2>&1 | Out-String
-  if ($LASTEXITCODE -ne 0) { Stop-Safely "SQL file failed; target may be partially changed. Preserve it and inspect before recovery: $result" }
-  if ($result.Trim()) { Write-Host $result.Trim() }
+  $nativeResult = Invoke-ManagedNativeCommand -ExecutablePath $script:psqlPath -Arguments @(
+    '--no-password', '--no-psqlrc', '--quiet', '--set', 'ON_ERROR_STOP=1',
+    '--host', $script:dbTarget.Host, '--port', [string]$script:dbTarget.Port,
+    '--username', $script:dbTarget.Username, '--dbname', 'postgres', '--file', $Path
+  )
+  if ($nativeResult.ExitCode -ne 0) { Stop-Safely "SQL file failed; target may be partially changed. Preserve it and inspect before recovery: $($nativeResult.Output)" }
+  if ($nativeResult.Output.Trim()) { Write-Host $nativeResult.Output.Trim() }
 }
 
 function Invoke-DbCaptureFile([string]$Path) {
-  $result = & $script:psqlPath --no-password --no-psqlrc --quiet --tuples-only --no-align `
-    --set ON_ERROR_STOP=1 --host $script:dbTarget.Host --port $script:dbTarget.Port --username $script:dbTarget.Username --dbname postgres `
-    --file $Path 2>&1 | Out-String
-  if ($LASTEXITCODE -ne 0) { Stop-Safely "catalog query failed: $result" }
-  return $result.Trim()
+  $nativeResult = Invoke-ManagedNativeCommand -ExecutablePath $script:psqlPath -Arguments @(
+    '--no-password', '--no-psqlrc', '--quiet', '--tuples-only', '--no-align',
+    '--set', 'ON_ERROR_STOP=1', '--host', $script:dbTarget.Host, '--port', [string]$script:dbTarget.Port,
+    '--username', $script:dbTarget.Username, '--dbname', 'postgres', '--file', $Path
+  )
+  if ($nativeResult.ExitCode -ne 0) { Stop-Safely "catalog query failed: $($nativeResult.Output)" }
+  return $nativeResult.Output.Trim()
 }
 
 function Get-ManagedEmptyState {

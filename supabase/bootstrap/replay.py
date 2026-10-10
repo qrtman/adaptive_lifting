@@ -221,7 +221,10 @@ def main():
         "verified_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "bootstrap_sha256_lf": digest(HERE / "application.sql"),
         "tooling_sources_sha256_lf": {name: digest(HERE / name) for name in (
-            "generate.py", "replay.py", "test_schema.py", "test_behavior.sql", "catalog.sql",
+            "generate.py", "replay.py", "test_schema.py", "test_behavior.sql", "test_sequence_behavior.sql",
+            "test_realtime_policy.sql", "deploy-managed.ps1", "managed-bootstrap-guards.psm1",
+            "managed-bootstrap-guards.Tests.ps1", "managed-realtime-inspect.sql",
+            "PRODUCTION_REALTIME_E2E.md", "catalog.sql",
             "managed-prerequisites.sql", "managed-preflight.sql", "managed-empty-checkpoint.sql",
             "local-managed-fixture.sql", "replay-repair.json", "sql-eof-correction-audit.json",
             "staging-catalog.json", "README.md")},
