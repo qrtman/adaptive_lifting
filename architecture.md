@@ -1479,7 +1479,7 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | :--- | :--- |
 | **JWT Secrets** | Must be loaded from `JWT_SECRET_CURRENT` and optional `JWT_SECRET_PREVIOUS`, never hardcoded |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
-| **Database Migrations** | Apply a reviewed clean-schema bootstrap before the 62 checked-in Supabase SQL deltas; those deltas alone are not a complete empty-database bootstrap |
+| **Database Migrations** | Apply the reviewed clean-schema bootstrap before the 63 checked-in Supabase SQL migrations; those migrations alone are not a complete empty-database bootstrap |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
 | **Backup** | PostgreSQL backups must be scheduled, retained, and restore-tested |
 | **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |

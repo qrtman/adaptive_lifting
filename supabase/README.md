@@ -35,9 +35,11 @@ schema-bootstrap gap, migration design, cost assessment, and launch blockers.
 
 The checked-in timestamped Supabase SQL migrations are deployment deltas, not
 a complete clean-database application schema bootstrap. A future clean target
-must first load an audited baseline from the legacy Alembic schema history,
-then apply the reviewed SQL deltas. Staging has all 62 migration names. The
-completed audit reconciled 24 historical migration
+must first load the audited `bootstrap/application.sql` baseline from the
+legacy Alembic schema history, then apply all 63 reviewed SQL migrations.
+Staging's initial reconciliation recorded 62 version/name pairs; the later
+forward-only workout revision migration was applied and recorded separately.
+The completed audit reconciled 24 historical migration
 version-prefix mismatches and recorded one harmless ordering swap between the
 independent email retry and day-note migrations. No staging migration history
 was rewritten or replayed.

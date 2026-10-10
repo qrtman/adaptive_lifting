@@ -304,3 +304,77 @@ halt staging writes while assessing it and use a reviewed forward fix. Do not
 assume that restoring only the prior Edge Function or Worker restores
 compatibility with migration 63. Verify live authenticated reads, writes, and
 conflict recovery before resuming writes. Production and DNS were untouched.
+
+## Production Worker preparation (not deployed)
+
+`wrangler.production.jsonc` is a separate production-only Worker configuration:
+`adaptive-lifting-production`, Static Assets from `dist/`, SPA fallback, and
+the same `/api/*` proxy to a required production Supabase project origin. The
+origin is deliberately `https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co`;
+the production project does not exist yet, and the committed config fails
+closed. It contains no service-role/publishable key, JWT or provider secret and
+has `workers_dev` disabled. The staging `wrangler.jsonc` and existing Worker
+remain unchanged.
+
+Validate it and build an isolated production frontend with:
+
+```text
+npm run validate:production
+npm run build:production
+npm test -- cloudflare/productionConfig.test.ts
+```
+
+The build leaves API calls relative to the production hostname and scans the
+result for the staging Supabase origin, staging Worker URL and private
+credential markers. Browser code does not currently configure a direct
+Realtime WebSocket client; private token issuance remains under `/api`, and
+any future browser Realtime client must derive its `wss://<production-ref>.supabase.co`
+endpoint from the same verified production project, never staging. The Worker
+proxies only HTTP `/api/*` requests and does not proxy WebSockets.
+
+After production provisioning and a separate deployment approval, generate an
+ignored local Wrangler config from the committed template:
+
+```text
+node scripts/prepare-production-wrangler.mjs <verified-production-project-ref>
+npm run build:production
+npm run validate:production:local
+npx wrangler deploy --config wrangler.production.local.jsonc --dry-run
+```
+
+Then, only after separate production release authorization, deploy the exact
+reviewed commit with the same config. The generator rejects the staging ref
+and writes no cloud resources. Inspect the generated origin and selected
+Cloudflare account before any deploy; record the resulting Worker version for
+rollback. Restore a recorded previous production Worker version for code
+rollback; do not remove the hostname route unless a live alternate origin has
+been confirmed. Use `npx wrangler versions list --config
+wrangler.production.local.jsonc --name adaptive-lifting-production` to record
+available versions, then `npx wrangler rollback <recorded-version-id>
+--config wrangler.production.local.jsonc --name adaptive-lifting-production`
+for a Worker-only rollback. This does not roll back database migrations or
+guarantee an older API is schema-compatible; API rollback requires a separately
+reviewed database compatibility decision.
+
+### Existing hostname and future connection procedure
+
+A read-only Cloudflare zone/DNS/routes inspection on 2026-10-10 found the
+`goatedmethod.me` zone active, `app.goatedmethod.me` on a proxied CNAME to a
+Cloudflare Tunnel hostname, and no Worker route for the app hostname. No DNS,
+route, Worker or zone setting was changed. The prepared production config uses
+a route (`app.goatedmethod.me/*`) rather than a Custom Domain, preserving the
+current DNS record. Cloudflare documents that Custom Domains cannot be created
+while a hostname has an existing CNAME; do not delete/replace the current
+record as part of this preparation. See Cloudflare's
+[Custom Domains limitations](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
+and [Worker Routes configuration](https://developers.cloudflare.com/workers/configuration/routing/routes/).
+
+Future connection steps, after separate approval: verify the zone/account and
+current DNS record again; confirm the old Tunnel target and any route ownership
+with the domain owner; dry-run and deploy the verified production
+Worker/config, which attaches the exact app-host route while preserving the CNAME;
+verify TLS, SPA,
+PWA, `/api/health`, cookie origin and no-store responses; then monitor and keep
+the prior Worker version available. The CNAME points to historical tunnel
+infrastructure, so route precedence and rollback behavior must be confirmed
+in a controlled cutover. The app domain is not attached to staging.

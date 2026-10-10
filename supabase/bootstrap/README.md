@@ -71,16 +71,58 @@ are streamed without newline conversion or content rewriting. Image entrypoint
 initializers are bypassed so no inherited application/managed migration state
 is present. No Supabase migration-history rows are fabricated or restamped.
 
-The CLI-managed path is intentionally separate. For a future **new, empty**
-managed project: (1) provision the project and required managed services, (2)
-run `managed-prerequisites.sql`, (3) apply `application.sql` to that empty
-project using a reviewed direct PostgreSQL session, (4) link the CLI to the
-verified project reference, (5) inspect `supabase migration list` and
-`supabase db push --dry-run`, and (6) run `supabase db push` to apply and record
-all migrations in timestamp order. This is a documented future procedure,
-not an action authorized or performed here. Do not run the bootstrap on an
-existing project, and do not run `supabase migration repair` for this
-source-only correction.
+The executable managed workflow is in [`deploy-managed.ps1`](deploy-managed.ps1).
+It verifies the authenticated account's exact project reference and matching
+direct database hostname, rejects the validated staging ref, and runs
+`managed-preflight.sql` before any writes. The preflight requires an empty
+`public` application schema, empty migration history, and zero Supabase Auth
+users/Storage objects if those managed tables exist. Its default mode performs
+only those checks. `-Apply` also requires a protected checkpoint directory
+outside the repository and typed confirmation of the project ref; it writes a
+schema-only empty-public checkpoint before applying anything.
+
+The ordered application procedure is: managed prerequisites, explicit
+`application.sql` application, isolated temporary Supabase CLI workdir with
+only these 63 migration files, linked migration-list inspection, dry run,
+strict dry-run version-set assertion, `db push --skip-vault`, exact ledger
+version assertion, managed postflight, and rollback-only synthetic
+`test_behavior.sql`. The script deliberately does not use `--include-all`, seed
+files, `migration repair`, or automatic reset. It stops on any mismatch and
+requires a forward recovery review; rerunning from an already nonempty schema
+is refused. For a future preflight-only check:
+
+```powershell
+.\supabase\bootstrap\deploy-managed.ps1 -ValidateFilesOnly
+```
+
+After a production project exists and the owner has separately approved its
+setup, use its verified project reference and direct DB hostname. Set
+`SUPABASE_DB_PASSWORD` in the local process environment (not in a command
+argument or file), then run without `-Apply` to perform remote read-only
+identity/emptiness checks. Only the separately authorized bootstrap procedure
+uses `-Apply`; it changes no existing database by design because any
+application table, user, storage object, or migration record causes refusal.
+The isolated CLI workdir avoids using the repository's staging link and has
+seeding disabled. `--skip-vault` prevents deployment-time Vault secret sync.
+
+The migration creates `al_edge_catalog_runtime` as a restricted LOGIN role;
+it does not create or embed its password. After the schema is ready and before
+deploying the API, set a unique role password through an interactive secure
+`psql` session (`\password al_edge_catalog_runtime`) and store the matching
+TLS database URL only in the production Edge secret manager. Configure the
+non-secret settings from `supabase/production.env.example`, plus the required
+private secret names listed there; `REALTIME_JWT_PRIVATE_JWK` is required by
+the current API entrypoint at process startup. Keep
+`supabase/config.toml`'s custom JWT `verify_jwt=false` setting so the existing
+custom cookie/session verifier remains the auth boundary. Disable the Data API
+in the project settings and verify REST/GraphQL are unavailable; SQL cannot
+read back that platform-level setting. No Supabase Auth is introduced.
+
+After partial failure, do not rerun the bootstrap blindly. Preserve the
+checkpoint and database, inspect the exact catalog/ledger and logs, then either
+apply a reviewed forward fix or obtain separate approval to abandon that still
+empty new project. The checkpoint is schema-only and is not a verified restore
+rehearsal.
 
 `application.sql` lives in `supabase/bootstrap/`, outside the CLI's local
 `supabase/migrations/` directory. Therefore `supabase db push` does **not**
@@ -146,22 +188,43 @@ Evidence recorded on 2026-10-09:
 | Baseline structural validation in two independent clusters | PASS; identical catalogs |
 | Reject bootstrap on nonempty schema; preserve catalog | PASS |
 | Roll back an SQL file ending in an invalid psql command | PASS; no partial schema persists |
-| Strict byte-for-byte replay, two invocations; two databases each | PASS; 62/62 in all four databases |
+| Strict byte-for-byte replay, two invocations; two databases each | PASS; 63/63 in all four databases |
 | Baseline repeatability across clean databases | PASS; exact match |
 | Final schema repeatability across clean databases | PASS; exact match |
 | Final application catalog versus read-only staging snapshot | PASS; exact match |
 | SQL behavior tests, failed-file rollback, literal-EOF guard | PASS |
-| Final schema size | 36 tables, 299 columns, 96 constraints, 98 indexes, one sequence |
+| Original 62-migration staging catalog | 36 tables, 299 columns, 96 constraints, 98 indexes, one sequence |
+| Local final catalog after migration 63 | 36 tables, 302 columns, 99 constraints, 98 indexes, one sequence |
 | PK/FK/unique/check/default/sequence behavioral checks | PASS |
 | Device-scoped idempotency and browser-role denial | PASS |
 | Realtime SQL policy, valid topic vs mismatched identity | PASS; fixture only |
 | Full managed-service runtime equivalence | NOT TESTED |
 
-Machine-readable current evidence is in `verification-strict.json`. Historical
-evidence is retained in `verification-strict-before-eof-fix.json`,
+Machine-readable 63-migration evidence is in `verification-revisions.json`;
+`deploy-managed.ps1` pins every migration and the bootstrap hash against it and
+also verifies the first 62 files against the preserved `verification-strict.json`
+staging-parity checkpoint. Historical failure evidence is retained in `verification-strict-before-eof-fix.json`,
 `verification-repaired.json`, and `replay-repair.json`. Evidence records the
 image digest, raw and normalized migration hashes, migration order, schema
 hashes/counts, comparison result and cleanup. The correction-level old/new raw
 and normalized hashes are in `sql-eof-correction-audit.json`.
-Future migration application must use a separately approved empty target;
-this work does not authorize production setup or cutover.
+Future migration application must use the new empty-target guard; production
+project provisioning and cutover are not authorized here.
+
+## Production recovery preparation
+
+Choose the production Supabase plan and retention requirement before provisioning.
+Supabase documents daily managed database backups on paid plans and PITR as a
+paid add-on; confirm exact project availability, retention, download/restore
+behavior, and cost in the selected account before relying on it. Keep an
+independent encrypted logical export on a separate owner-controlled storage
+location. A restore drill must target an isolated project with matching
+PostgreSQL/extensions, verify the migration ledger and catalog, then reconcile
+row counts and domain invariants. Keep Cron disabled or its jobs unscheduled
+until webhook/outbox destinations and Vault are verified; restored network jobs
+can produce external effects. Separately preserve the Vault root key and
+required application encryption/signing keys when choosing a logical restore
+path. Supabase's logical dump and project-restore procedures have different
+coverage; a schema-only pre-bootstrap checkpoint is not a substitute for a
+tested production backup/restore. No plan, PITR add-on, backup or restore was
+provisioned or exercised by this task.

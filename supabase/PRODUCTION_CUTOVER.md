@@ -64,9 +64,12 @@ historical release report.
 All gates require dated, reviewable evidence attached to the release record:
 
 1. Production inventory is confirmed from current owner-controlled records.
-2. The clean target is reproducible: an audited schema-bootstrap artifact
-   exists, then the 62 Supabase migrations apply in a clean, version-matched
-   rehearsal database with no unexplained drift.
+2. The clean target is reproducible: the audited `application.sql` baseline
+   and all 63 Supabase migrations apply in a clean, version-matched rehearsal
+   database with no unexplained drift. Use
+   [`bootstrap/deploy-managed.ps1`](bootstrap/deploy-managed.ps1) only for a
+   separately approved, new empty managed project; it fails closed on any
+   existing app schema, migration record, Auth user or Storage object.
 3. Full data migration/import and restore rehearsal passes row, key, foreign
    key, tombstone, identity, billing, numeric/domain, export and authorization
    reconciliation.
@@ -96,25 +99,32 @@ Only after separate infrastructure approval:
 1. Provision or designate a **separate production Supabase project** in the
    owner-approved region and plan. Do not use staging ref
    `admyuepbbtstayaydjmo`; do not assume another production ref exists.
-2. Apply the reviewed clean-schema bootstrap, then the checked-in Supabase
-   migrations in the rehearsed order. Do not run only those 62 migrations on
-   an empty project: they do not include a complete application-table
-   baseline. Confirm Postgres major version and extensions first.
+2. Apply `supabase/bootstrap/managed-prerequisites.sql`, explicitly apply
+   `supabase/bootstrap/application.sql`, inspect the empty migration ledger,
+   dry-run, then apply the 63 checked-in migrations in order using the guarded
+   managed bootstrap procedure. `application.sql` is not discovered by
+   `supabase db push`. Never run `local-managed-fixture.sql` on a managed
+   project. Confirm Postgres major version and extensions first.
 3. Configure restricted runtime and worker DB roles, private `al_private`
    schema/RPC permissions, no browser table grants, Data API policy, Vault,
    Realtime private Broadcast authorization, and exactly named Cron jobs.
-   Inspect effective grants, not only migration source.
+   Disable the Dashboard Data API for browser access and verify the REST and
+   GraphQL endpoints are unavailable; inspect effective grants, not only
+   migration source. Supabase Auth remains unused.
 4. Configure production secrets only in Supabase Edge/Vault. Use unique
    production keys; maintain temporary key overlap only where explicitly
    needed for JWT/offline/integration ciphertext compatibility. Do not reuse
    staging secrets or place secrets in CI build variables, Wrangler vars, or
    Vite output.
-5. Prepare a separate production Wrangler config named for the production
-   Worker, with the exact production Supabase origin, production-only bindings,
-   `dist/`, SPA fallback, and Worker-first `/api/*`. Keep
-   `wrangler.jsonc` staging-only. Add a protected manual production workflow
-   with least-privilege credentials, reviewed commit SHA, approval, dry-run,
-   and explicit project/Worker assertions before deployment.
+5. Use the isolated `wrangler.production.jsonc` template for
+   `adaptive-lifting-production`; it has the `app.goatedmethod.me/*` route,
+   `workers_dev=false`, `dist/`, SPA fallback, Worker-first `/api/*`, and a
+   fail-closed production-ref placeholder. After provisioning, generate the
+   ignored local config with `scripts/prepare-production-wrangler.mjs` and
+   validate/build with `npm run build:production`. Keep `wrangler.jsonc`
+   staging-only. Add a protected manual production release workflow with
+   least-privilege credentials, reviewed SHA, approval, dry-run, and explicit
+   project/Worker assertions before deployment.
 6. Keep `API_BASE_URL` relative/empty in the production browser build. Public
    Google client ID/offline public key may be built only when approved; no DB,
    Supabase service-role, JWT private, provider, email, Stripe, webhook,
@@ -124,10 +134,64 @@ Only after separate infrastructure approval:
    host-only session cookie, HttpOnly, Secure, SameSite=Lax and `/` path. No
    wildcard or staging origin. Check settings by actual runtime and provider
    flow; never add a diagnostic endpoint exposing environment values.
+   `APP_URL` is `https://app.goatedmethod.me` and feeds email verification,
+   Telegram Mini App links, Google Sheets' exact
+   `/api/integrations/google-sheets/callback`, and billing return URLs. Keep
+   provider flags disabled until their individually approved callbacks and
+   redirect E2E checks pass. Realtime uses a separate short-lived signed
+   token and the same production project origin; the Worker does not proxy its
+   WebSocket traffic.
 8. Preserve same-origin `/api/*`, untouched Set-Cookie, private/no-store API
-   responses and direct Realtime WebSocket behavior. Select the existing
-   owner-confirmed domain if still controlled; do not purchase/transfer a
-   domain as part of this runbook.
+   responses and direct Realtime WebSocket behavior. A read-only Cloudflare
+   inspection found the active `goatedmethod.me` zone and a proxied
+   `app.goatedmethod.me` CNAME to a Cloudflare Tunnel with no Worker route.
+   The prepared config uses a Worker route to avoid deleting that CNAME;
+   confirm its current owner, route precedence and rollback before attaching it.
+   Do not purchase/transfer a domain or change DNS as part of this preparation.
+
+## Registration and recovery service gates
+
+The custom registration route requires email verification for new password
+accounts (`EMAIL_VERIFICATION_NEW_ACCOUNTS=true` by default). Without a
+configured, verified email sender and successful delivery, self-service signup
+cannot complete verification; treat sender setup as an onboarding gate. It
+does not block synthetic testing or access by an already-authorized account.
+No Supabase Auth is used. Optional provider flags remain false until their
+individual callback/redirect E2E succeeds.
+
+Choose a production plan and recovery objective before project provisioning.
+Supabase documents managed daily database backups on paid plans; PITR is a
+paid add-on. Confirm plan-specific retention, export access, restore behavior,
+and pricing in the owner account. Maintain an independent encrypted logical
+export and rehearse restore into an isolated project with the same Postgres
+major version and extensions. Validate migration ledger/catalog, FKs, row
+counts and domain invariants before switching traffic. Separately preserve
+Vault root-key custody and application encryption/signing keys for any logical
+restore, and inspect/disable Cron or network jobs before they can dispatch
+externally. A new-project schema-only bootstrap checkpoint is not a verified
+backup/restore drill; recovery remains a launch gate until one is completed.
+See the current [Supabase backup guide](https://supabase.com/docs/guides/database/backups)
+and [PITR billing details](https://supabase.com/docs/guides/platform/manage-your-usage/point-in-time-recovery).
+
+## Owner approval and cost boundary
+
+This repository prepares commands only. Separate explicit owner approval is
+required before creating/designating a production Supabase project, choosing a
+region or plan, adding/upgrading any paid plan or PITR add-on, setting
+production secrets, creating/deploying the production Worker, attaching the
+domain route, changing DNS, activating email or another provider, or importing
+historical user/billing data. Recheck the selected Cloudflare account's current
+quota and cost controls before release; staging's Free-plan confirmation does
+not provision production.
+
+Supabase's current production checklist warns that Free projects may pause
+after seven days of low activity and that database backups are not downloadable
+on Free; verify the chosen plan's exact backup, retention, restore and compute
+terms in the owner account before relying on it. Daily backup retention and
+PITR availability/cost are plan-specific. Email delivery, payment processing,
+domain renewal and external provider quotas are separate cost/approval
+decisions. See the [Supabase production checklist](https://supabase.com/docs/guides/deployment/going-into-prod)
+and [managed database backup documentation](https://supabase.com/docs/guides/database/overview).
 
 ## 4. Data migration rehearsal
 
@@ -140,7 +204,7 @@ or support.
 
 Rehearse, in order:
 
-1. Reproduce target schema from the bootstrap artifact plus all 62 checked-in
+1. Reproduce target schema from the bootstrap artifact plus all 63 checked-in
    Supabase migrations. Store catalog diff and migration SHA evidence.
 2. Restore the encrypted source snapshot into an isolated PostgreSQL instance;
    record source schema and data digests. Use compatible `pg_dump`/`pg_restore`

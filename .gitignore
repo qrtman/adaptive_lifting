@@ -41,3 +41,4 @@ certs/
 .dev.vars**
 
 .wrangler/
+wrangler.production.local.jsonc
