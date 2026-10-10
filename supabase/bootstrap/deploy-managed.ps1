@@ -67,7 +67,7 @@ function Get-ExpectedVersions {
   if ($bootstrapHash -ne $evidence.bootstrap_sha256_lf.ToLowerInvariant()) {
     Stop-Safely 'application.sql differs from strict replay evidence'
   }
-  return ,$versions
+  return [pscustomobject]@{ Versions = $versions; Evidence = $evidence }
 }
 
 function Get-LfSha256([string]$Path) {
@@ -167,7 +167,9 @@ function Invoke-Supabase([string[]]$Arguments, [switch]$Capture) {
 }
 
 try {
-  $versions = Get-ExpectedVersions
+  $expectedMigrations = Get-ExpectedVersions
+  $versions = @($expectedMigrations.Versions)
+  $evidence = $expectedMigrations.Evidence
   if ($ValidateFilesOnly) {
     Write-Host "File validation PASS: exact baseline hash and $($versions.Count) ordered migrations match strict replay evidence."
     exit 0
@@ -190,6 +192,11 @@ try {
   $setPgPassword = $true
   $script:psqlPath = (Get-Command psql -ErrorAction Stop).Source
   $script:supabasePath = (Get-Command supabase -ErrorAction Stop).Source
+  $cliVersionOutput = & $script:supabasePath --version 2>&1 | Out-String
+  $cliVersionExitCode = $LASTEXITCODE
+  try { $validatedCliVersion = Assert-SupabaseCliVersion -ExitCode $cliVersionExitCode -Output $cliVersionOutput }
+  catch { Stop-Safely $_.Exception.Message }
+  Write-Host "Supabase CLI compatibility PASS: version $validatedCliVersion; explicit --db-url mode only."
   $script:pythonPath = (Get-Command python -ErrorAction Stop).Source
   & $script:pythonPath -c 'import sqlalchemy' 2>$null
   if ($LASTEXITCODE -ne 0) { Stop-Safely 'install supabase/bootstrap/requirements.txt before applying; catalog comparison uses the validated schema checker' }
@@ -248,27 +255,12 @@ try {
     foreach ($field in @('name','organization_id','region','status','id')) {
       if ($matches[0].PSObject.Properties.Name -contains $field) { $projectIdentity[$field] = $matches[0].$field }
     }
-    $hashEvidence = @($evidence.migrations | ForEach-Object { [ordered]@{ file = $_.file; sha256_raw = $_.sha256_raw } })
-    $checkpointManifest = [ordered]@{
-      checkpoint_kind = 'psql-read-only-empty-database-catalog'
-      restorable_backup = $false
-      warning = 'NOT A RESTORABLE BACKUP. This catalog snapshot cannot restore this database.'
-      project_identity = $projectIdentity
-      connection = [ordered]@{ mode = 'SessionPooler'; host = $script:dbTarget.Host; port = $script:dbTarget.Port; username = $script:dbTarget.Username; sslmode = 'require' }
-      database = [ordered]@{ name = 'postgres'; role = 'postgres'; server_version = $emptyStateBeforeSnapshot.ServerVersion; server_major = $emptyStateBeforeSnapshot.ServerVersionMajor }
-      empty_state = [ordered]@{
-        public_objects = $emptyStateBeforeSnapshot.PublicObjects
-        migration_ledger_exists = $emptyStateBeforeSnapshot.MigrationLedgerExists
-        migration_ledger_rows = $emptyStateBeforeSnapshot.MigrationLedgerRows
-        application_schema_count = $emptyStateBeforeSnapshot.ApplicationSchemaCount
-        relevant_user_data_rows = $emptyStateBeforeSnapshot.UserDataCounts
-      }
-      catalog_snapshot = [ordered]@{ file = [IO.Path]::GetFileName($snapshotPath); bytes = $snapshotArtifact.Length; sha256 = $snapshotArtifact.Sha256; query_digest = $catalogDigest }
-      application_baseline_sha256_lf = Get-LfSha256 (Join-Path $bootstrap 'application.sql')
-      migrations = $hashEvidence
-      captured_at_utc = [DateTime]::UtcNow.ToString('o')
-      note = 'Protected, read-only structural catalog evidence for a verified empty project; not a data dump or restore point.'
-    }
+    try {
+      $checkpointManifest = New-ManagedCheckpointManifest -ProjectRef $ProjectRef -ProjectIdentity $projectIdentity `
+        -DatabaseState $emptyStateBeforeSnapshot -SnapshotArtifact $snapshotArtifact `
+        -SnapshotFile ([IO.Path]::GetFileName($snapshotPath)) -CatalogDigest $catalogDigest `
+        -BaselineSha256 (Get-LfSha256 (Join-Path $bootstrap 'application.sql')) -Migrations $evidence.migrations
+    } catch { Stop-Safely $_.Exception.Message }
     $manifestPath = Join-Path $checkpoint 'checkpoint-manifest.json'
     Write-ManagedReadOnlyCheckpointFile -Path $manifestPath -Content ($checkpointManifest | ConvertTo-Json -Depth 8) | Out-Null
     Assert-CheckpointArtifact $manifestPath
@@ -328,13 +320,8 @@ try {
   foreach ($artifactPath in $checkpointFiles) { Assert-CheckpointArtifact $artifactPath }
   Write-Host "Checkpoint PASS: $($checkpointFiles.Count) protected artifacts outside the repository. This is NOT a restorable backup."
 
-  # Managed extensions/services first, then the explicit historical baseline.
-  Invoke-DbFile (Join-Path $bootstrap 'managed-prerequisites.sql')
-  Invoke-DbFile (Join-Path $bootstrap 'application.sql')
-  $tableCount = [int](Invoke-DbQuery "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname <> 'alembic_version';")
-  if ($tableCount -ne 35) { Stop-Safely "baseline verification failed after write (expected 35 tables, found $tableCount); preserve state and do not rerun" }
-
-  # Isolated CLI workdir ensures this cannot use the repository's staging link.
+  # Exercise this exact CLI's explicit URL mode and complete dry run before any
+  # managed prerequisite or baseline SQL can change the target.
   $workdir = Join-Path ([IO.Path]::GetTempPath()) ("adaptive-lifting-prod-bootstrap-" + [guid]::NewGuid().ToString('N'))
   $supabaseDir = Join-Path $workdir 'supabase'
   New-Item -ItemType Directory -Path (Join-Path $supabaseDir 'migrations') -Force | Out-Null
@@ -349,6 +336,16 @@ schema_paths = []
 enabled = false
 '@ | ForEach-Object { [IO.File]::WriteAllText((Join-Path $supabaseDir 'config.toml'), $_, [Text.UTF8Encoding]::new($false)) }
   Copy-Item (Join-Path $migrationDir '*.sql') (Join-Path $supabaseDir 'migrations')
+  $dryRunArgs = Get-ManagedMigrationCliArguments -Action DryRun -Workdir $workdir -ProjectRef $ProjectRef -DbUrl $script:dbTarget.CliDbUrl
+  $prewriteDryRun = Invoke-Supabase -Arguments $dryRunArgs -Capture
+  Assert-VersionList (Get-VersionIds $prewriteDryRun) $versions 'prewrite migration dry run'
+  Write-Host 'Prewrite CLI check PASS: pinned CLI connected through the explicit production URL and reported exactly 63 migrations; no database writes have occurred.'
+
+  # Managed extensions/services first, then the explicit historical baseline.
+  Invoke-DbFile (Join-Path $bootstrap 'managed-prerequisites.sql')
+  Invoke-DbFile (Join-Path $bootstrap 'application.sql')
+  $tableCount = [int](Invoke-DbQuery "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname <> 'alembic_version';")
+  if ($tableCount -ne 35) { Stop-Safely "baseline verification failed after write (expected 35 tables, found $tableCount); preserve state and do not rerun" }
 
   $migrationListArgs = Get-ManagedMigrationCliArguments -Action List -Workdir $workdir -ProjectRef $ProjectRef -DbUrl $script:dbTarget.CliDbUrl
   $migrationList = Invoke-Supabase -Arguments $migrationListArgs -Capture

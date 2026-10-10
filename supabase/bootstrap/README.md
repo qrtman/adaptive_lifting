@@ -85,15 +85,31 @@ Cron jobs when those managed tables exist. Its default mode performs only
 those checks. `-Apply` requires a private checkpoint directory outside the
 repository and typed confirmation of the project ref before applying anything.
 
-The ordered application procedure is: managed prerequisites, explicit
-`application.sql` application, isolated temporary Supabase CLI workdir with
-only these 63 migration files, explicit-target migration-list inspection, dry
-run, strict dry-run version-set assertion, `db push --skip-vault`, exact ledger
-version assertion, managed postflight, and rollback-only synthetic
-`test_behavior.sql`. The script deliberately does not use `--include-all`, seed
-files, `migration repair`, or automatic reset. It stops on any mismatch and
-requires a forward recovery review; rerunning from an already nonempty schema
-is refused. For a future preflight-only check:
+The ordered application procedure is: create the protected checkpoint, run
+the pinned CLI's explicit-URL dry run and validate all 63 versions before any
+SQL write, apply managed prerequisites, apply explicit `application.sql`, then
+use the isolated temporary Supabase CLI workdir containing only these 63
+migration files for migration-list inspection, a second dry run, strict
+version-set assertion, `db push --skip-vault`, exact ledger version assertion,
+managed postflight, and rollback-only synthetic `test_behavior.sql`. The
+script deliberately does not use `--include-all`, seed files,
+`migration repair`, or automatic reset. It stops on any mismatch and requires
+a forward recovery review; rerunning from an already nonempty schema is
+refused. For a future preflight-only check:
+
+The workflow pins Supabase CLI `2.120.0` and validates the version before any
+database writes. This version rejects `--project-ref` when `--db-url` is used,
+so the migration list, dry-run and push commands select the target only by the
+validated, password-free production Session Pooler URL. They omit
+`--project-ref` and `--linked`; an isolated temporary workdir also prevents
+fallback to the repository's staging link. `PGPASSWORD` is inherited from the
+locally entered `SUPABASE_DB_PASSWORD` value; neither variable is placed in a
+CLI argument or database URL.
+Compatibility was checked with the actual v2.120.0 CLI: the combined
+`--project-ref`/`--db-url` form returns `MigrationTargetFlagsError`, while
+password-free `--db-url` migration listing and a dry run of all 63 migrations
+succeeded against an isolated disposable PostgreSQL database using inherited
+`PGPASSWORD`. No managed project was contacted during this check.
 
 ```powershell
 .\supabase\bootstrap\deploy-managed.ps1 -ValidateFilesOnly
@@ -120,13 +136,11 @@ The command does not echo or accept the password as an argument. Example:
 ```
 
 `psql` receives the same exact host, port and username; the Supabase CLI gets
-the corresponding password-free connection URI pinned to this project. The
-secret is inherited only through the process environment; no password is
-included in CLI arguments. The isolated CLI
-workdir contains no staging link, and migration list/dry-run/push all receive
-the explicit project ref and `--db-url`; `--linked` is not used. `--skip-vault`
-prevents deployment-time Vault secret sync. An interactive exact-project
-confirmation remains required before a checkpoint or SQL write.
+the corresponding password-free connection URI, which the argument builder
+checks against the authorized project, pooler, username, port and TLS mode.
+`--skip-vault` prevents deployment-time Vault secret sync. An interactive
+exact-project confirmation remains required before a checkpoint or SQL
+write.
 
 By default, `-Apply` verifies `pg_dump --version` and captures the existing
 schema-only checkpoint. The narrowly scoped `-EmptyDatabasePsqlCheckpoint`

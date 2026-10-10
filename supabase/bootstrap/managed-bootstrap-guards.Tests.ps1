@@ -163,22 +163,97 @@ Describe 'psql empty-database checkpoint gates' {
 }
 
 Describe 'Managed migration CLI safety' {
-  It 'uses explicit project and session-pooler URL for list, dry-run and push' {
+  It 'uses only the exact password-free production URL for list, dry-run and push without a linked ref' {
     $url = "postgresql://$expectedPoolerUser@$poolerHost`:5432/postgres?sslmode=require"
     $previousTestPassword = $env:SUPABASE_DB_PASSWORD
+    $previousPgPassword = $env:PGPASSWORD
     $env:SUPABASE_DB_PASSWORD = 'test-only-secret-marker'
+    $env:PGPASSWORD = 'test-only-pg-secret-marker'
     try {
       foreach ($action in @('List', 'DryRun', 'Push')) {
         $args = Get-ManagedMigrationCliArguments -Action $action -Workdir 'C:\isolated\supabase' -ProjectRef $prodRef -DbUrl $url
         ($args -join ' ') | Should Match ([regex]::Escape($url))
-        ($args -join ' ') | Should Match ([regex]::Escape($prodRef))
-        ($args -join ' ') | Should Not Match 'password|--linked|--include-all'
+        ($args -join ' ') | Should Not Match '--project-ref|--linked|--include-all'
         ($args -join ' ') | Should Not Match 'test-only-secret-marker'
+        ($args -join ' ') | Should Not Match 'test-only-pg-secret-marker'
       }
     } finally {
       if ($null -eq $previousTestPassword) { Remove-Item Env:\SUPABASE_DB_PASSWORD -ErrorAction SilentlyContinue }
       else { $env:SUPABASE_DB_PASSWORD = $previousTestPassword }
+      if ($null -eq $previousPgPassword) { Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue }
+      else { $env:PGPASSWORD = $previousPgPassword }
     }
+  }
+
+  It 'rejects a non-production or password-bearing migration URL' {
+    { Get-ManagedMigrationCliArguments -Action List -Workdir 'C:\isolated\supabase' -ProjectRef $stagingRef -DbUrl "postgresql://postgres.$stagingRef@aws-0-ap-northeast-2.pooler.supabase.com`:5432/postgres?sslmode=require" } | Should Throw
+    { Get-ManagedMigrationCliArguments -Action List -Workdir 'C:\isolated\supabase' -ProjectRef $prodRef -DbUrl "postgresql://postgres:secret@$poolerHost`:5432/postgres?sslmode=require" } | Should Throw
+    { Get-ManagedMigrationCliArguments -Action List -Workdir 'C:\isolated\supabase' -ProjectRef $prodRef -DbUrl "postgresql://$expectedPoolerUser@aws-0-ap-northeast-1.pooler.supabase.com`:5432/postgres?sslmode=require" } | Should Throw
+  }
+
+  It 'pins the migration workflow to the CLI version verified for explicit db-url mode' {
+    Assert-SupabaseCliVersion -ExitCode 0 -Output "2.120.0`n" | Should Be '2.120.0'
+    Assert-SupabaseCliVersion -ExitCode 0 -Output "supabase 2.120.0`n" | Should Be '2.120.0'
+    { Assert-SupabaseCliVersion -ExitCode 0 -Output '2.121.0' } | Should Throw
+    { Assert-SupabaseCliVersion -ExitCode 1 -Output '2.120.0' } | Should Throw
+  }
+
+  It 'runs the pinned CLI version check and 63-migration dry run before the first managed SQL write' {
+    $scriptPath = Join-Path $PSScriptRoot 'deploy-managed.ps1'
+    $scriptText = Get-Content -LiteralPath $scriptPath -Raw
+    $versionCheck = $scriptText.IndexOf('Assert-SupabaseCliVersion')
+    $prewriteDryRun = $scriptText.IndexOf('$prewriteDryRun = Invoke-Supabase')
+    $firstDatabaseWrite = $scriptText.IndexOf("Invoke-DbFile (Join-Path `$bootstrap 'managed-prerequisites.sql')")
+    $versionCheck | Should BeGreaterThan -1
+    $prewriteDryRun | Should BeGreaterThan $versionCheck
+    $firstDatabaseWrite | Should BeGreaterThan $prewriteDryRun
+  }
+
+  It 'writes the checkpoint manifest with exactly 63 migration filenames and hashes' {
+    $evidencePath = Join-Path $PSScriptRoot 'verification-revisions.json'
+    $evidence = Get-Content -LiteralPath $evidencePath -Raw | ConvertFrom-Json
+    $state = New-EmptyTestState
+    $state | Add-Member -NotePropertyName ServerVersion -NotePropertyValue '17.11'
+    $identity = [ordered]@{ project_ref = $prodRef; name = 'adaptive-lifting-production' }
+    $artifact = [pscustomobject]@{ Length = 18; Sha256 = 'a' * 64 }
+    $manifest = New-ManagedCheckpointManifest -ProjectRef $prodRef -ProjectIdentity $identity `
+      -DatabaseState $state -SnapshotArtifact $artifact -SnapshotFile 'catalog.json' `
+      -CatalogDigest ('b' * 64) -BaselineSha256 ('c' * 64) -Migrations $evidence.migrations
+    $dir = Join-Path $env:TEMP ("bootstrap-manifest-test-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    $path = Join-Path $dir 'checkpoint-manifest.json'
+    try {
+      Write-ManagedReadOnlyCheckpointFile -Path $path -Content ($manifest | ConvertTo-Json -Depth 8) | Out-Null
+      $written = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+      $written.restorable_backup | Should Be $false
+      $written.migrations.Count | Should Be 63
+      for ($index = 0; $index -lt 63; $index++) {
+        $written.migrations[$index].file | Should Be $evidence.migrations[$index].file
+        $written.migrations[$index].sha256_raw | Should Be $evidence.migrations[$index].sha256_raw
+      }
+    } finally {
+      if (Test-Path -LiteralPath $path) { [IO.File]::SetAttributes($path, [IO.FileAttributes]::Normal) }
+      Remove-Item -LiteralPath $dir -Recurse -Force
+    }
+  }
+
+  It 'rejects incomplete or malformed checkpoint migration hash evidence' {
+    $evidence = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'verification-revisions.json') -Raw | ConvertFrom-Json
+    $state = New-EmptyTestState
+    $state | Add-Member -NotePropertyName ServerVersion -NotePropertyValue '17.11'
+    $manifestArgs = @{
+      ProjectRef = $prodRef
+      ProjectIdentity = [ordered]@{ project_ref = $prodRef }
+      DatabaseState = $state
+      SnapshotArtifact = [pscustomobject]@{ Length = 1; Sha256 = 'a' * 64 }
+      SnapshotFile = 'catalog.json'
+      CatalogDigest = 'b' * 64
+      BaselineSha256 = 'c' * 64
+    }
+    { New-ManagedCheckpointManifest @manifestArgs -Migrations $evidence.migrations[0..61] } | Should Throw
+    $badMigrations = @($evidence.migrations)
+    $badMigrations[10] = [pscustomobject]@{ file = $badMigrations[10].file; sha256_raw = 'not-a-hash' }
+    { New-ManagedCheckpointManifest @manifestArgs -Migrations $badMigrations } | Should Throw
   }
 
   It 'rejects a mismatched remote migration ledger version set' {

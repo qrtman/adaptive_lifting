@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 
 $script:ProductionProjectRef = 'gadusaizqnshxqcckibq'
 $script:ProductionSessionPoolerHost = 'aws-0-ap-northeast-2.pooler.supabase.com'
+$script:RequiredSupabaseCliVersion = '2.120.0'
 
 function Assert-ManagedTarget {
   [CmdletBinding()]
@@ -199,6 +200,65 @@ function Complete-ManagedCliResult {
   return $safeOutput
 }
 
+function Assert-SupabaseCliVersion {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][int]$ExitCode,
+    [Parameter(Mandatory)][AllowEmptyString()][string]$Output
+  )
+  if ($ExitCode -ne 0) { throw 'Supabase CLI version check failed' }
+  $match = [regex]::Match($Output, '(?m)^\s*(?:supabase(?:\s+CLI)?\s+)?v?(\d+\.\d+\.\d+)\s*$')
+  if (-not $match.Success -or $match.Groups[1].Value -cne $script:RequiredSupabaseCliVersion) {
+    throw "Supabase CLI $script:RequiredSupabaseCliVersion is required for the guarded explicit database URL workflow"
+  }
+  return $match.Groups[1].Value
+}
+
+function New-ManagedCheckpointManifest {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$ProjectRef,
+    [Parameter(Mandatory)][psobject]$ProjectIdentity,
+    [Parameter(Mandatory)][psobject]$DatabaseState,
+    [Parameter(Mandatory)][psobject]$SnapshotArtifact,
+    [Parameter(Mandatory)][string]$SnapshotFile,
+    [Parameter(Mandatory)][string]$CatalogDigest,
+    [Parameter(Mandatory)][string]$BaselineSha256,
+    [Parameter(Mandatory)][object[]]$Migrations
+  )
+  if ($ProjectRef -cne $script:ProductionProjectRef) { throw 'checkpoint manifest is restricted to the authorized production project' }
+  if ($Migrations.Count -ne 63) { throw 'checkpoint manifest must contain exactly 63 checked-in migrations' }
+  if ($CatalogDigest -cnotmatch '^[a-f0-9]{64}$' -or $BaselineSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'checkpoint manifest contains an invalid SHA-256 digest' }
+  $migrationEvidence = @()
+  foreach ($migration in $Migrations) {
+    if ($migration.file -notmatch '^\d{14}_[a-z0-9_]+\.sql$' -or $migration.sha256_raw -cnotmatch '^[a-f0-9]{64}$') {
+      throw 'checkpoint manifest contains malformed migration hash evidence'
+    }
+    $migrationEvidence += [ordered]@{ file = $migration.file; sha256_raw = $migration.sha256_raw }
+  }
+  if (@($migrationEvidence.file | Sort-Object -Unique).Count -ne 63) { throw 'checkpoint manifest migration filenames are not unique' }
+  return [ordered]@{
+    checkpoint_kind = 'psql-read-only-empty-database-catalog'
+    restorable_backup = $false
+    warning = 'NOT A RESTORABLE BACKUP. This catalog snapshot cannot restore this database.'
+    project_identity = $ProjectIdentity
+    connection = [ordered]@{ mode = 'SessionPooler'; host = $script:ProductionSessionPoolerHost; port = 5432; username = "postgres.$ProjectRef"; sslmode = 'require' }
+    database = [ordered]@{ name = 'postgres'; role = 'postgres'; server_version = $DatabaseState.ServerVersion; server_major = $DatabaseState.ServerVersionMajor }
+    empty_state = [ordered]@{
+      public_objects = $DatabaseState.PublicObjects
+      migration_ledger_exists = $DatabaseState.MigrationLedgerExists
+      migration_ledger_rows = $DatabaseState.MigrationLedgerRows
+      application_schema_count = $DatabaseState.ApplicationSchemaCount
+      relevant_user_data_rows = $DatabaseState.UserDataCounts
+    }
+    catalog_snapshot = [ordered]@{ file = $SnapshotFile; bytes = $SnapshotArtifact.Length; sha256 = $SnapshotArtifact.Sha256; query_digest = $CatalogDigest }
+    application_baseline_sha256_lf = $BaselineSha256
+    migrations = $migrationEvidence
+    captured_at_utc = [DateTime]::UtcNow.ToString('o')
+    note = 'Protected, read-only structural catalog evidence for a verified empty project; not a data dump or restore point.'
+  }
+}
+
 function Get-ManagedMigrationCliArguments {
   [CmdletBinding()]
   param(
@@ -207,9 +267,13 @@ function Get-ManagedMigrationCliArguments {
     [Parameter(Mandatory)][string]$ProjectRef,
     [Parameter(Mandatory)][string]$DbUrl
   )
-  # The URI intentionally contains no password. The caller provides the secret
-  # only through the inherited process environment.
-  $common = @('--workdir', $Workdir, '--project-ref', $ProjectRef)
+  if ($ProjectRef -cne $script:ProductionProjectRef) { throw 'migration CLI target is not the explicitly authorized production project' }
+  $expectedUrl = "postgresql://postgres.$ProjectRef@$script:ProductionSessionPoolerHost`:5432/postgres?sslmode=require"
+  if ($DbUrl -cne $expectedUrl) { throw 'migration CLI URL must be the exact password-free production Session Pooler URL' }
+  # v2.120.0 rejects --project-ref with --db-url. The exact database URL is
+  # the target selector; omitting --linked and using an isolated workdir
+  # prevents fallback to the repository's staging link.
+  $common = @('--workdir', $Workdir)
   switch ($Action) {
     'List' { return ,($common + @('migration', 'list', '--db-url', $DbUrl)) }
     'DryRun' { return ,($common + @('db', 'push', '--db-url', $DbUrl, '--dry-run', '--skip-vault')) }
@@ -231,4 +295,4 @@ function Assert-CheckpointTool {
   return $ToolPath
 }
 
-Export-ModuleMember -Function Assert-ManagedTarget, Assert-ManagedVersionList, Assert-EmptyPsqlCheckpointAllowed, Assert-EmptyDatabaseState, Assert-CatalogSnapshotStable, New-ManagedProtectedCheckpointDirectory, Write-ManagedReadOnlyCheckpointFile, Complete-ManagedCliResult, Get-ManagedMigrationCliArguments, Assert-CheckpointTool
+Export-ModuleMember -Function Assert-ManagedTarget, Assert-ManagedVersionList, Assert-EmptyPsqlCheckpointAllowed, Assert-EmptyDatabaseState, Assert-CatalogSnapshotStable, New-ManagedProtectedCheckpointDirectory, Write-ManagedReadOnlyCheckpointFile, Complete-ManagedCliResult, Assert-SupabaseCliVersion, New-ManagedCheckpointManifest, Get-ManagedMigrationCliArguments, Assert-CheckpointTool
