@@ -1,0 +1,105 @@
+{
+  "cli_version": "codex-cli 0.162.0",
+  "effective_native_config": {
+    "model": "gpt-6.1-sol",
+    "model_reasoning_effort": "low",
+    "agents": {
+      "enabled": true,
+      "max_concurrent_threads_per_session": 3,
+      "default_subagent_model": "gpt-6-luna",
+      "default_subagent_reasoning_effort": "low"
+    }
+  },
+  "tier_selections": {
+    "1": {
+      "model": "gpt-6-luna",
+      "reasoning_effort": "low",
+      "fallback": false
+    },
+    "2": {
+      "model": "gpt-6-luna",
+      "reasoning_effort": "low",
+      "fallback": false
+    },
+    "3": {
+      "model": "gpt-6-luna",
+      "reasoning_effort": "medium",
+      "fallback": false
+    },
+    "4": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "fallback": false
+    },
+    "5": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "fallback": false
+    }
+  },
+  "actual_spawns": [
+    {
+      "agent_path": "/root/routing_complex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "tokens_used": 352632,
+      "cli_version": "0.162.0"
+    },
+    {
+      "agent_path": "/root/routing_analysis",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "medium",
+      "tokens_used": 247685,
+      "cli_version": "0.162.0"
+    },
+    {
+      "agent_path": "/root/routing_search",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "low",
+      "tokens_used": 174183,
+      "cli_version": "0.162.0"
+    }
+  ],
+  "native_custom_role_probe": {
+    "actual_role_sessions": [
+      {
+        "agent_role": null,
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "low",
+        "tokens_used": 142596,
+        "cli_version": "0.162.0"
+      },
+      {
+        "agent_role": "architect",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low",
+        "tokens_used": 26628,
+        "cli_version": "0.162.0"
+      },
+      {
+        "agent_role": "engineer",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "medium",
+        "tokens_used": 26704,
+        "cli_version": "0.162.0"
+      },
+      {
+        "agent_role": "verifier",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium",
+        "tokens_used": 23189,
+        "cli_version": "0.162.0"
+      }
+    ],
+    "lead_turn_usage": {
+      "input_tokens": 142106,
+      "cached_input_tokens": 117120,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 490,
+      "reasoning_output_tokens": 0
+    },
+    "outcome": "PASS"
+  },
+  "credit_usage": "unavailable",
+  "remote_changes": "none"
+}

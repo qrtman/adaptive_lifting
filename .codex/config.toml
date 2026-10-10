@@ -1,0 +1,9 @@
+# Native Codex defaults. Per-task spawn overrides are required by AGENTS.md.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "low"
+
+[agents]
+enabled = true
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "low"
+max_concurrent_threads_per_session = 3

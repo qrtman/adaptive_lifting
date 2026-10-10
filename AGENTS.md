@@ -270,3 +270,39 @@ When asked to review, approve, or run a check cycle on the session constructor:
 4. **Speak coach language** in the user reply (Plan / Log, not API jargon).
 
 Next-cycle backlog (do not expand unless asked): per-set saved/syncing/failed on Log cells; `%` stored separately from RPE for Δ.
+
+## 6. Adaptive Codex routing
+
+Follow `docs/codex-routing.md` before every delegated task. The Lead defaults to
+`gpt-6.1-sol` / low, with `gpt-6-sol` / low as the availability fallback.
+Subagents default to `gpt-6-luna` / low. Classify the task before spawning:
+
+| Tier | Task | Model | Effort |
+| --- | --- | --- | --- |
+| 1 | Search, extraction, formatting, summary, simple validation | gpt-6-luna | low |
+| 2 | Straightforward implementation, simple tests, small fixes | gpt-6-luna | low |
+| 3 | Well-specified multi-file work, moderate analysis | gpt-6-luna | medium |
+| 4 | Complex implementation/debugging, architecture, integrations | gpt-6.1-sol | medium |
+| 5 | Auth security, database integrity, concurrency, migration safety, high-risk production decisions | gpt-6.1-sol | high |
+
+- Choose the cheapest sufficient tier. Importance alone does not determine complexity;
+  security-sensitive decisions require independent verification at an appropriate tier.
+- Use explicit native spawn model and effort overrides. Architect, Engineer and
+  Verifier are responsibilities; custom role files must not pin model or effort.
+- For unavailable Sol 6.1, select Sol 6 with the same allowed effort after checking
+  the actual catalog. No automatic Astra or other-model fallback.
+- Never select xhigh, max, ultra, Extra High or equivalent levels, including Lead,
+  retry, fallback and profile settings. High is the ceiling. Run the routing validator.
+- After one unsuccessful reasoned attempt diagnose first. Escalate only for demonstrated
+  complexity/capability limitations. Do not escalate for credentials, tools, permissions
+  or environment blockers, and do not repeat an unsuccessful approach unchanged.
+- Prefer Lead execution for small tasks. At most three simultaneous subagents;
+  overlapping file writes have one owner. Explicitly request delegation when needed.
+- Record agent, tier, model, effort, reason, escalation, and PASS/FAIL/BLOCKED/NOT TESTED.
+  Record actual usage when exposed; include retries and verification in task accounting.
+- Production safety requirements and exact-target authorizations remain in force.
+  Agent creation grants no additional permission to access credentials, deploy,
+  mutate remote data, change DNS, incur charges or weaken Windows security controls.
+- Defaults and the native concurrency cap are configured; the effort/model allowlist
+  is validated policy, not a verified runtime-wide lock. External overrides can bypass
+  project checks. Do not claim stronger technical enforcement.
