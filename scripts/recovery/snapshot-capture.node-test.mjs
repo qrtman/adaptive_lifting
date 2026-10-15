@@ -1,0 +1,152 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { captureSnapshot, quoteIdentifier, snapshotDumpArgs } from './snapshot-capture.mjs';
+
+const env = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted' };
+const relation = { schema: 'public', name: 'workouts', kind: 'r', persistence: 'p', inherited: false };
+const version = '20261001000000';
+function fixture({ inventory = [relation], rows = ['{"kg":9007199254740993.123,"deleted_at":null}'], chunks, failAt, rollbackFails = false } = {}) {
+  const queries = [];
+  let fetch = 0;
+  return { queries, async query(sql, values) {
+    queries.push({ sql, values });
+    if (failAt && sql.includes(failAt)) throw new Error('private-user-row secret-token');
+    if (sql === 'ROLLBACK' && rollbackFails) throw new Error('private-source');
+    if (sql.startsWith('SELECT current_database')) return { rows: [{ database: 'postgres', read_only: 'on', version: '170006', tls: true }] };
+    if (sql.includes('c.relkind AS kind')) return { rows: inventory };
+    if (sql.startsWith('SELECT version FROM')) return { rows: [{ version }] };
+    if (sql.startsWith('SELECT pg_export_snapshot')) return { rows: [{ snapshot: '00000003-0000001B-1', captured_at: '2026-10-15 00:00:00+00' }] };
+    if (sql.includes('a.attname AS name')) return { rows: [{ name: 'kg', type: 'numeric', not_null: false, identity: '', generated: '' }] };
+    if (sql.startsWith('FETCH')) return { rows: fetch++ === 0 ? (chunks ?? rows.map((payload) => ({ row_bytes: `${Buffer.byteLength(payload)}`, offset: '1', chunk: payload }))) : [] };
+    return { rows: [] };
+  } };
+}
+function options(client, more = {}) {
+  return { client, schemas: ['public', 'supabase_migrations'], expectedRelations: [relation], expectedVersions: [version],
+    env, platform: 'linux', captureArchive: async () => ({ encrypted: true }), persistManifest: async () => {}, ...more };
+}
+
+test('snapshot stays open until archive and encrypted manifest sinks finish; only ROLLBACK closes it', async () => {
+  const client = fixture();
+  let manifest;
+  const result = await captureSnapshot(options(client, {
+    captureArchive: async ({ snapshot, dumpArgs }) => {
+      assert.equal(snapshot, '00000003-0000001B-1');
+      assert.ok(dumpArgs.includes('--snapshot=00000003-0000001B-1'));
+      assert.ok(!client.queries.some((q) => q.sql === 'ROLLBACK'));
+      return { key: 'synthetic.age' };
+    }, persistManifest: async (value) => {
+      assert.ok(!client.queries.some((q) => q.sql === 'ROLLBACK'));
+      manifest = value;
+    },
+  }));
+  assert.equal(client.queries[0].sql, 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  assert.match(client.queries[1].sql, /row_security=off/);
+  assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  assert.equal(result.status, 'captured-restore-unverified');
+  const payload = '{"kg":9007199254740993.123,"deleted_at":null}';
+  const expected = createHash('sha256').update(`${Buffer.byteLength(payload)}:`).update(payload).digest('hex');
+  assert.equal(manifest.tables[0].sha256, expected);
+  assert.equal(manifest.tables[0].count, 1);
+  assert.match(client.queries.find((q) => q.sql.startsWith('DECLARE')).sql, /FROM ONLY "public"\."workouts"/);
+  assert.match(client.queries.find((q) => q.sql.startsWith('DECLARE')).sql, /FOR 16384/);
+});
+
+test('empty tables get a zero count and hash instead of being omitted', async () => {
+  const client = fixture({ rows: [] });
+  let manifest;
+  await captureSnapshot(options(client, { persistManifest: async (m) => { manifest = m; } }));
+  assert.equal(manifest.tables.length, 1);
+  assert.equal(manifest.tables[0].count, 0);
+  assert.equal(manifest.tables[0].sha256, createHash('sha256').digest('hex'));
+});
+
+test('chunked large UTF-8 rows hash losslessly without client-side whole-row buffering', async () => {
+  const payload = '한'.repeat(20000);
+  const client = fixture({ chunks: [
+    { row_bytes: `${Buffer.byteLength(payload)}`, offset: '1', chunk: payload.slice(0, 16384) },
+    { row_bytes: `${Buffer.byteLength(payload)}`, offset: '16385', chunk: payload.slice(16384) },
+  ] });
+  let manifest;
+  await captureSnapshot(options(client, { persistManifest: async (m) => { manifest = m; } }));
+  assert.equal(manifest.tables[0].count, 1);
+  assert.equal(manifest.tables[0].sha256, createHash('sha256').update(`${Buffer.byteLength(payload)}:`).update(payload).digest('hex'));
+});
+
+test('oversized or truncated manifest chunks fail closed', async () => {
+  for (const chunks of [
+    [{ row_bytes: '70000', offset: '1', chunk: 'x'.repeat(70000) }],
+    [{ row_bytes: '10', offset: '1', chunk: 'x' }],
+  ]) await assert.rejects(captureSnapshot(options(fixture({ chunks }))), /Snapshot capture failed/);
+});
+
+test('unreviewed or unsupported relations fail before archive output', async () => {
+  for (const inventory of [[], [{ ...relation, name: 'unknown' }], [{ ...relation, kind: 'p' }], [{ ...relation, inherited: true }]]) {
+    const client = fixture({ inventory });
+    let called = false;
+    await assert.rejects(captureSnapshot(options(client, { captureArchive: async () => { called = true; } })), /Snapshot capture failed/);
+    assert.equal(called, false);
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  }
+});
+
+test('migration mismatch fails before snapshot export and archive output', async () => {
+  const client = fixture();
+  await assert.rejects(captureSnapshot(options(client, { expectedVersions: ['20261002000000'] })), /Snapshot capture failed/);
+  assert.ok(!client.queries.some((q) => q.sql.startsWith('SELECT pg_export_snapshot')));
+  assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+});
+
+test('database identity mismatch, unverified TLS or server-major mismatch fail before capture', async () => {
+  for (const identity of [
+    { database: 'staging', read_only: 'on', version: '170006', tls: true },
+    { database: 'postgres', read_only: 'on', version: '170006', tls: false },
+    { database: 'postgres', read_only: 'on', version: '160010', tls: true },
+  ]) {
+    const client = fixture();
+    const original = client.query.bind(client);
+    client.query = async (sql, values) => sql.startsWith('SELECT current_database')
+      ? { rows: [identity] } : original(sql, values);
+    let archiveStarted = false;
+    await assert.rejects(captureSnapshot(options(client, { captureArchive: async () => { archiveStarted = true; } })), /Snapshot capture failed/);
+    assert.equal(archiveStarted, false);
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  }
+});
+
+test('archive, manifest and database failures always roll back and suppress sensitive diagnostics', async () => {
+  for (const stage of ['query', 'archive', 'manifest']) {
+    const client = fixture(stage === 'query' ? { failAt: 'FETCH' } : {});
+    const fail = async () => { throw new Error('private-user-row secret-token'); };
+    const sinks = stage === 'archive' ? { captureArchive: fail } : stage === 'manifest' ? { persistManifest: fail } : {};
+    await assert.rejects(captureSnapshot(options(client, sinks)), (error) => {
+      assert.doesNotMatch(JSON.stringify(error) + error.message, /private-user-row|secret-token/);
+      assert.equal(error.cause, undefined);
+      return true;
+    });
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  }
+});
+
+test('transaction cleanup failure never reports captured status', async () => {
+  await assert.rejects(captureSnapshot(options(fixture({ rollbackFails: true }))), /transaction cleanup failed/);
+});
+
+test('local/self-hosted capture rejects before touching supplied client', async () => {
+  const client = fixture();
+  for (const more of [{ env: {} }, { platform: 'win32' }, { env: { ...env, RUNNER_ENVIRONMENT: 'self-hosted' } }]) {
+    await assert.rejects(captureSnapshot(options(client, more)), /hosted Linux/);
+  }
+  assert.equal(client.queries.length, 0);
+});
+
+test('dump flags preserve owners and ACLs; snapshot/schema input cannot inject options or SQL', () => {
+  const args = snapshotDumpArgs('00000003-0000001B-1', ['public', 'al_private', 'supabase_migrations']);
+  assert.ok(args.includes('--strict-names') && args.includes('--file=-'));
+  assert.ok(!args.includes('--no-owner') && !args.includes('--no-acl'));
+  for (const value of ["x'; COMMIT;--", '--snapshot=other', '']) assert.throws(() => snapshotDumpArgs(value, ['public']));
+  assert.throws(() => snapshotDumpArgs('00000003-0000001B-1', ['public*']));
+  assert.equal(quoteIdentifier('a"b'), '"a""b"');
+  assert.throws(() => quoteIdentifier('a\0b'));
+});
