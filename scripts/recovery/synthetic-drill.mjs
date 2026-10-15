@@ -47,28 +47,83 @@ export function dockerRunArgs(name, image) {
   ];
 }
 
+export function assertCleanupOwnedInspect(inspect, name) {
+  const item = Array.isArray(inspect) ? inspect[0] : inspect;
+  const identity = name.match(/^al-synthetic-recovery-([a-z0-9-]+)-(source|restore)$/);
+  if (!item || !identity || item.Name !== `/${name}` ||
+      item.Config?.Labels?.['adaptive-lifting.synthetic-recovery'] !== 'true' ||
+      item.Config?.Labels?.['adaptive-lifting.synthetic-recovery-run'] !== identity[1]) {
+    throw new Error('Container cleanup ownership invariant failed.');
+  }
+  return true;
+}
+
+export function safeContainerSummary(inspect) {
+  const item = Array.isArray(inspect) ? inspect[0] : inspect;
+  if (!item) return { available: false };
+  const host = item.HostConfig ?? {};
+  const mounts = Array.isArray(item.Mounts) ? item.Mounts.map((mount) => ({
+    type: typeof mount.Type === 'string' ? mount.Type : 'unknown',
+    destination: typeof mount.Destination === 'string' ? mount.Destination : 'unknown',
+  })) : [];
+  return {
+    name: typeof item.Name === 'string' ? item.Name : null,
+    user: typeof item.Config?.User === 'string' ? item.Config.User : null,
+    networkMode: typeof host.NetworkMode === 'string' ? host.NetworkMode : null,
+    readonlyRootfs: host.ReadonlyRootfs === true,
+    portBindingCount: Object.keys(host.PortBindings ?? {}).length,
+    publishedPortCount: Object.values(item.NetworkSettings?.Ports ?? {}).filter(Boolean).length,
+    mounts,
+    tmpfsDestinations: Object.keys(host.Tmpfs ?? {}).sort(),
+  };
+}
+
 export function assertIsolatedInspect(inspect, name) {
   const item = Array.isArray(inspect) ? inspect[0] : inspect;
-  if (!item || item.Name !== `/${name}` || item.Config?.User !== 'postgres') throw new Error('Container identity or non-root user invariant failed.');
+  assertCleanupOwnedInspect(item, name);
+  if (item.Config?.User !== 'postgres') throw new Error('Container non-root user invariant failed.');
   if (item.HostConfig?.NetworkMode !== 'none') throw new Error('Container network isolation invariant failed.');
   if (Object.keys(item.HostConfig?.PortBindings ?? {}).length || Object.values(item.NetworkSettings?.Ports ?? {}).some((value) => value)) {
     throw new Error('Container port publishing invariant failed.');
   }
-  const mounts = item.Mounts ?? [];
-  const identity = name.match(/^al-synthetic-recovery-([a-z0-9-]+)-(source|restore)$/);
-  const mountDestinations = mounts.map((mount) => `${mount.Type}:${mount.Destination}`).sort();
-  if (JSON.stringify(mountDestinations) !== JSON.stringify(['tmpfs:/tmp', 'tmpfs:/var/lib/postgresql/data'])) {
-    throw new Error('Container mount invariant failed.');
-  }
-  if (!item.HostConfig?.Tmpfs?.['/tmp'] || !item.HostConfig?.Tmpfs?.['/var/lib/postgresql/data']) {
+  const expectedTmpfs = ['/tmp', '/var/lib/postgresql/data'];
+  const tmpfs = item.HostConfig?.Tmpfs;
+  if (!tmpfs || JSON.stringify(Object.keys(tmpfs).sort()) !== JSON.stringify(expectedTmpfs)) {
     throw new Error('Container PostgreSQL tmpfs invariant failed.');
   }
-  if (!identity || item.Config?.Labels?.['adaptive-lifting.synthetic-recovery'] !== 'true' ||
-      item.Config?.Labels?.['adaptive-lifting.synthetic-recovery-run'] !== identity[1]) {
-    throw new Error('Container label invariant failed.');
+  const mounts = item.Mounts ?? [];
+  if (!Array.isArray(mounts) || mounts.some((mount) => mount.Type !== 'tmpfs' || !expectedTmpfs.includes(mount.Destination)) ||
+      new Set(mounts.map((mount) => mount.Destination)).size !== mounts.length) {
+    throw new Error('Container mount invariant failed.');
+  }
+  if ((item.HostConfig?.Binds ?? []).length || (item.HostConfig?.Mounts ?? []).length ||
+      (item.HostConfig?.VolumesFrom ?? []).length) {
+    throw new Error('Container host mount invariant failed.');
   }
   if (!item.HostConfig?.ReadonlyRootfs) throw new Error('Container read-only root filesystem invariant failed.');
   return true;
+}
+
+export async function attemptAllCleanups(names, cleanupOne) {
+  const failures = [];
+  for (const name of names) {
+    try { await cleanupOne(name); } catch (error) {
+      const detail = error instanceof Error ? error.message : 'unknown cleanup failure';
+      failures.push(new Error(`${name}: ${detail}`, { cause: error }));
+    }
+  }
+  if (failures.length) throw new AggregateError(failures, `Container cleanup failed for ${failures.map((error) => error.message).join('; ')}.`);
+}
+
+export function combineRunErrors(stage, originalError, cleanupErrors) {
+  const cleanupMessages = cleanupErrors.map((error) => error.message);
+  if (originalError && cleanupErrors.length) {
+    const primary = new Error(`${stage}: ${originalError.message}`, { cause: originalError });
+    return new AggregateError([primary, ...cleanupErrors], `${primary.message}; cleanup failed: ${cleanupMessages.join('; ')}.`);
+  }
+  if (originalError) return new Error(`${stage}: ${originalError.message}`, { cause: originalError });
+  if (cleanupErrors.length) return new AggregateError(cleanupErrors, `Drill passed but cleanup failed: ${cleanupMessages.join('; ')}.`);
+  return null;
 }
 
 export function cleanupArgs(names) {
@@ -136,21 +191,29 @@ async function docker(args, opts) {
   return runCapture('docker', args, opts);
 }
 
-async function inspectContainer(name) {
+async function readInspectContainer(name) {
   const { stdout } = await docker(['inspect', name]);
   let parsed;
   try { parsed = JSON.parse(stdout.toString('utf8')); } catch { throw new Error('Docker inspect returned invalid data.'); }
-  assertIsolatedInspect(parsed, name);
+  return parsed;
+}
+
+async function inspectContainer(name) {
+  const parsed = await readInspectContainer(name);
+  try { assertIsolatedInspect(parsed, name); } catch (error) {
+    throw new Error(`${error.message}; safe inspect summary: ${JSON.stringify(safeContainerSummary(parsed))}`, { cause: error });
+  }
   return parsed[0];
 }
 
 async function cleanupOwnedContainers(names) {
-  for (const name of names) {
+  await attemptAllCleanups(names, async (name) => {
     const { stdout } = await docker(['ps', '-aq', '--filter', `name=^/${name}$`]);
-    if (!stdout.toString('utf8').trim()) continue;
-    await inspectContainer(name);
+    if (!stdout.toString('utf8').trim()) return;
+    const parsed = await readInspectContainer(name);
+    assertCleanupOwnedInspect(parsed, name);
     await docker(['rm', '-f', name]);
-  }
+  });
 }
 
 async function psql(name, sql) {
@@ -263,52 +326,72 @@ function runDiscard(binary, args) {
 }
 
 export async function runDrill() {
-  assertHostedRunnerEnvironment();
-  await Promise.all([
-    runCapture('docker', ['version']),
-    runCapture('age', ['--version']),
-  ]);
-  const image = IMAGE;
-  await docker(['image', 'inspect', image]);
-
-  const id = randomUUID().replaceAll('-', '');
-  const names = containerNames(id);
-  const tempDir = await mkdtemp(join(tmpdir(), 'al-synthetic-recovery-'));
-  const artifact = join(tempDir, 'synthetic-backup.dump.age');
+  let stage = 'hosted runner guard';
+  let originalError;
+  let result;
+  let tempDir;
+  let names;
   const started = [];
-  let success = false;
   try {
+    assertHostedRunnerEnvironment();
+    stage = 'check Docker and age tools';
+    await Promise.all([
+      runCapture('docker', ['version']),
+      runCapture('age', ['--version']),
+    ]);
+    const image = IMAGE;
+    stage = 'inspect pinned PostgreSQL image';
+    await docker(['image', 'inspect', image]);
+
+    names = containerNames(randomUUID().replaceAll('-', ''));
+    stage = 'create private runner temp directory';
+    tempDir = await mkdtemp(join(tmpdir(), 'al-synthetic-recovery-'));
+    const artifact = join(tempDir, 'synthetic-backup.dump.age');
     await chmod(tempDir, 0o700);
+    stage = 'generate ephemeral age identity';
     const { keyPath, recipient } = await makeKeyPair(tempDir);
     for (const role of ['source', 'restore']) {
       const name = names[role];
       started.push(name);
+      stage = `start ${role} PostgreSQL container`;
       await docker(dockerRunArgs(name, image));
+      stage = `inspect ${role} container isolation`;
       await inspectContainer(name);
+      stage = `wait for ${role} PostgreSQL`;
       await waitReady(name);
+      stage = `verify ${role} cron disabled before SQL`;
       await assertCronDisabled(name);
     }
 
+    stage = 'verify source cron disabled before fixture SQL';
     await assertCronDisabled(names.source);
+    stage = 'create synthetic source fixture';
     await psql(names.source, FIXTURE_SQL);
+    stage = 'verify source isolation and cron after fixture SQL';
     await Promise.all([inspectContainer(names.source), assertCronDisabled(names.source)]);
+    stage = 'capture source snapshot';
     const sourceSnapshot = JSON.parse(await psql(names.source, SNAPSHOT_SQL));
 
+    stage = 'dump and encrypt synthetic fixture';
     const dump = start('docker', commandPlan(image, names, artifact, recipient).dump.slice(1));
     const encrypt = start('age', ['-r', recipient, '-o', artifact], { drainStdout: true });
     await pipeAndCheck(dump, encrypt);
     await chmod(artifact, 0o600);
+    stage = 'verify encrypted fixture and corruption rejection';
     await verifyCorruptionRejected(artifact, keyPath, tempDir);
 
+    stage = 'verify restore target isolation and cron before restore';
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
+    stage = 'decrypt and restore synthetic fixture';
     const restore = start('docker', commandPlan(image, names, artifact, recipient).restoreCommand.slice(1), { drainStdout: true });
     const decrypt = start('age', ['-d', '-i', keyPath, artifact]);
     await pipeAndCheck(decrypt, restore);
+    stage = 'verify restore isolation and cron after restore';
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
+    stage = 'compare restored fixture snapshot';
     const restoredSnapshot = JSON.parse(await psql(names.restore, SNAPSHOT_SQL));
     if (JSON.stringify(sourceSnapshot) !== JSON.stringify(restoredSnapshot)) throw new Error('Restored synthetic fixture does not match the source snapshot.');
-    success = true;
-    return {
+    result = {
       status: 'PASS',
       image,
       checks: ['hosted-runner guard', 'pinned local image', 'isolated non-root containers', 'cron disabled before SQL',
@@ -318,14 +401,22 @@ export async function runDrill() {
       source: names.source,
       restore: names.restore,
     };
-  } finally {
-    const failures = [];
-    if (started.length) {
-      try { await cleanupOwnedContainers(started); } catch { failures.push('container cleanup'); }
-    }
-    try { await rm(tempDir, { recursive: true, force: true }); } catch { failures.push('temporary artifact cleanup'); }
-    if (failures.length) throw new Error(`${success ? 'Drill passed but' : 'Drill failed and'} cleanup failed: ${failures.join(', ')}.`);
+  } catch (error) {
+    originalError = error instanceof Error ? error : new Error('Unknown synthetic drill failure.');
   }
+
+  const cleanupErrors = [];
+  if (started.length) {
+    try { await cleanupOwnedContainers(started); } catch (error) {
+      cleanupErrors.push(...(error instanceof AggregateError ? error.errors : [error]));
+    }
+  }
+  if (tempDir) {
+    try { await rm(tempDir, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }
+  }
+  const finalError = combineRunErrors(stage, originalError, cleanupErrors);
+  if (finalError) throw finalError;
+  return result;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
