@@ -1,11 +1,12 @@
 # Production backup and recovery
 
-**Status, 2026-10-15: recovery is BLOCKED / NOT TESTED.** No production backup,
-secret export, restore, scheduler, provider request, or remote change was performed
-for this document. A successful dump command, schema checkpoint, or migration
-replay does not establish recoverability. The hosted-runner + Cloudflare R2 route
-below is a candidate only; it has not been authorized, configured, cost-tested,
-or exercised with production data.
+**Status, 2026-10-15: production backup, restore, and R2 recovery remain BLOCKED / NOT TESTED.**
+The synthetic hosted restore drill passed; it did not use real data, production
+credentials, a production export, provider requests, production mutations, or R2.
+The synthetic manual-only workflow was published and run under separate explicit
+authorization. This does not authorize or establish production recoverability.
+The hosted-runner + Cloudflare R2 production route below remains unconfigured,
+cost-untested, and unexercised with production data.
 
 The current assigned production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
@@ -29,9 +30,10 @@ Source of truth:
   `catalog.sql`, and `PRODUCTION_CUTOVER.md`: existing isolation and verification
   patterns. The importer is historical tooling and is not a recovery procedure.
 
-Scope: this document and `scripts/recovery/` synthetic rehearsal code/template.
-No bespoke encryption, production connection, local Docker execution, Windows
-policy change, commit, workflow publication or cloud execution is authorized here.
+Scope: this document and the synthetic rehearsal. The manual workflow was published
+and its hosted rehearsal completed under explicit owner authorization. That scope
+did not include production credentials or data, R2 access, scheduler setup, provider
+requests, or production mutation. This document grants no additional authorization.
 
 Required operational states: pending, running, failed, verified, and overdue must
 be distinguishable. A missed backup never appears successful because a previous
@@ -50,10 +52,11 @@ install local database tools, change Windows controls, or bring production conte
 onto the workstation to run this drill. Local checks are limited to source-code
 validation and pure unit tests without database or encryption-key material.
 
-The rehearsal requires an ephemeral GitHub-hosted Linux runner with Docker and
-checksum-pinned `age`. Production capture additionally requires explicit source
-data-handling approval, isolated storage permissions and independently recoverable
-key custody. The bootstrap checkpoint remains catalog evidence, not a backup.
+The synthetic rehearsal runs manually on an ephemeral GitHub-hosted Linux runner
+with Docker and checksum-pinned `age`. Production capture additionally requires
+explicit source data-handling approval, isolated storage permissions and
+independently recoverable key custody. The bootstrap checkpoint remains catalog
+evidence, not a backup.
 
 The existing harness pins this Supabase PostgreSQL image:
 
@@ -66,21 +69,28 @@ versions must still be measured during an authorized backup. Do not assume this
 image matches a later server or silently substitute an unpinned tag. Any image
 pull/container execution belongs exclusively on the approved hosted runner.
 
-### Synthetic implementation checkpoint
+### Synthetic implementation and hosted checkpoint
 
 `scripts/recovery/synthetic-drill.mjs` is a synthetic-only rehearsal, with pure
 unit tests in `synthetic-drill.node-test.mjs`. It has no production source, credential,
 R2 upload or scheduler mode. Its runtime guard rejects a local/self-hosted runner.
-The workflow template `scripts/recovery/synthetic-drill.workflow.yml` is deliberately
-outside `.github/workflows`, so preparing it does not activate automation.
+The active workflow is [`.github/workflows/synthetic-recovery.yml`](https://github.com/qrtman/adaptive_lifting/blob/main/.github/workflows/synthetic-recovery.yml)
+on `main`; it is manual-dispatch only, has no schedule or secrets, and uploads no
+fixtures, keys or archives. Its hosted job downloads checksum-pinned age and the
+digest-pinned database image, creates synthetic fixtures and an ephemeral encryption
+identity, encrypts a custom-format dump, decrypts and restores into a second
+network-isolated database, compares the fixtures, and cleans up.
 
-After review and explicit commit/publication approval, copy that template to
-`.github/workflows/synthetic-recovery.yml` on the default branch. Manually dispatch
-it there; no secrets are needed. It downloads checksum-pinned age and the
-digest-pinned database image on the cloud runner. It generates synthetic fixtures
-and an ephemeral encryption identity, encrypts a custom-format dump, decrypts and
-restores into a second network-isolated database, reconciles the fixtures, and
-cleans up. No fixtures, keys or archives are uploaded as GitHub artifacts.
+The workflow was tested at commit
+[`672411717c3cc3ab66c7f104df30f3b8947ab071`](https://github.com/qrtman/adaptive_lifting/commit/672411717c3cc3ab66c7f104df30f3b8947ab071).
+Hosted run [38739412498](https://github.com/qrtman/adaptive_lifting/actions/runs/38739412498)
+completed PASS on 2026-10-15 at 13:03:24 UTC. All 11 Node unit tests passed. The
+synthetic encrypted archive was 8,346 bytes; decryption and corruption rejection,
+single-transaction restore, row/revision/tombstone/idempotency/sequence/constraint/
+index comparison all passed. The script reported PASS after container and temporary
+file cleanup completed. An earlier hosted attempt, [38738650643](https://github.com/qrtman/adaptive_lifting/actions/runs/38738650643),
+failed in the synthetic step; its log only exposed a cleanup failure that masked the
+original error, so no more specific cause is recorded.
 
 Local verification command (code-only; safe on the development PC):
 
@@ -88,15 +98,16 @@ Local verification command (code-only; safe on the development PC):
 node --test scripts/recovery/synthetic-drill.node-test.mjs
 ```
 
-Hosted execution remains NOT VERIFIED until observed. Even a successful run proves
-only the synthetic transport/restore mechanics; application catalog/permissions,
-R2 retrieval, real production capture, Vault/key recovery and full data consistency
-remain separate gates before production recovery can PASS.
+This PASS establishes only the synthetic transport and restore mechanics. The run
+did not test the application schema or migration ledger, RLS/authorization, Vault
+key recovery, R2 upload/retrieval, production capture, provider reconciliation, or
+full production data consistency. Those remain separate gates; production recovery
+is still BLOCKED / NOT TESTED.
 
-Local checkpoint, 2026-10-15: seven Node unit tests PASS; JavaScript syntax and
-workflow YAML/manual-trigger/permission checks PASS; direct invocation on the PC
-rejects execution with exit 1 before tool invocation. These checks created no
-database, encryption identity or backup artifact and do not prove a hosted restore.
+Local checkpoint, 2026-10-15: 11 Node unit tests PASS; JavaScript syntax and workflow
+YAML/manual-trigger/permission checks PASS; direct local invocation rejects execution
+before tool invocation. Local checks created no database, encryption identity or
+backup artifact and do not prove a hosted restore.
 
 ## Backup contract and ownership
 
@@ -135,8 +146,9 @@ manually dispatched, default-branch-only workflow initially, with no pull-reques
 trigger, no untrusted checkout/ref, tightly scoped Actions environment secrets,
 protected default branch, redacted logs, and a pinned PostgreSQL tool/container
 image. Production secrets and data require owner acceptance of GitHub as a data
-processor and verification of branch/environment protections. The synthetic-only
-workflow template contains no production credentials and processes no real data.
+processor and verification of branch/environment protections. The published
+synthetic-only workflow contains no production credentials and processes no real
+data; its successful run does not exercise this production path.
 
 The intended data path is a consistent read-only logical snapshot streamed directly
 through authenticated client-side encryption to the private R2 prefix; avoid writing
@@ -366,7 +378,8 @@ decryption/tool versions, exact isolated target identity and network settings,
 per-check PASS/FAIL/BLOCKED/NOT TESTED, durations, discrepancies, reviewer and
 cleanup result. Do not include connection passwords, tokens, private keys,
 Vault rows, account emails or training rows. No such successful drill record exists
-for this task.
+for production data; the synthetic hosted result above is not production recovery
+evidence.
 
 ## Incident recovery and return to service
 
@@ -397,8 +410,8 @@ administrator action; it does not authorize production access. Managed project
 creation, secret retrieval/copy, scheduler configuration, provider reconciliation,
 return to service and traffic changes need their own exact scope before execution.
 
-Current gaps: hosted synthetic execution, protected workflow publication and
-runner authorization, key escrow/alternate access, scoped R2 access, snapshot
-collector and production capture implementation, actual encrypted backup,
-real isolated restore, managed platform validation, measured RPO/RTO and alerting.
-No recovery gate is PASS merely because this procedure has been written.
+Current gaps: production-specific runner authorization, key escrow/alternate access,
+scoped R2 access, snapshot collector and production capture implementation, actual
+encrypted production backup, real production-point isolated restore, managed platform
+validation, measured RPO/RTO and alerting. The synthetic rehearsal is complete;
+production recovery remains BLOCKED / NOT TESTED.
