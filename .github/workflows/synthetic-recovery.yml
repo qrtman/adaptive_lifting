@@ -1,0 +1,45 @@
+# Manual synthetic rehearsal only; publication and execution approved by owner.
+# Synthetic fixtures only: no production credentials, R2 access, uploads or schedules.
+name: Synthetic encrypted recovery drill
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: synthetic-recovery
+  cancel-in-progress: false
+jobs:
+  synthetic:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the approved commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check runtime and unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          node --version
+          node --test scripts/recovery/synthetic-drill.node-test.mjs
+      - name: Prepare pinned public tools on the hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tool_dir="$(mktemp -d "$RUNNER_TEMP/al-recovery-tools-XXXXXX")"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz \
+            --output "$tool_dir/age.tar.gz"
+          printf '%s  %s\n' bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377 "$tool_dir/age.tar.gz" | sha256sum --check --strict
+          tar -xzf "$tool_dir/age.tar.gz" -C "$tool_dir" age/age age/age-keygen
+          echo "$tool_dir/age" >> "$GITHUB_PATH"
+          docker pull supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+      - name: Capture, encrypt, decrypt and restore synthetic fixtures
+        shell: bash
+        run: node scripts/recovery/synthetic-drill.mjs
