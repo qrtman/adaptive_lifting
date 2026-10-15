@@ -30,7 +30,8 @@ Source of truth:
   `catalog.sql`, and `PRODUCTION_CUTOVER.md`: existing isolation and verification
   patterns. The importer is historical tooling and is not a recovery procedure.
 
-Scope: this document and the synthetic rehearsal. The manual workflow was published
+Scope: this document, the synthetic rehearsal, and the local-tested backup library
+components described below. The manual workflow was published
 and its hosted rehearsal completed under explicit owner authorization. That scope
 did not include production credentials or data, R2 access, scheduler setup, provider
 requests, or production mutation. This document grants no additional authorization.
@@ -108,6 +109,88 @@ Local checkpoint, 2026-10-15: 11 Node unit tests PASS; JavaScript syntax and wor
 YAML/manual-trigger/permission checks PASS; direct local invocation rejects execution
 before tool invocation. Local checks created no database, encryption identity or
 backup artifact and do not prove a hosted restore.
+
+### Backup library checkpoint (2026-10-15)
+
+The next production backup components are libraries under `scripts/recovery/`.
+They have no production entrypoint, deployed workflow, configured credentials,
+or schedule. Their unit tests use synthetic bytes and mocked processes/database
+clients; running those tests on the PC does not create a database or private key.
+
+- `encrypt-stream.mjs`: archive stream to native age with only a public x25519
+  recipient. Ciphertext is created exclusively in a private temporary directory;
+  the caller owns `cleanup()`. Subprocess and stream failures, timeout, abort, and
+  cleanup failure are fatal; sensitive diagnostics are suppressed. No plaintext
+  archive file is created. Original archive SHA-256 and byte count are computed in
+  the stream for later encrypted-manifest reconciliation. Actual age validation
+  remains a hosted integration check.
+- `ciphertext-store.mjs`: explicit canonical R2 account endpoint, reviewed bucket
+  and production prefix inputs, UUID object names, conditional single-object PUT,
+  independent GET and SHA-256/size comparison. It refuses symlink source files and
+  local/self-hosted execution. Only ciphertext format is screened; `byteVerified`
+  means matching ciphertext bytes, not authenticated decryption or restore success.
+  The AWS CLI subprocess uses argv without a shell, isolated configuration/static
+  credentials, suppressed output and a timeout. CLI service redirects remain an
+  integration review item. No listing, deletion, retention or credential creation
+  is implemented. Single PUT is bounded to 5 GiB; larger artifacts fail closed.
+- `snapshot-capture.mjs`: an exclusively owned, connected database client must be
+  supplied by a future reviewed adapter. It holds one read-only repeatable-read
+  exported snapshot until the archive/encrypted-manifest callbacks have completed,
+  checks a supplied exact relation inventory and migration version list, disables
+  silent RLS filtering, and hashes framed row text without parsing numeric JSON.
+  Server-side chunks are at most 16,384 characters (64 KiB UTF-8); client batches
+  contain at most 16 chunks. Sorting can still consume source server resources and
+  must be measured. Partitioned/inherited, foreign, materialized or unlogged
+  relations fail closed pending a reviewed strategy. A callback must await the
+  actual pg_dump exit and encryption, not return only a stream handle. Returned
+  status is always `captured-restore-unverified`, never recoverable/PASS.
+
+These components do **not** constitute a complete production backup implementation.
+Remaining engineering includes an exact-target TLS connection/pg_dump adapter,
+complete catalog/role/extension/sequence inventory, snapshot-to-archive TOC
+reconciliation, encrypted manifest bundling and publication/commit marker, a
+reviewed protected hosted workflow, authenticated retrieval/decryption, and the
+actual application restore checks. Do not enable production capture merely because
+the component tests pass. An uploaded object left by a failed run is uncommitted;
+its existence is not a successful restore point, and automatic deletion is disabled.
+
+Code-only verification:
+
+```text
+node --test scripts/recovery/*.node-test.mjs
+```
+
+Local component checkpoint: **46/46 Node tests PASS**, independently rerun by the
+Verifier. The candidate synthetic drill now exercises the new streaming encryption
+library and the exact chunk cursor SQL, including high-precision numeric values,
+large UTF-8 strings and duplicate rows; it verifies the authenticated decrypted
+archive against its original stream hash. The workflow template runs all recovery
+unit tests. **This candidate's hosted integration is NOT VERIFIED**; the successful
+run linked above tested the earlier implementation. The template remains inert in
+this checkout. Publishing the updated candidate and running it requires the owner's
+commit/publish/run approval. No production credentials or R2 access are required for
+that synthetic run.
+
+### Cloud-only key custody and activation inputs
+
+The owner confirmed they already use a password manager; its provider and recovery
+access procedure have not been supplied. No production encryption identity has been
+generated. Before activation, name the
+owner and alternate and their independently recoverable cloud password-manager
+locations. Generate the identity only through a separately approved cloud procedure
+with private output delivered directly to the owner-controlled vault, never chat,
+Actions logs/artifacts, source control, R2, or a workstation file. Test alternate
+access. A public recipient and non-secret key ID may be supplied to the capture job;
+the private identity must not be accessible to that job. A separate protected manual
+restore environment receives it only for an authorized recovery drill.
+
+Also choose/verify the dedicated private R2 destination and a bucket-scoped static
+credential, GitHub protected environment/default branch and reviewers, pinned
+toolchain, and primary/alternate alert destination. A syntactically valid prefix
+does not enforce an R2 permission boundary. Creating credentials, setting secrets,
+changing bucket protections, publishing a production workflow, and processing
+production data each require exact owner authorization; none occurred for this
+library checkpoint. Live backup/storage/restore remain BLOCKED / NOT TESTED.
 
 ## Backup contract and ownership
 
@@ -413,5 +496,6 @@ return to service and traffic changes need their own exact scope before executio
 Current gaps: production-specific runner authorization, key escrow/alternate access,
 scoped R2 access, snapshot collector and production capture implementation, actual
 encrypted production backup, real production-point isolated restore, managed platform
-validation, measured RPO/RTO and alerting. The synthetic rehearsal is complete;
+validation, measured RPO/RTO and alerting. The earlier synthetic rehearsal passed;
+the updated backup-component integration still needs an authorized hosted run;
 production recovery remains BLOCKED / NOT TESTED.

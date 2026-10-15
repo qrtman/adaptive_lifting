@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
+import { Writable } from 'node:stream';
+import { encryptArchiveStream } from './encrypt-stream.mjs';
+import { manifestCursorSql } from './snapshot-capture.mjs';
 
 export const IMAGE = 'supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00';
 const LABEL = 'adaptive-lifting.synthetic-recovery=true';
@@ -260,7 +263,34 @@ INSERT INTO synthetic_recovery.revisions VALUES
   ('10000000-0000-4000-8000-000000000001', 2, repeat('a', 64)),
   ('10000000-0000-4000-8000-000000000001', 3, repeat('b', 64));
 INSERT INTO synthetic_recovery.idempotency_keys VALUES (repeat('c', 64), 201, '2026-01-02T03:04:05Z');
+CREATE TABLE synthetic_recovery.chunk_probe (amount numeric(30,10), payload text, missing text);
+INSERT INTO synthetic_recovery.chunk_probe VALUES (12345678901234567890.1234567890, repeat(chr(54620), 20000), NULL);
+INSERT INTO synthetic_recovery.chunk_probe SELECT * FROM synthetic_recovery.chunk_probe;
+INSERT INTO synthetic_recovery.chunk_probe VALUES (1.5, E'line one\\nline two|colon:', NULL);
 `;
+
+export function chunkProbeSql() {
+  return `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+    SET LOCAL TimeZone='UTC'; SET LOCAL DateStyle='ISO, YMD'; SET LOCAL extra_float_digits=3;
+    SET LOCAL bytea_output='hex'; SET LOCAL client_encoding='UTF8';
+    ${manifestCursorSql('synthetic_recovery', 'chunk_probe')};
+    FETCH ALL FROM recovery_rows; CLOSE recovery_rows; ROLLBACK;`;
+}
+
+async function verifyOriginalArchiveHash(artifact, keyPath, expectedHash, expectedBytes) {
+  const decrypt = start('age', ['-d', '-i', keyPath, artifact]);
+  const hash = createHash('sha256');
+  let size = 0;
+  const sink = new Writable({ write(chunk, _encoding, callback) { hash.update(chunk); size += chunk.length; callback(); } });
+  try {
+    await Promise.all([pipeline(decrypt.child.stdout, sink), decrypt.closed]);
+  } catch {
+    decrypt.child.kill();
+    await Promise.allSettled([decrypt.closed]);
+    throw new Error('Synthetic archive authenticated hash verification failed.');
+  }
+  if (hash.digest('hex') !== expectedHash || size !== expectedBytes) throw new Error('Synthetic original archive hash mismatch.');
+}
 
 const SNAPSHOT_SQL = `
 SET TIME ZONE 'UTC';
@@ -331,6 +361,7 @@ export async function runDrill() {
   let result;
   let tempDir;
   let names;
+  let encrypted;
   const started = [];
   try {
     assertHostedRunnerEnvironment();
@@ -346,7 +377,6 @@ export async function runDrill() {
     names = containerNames(randomUUID().replaceAll('-', ''));
     stage = 'create private runner temp directory';
     tempDir = await mkdtemp(join(tmpdir(), 'al-synthetic-recovery-'));
-    const artifact = join(tempDir, 'synthetic-backup.dump.age');
     await chmod(tempDir, 0o700);
     stage = 'generate ephemeral age identity';
     const { keyPath, recipient } = await makeKeyPair(tempDir);
@@ -371,14 +401,28 @@ export async function runDrill() {
     await Promise.all([inspectContainer(names.source), assertCronDisabled(names.source)]);
     stage = 'capture source snapshot';
     const sourceSnapshot = JSON.parse(await psql(names.source, SNAPSHOT_SQL));
+    stage = 'exercise bounded manifest SQL on large UTF-8 duplicate fixture rows';
+    const sourceChunks = await psql(names.source, chunkProbeSql());
+    if (!sourceChunks.includes('16385|') || !sourceChunks.includes('12345678901234567890.1234567890')) {
+      throw new Error('Synthetic chunked manifest fixture was not fully exercised.');
+    }
 
     stage = 'dump and encrypt synthetic fixture';
-    const dump = start('docker', commandPlan(image, names, artifact, recipient).dump.slice(1));
-    const encrypt = start('age', ['-r', recipient, '-o', artifact], { drainStdout: true });
-    await pipeAndCheck(dump, encrypt);
-    await chmod(artifact, 0o600);
+    const dump = start('docker', commandPlan(image, names, '<ciphertext>', recipient).dump.slice(1));
+    const abort = new AbortController();
+    const encryption = encryptArchiveStream(dump.child.stdout, recipient, { signal: abort.signal })
+      .then((value) => { encrypted = value; return value; });
+    const dumpComplete = dump.closed.catch((error) => { abort.abort(); throw error; });
+    try { await Promise.all([encryption, dumpComplete]); }
+    catch (error) {
+      dump.child.kill(); abort.abort();
+      await Promise.allSettled([encryption, dumpComplete]);
+      throw error;
+    }
+    const artifact = encrypted.outputPath;
     stage = 'verify encrypted fixture and corruption rejection';
     await verifyCorruptionRejected(artifact, keyPath, tempDir);
+    await verifyOriginalArchiveHash(artifact, keyPath, encrypted.archiveSha256, encrypted.archiveBytes);
 
     stage = 'verify restore target isolation and cron before restore';
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
@@ -391,11 +435,14 @@ export async function runDrill() {
     stage = 'compare restored fixture snapshot';
     const restoredSnapshot = JSON.parse(await psql(names.restore, SNAPSHOT_SQL));
     if (JSON.stringify(sourceSnapshot) !== JSON.stringify(restoredSnapshot)) throw new Error('Restored synthetic fixture does not match the source snapshot.');
+    stage = 'compare restored bounded manifest fixture chunks';
+    if (await psql(names.restore, chunkProbeSql()) !== sourceChunks) throw new Error('Restored chunked manifest differs from source.');
     result = {
       status: 'PASS',
       image,
       checks: ['hosted-runner guard', 'pinned local image', 'isolated non-root containers', 'cron disabled before SQL',
         'encrypted custom-format dump', 'corrupted ciphertext rejected', 'single-transaction restore',
+        'original archive authenticated hash matches', 'bounded manifest SQL matches large UTF-8 and duplicate rows',
         'rows, revisions, tombstones, idempotency, sequence, constraints, and indexes match'],
       artifact_bytes: (await stat(artifact)).size,
       source: names.source,
@@ -413,6 +460,9 @@ export async function runDrill() {
   }
   if (tempDir) {
     try { await rm(tempDir, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }
+  }
+  if (encrypted) {
+    try { await encrypted.cleanup(); } catch (error) { cleanupErrors.push(error); }
   }
   const finalError = combineRunErrors(stage, originalError, cleanupErrors);
   if (finalError) throw finalError;

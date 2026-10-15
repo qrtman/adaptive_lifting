@@ -1,4 +1,4 @@
-# Manual synthetic rehearsal only; publication and execution approved by owner.
+# Synthetic-only cloud recovery validation; production capture is not configured.
 # Synthetic fixtures only: no production credentials, R2 access, uploads or schedules.
 name: Synthetic encrypted recovery drill
 on:
@@ -26,7 +26,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$RUNNER_OS" = Linux
           node --version
-          node --test scripts/recovery/synthetic-drill.node-test.mjs
+          node --test scripts/recovery/*.node-test.mjs
       - name: Prepare pinned public tools on the hosted runner
         shell: bash
         run: |
