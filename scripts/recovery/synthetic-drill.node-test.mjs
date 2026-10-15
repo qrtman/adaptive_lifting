@@ -3,16 +3,22 @@ import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import {
   assertHostedRunnerEnvironment,
+  assertCleanupOwnedInspect,
   assertIsolatedInspect,
+  attemptAllCleanups,
   cleanupArgs,
   commandPlan,
+  catalogProbeSql,
+  combineRunErrors,
   containerNames,
   dockerRunArgs,
-  extractPinnedImage,
+  IMAGE,
   pipeAndCheck,
+  safeContainerSummary,
+  runDrill,
 } from './synthetic-drill.mjs';
 
-const image = `supabase/postgres@sha256:${'a'.repeat(64)}`;
+const image = IMAGE;
 
 test('hosted-runner guard rejects local and non-GitHub environments', () => {
   assert.doesNotThrow(() => assertHostedRunnerEnvironment({ GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted' }, 'linux'));
@@ -24,9 +30,14 @@ test('hosted-runner guard rejects local and non-GitHub environments', () => {
   ]) assert.throws(() => assertHostedRunnerEnvironment(env, platform), /restricted to a GitHub hosted Linux runner/);
 });
 
-test('image extraction accepts only a pinned digest from replay.py', () => {
-  assert.equal(extractPinnedImage(`IMAGE = "${image}"\n`), image);
-  assert.throws(() => extractPinnedImage('IMAGE = "supabase/postgres:latest"\n'), /pinned/);
+test('local drill entrypoint rejects before checking tools or creating files', async () => {
+  await assert.rejects(runDrill(), /restricted to a GitHub hosted Linux runner/);
+});
+
+test('synthetic drill pins the approved PostgreSQL image digest', () => {
+  assert.equal(IMAGE, 'supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00');
+  assert.ok(dockerRunArgs(containerNames('pin-test').source, IMAGE).includes(IMAGE));
+  assert.throws(() => dockerRunArgs(containerNames('pin-test').source, 'supabase/postgres:latest'), /pinned/);
 });
 
 test('container plans use unique names, tmpfs, no network, ports, or host mounts', () => {
@@ -46,7 +57,7 @@ test('container plans use unique names, tmpfs, no network, ports, or host mounts
   assert.throws(() => containerNames('../x'), /Invalid/);
 });
 
-test('inspect invariant rejects altered network, ports, mounts, root user, and writable rootfs', () => {
+test('inspect accepts Docker tmpfs metadata with or without Mounts entries', () => {
   const name = 'al-synthetic-recovery-abcd-source';
   const good = {
     Name: `/${name}`,
@@ -57,19 +68,83 @@ test('inspect invariant rejects altered network, ports, mounts, root user, and w
     Mounts: [{ Type: 'tmpfs', Destination: '/tmp' }, { Type: 'tmpfs', Destination: '/var/lib/postgresql/data' }],
   };
   assert.equal(assertIsolatedInspect(good, name), true);
+  const hostConfigOnly = structuredClone(good);
+  hostConfigOnly.Mounts = [];
+  assert.equal(assertIsolatedInspect(hostConfigOnly, name), true);
+});
+
+test('inspect invariant rejects altered network, ports, mounts, user, and writable rootfs', () => {
+  const name = 'al-synthetic-recovery-abcd-source';
+  const good = {
+    Name: `/${name}`,
+    Config: { User: 'postgres', Labels: { 'adaptive-lifting.synthetic-recovery': 'true', 'adaptive-lifting.synthetic-recovery-run': 'abcd' } },
+    HostConfig: { NetworkMode: 'none', PortBindings: {}, ReadonlyRootfs: true,
+      Tmpfs: { '/tmp': 'rw,exec', '/var/lib/postgresql/data': 'rw' } },
+    NetworkSettings: { Ports: {} },
+    Mounts: [{ Type: 'tmpfs', Destination: '/tmp' }, { Type: 'tmpfs', Destination: '/var/lib/postgresql/data' }],
+  };
   for (const mutate of [
     (item) => { item.HostConfig.NetworkMode = 'bridge'; },
     (item) => { item.HostConfig.PortBindings = { '5432/tcp': [{ HostPort: '5432' }] }; },
     (item) => { item.Mounts.push({ Type: 'bind', Destination: '/host' }); },
+    (item) => { item.Mounts.push({ Type: 'volume', Destination: '/tmp' }); },
+    (item) => { item.Mounts.push({ Type: 'tmpfs', Destination: '/unexpected' }); },
     (item) => { item.Config.User = 'root'; },
     (item) => { item.HostConfig.ReadonlyRootfs = false; },
-    (item) => { item.HostConfig.Tmpfs = {}; },
-    (item) => { item.Config.Labels['adaptive-lifting.synthetic-recovery-run'] = 'other-run'; },
+    (item) => { item.HostConfig.Tmpfs['/unexpected'] = 'rw'; },
+    (item) => { item.HostConfig.Binds = ['/host:/host']; },
   ]) {
     const item = structuredClone(good);
     mutate(item);
     assert.throws(() => assertIsolatedInspect(item, name));
   }
+});
+
+test('cleanup ownership remains checkable when isolation fails and rejects foreign labels', () => {
+  const name = 'al-synthetic-recovery-abcd-source';
+  const item = {
+    Name: `/${name}`,
+    Config: { User: 'postgres', Labels: { 'adaptive-lifting.synthetic-recovery': 'true', 'adaptive-lifting.synthetic-recovery-run': 'abcd' } },
+    HostConfig: { NetworkMode: 'bridge', PortBindings: {}, ReadonlyRootfs: true,
+      Tmpfs: { '/tmp': 'rw', '/var/lib/postgresql/data': 'rw' } },
+    NetworkSettings: { Ports: {} },
+    Mounts: [],
+  };
+  assert.equal(assertCleanupOwnedInspect(item, name), true);
+  assert.throws(() => assertIsolatedInspect(item, name), /network isolation/);
+  item.Config.Labels['adaptive-lifting.synthetic-recovery-run'] = 'different-run';
+  assert.throws(() => assertCleanupOwnedInspect(item, name), /ownership/);
+});
+
+test('safe inspect summary exposes only static isolation metadata', () => {
+  const summary = safeContainerSummary({
+    Name: '/container',
+    Config: { User: 'postgres', Env: ['SECRET=do-not-copy'], Cmd: ['sensitive-command'] },
+    HostConfig: { NetworkMode: 'none', ReadonlyRootfs: true, PortBindings: {}, Tmpfs: { '/tmp': 'rw' } },
+    NetworkSettings: { Ports: {} },
+    Mounts: [{ Type: 'tmpfs', Destination: '/tmp', Source: '/private-path' }],
+  });
+  const serialized = JSON.stringify(summary);
+  assert.match(serialized, /"networkMode":"none"/);
+  assert.match(serialized, /"destination":"\/tmp"/);
+  assert.doesNotMatch(serialized, /SECRET|sensitive-command|private-path/);
+});
+
+test('cleanup attempts all owned names and preserves primary and cleanup failures', async () => {
+  const attempts = [];
+  await assert.rejects(attemptAllCleanups(['first', 'second'], async (name) => {
+    attempts.push(name);
+    if (name === 'first') throw new Error('first cleanup failed');
+  }), /first cleanup failed/);
+  assert.deepEqual(attempts, ['first', 'second']);
+
+  const original = new Error('restore stage failed');
+  const cleanup = new Error('source container cleanup failed');
+  const combined = combineRunErrors('restore fixture', original, [cleanup]);
+  assert.ok(combined instanceof AggregateError);
+  assert.equal(combined.errors[0].cause, original);
+  assert.match(combined.message, /restore fixture: restore stage failed/);
+  assert.match(combined.message, /source container cleanup failed/);
 });
 
 test('command plan streams custom dump through age and restores in one transaction', () => {
@@ -81,6 +156,15 @@ test('command plan streams custom dump through age and restores in one transacti
   assert.ok(plan.restoreCommand.includes('--exit-on-error'));
   assert.ok(!plan.restoreCommand.includes('--clean') && !plan.restoreCommand.includes('--create'));
   assert.deepEqual(cleanupArgs([names.source, names.restore]), ['rm', '-f', names.source, names.restore]);
+});
+
+test('catalog probe prepares the shared parameterized query and rejects injected identifiers', () => {
+  const sql = catalogProbeSql();
+  assert.match(sql, /^PREPARE recovery_catalog\(text,text\) AS SELECT/);
+  assert.match(sql, /pg_get_constraintdef/);
+  assert.match(sql, /pg_policy/);
+  assert.match(sql, /recovery_catalog\('synthetic_recovery','workouts'\)/);
+  assert.throws(() => catalogProbeSql('synthetic_recovery; DROP SCHEMA public', 'workouts'), /Unsafe synthetic catalog target/);
 });
 
 test('pipeline rejects a failed subprocess and terminates both stages', async () => {

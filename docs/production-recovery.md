@@ -1,11 +1,12 @@
 # Production backup and recovery
 
-**Status, 2026-10-15: recovery is BLOCKED / NOT TESTED.** No production backup,
-secret export, restore, scheduler, provider request, or remote change was performed
-for this document. A successful dump command, schema checkpoint, or migration
-replay does not establish recoverability. The hosted-runner + Cloudflare R2 route
-below is a candidate only; it has not been authorized, configured, cost-tested,
-or exercised with production data.
+**Status, 2026-10-15: production backup, restore, and R2 recovery remain BLOCKED / NOT TESTED.**
+The synthetic hosted restore drill passed; it did not use real data, production
+credentials, a production export, provider requests, production mutations, or R2.
+The synthetic manual-only workflow was published and run under separate explicit
+authorization. This does not authorize or establish production recoverability.
+The hosted-runner + Cloudflare R2 production route below remains unconfigured,
+cost-untested, and unexercised with production data.
 
 The current assigned production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
@@ -29,9 +30,11 @@ Source of truth:
   `catalog.sql`, and `PRODUCTION_CUTOVER.md`: existing isolation and verification
   patterns. The importer is historical tooling and is not a recovery procedure.
 
-Scope: this document and `scripts/recovery/` synthetic rehearsal code/template.
-No bespoke encryption, production connection, local Docker execution, Windows
-policy change, commit, workflow publication or cloud execution is authorized here.
+Scope: this document, the synthetic rehearsal, and the local-tested backup library
+components described below. The manual workflow was published
+and its hosted rehearsal completed under explicit owner authorization. That scope
+did not include production credentials or data, R2 access, scheduler setup, provider
+requests, or production mutation. This document grants no additional authorization.
 
 Required operational states: pending, running, failed, verified, and overdue must
 be distinguishable. A missed backup never appears successful because a previous
@@ -50,10 +53,11 @@ install local database tools, change Windows controls, or bring production conte
 onto the workstation to run this drill. Local checks are limited to source-code
 validation and pure unit tests without database or encryption-key material.
 
-The rehearsal requires an ephemeral GitHub-hosted Linux runner with Docker and
-checksum-pinned `age`. Production capture additionally requires explicit source
-data-handling approval, isolated storage permissions and independently recoverable
-key custody. The bootstrap checkpoint remains catalog evidence, not a backup.
+The synthetic rehearsal runs manually on an ephemeral GitHub-hosted Linux runner
+with Docker and checksum-pinned `age`. Production capture additionally requires
+explicit source data-handling approval, isolated storage permissions and
+independently recoverable key custody. The bootstrap checkpoint remains catalog
+evidence, not a backup.
 
 The existing harness pins this Supabase PostgreSQL image:
 
@@ -66,21 +70,28 @@ versions must still be measured during an authorized backup. Do not assume this
 image matches a later server or silently substitute an unpinned tag. Any image
 pull/container execution belongs exclusively on the approved hosted runner.
 
-### Synthetic implementation checkpoint
+### Synthetic implementation and hosted checkpoint
 
 `scripts/recovery/synthetic-drill.mjs` is a synthetic-only rehearsal, with pure
 unit tests in `synthetic-drill.node-test.mjs`. It has no production source, credential,
 R2 upload or scheduler mode. Its runtime guard rejects a local/self-hosted runner.
-The workflow template `scripts/recovery/synthetic-drill.workflow.yml` is deliberately
-outside `.github/workflows`, so preparing it does not activate automation.
+The active workflow is [`.github/workflows/synthetic-recovery.yml`](https://github.com/qrtman/adaptive_lifting/blob/main/.github/workflows/synthetic-recovery.yml)
+on `main`; it is manual-dispatch only, has no schedule or secrets, and uploads no
+fixtures, keys or archives. Its hosted job downloads checksum-pinned age and the
+digest-pinned database image, creates synthetic fixtures and an ephemeral encryption
+identity, encrypts a custom-format dump, decrypts and restores into a second
+network-isolated database, compares the fixtures, and cleans up.
 
-After review and explicit commit/publication approval, copy that template to
-`.github/workflows/synthetic-recovery.yml` on the default branch. Manually dispatch
-it there; no secrets are needed. It downloads checksum-pinned age and the
-digest-pinned database image on the cloud runner. It generates synthetic fixtures
-and an ephemeral encryption identity, encrypts a custom-format dump, decrypts and
-restores into a second network-isolated database, reconciles the fixtures, and
-cleans up. No fixtures, keys or archives are uploaded as GitHub artifacts.
+The workflow was tested at commit
+[`672411717c3cc3ab66c7f104df30f3b8947ab071`](https://github.com/qrtman/adaptive_lifting/commit/672411717c3cc3ab66c7f104df30f3b8947ab071).
+Hosted run [38739412498](https://github.com/qrtman/adaptive_lifting/actions/runs/38739412498)
+completed PASS on 2026-10-15 at 13:03:24 UTC. All 11 Node unit tests passed. The
+synthetic encrypted archive was 8,346 bytes; decryption and corruption rejection,
+single-transaction restore, row/revision/tombstone/idempotency/sequence/constraint/
+index comparison all passed. The script reported PASS after container and temporary
+file cleanup completed. An earlier hosted attempt, [38738650643](https://github.com/qrtman/adaptive_lifting/actions/runs/38738650643),
+failed in the synthetic step; its log only exposed a cleanup failure that masked the
+original error, so no more specific cause is recorded.
 
 Local verification command (code-only; safe on the development PC):
 
@@ -88,15 +99,123 @@ Local verification command (code-only; safe on the development PC):
 node --test scripts/recovery/synthetic-drill.node-test.mjs
 ```
 
-Hosted execution remains NOT VERIFIED until observed. Even a successful run proves
-only the synthetic transport/restore mechanics; application catalog/permissions,
-R2 retrieval, real production capture, Vault/key recovery and full data consistency
-remain separate gates before production recovery can PASS.
+This PASS establishes only the synthetic transport and restore mechanics. The run
+did not test the application schema or migration ledger, RLS/authorization, Vault
+key recovery, R2 upload/retrieval, production capture, provider reconciliation, or
+full production data consistency. Those remain separate gates; production recovery
+is still BLOCKED / NOT TESTED.
 
-Local checkpoint, 2026-10-15: seven Node unit tests PASS; JavaScript syntax and
-workflow YAML/manual-trigger/permission checks PASS; direct invocation on the PC
-rejects execution with exit 1 before tool invocation. These checks created no
-database, encryption identity or backup artifact and do not prove a hosted restore.
+Local checkpoint, 2026-10-15: 11 Node unit tests PASS; JavaScript syntax and workflow
+YAML/manual-trigger/permission checks PASS; direct local invocation rejects execution
+before tool invocation. Local checks created no database, encryption identity or
+backup artifact and do not prove a hosted restore.
+
+### Backup library checkpoint (2026-10-15)
+
+The next production backup components are libraries under `scripts/recovery/`.
+They have no production entrypoint, deployed workflow, configured credentials,
+or schedule. Their unit tests use synthetic bytes and mocked processes/database
+clients; running those tests on the PC does not create a database or private key.
+
+- `encrypt-stream.mjs`: archive stream to native age with only a public x25519
+  recipient. Ciphertext is created exclusively in a private temporary directory;
+  the caller owns `cleanup()`. Subprocess and stream failures, timeout, abort, and
+  cleanup failure are fatal; sensitive diagnostics are suppressed. No plaintext
+  archive file is created. Original archive SHA-256 and byte count are computed in
+  the stream for later encrypted-manifest reconciliation. Actual age validation
+  remains a hosted integration check.
+- `ciphertext-store.mjs`: explicit canonical R2 account endpoint, reviewed bucket
+  and production prefix inputs, UUID object names, conditional single-object PUT,
+  independent GET and SHA-256/size comparison. It refuses symlink source files and
+  local/self-hosted execution. Only ciphertext format is screened; `byteVerified`
+  means matching ciphertext bytes, not authenticated decryption or restore success.
+  The AWS CLI subprocess uses argv without a shell, isolated configuration/static
+  credentials, suppressed output and a timeout. CLI service redirects remain an
+  integration review item. No listing, deletion, retention or credential creation
+  is implemented. Single PUT is bounded to 5 GiB; larger artifacts fail closed.
+- `snapshot-capture.mjs`: an exclusively owned, connected database client must be
+  supplied by a future reviewed adapter. It holds one read-only repeatable-read
+  exported snapshot until the archive/encrypted-manifest callbacks have completed,
+  checks a supplied exact relation inventory and migration version list, disables
+  silent RLS filtering, and hashes framed row text without parsing numeric JSON.
+  Server-side chunks are at most 16,384 characters (64 KiB UTF-8); client batches
+  contain at most 16 chunks. Per-table manifests also capture owner/ACL, RLS flags,
+  column types/defaults, constraints, indexes, triggers, and policy definitions;
+  incomplete or malformed catalog results fail before archive capture. Sorting can still consume source server resources and
+  must be measured. Partitioned/inherited, foreign, materialized or unlogged
+  relations fail closed pending a reviewed strategy. A callback must await the
+  actual pg_dump exit and encryption, not return only a stream handle. Returned
+  status is always `captured-restore-unverified`, never recoverable/PASS.
+- `production-source.mjs`: a local, unconnected adapter now pins the production
+  session-pooler host, port, project-qualified database user and `postgres`
+  database. Its node-postgres TLS config supplies the project CA, requires
+  certificate verification and the fixed SNI host, then checks database identity,
+  PostgreSQL 17 and `pg_stat_ssl` before exposing the query wrapper. The pinned
+  `pg` dependency is isolated to `scripts/recovery/`; it does not affect the app.
+  The pg_dump adapter uses a minimal environment with no inherited PG service or
+  staging values, exact production host/user/database, `verify-full`, a private
+  temporary CA file, `--no-password`, fixed schemas and the exported snapshot.
+  It checks pg_dump major version 17, drains but never logs stderr, streams binary
+  stdout into the encryption callback, and awaits both native exit and encryption.
+  It has no CLI entrypoint or workflow and has not connected to production. The
+  source user is privileged; provisioning or using it needs the exact owner
+  authorization described below.
+
+These components do **not** constitute a complete production backup implementation.
+The per-table catalog snapshot is now present, but still needs validation against
+the real PostgreSQL 17 schema and comparison with restored catalog output. Remaining
+engineering includes a complete schema/role/extension/sequence inventory, snapshot-to-archive TOC
+reconciliation, encrypted manifest bundling and publication/commit marker, a
+reviewed protected hosted workflow, authenticated retrieval/decryption, and the
+actual application restore checks. Do not enable production capture merely because
+the component tests pass. An uploaded object left by a failed run is uncommitted;
+its existence is not a successful restore point, and automatic deletion is disabled.
+
+Code-only verification:
+
+```text
+node --test scripts/recovery/*.node-test.mjs
+```
+
+Current local component checkpoint: **59/59 Node tests PASS** across all recovery
+unit-test files. The production-source adapter tests use mocked clients/processes
+and synthetic CA text on Windows; its Linux file-mode check only runs on Linux.
+The prior hosted synthetic integration at commit
+[`64d92ac8fc8fac88d9cffc2389687c54f4c9bc50`](https://github.com/qrtman/adaptive_lifting/commit/64d92ac8fc8fac88d9cffc2389687c54f4c9bc50),
+hosted run [38743474313](https://github.com/qrtman/adaptive_lifting/actions/runs/38743474313),
+on 2026-10-15 at 13:32:22 UTC passed the then-current 46 unit tests, the bounded
+PostgreSQL chunk-cursor SQL against synthetic PostgreSQL rows (large UTF-8, duplicate
+rows, high-precision numeric, NULL, delimiter and newline values), streaming archive
+encryption, authenticated decryption and original archive SHA-256/size comparison,
+isolated single-transaction restore, source/restored fixture comparisons, and
+container/temp-file cleanup before PASS. The encrypted synthetic artifact was 9,144
+bytes. The run used no production credentials, R2, production data, or schedules.
+The template remains inert in this checkout. This hosted integration still does not
+exercise the production schema, source adapter, catalog/sequence completeness, key
+custody, or R2 behavior; production recovery remains BLOCKED / NOT TESTED. The
+current working tree extends that synthetic drill to execute and compare the new
+relation-catalog query, but this integration check has not run on a hosted runner.
+
+### Cloud-only key custody and activation inputs
+
+The owner confirmed they already use a password manager; its provider and recovery
+access procedure have not been supplied. No production encryption identity has been
+generated. Before activation, name the
+owner and alternate and their independently recoverable cloud password-manager
+locations. Generate the identity only through a separately approved cloud procedure
+with private output delivered directly to the owner-controlled vault, never chat,
+Actions logs/artifacts, source control, R2, or a workstation file. Test alternate
+access. A public recipient and non-secret key ID may be supplied to the capture job;
+the private identity must not be accessible to that job. A separate protected manual
+restore environment receives it only for an authorized recovery drill.
+
+Also choose/verify the dedicated private R2 destination and a bucket-scoped static
+credential, GitHub protected environment/default branch and reviewers, pinned
+toolchain, and primary/alternate alert destination. A syntactically valid prefix
+does not enforce an R2 permission boundary. Creating credentials, setting secrets,
+changing bucket protections, publishing a production workflow, and processing
+production data each require exact owner authorization; none occurred for this
+library checkpoint. Live backup/storage/restore remain BLOCKED / NOT TESTED.
 
 ## Backup contract and ownership
 
@@ -135,8 +254,9 @@ manually dispatched, default-branch-only workflow initially, with no pull-reques
 trigger, no untrusted checkout/ref, tightly scoped Actions environment secrets,
 protected default branch, redacted logs, and a pinned PostgreSQL tool/container
 image. Production secrets and data require owner acceptance of GitHub as a data
-processor and verification of branch/environment protections. The synthetic-only
-workflow template contains no production credentials and processes no real data.
+processor and verification of branch/environment protections. The published
+synthetic-only workflow contains no production credentials and processes no real
+data; its successful run does not exercise this production path.
 
 The intended data path is a consistent read-only logical snapshot streamed directly
 through authenticated client-side encryption to the private R2 prefix; avoid writing
@@ -268,11 +388,12 @@ database: postgres
    below passes. Only then perform the scoped retention step.
 
 PostgreSQL documents consistent dump snapshots and version constraints in
-[pg_dump](https://www.postgresql.org/docs/current/app-pgdump.html). The final
-operator commands are intentionally not fabricated here: the working toolchain,
-snapshot collector, encryption/secret mechanism, and runner remain unprovisioned
-and untested. Do not substitute several independently timed CLI schema/data dumps
-and call them one reconciled snapshot.
+[pg_dump](https://www.postgresql.org/docs/current/app-pgdump.html). The source
+adapter is a tested library boundary, not an operational capture command. The
+release inventory, sequence/catalog collectors, archive TOC reconciliation,
+manifest encryption and commit-marker workflow remain unimplemented or untested.
+Do not substitute several independently timed CLI schema/data dumps and call them
+one reconciled snapshot.
 
 ## Isolated restore drill
 
@@ -366,7 +487,8 @@ decryption/tool versions, exact isolated target identity and network settings,
 per-check PASS/FAIL/BLOCKED/NOT TESTED, durations, discrepancies, reviewer and
 cleanup result. Do not include connection passwords, tokens, private keys,
 Vault rows, account emails or training rows. No such successful drill record exists
-for this task.
+for production data; the synthetic hosted result above is not production recovery
+evidence.
 
 ## Incident recovery and return to service
 
@@ -392,13 +514,21 @@ cookies, and isolated providers before routing or enabling each consumer.
 
 Required next authorization must explicitly cover the exact production **read**
 export and sensitive backup/key handling, the off-site destination/runner and its
-cost ceiling, and the isolated restore target. Tool installation/allowlisting is an
-administrator action; it does not authorize production access. Managed project
-creation, secret retrieval/copy, scheduler configuration, provider reconciliation,
+cost ceiling, and the isolated restore target. The source adapter expects the
+existing database password only as protected hosted-job input
+`RECOVERY_DB_PASSWORD`, plus the project CA bundle as `RECOVERY_DB_CA_PEM`; it
+targets only the fixed production session pooler shown above. These inputs have
+not been collected or configured. The source user is privileged, so no production
+capture can proceed until the owner approves that exact data read and hosted
+processing scope. A dedicated read-only backup role would require a separate
+review and explicit database-change authorization; none has been created.
+Tool installation/allowlisting is an administrator action and does not authorize
+production access. Managed project creation, secret retrieval/copy, R2 credential
+or bucket changes, key escrow, scheduler configuration, provider reconciliation,
 return to service and traffic changes need their own exact scope before execution.
 
-Current gaps: hosted synthetic execution, protected workflow publication and
-runner authorization, key escrow/alternate access, scoped R2 access, snapshot
-collector and production capture implementation, actual encrypted backup,
-real isolated restore, managed platform validation, measured RPO/RTO and alerting.
-No recovery gate is PASS merely because this procedure has been written.
+Current gaps: production-specific runner authorization, key escrow/alternate access,
+scoped R2 access, complete catalog/sequence/security manifest and archive
+reconciliation, actual encrypted production backup, real production-point isolated
+restore, managed platform validation, measured RPO/RTO and alerting. The synthetic
+backup-component integration PASSes; production recovery remains BLOCKED / NOT TESTED.

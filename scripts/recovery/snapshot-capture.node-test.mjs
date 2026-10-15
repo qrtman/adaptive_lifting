@@ -6,7 +6,15 @@ import { captureSnapshot, quoteIdentifier, snapshotDumpArgs } from './snapshot-c
 const env = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted' };
 const relation = { schema: 'public', name: 'workouts', kind: 'r', persistence: 'p', inherited: false };
 const version = '20261001000000';
-function fixture({ inventory = [relation], rows = ['{"kg":9007199254740993.123,"deleted_at":null}'], chunks, failAt, rollbackFails = false } = {}) {
+const catalog = {
+  owner: 'postgres', kind: 'r', row_security: true, force_row_security: false, acl: null,
+  columns: [{ name: 'kg', type: 'numeric', not_null: false, identity: '', generated: '', default: null }],
+  constraints: [{ name: 'workouts_pkey', type: 'p', definition: 'PRIMARY KEY (id)', validated: true, deferrable: false, deferred: false }],
+  indexes: [{ name: 'workouts_pkey', definition: 'CREATE UNIQUE INDEX workouts_pkey ON public.workouts USING btree (id)', primary: true, unique: true, valid: true, ready: true }],
+  triggers: [],
+  policies: [{ name: 'workouts_owner', command: 'r', permissive: true, roles: ['authenticated'], using: '(owner_id = auth.uid())', check: null }],
+};
+function fixture({ inventory = [relation], catalogRows = [catalog], rows = ['{"kg":9007199254740993.123,"deleted_at":null}'], chunks, failAt, rollbackFails = false } = {}) {
   const queries = [];
   let fetch = 0;
   return { queries, async query(sql, values) {
@@ -14,10 +22,10 @@ function fixture({ inventory = [relation], rows = ['{"kg":9007199254740993.123,"
     if (failAt && sql.includes(failAt)) throw new Error('private-user-row secret-token');
     if (sql === 'ROLLBACK' && rollbackFails) throw new Error('private-source');
     if (sql.startsWith('SELECT current_database')) return { rows: [{ database: 'postgres', read_only: 'on', version: '170006', tls: true }] };
+    if (sql.includes('AS policies')) return { rows: catalogRows };
     if (sql.includes('c.relkind AS kind')) return { rows: inventory };
     if (sql.startsWith('SELECT version FROM')) return { rows: [{ version }] };
     if (sql.startsWith('SELECT pg_export_snapshot')) return { rows: [{ snapshot: '00000003-0000001B-1', captured_at: '2026-10-15 00:00:00+00' }] };
-    if (sql.includes('a.attname AS name')) return { rows: [{ name: 'kg', type: 'numeric', not_null: false, identity: '', generated: '' }] };
     if (sql.startsWith('FETCH')) return { rows: fetch++ === 0 ? (chunks ?? rows.map((payload) => ({ row_bytes: `${Buffer.byteLength(payload)}`, offset: '1', chunk: payload }))) : [] };
     return { rows: [] };
   } };
@@ -49,6 +57,16 @@ test('snapshot stays open until archive and encrypted manifest sinks finish; onl
   const expected = createHash('sha256').update(`${Buffer.byteLength(payload)}:`).update(payload).digest('hex');
   assert.equal(manifest.tables[0].sha256, expected);
   assert.equal(manifest.tables[0].count, 1);
+  assert.equal(manifest.tables[0].catalog.owner, 'postgres');
+  assert.equal(manifest.tables[0].catalog.row_security, true);
+  assert.equal(manifest.tables[0].catalog.columns[0].type, 'numeric');
+  assert.equal(manifest.tables[0].catalog.constraints[0].validated, true);
+  assert.equal(manifest.tables[0].catalog.indexes[0].valid, true);
+  assert.deepEqual(manifest.tables[0].catalog.policies[0].roles, ['authenticated']);
+  const catalogQuery = client.queries.find((q) => q.sql.includes('AS policies'));
+  assert.deepEqual(catalogQuery.values, ['public', 'workouts']);
+  assert.match(catalogQuery.sql, /pg_get_constraintdef/);
+  assert.match(catalogQuery.sql, /pg_get_triggerdef/);
   assert.match(client.queries.find((q) => q.sql.startsWith('DECLARE')).sql, /FROM ONLY "public"\."workouts"/);
   assert.match(client.queries.find((q) => q.sql.startsWith('DECLARE')).sql, /FOR 16384/);
 });
@@ -96,6 +114,16 @@ test('migration mismatch fails before snapshot export and archive output', async
   await assert.rejects(captureSnapshot(options(client, { expectedVersions: ['20261002000000'] })), /Snapshot capture failed/);
   assert.ok(!client.queries.some((q) => q.sql.startsWith('SELECT pg_export_snapshot')));
   assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+});
+
+test('missing or malformed relation catalog metadata fails before archive output', async () => {
+  for (const catalogRows of [[], [{ ...catalog, owner: null }], [{ ...catalog, row_security: 'true' }]]) {
+    const client = fixture({ catalogRows });
+    let archiveStarted = false;
+    await assert.rejects(captureSnapshot(options(client, { captureArchive: async () => { archiveStarted = true; } })), /Snapshot capture failed/);
+    assert.equal(archiveStarted, false);
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  }
 });
 
 test('database identity mismatch, unverified TLS or server-major mismatch fail before capture', async () => {

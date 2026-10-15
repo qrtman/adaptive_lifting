@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
+import { Writable } from 'node:stream';
+import { encryptArchiveStream } from './encrypt-stream.mjs';
+import { manifestCursorSql, RELATION_CATALOG_SQL } from './snapshot-capture.mjs';
 
-const REPLAY = new URL('../../supabase/bootstrap/replay.py', import.meta.url);
+export const IMAGE = 'supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00';
 const LABEL = 'adaptive-lifting.synthetic-recovery=true';
 const SOCKET = '/tmp';
 const DB_NAME = 'postgres';
@@ -16,12 +19,6 @@ export function assertHostedRunnerEnvironment(env = process.env, platform = proc
   if (env.GITHUB_ACTIONS !== 'true' || platform !== 'linux' || env.RUNNER_ENVIRONMENT !== 'github-hosted') {
     throw new Error('Synthetic recovery drill is restricted to a GitHub hosted Linux runner.');
   }
-}
-
-export function extractPinnedImage(replaySource) {
-  const match = replaySource.match(/^IMAGE\s*=\s*"(supabase\/postgres@sha256:[a-f0-9]{64})"\s*$/m);
-  if (!match) throw new Error('Could not find the pinned Supabase PostgreSQL image in replay.py.');
-  return match[1];
 }
 
 export function containerNames(id) {
@@ -53,28 +50,83 @@ export function dockerRunArgs(name, image) {
   ];
 }
 
+export function assertCleanupOwnedInspect(inspect, name) {
+  const item = Array.isArray(inspect) ? inspect[0] : inspect;
+  const identity = name.match(/^al-synthetic-recovery-([a-z0-9-]+)-(source|restore)$/);
+  if (!item || !identity || item.Name !== `/${name}` ||
+      item.Config?.Labels?.['adaptive-lifting.synthetic-recovery'] !== 'true' ||
+      item.Config?.Labels?.['adaptive-lifting.synthetic-recovery-run'] !== identity[1]) {
+    throw new Error('Container cleanup ownership invariant failed.');
+  }
+  return true;
+}
+
+export function safeContainerSummary(inspect) {
+  const item = Array.isArray(inspect) ? inspect[0] : inspect;
+  if (!item) return { available: false };
+  const host = item.HostConfig ?? {};
+  const mounts = Array.isArray(item.Mounts) ? item.Mounts.map((mount) => ({
+    type: typeof mount.Type === 'string' ? mount.Type : 'unknown',
+    destination: typeof mount.Destination === 'string' ? mount.Destination : 'unknown',
+  })) : [];
+  return {
+    name: typeof item.Name === 'string' ? item.Name : null,
+    user: typeof item.Config?.User === 'string' ? item.Config.User : null,
+    networkMode: typeof host.NetworkMode === 'string' ? host.NetworkMode : null,
+    readonlyRootfs: host.ReadonlyRootfs === true,
+    portBindingCount: Object.keys(host.PortBindings ?? {}).length,
+    publishedPortCount: Object.values(item.NetworkSettings?.Ports ?? {}).filter(Boolean).length,
+    mounts,
+    tmpfsDestinations: Object.keys(host.Tmpfs ?? {}).sort(),
+  };
+}
+
 export function assertIsolatedInspect(inspect, name) {
   const item = Array.isArray(inspect) ? inspect[0] : inspect;
-  if (!item || item.Name !== `/${name}` || item.Config?.User !== 'postgres') throw new Error('Container identity or non-root user invariant failed.');
+  assertCleanupOwnedInspect(item, name);
+  if (item.Config?.User !== 'postgres') throw new Error('Container non-root user invariant failed.');
   if (item.HostConfig?.NetworkMode !== 'none') throw new Error('Container network isolation invariant failed.');
   if (Object.keys(item.HostConfig?.PortBindings ?? {}).length || Object.values(item.NetworkSettings?.Ports ?? {}).some((value) => value)) {
     throw new Error('Container port publishing invariant failed.');
   }
-  const mounts = item.Mounts ?? [];
-  const identity = name.match(/^al-synthetic-recovery-([a-z0-9-]+)-(source|restore)$/);
-  const mountDestinations = mounts.map((mount) => `${mount.Type}:${mount.Destination}`).sort();
-  if (JSON.stringify(mountDestinations) !== JSON.stringify(['tmpfs:/tmp', 'tmpfs:/var/lib/postgresql/data'])) {
-    throw new Error('Container mount invariant failed.');
-  }
-  if (!item.HostConfig?.Tmpfs?.['/tmp'] || !item.HostConfig?.Tmpfs?.['/var/lib/postgresql/data']) {
+  const expectedTmpfs = ['/tmp', '/var/lib/postgresql/data'];
+  const tmpfs = item.HostConfig?.Tmpfs;
+  if (!tmpfs || JSON.stringify(Object.keys(tmpfs).sort()) !== JSON.stringify(expectedTmpfs)) {
     throw new Error('Container PostgreSQL tmpfs invariant failed.');
   }
-  if (!identity || item.Config?.Labels?.['adaptive-lifting.synthetic-recovery'] !== 'true' ||
-      item.Config?.Labels?.['adaptive-lifting.synthetic-recovery-run'] !== identity[1]) {
-    throw new Error('Container label invariant failed.');
+  const mounts = item.Mounts ?? [];
+  if (!Array.isArray(mounts) || mounts.some((mount) => mount.Type !== 'tmpfs' || !expectedTmpfs.includes(mount.Destination)) ||
+      new Set(mounts.map((mount) => mount.Destination)).size !== mounts.length) {
+    throw new Error('Container mount invariant failed.');
+  }
+  if ((item.HostConfig?.Binds ?? []).length || (item.HostConfig?.Mounts ?? []).length ||
+      (item.HostConfig?.VolumesFrom ?? []).length) {
+    throw new Error('Container host mount invariant failed.');
   }
   if (!item.HostConfig?.ReadonlyRootfs) throw new Error('Container read-only root filesystem invariant failed.');
   return true;
+}
+
+export async function attemptAllCleanups(names, cleanupOne) {
+  const failures = [];
+  for (const name of names) {
+    try { await cleanupOne(name); } catch (error) {
+      const detail = error instanceof Error ? error.message : 'unknown cleanup failure';
+      failures.push(new Error(`${name}: ${detail}`, { cause: error }));
+    }
+  }
+  if (failures.length) throw new AggregateError(failures, `Container cleanup failed for ${failures.map((error) => error.message).join('; ')}.`);
+}
+
+export function combineRunErrors(stage, originalError, cleanupErrors) {
+  const cleanupMessages = cleanupErrors.map((error) => error.message);
+  if (originalError && cleanupErrors.length) {
+    const primary = new Error(`${stage}: ${originalError.message}`, { cause: originalError });
+    return new AggregateError([primary, ...cleanupErrors], `${primary.message}; cleanup failed: ${cleanupMessages.join('; ')}.`);
+  }
+  if (originalError) return new Error(`${stage}: ${originalError.message}`, { cause: originalError });
+  if (cleanupErrors.length) return new AggregateError(cleanupErrors, `Drill passed but cleanup failed: ${cleanupMessages.join('; ')}.`);
+  return null;
 }
 
 export function cleanupArgs(names) {
@@ -142,21 +194,29 @@ async function docker(args, opts) {
   return runCapture('docker', args, opts);
 }
 
-async function inspectContainer(name) {
+async function readInspectContainer(name) {
   const { stdout } = await docker(['inspect', name]);
   let parsed;
   try { parsed = JSON.parse(stdout.toString('utf8')); } catch { throw new Error('Docker inspect returned invalid data.'); }
-  assertIsolatedInspect(parsed, name);
+  return parsed;
+}
+
+async function inspectContainer(name) {
+  const parsed = await readInspectContainer(name);
+  try { assertIsolatedInspect(parsed, name); } catch (error) {
+    throw new Error(`${error.message}; safe inspect summary: ${JSON.stringify(safeContainerSummary(parsed))}`, { cause: error });
+  }
   return parsed[0];
 }
 
 async function cleanupOwnedContainers(names) {
-  for (const name of names) {
+  await attemptAllCleanups(names, async (name) => {
     const { stdout } = await docker(['ps', '-aq', '--filter', `name=^/${name}$`]);
-    if (!stdout.toString('utf8').trim()) continue;
-    await inspectContainer(name);
+    if (!stdout.toString('utf8').trim()) return;
+    const parsed = await readInspectContainer(name);
+    assertCleanupOwnedInspect(parsed, name);
     await docker(['rm', '-f', name]);
-  }
+  });
 }
 
 async function psql(name, sql) {
@@ -178,6 +238,12 @@ CREATE TABLE synthetic_recovery.workouts (
 );
 ALTER SEQUENCE synthetic_recovery.workout_id_seq OWNED BY synthetic_recovery.workouts.id;
 CREATE INDEX workouts_active_logged_at_idx ON synthetic_recovery.workouts (logged_at DESC) WHERE deleted_at IS NULL;
+ALTER TABLE synthetic_recovery.workouts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY workouts_owner ON synthetic_recovery.workouts USING (athlete_id = current_setting('app.user_id', true)::uuid);
+CREATE FUNCTION synthetic_recovery.touch_workout() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN NEW.revision := NEW.revision; RETURN NEW; END $$;
+CREATE TRIGGER workouts_touch BEFORE UPDATE ON synthetic_recovery.workouts
+  FOR EACH ROW EXECUTE FUNCTION synthetic_recovery.touch_workout();
 CREATE TABLE synthetic_recovery.tombstones (
   entity_id uuid PRIMARY KEY,
   entity_kind text NOT NULL CHECK (entity_kind IN ('workout', 'lift')),
@@ -203,7 +269,42 @@ INSERT INTO synthetic_recovery.revisions VALUES
   ('10000000-0000-4000-8000-000000000001', 2, repeat('a', 64)),
   ('10000000-0000-4000-8000-000000000001', 3, repeat('b', 64));
 INSERT INTO synthetic_recovery.idempotency_keys VALUES (repeat('c', 64), 201, '2026-01-02T03:04:05Z');
+CREATE TABLE synthetic_recovery.chunk_probe (amount numeric(30,10), payload text, missing text);
+INSERT INTO synthetic_recovery.chunk_probe VALUES (12345678901234567890.1234567890, repeat(chr(54620), 20000), NULL);
+INSERT INTO synthetic_recovery.chunk_probe SELECT * FROM synthetic_recovery.chunk_probe;
+INSERT INTO synthetic_recovery.chunk_probe VALUES (1.5, E'line one\\nline two|colon:', NULL);
 `;
+
+export function chunkProbeSql() {
+  return `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+    SET LOCAL TimeZone='UTC'; SET LOCAL DateStyle='ISO, YMD'; SET LOCAL extra_float_digits=3;
+    SET LOCAL bytea_output='hex'; SET LOCAL client_encoding='UTF8';
+    ${manifestCursorSql('synthetic_recovery', 'chunk_probe')};
+    FETCH ALL FROM recovery_rows; CLOSE recovery_rows; ROLLBACK;`;
+}
+
+export function catalogProbeSql(schema = 'synthetic_recovery', table = 'workouts') {
+  if (!/^[a-z_][a-z0-9_]*$/.test(schema) || !/^[a-z_][a-z0-9_]*$/.test(table)) {
+    throw new Error('Unsafe synthetic catalog target.');
+  }
+  return `PREPARE recovery_catalog(text,text) AS ${RELATION_CATALOG_SQL};
+    SELECT row_to_json(catalog)::text FROM recovery_catalog('${schema}','${table}') AS catalog;`;
+}
+
+async function verifyOriginalArchiveHash(artifact, keyPath, expectedHash, expectedBytes) {
+  const decrypt = start('age', ['-d', '-i', keyPath, artifact]);
+  const hash = createHash('sha256');
+  let size = 0;
+  const sink = new Writable({ write(chunk, _encoding, callback) { hash.update(chunk); size += chunk.length; callback(); } });
+  try {
+    await Promise.all([pipeline(decrypt.child.stdout, sink), decrypt.closed]);
+  } catch {
+    decrypt.child.kill();
+    await Promise.allSettled([decrypt.closed]);
+    throw new Error('Synthetic archive authenticated hash verification failed.');
+  }
+  if (hash.digest('hex') !== expectedHash || size !== expectedBytes) throw new Error('Synthetic original archive hash mismatch.');
+}
 
 const SNAPSHOT_SQL = `
 SET TIME ZONE 'UTC';
@@ -269,69 +370,128 @@ function runDiscard(binary, args) {
 }
 
 export async function runDrill() {
-  assertHostedRunnerEnvironment();
-  await Promise.all([
-    runCapture('docker', ['version']),
-    runCapture('age', ['--version']),
-  ]);
-  const image = extractPinnedImage(await readFile(REPLAY, 'utf8'));
-  await docker(['image', 'inspect', image]);
-
-  const id = randomUUID().replaceAll('-', '');
-  const names = containerNames(id);
-  const tempDir = await mkdtemp(join(tmpdir(), 'al-synthetic-recovery-'));
-  const artifact = join(tempDir, 'synthetic-backup.dump.age');
+  let stage = 'hosted runner guard';
+  let originalError;
+  let result;
+  let tempDir;
+  let names;
+  let encrypted;
   const started = [];
-  let success = false;
   try {
+    assertHostedRunnerEnvironment();
+    stage = 'check Docker and age tools';
+    await Promise.all([
+      runCapture('docker', ['version']),
+      runCapture('age', ['--version']),
+    ]);
+    const image = IMAGE;
+    stage = 'inspect pinned PostgreSQL image';
+    await docker(['image', 'inspect', image]);
+
+    names = containerNames(randomUUID().replaceAll('-', ''));
+    stage = 'create private runner temp directory';
+    tempDir = await mkdtemp(join(tmpdir(), 'al-synthetic-recovery-'));
     await chmod(tempDir, 0o700);
+    stage = 'generate ephemeral age identity';
     const { keyPath, recipient } = await makeKeyPair(tempDir);
     for (const role of ['source', 'restore']) {
       const name = names[role];
       started.push(name);
+      stage = `start ${role} PostgreSQL container`;
       await docker(dockerRunArgs(name, image));
+      stage = `inspect ${role} container isolation`;
       await inspectContainer(name);
+      stage = `wait for ${role} PostgreSQL`;
       await waitReady(name);
+      stage = `verify ${role} cron disabled before SQL`;
       await assertCronDisabled(name);
     }
 
+    stage = 'verify source cron disabled before fixture SQL';
     await assertCronDisabled(names.source);
+    stage = 'create synthetic source fixture';
     await psql(names.source, FIXTURE_SQL);
+    stage = 'verify source isolation and cron after fixture SQL';
     await Promise.all([inspectContainer(names.source), assertCronDisabled(names.source)]);
+    stage = 'capture source snapshot';
     const sourceSnapshot = JSON.parse(await psql(names.source, SNAPSHOT_SQL));
+    stage = 'exercise bounded manifest SQL on large UTF-8 duplicate fixture rows';
+    const sourceChunks = await psql(names.source, chunkProbeSql());
+    if (!sourceChunks.includes('16385|') || !sourceChunks.includes('12345678901234567890.1234567890')) {
+      throw new Error('Synthetic chunked manifest fixture was not fully exercised.');
+    }
+    stage = 'execute relation catalog query against synthetic PostgreSQL';
+    const sourceCatalog = JSON.parse(await psql(names.source, catalogProbeSql()));
+    if (sourceCatalog.kind !== 'r' || !sourceCatalog.row_security ||
+        !sourceCatalog.policies.some((policy) => policy.name === 'workouts_owner') ||
+        !sourceCatalog.triggers.some((trigger) => trigger.name === 'workouts_touch')) {
+      throw new Error('Synthetic relation catalog probe did not capture its security metadata.');
+    }
 
-    const dump = start('docker', commandPlan(image, names, artifact, recipient).dump.slice(1));
-    const encrypt = start('age', ['-r', recipient, '-o', artifact], { drainStdout: true });
-    await pipeAndCheck(dump, encrypt);
-    await chmod(artifact, 0o600);
+    stage = 'dump and encrypt synthetic fixture';
+    const dump = start('docker', commandPlan(image, names, '<ciphertext>', recipient).dump.slice(1));
+    const abort = new AbortController();
+    const encryption = encryptArchiveStream(dump.child.stdout, recipient, { signal: abort.signal })
+      .then((value) => { encrypted = value; return value; });
+    const dumpComplete = dump.closed.catch((error) => { abort.abort(); throw error; });
+    try { await Promise.all([encryption, dumpComplete]); }
+    catch (error) {
+      dump.child.kill(); abort.abort();
+      await Promise.allSettled([encryption, dumpComplete]);
+      throw error;
+    }
+    const artifact = encrypted.outputPath;
+    stage = 'verify encrypted fixture and corruption rejection';
     await verifyCorruptionRejected(artifact, keyPath, tempDir);
+    await verifyOriginalArchiveHash(artifact, keyPath, encrypted.archiveSha256, encrypted.archiveBytes);
 
+    stage = 'verify restore target isolation and cron before restore';
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
+    stage = 'decrypt and restore synthetic fixture';
     const restore = start('docker', commandPlan(image, names, artifact, recipient).restoreCommand.slice(1), { drainStdout: true });
     const decrypt = start('age', ['-d', '-i', keyPath, artifact]);
     await pipeAndCheck(decrypt, restore);
+    stage = 'verify restore isolation and cron after restore';
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
+    stage = 'compare restored fixture snapshot';
     const restoredSnapshot = JSON.parse(await psql(names.restore, SNAPSHOT_SQL));
     if (JSON.stringify(sourceSnapshot) !== JSON.stringify(restoredSnapshot)) throw new Error('Restored synthetic fixture does not match the source snapshot.');
-    success = true;
-    return {
+    stage = 'compare restored bounded manifest fixture chunks';
+    if (await psql(names.restore, chunkProbeSql()) !== sourceChunks) throw new Error('Restored chunked manifest differs from source.');
+    stage = 'compare restored relation catalog metadata';
+    const restoredCatalog = JSON.parse(await psql(names.restore, catalogProbeSql()));
+    if (JSON.stringify(sourceCatalog) !== JSON.stringify(restoredCatalog)) throw new Error('Restored relation catalog differs from source.');
+    result = {
       status: 'PASS',
       image,
       checks: ['hosted-runner guard', 'pinned local image', 'isolated non-root containers', 'cron disabled before SQL',
         'encrypted custom-format dump', 'corrupted ciphertext rejected', 'single-transaction restore',
-        'rows, revisions, tombstones, idempotency, sequence, constraints, and indexes match'],
+        'original archive authenticated hash matches', 'bounded manifest SQL matches large UTF-8 and duplicate rows',
+        'rows, revisions, tombstones, idempotency, sequence, constraints, and indexes match',
+        'relation catalog SQL and restored ownership/RLS/columns/constraints/indexes/triggers/policies match'],
       artifact_bytes: (await stat(artifact)).size,
       source: names.source,
       restore: names.restore,
     };
-  } finally {
-    const failures = [];
-    if (started.length) {
-      try { await cleanupOwnedContainers(started); } catch { failures.push('container cleanup'); }
-    }
-    try { await rm(tempDir, { recursive: true, force: true }); } catch { failures.push('temporary artifact cleanup'); }
-    if (failures.length) throw new Error(`${success ? 'Drill passed but' : 'Drill failed and'} cleanup failed: ${failures.join(', ')}.`);
+  } catch (error) {
+    originalError = error instanceof Error ? error : new Error('Unknown synthetic drill failure.');
   }
+
+  const cleanupErrors = [];
+  if (started.length) {
+    try { await cleanupOwnedContainers(started); } catch (error) {
+      cleanupErrors.push(...(error instanceof AggregateError ? error.errors : [error]));
+    }
+  }
+  if (tempDir) {
+    try { await rm(tempDir, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }
+  }
+  if (encrypted) {
+    try { await encrypted.cleanup(); } catch (error) { cleanupErrors.push(error); }
+  }
+  const finalError = combineRunErrors(stage, originalError, cleanupErrors);
+  if (finalError) throw finalError;
+  return result;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
