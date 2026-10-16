@@ -6,6 +6,7 @@ import { authenticate, requestToken } from "./auth/session.ts";
 import { verifyAppJwt } from "./auth/jwt.ts";
 import type { Principal } from "./types/mod.ts";
 import { sessionResponse } from "./sessionResponse.ts";
+import { rateLimitClientIp } from "./clientIp.ts";
 
 type Json = Record<string, unknown>;
 
@@ -164,7 +165,7 @@ async function login(request: Request, db: Database, config: AppConfig): Promise
     ]);
   }
   const email = username.trim().toLowerCase();
-  const address = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
+  const address = rateLimitClientIp(request);
   const subjectHash = await sha256Hex(`auth:${address}`);
   const sessionId = crypto.randomUUID();
   const result = sqlJson(await rpc(db,

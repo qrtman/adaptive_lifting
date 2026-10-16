@@ -55,7 +55,7 @@ describe('new account registration readiness', () => {
     const release = vi.fn();
     const db = { connect: vi.fn(async () => ({ queryObject, release })) } as any;
     const request = new Request('https://app.goatedmethod.me/api/auth/verify-email', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.42' },
       body: JSON.stringify({ token: 'a'.repeat(43) }),
     });
     await expect(handleOnboardingRoute(request, db, {

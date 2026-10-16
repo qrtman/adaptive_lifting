@@ -41,6 +41,7 @@ Deno.test("password login preserves form contract, token claims, and secure cook
       headers: {
         "content-type": "application/x-www-form-urlencoded",
         origin: "https://staging.example.test",
+        "cf-connecting-ip": "203.0.113.7",
       },
       body: new URLSearchParams({ username: " User@Example.test ", password: "synthetic password" }),
     }),
@@ -71,13 +72,89 @@ Deno.test("login rejects an Edge JSON-only request and retains legacy bad-passwo
   );
   const error = await assertRejects(
     () => handleAccountSecurityRoute(new Request("https://stage.test/api/auth/login", {
-      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST", headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": "203.0.113.7",
+      },
       body: new URLSearchParams({ username: "x", password: "wrong" }),
     }), db({ denial: "invalid_credentials" }), config),
     ApiError,
   );
   assertEquals(error.status, 400);
   assertEquals(error.detail, "Incorrect email or password");
+});
+
+Deno.test("login spoofed forwarding headers cannot select a fresh rate-limit bucket", async () => {
+  const attempts = new Map<string, number>();
+  const seenSubjects: string[] = [];
+  const rateLimitedDb: Database = {
+    async connect() {
+      const client: SqlClient = {
+        async queryObject<T>(_query: string, parameters: unknown[] = []) {
+          const subject = String(parameters[2]);
+          seenSubjects.push(subject);
+          const count = (attempts.get(subject) ?? 0) + 1;
+          attempts.set(subject, count);
+          const payload = count > 1
+            ? { denial: "rate_limited" }
+            : { denial: "invalid_credentials" };
+          return { rows: [{ payload } as unknown as T] };
+        },
+        release() {},
+      };
+      return client;
+    },
+  };
+
+  const request = (forwardedFor: string, realIp: string) =>
+    new Request("https://stage.test/functions/v1/api/auth/login", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": "203.0.113.7",
+        "x-forwarded-for": forwardedFor,
+        "x-real-ip": realIp,
+      },
+      body: new URLSearchParams({ username: "user@example.test", password: "wrong" }),
+    });
+
+  const first = await assertRejects(
+    () => handleAccountSecurityRoute(request("198.51.100.1", "198.51.100.2"), rateLimitedDb, config),
+    ApiError,
+  );
+  const second = await assertRejects(
+    () => handleAccountSecurityRoute(request("198.51.100.9", "198.51.100.8"), rateLimitedDb, config),
+    ApiError,
+  );
+
+  assertEquals(first.status, 400);
+  assertEquals(second.status, 429);
+  assertEquals(seenSubjects.length, 2);
+  assertEquals(seenSubjects[0], seenSubjects[1]);
+});
+
+Deno.test("hosted login fails closed when the trusted ingress IP is missing", async () => {
+  let databaseTouched = false;
+  const untouchedDb: Database = {
+    async connect() {
+      databaseTouched = true;
+      throw new Error("Database must not be queried without a trusted rate-limit identity");
+    },
+  };
+  const error = await assertRejects(
+    () => handleAccountSecurityRoute(new Request("https://stage.test/functions/v1/api/auth/login", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-forwarded-for": "198.51.100.1",
+        "x-real-ip": "198.51.100.2",
+      },
+      body: new URLSearchParams({ username: "user@example.test", password: "wrong" }),
+    }), untouchedDb, config),
+    ApiError,
+  );
+  assertEquals(error.status, 503);
+  assertEquals(databaseTouched, false);
 });
 
 Deno.test("unmigrated auth paths fall through unchanged", async () => {

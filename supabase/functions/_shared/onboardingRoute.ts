@@ -8,6 +8,7 @@ import { verifyGoogleIdToken } from "./googleIdToken.ts";
 import { sessionResponse } from "./sessionResponse.ts";
 import { tryProcessEmailVerificationJob } from "./emailWorkerCore.ts";
 import { requireEmailRegistrationReady } from "./emailReadiness.ts";
+import { rateLimitClientIp } from "./clientIp.ts";
 
 type Json = Record<string, unknown>;
 const GENERIC_MESSAGE = "If this address is eligible, a verification email will arrive shortly. Verify your email, then sign in.";
@@ -78,9 +79,7 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 function addressHashInput(request: Request, route: "register" | "resend" | "verify" | "google"): string {
-  const address = request.headers.get("cf-connecting-ip")?.trim() ||
-    request.headers.get("x-real-ip")?.trim() ||
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
+  const address = rateLimitClientIp(request);
   return `auth:${route}:${address}`;
 }
 
