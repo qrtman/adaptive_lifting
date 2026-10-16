@@ -26,7 +26,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$RUNNER_OS" = Linux
           node --version
-          node --test scripts/recovery/synthetic-drill.node-test.mjs
+          node --test scripts/recovery/*.node-test.mjs
       - name: Prepare pinned public tools on the hosted runner
         shell: bash
         run: |

@@ -1441,7 +1441,7 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 ### 15.2 Target Runtime Topology
 
-The selected runtime architecture uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. Staging is deployed and validated. The legacy production application is offline; the new production app is not deployed. Its confirmed domain is `app.goatedmethod.me`, and the owner has decided it will use a fresh empty application database and new user accounts, with no historical data import. The Worker serves the Vite/PWA build directly and runs only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
+The selected runtime architecture uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. Staging is deployed and validated. The legacy production application is offline; the new production app is not deployed. Its confirmed domain is `app.goatedmethod.me`, and the owner has decided it will use a fresh production database and new user accounts, with no historical data import. The production database has been initialized with its reviewed schema and migrations. The Worker serves the Vite/PWA build directly and runs only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
 
 ```mermaid
 graph TD
@@ -1469,7 +1469,7 @@ graph TD
 | :--- | :--- | :--- |
 | Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
 | Staging | Supabase staging project plus deployed Cloudflare Workers Static Assets Worker | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
-| Production | Future separately approved empty Supabase production project plus distinct Cloudflare Worker at `app.goatedmethod.me` | Fresh launch target; project is not provisioned and no production cutover has occurred. |
+| Production | Existing initialized Supabase project `gadusaizqnshxqcckibq` plus a separately approved distinct Cloudflare Worker at `app.goatedmethod.me` | Fresh launch target with the checked-in migrations already applied; API/Worker release and production traffic cutover remain separate approvals and have not been performed. |
 
 Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths. Production starts without legacy accounts, sessions, training data, billing state, provider credentials, or queued jobs. The existing legacy database, backups, and Tunnel are retained separately and are not reset or imported.
 
@@ -1489,10 +1489,10 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 
 ### 15.5 Backup & Restore Contract
 
-- **Backup Cadence:** Nightly encrypted PostgreSQL backup with at least 14 retained restore points.
-- **Restore Drill:** Restore must be tested against a staging environment before relying on the backup strategy in production.
-- **Export Safety:** CSV/JSON exports are generated from a read-only transaction to avoid mixing partially updated workout data.
-- **Disaster Recovery Target:** For single-coach deployments, target RPO <= 24 hours and RTO <= 4 hours.
+- **Backup Cadence:** The target is a nightly encrypted PostgreSQL restore point with at least 14 retained points. Scheduling and retention remain disabled until production capture and an isolated production-point restore are verified and explicitly authorized.
+- **Restore Drill:** Synthetic recovery tests run on an ephemeral hosted runner. Production-point recovery must be tested in a separately isolated disposable database with outbound side effects disabled; the shared staging project and owner workstation are not restore targets.
+- **Export Safety:** The recovery archive and row reconciliation manifest come from one read-only repeatable-read PostgreSQL snapshot. Ordinary CSV/JSON exports are not a database backup.
+- **Disaster Recovery Target:** For single-coach deployments, target RPO <= 24 hours and RTO <= 4 hours; these targets are not yet measured or verified.
 
 ### 15.6 Runtime Configuration
 

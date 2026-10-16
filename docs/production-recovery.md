@@ -1,12 +1,13 @@
 # Production backup and recovery
 
-**Status, 2026-10-15: production backup, restore, and R2 recovery remain BLOCKED / NOT TESTED.**
-The synthetic hosted restore drill passed; it did not use real data, production
-credentials, a production export, provider requests, production mutations, or R2.
-The synthetic manual-only workflow was published and run under separate explicit
-authorization. This does not authorize or establish production recoverability.
-The hosted-runner + Cloudflare R2 production route below remains unconfigured,
-cost-untested, and unexercised with production data.
+**Status, 2026-10-16: production backup, restore, and R2 recovery remain BLOCKED / NOT TESTED.**
+A historical hosted synthetic restore run is recorded below. It did not use real
+data, production credentials, a production export, provider requests, production
+mutations, or R2, and does not establish production recoverability. In this branch,
+`scripts/recovery/synthetic-drill.workflow.yml` is an inert reviewed template; no
+active workflow exists under `.github/workflows/`. The hosted-runner + Cloudflare R2
+production route remains unconfigured, cost-untested, and unexercised with
+production data.
 
 The current assigned production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
@@ -30,10 +31,9 @@ Source of truth:
   `catalog.sql`, and `PRODUCTION_CUTOVER.md`: existing isolation and verification
   patterns. The importer is historical tooling and is not a recovery procedure.
 
-Scope: this document, the synthetic rehearsal, and the local-tested backup library
-components described below. The manual workflow was published
-and its hosted rehearsal completed under explicit owner authorization. That scope
-did not include production credentials or data, R2 access, scheduler setup, provider
+Scope: this document, the synthetic rehearsal, and the locally tested backup library
+components described below. The historical hosted synthetic rehearsal did not
+include production credentials or data, R2 access, scheduler setup, provider
 requests, or production mutation. This document grants no additional authorization.
 
 Required operational states: pending, running, failed, verified, and overdue must
@@ -70,17 +70,17 @@ versions must still be measured during an authorized backup. Do not assume this
 image matches a later server or silently substitute an unpinned tag. Any image
 pull/container execution belongs exclusively on the approved hosted runner.
 
-### Synthetic implementation and hosted checkpoint
+### Synthetic implementation and historical hosted checkpoint
 
 `scripts/recovery/synthetic-drill.mjs` is a synthetic-only rehearsal, with pure
 unit tests in `synthetic-drill.node-test.mjs`. It has no production source, credential,
 R2 upload or scheduler mode. Its runtime guard rejects a local/self-hosted runner.
-The active workflow is [`.github/workflows/synthetic-recovery.yml`](https://github.com/qrtman/adaptive_lifting/blob/main/.github/workflows/synthetic-recovery.yml)
-on `main`; it is manual-dispatch only, has no schedule or secrets, and uploads no
-fixtures, keys or archives. Its hosted job downloads checksum-pinned age and the
-digest-pinned database image, creates synthetic fixtures and an ephemeral encryption
-identity, encrypts a custom-format dump, decrypts and restores into a second
-network-isolated database, compares the fixtures, and cleans up.
+The historical workflow record points to a manually dispatched hosted job with no
+schedule or secrets. The current branch contains only the inert workflow template
+described above. The historical job downloaded checksum-pinned age and the
+digest-pinned database image, created synthetic fixtures and an ephemeral encryption
+identity, encrypted a custom-format dump, decrypted and restored into a second
+network-isolated database, compared the fixtures, and cleaned up.
 
 The workflow was tested at commit
 [`672411717c3cc3ab66c7f104df30f3b8947ab071`](https://github.com/qrtman/adaptive_lifting/commit/672411717c3cc3ab66c7f104df30f3b8947ab071).
@@ -105,10 +105,10 @@ key recovery, R2 upload/retrieval, production capture, provider reconciliation, 
 full production data consistency. Those remain separate gates; production recovery
 is still BLOCKED / NOT TESTED.
 
-Local checkpoint, 2026-10-15: 11 Node unit tests PASS; JavaScript syntax and workflow
-YAML/manual-trigger/permission checks PASS; direct local invocation rejects execution
-before tool invocation. Local checks created no database, encryption identity or
-backup artifact and do not prove a hosted restore.
+Historical local checkpoint, 2026-10-15: 11 synthetic-drill Node unit tests PASS;
+JavaScript syntax and workflow YAML/manual-trigger/permission checks PASS; direct
+local invocation rejects execution before tool invocation. Local checks created no
+database, encryption identity or backup artifact and do not prove a hosted restore.
 
 ### Backup library checkpoint (2026-10-15)
 
@@ -177,8 +177,13 @@ Code-only verification:
 node --test scripts/recovery/*.node-test.mjs
 ```
 
-Current local component checkpoint: **59/59 Node tests PASS** across all recovery
-unit-test files. The production-source adapter tests use mocked clients/processes
+Current local component checkpoint, verified 2026-10-16: **59/59 Node tests PASS**
+across all recovery unit-test files. The synthetic drill imports `encrypt-stream.mjs`
+and `snapshot-capture.mjs`; the independent `ciphertext-store.mjs` component
+implements the documented R2 ciphertext transfer boundary. The recovery workflow
+template runs the complete `scripts/recovery/*.node-test.mjs` suite. These files and
+their tests must be included together in any clean checkout that runs the recovery
+tests or synthetic drill. The production-source adapter tests use mocked clients/processes
 and synthetic CA text on Windows; its Linux file-mode check only runs on Linux.
 The prior hosted synthetic integration at commit
 [`64d92ac8fc8fac88d9cffc2389687c54f4c9bc50`](https://github.com/qrtman/adaptive_lifting/commit/64d92ac8fc8fac88d9cffc2389687c54f4c9bc50),
