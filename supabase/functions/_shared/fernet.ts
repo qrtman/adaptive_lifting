@@ -1,6 +1,6 @@
 // Small WebCrypto Fernet-compatible codec. This preserves the Python worker's
 // AES-CBC/HMAC payload format without pulling a Python runtime into Edge.
-function decodeBase64Url(value: string): Uint8Array {
+function decodeBase64Url(value: string): Uint8Array<ArrayBuffer> {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
   const binary = atob(padded);
@@ -15,7 +15,7 @@ function encodeBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-function concatenate(...parts: Uint8Array[]): Uint8Array {
+function concatenate(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
   const result = new Uint8Array(parts.reduce((size, part) => size + part.length, 0));
   let offset = 0;
   for (const part of parts) {
@@ -25,7 +25,10 @@ function concatenate(...parts: Uint8Array[]): Uint8Array {
   return result;
 }
 
-function fernetKeys(encodedKey: string): { signing: Uint8Array; encryption: Uint8Array } {
+function fernetKeys(encodedKey: string): {
+  signing: Uint8Array<ArrayBuffer>;
+  encryption: Uint8Array<ArrayBuffer>;
+} {
   const key = decodeBase64Url(encodedKey);
   if (key.length !== 32) throw new Error("Invalid email payload key");
   return { signing: key.subarray(0, 16), encryption: key.subarray(16, 32) };

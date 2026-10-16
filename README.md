@@ -17,9 +17,10 @@ Cloudflare Workers Static Assets is the selected frontend host. It serves the
 Vite bundle directly with SPA fallback and invokes a small Worker only for
 same-origin /api/* requests. That Worker forwards to the Supabase api Edge
 Function. Staging is deployed and validated. The legacy production application
-is offline; the new production app is not deployed and will start with an empty
-database and new accounts at `app.goatedmethod.me`. The existing Tunnel and
-historical data are retained separately and are not imported. See
+is offline; the new production database is initialized with the reviewed schema
+and migrations, while the production app is not yet deployed and will start with
+new accounts at `app.goatedmethod.me`. The existing Tunnel and historical data
+are retained separately and are not imported. See
 `supabase/PRODUCTION_CUTOVER.md` for the current fresh-launch procedure.
 
 See architecture.md for application contracts and supabase/README.md for the

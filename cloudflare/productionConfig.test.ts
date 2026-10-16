@@ -16,10 +16,11 @@ describe('isolated production release configuration', () => {
     expect(versions).toHaveLength(63);
   });
 
-  it('builds a local production config only from a non-staging project ref', () => {
+  it('builds a local production config only from the approved project ref', () => {
     expect(() => makeProductionWranglerConfig('admyuepbbtstayaydjmo')).toThrow(/staging is rejected/);
-    const config = JSON.parse(makeProductionWranglerConfig('abcdefghijklmnopqrst'));
+    expect(() => makeProductionWranglerConfig('abcdefghijklmnopqrst')).toThrow(/approved production project/);
+    const config = JSON.parse(makeProductionWranglerConfig('gadusaizqnshxqcckibq'));
     expect(config.name).toBe('adaptive-lifting-production');
-    expect(config.vars.SUPABASE_PROJECT_ORIGIN).toBe('https://abcdefghijklmnopqrst.supabase.co');
+    expect(config.vars.SUPABASE_PROJECT_ORIGIN).toBe('https://gadusaizqnshxqcckibq.supabase.co');
   });
 });

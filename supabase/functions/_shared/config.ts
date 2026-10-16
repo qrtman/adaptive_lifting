@@ -9,6 +9,7 @@ export interface AppConfig {
   sessionLifetimeSeconds?: number;
   offlineAuthPrivateKey?: string | null;
   newEmailVerificationEnabled?: boolean;
+  emailOnboardingEnabled?: boolean;
   googleClientId?: string | null;
   appUrl?: string;
   emailFrom?: string | null;
@@ -54,6 +55,9 @@ export function loadConfig(
   const rawCookieSecure = (read("COOKIE_SECURE") ?? "").trim().toLowerCase();
   const rawOfflinePrivateKey = read("OFFLINE_AUTH_PRIVATE_KEY")?.trim().replace(/\\n/g, "\n") ?? "";
   const rawNewEmailVerification = (read("EMAIL_VERIFICATION_NEW_ACCOUNTS") ?? "true").trim().toLowerCase();
+  const appEnv = (read("APP_ENV") || read("ENV") || "").trim().toLowerCase();
+  const rawEmailOnboarding = (read("EMAIL_ONBOARDING_ENABLED") ??
+    (["production", "prod"].includes(appEnv) ? "false" : "true")).trim().toLowerCase();
   const rawGoogleClientId = read("GOOGLE_CLIENT_ID")?.trim() ?? "";
   const rawEmailFrom = read("EMAIL_FROM")?.trim() ?? "";
   const rawEmailProviderKey = (read("EMAIL_PROVIDER_API_KEY") ?? read("RESEND_API_KEY"))?.trim() ?? "";
@@ -64,7 +68,7 @@ export function loadConfig(
   const rawSheetsClientId = read("GOOGLE_OAUTH_CLIENT_ID")?.trim() ?? "";
   const rawSheetsClientSecret = read("GOOGLE_OAUTH_CLIENT_SECRET")?.trim() ?? "";
   const rawIntegrationEncryptionKey = read("INTEGRATION_ENCRYPTION_KEY")?.trim() ?? "";
-  const rawRealtimeSigningJwk = read("REALTIME_SIGNING_JWK")?.trim() ?? "";
+  const rawRealtimeSigningJwk = read("REALTIME_JWT_PRIVATE_JWK")?.trim() ?? "";
   const stripeEnabledValue = read("STRIPE_BILLING_ENABLED");
   const stripeLiveValue = read("STRIPE_EXPECT_LIVEMODE");
   const voucherBillingValue = read("VOUCHER_BILLING_ENABLED");
@@ -91,6 +95,9 @@ export function loadConfig(
   }
   if (!["1", "true", "yes", "0", "false", "no"].includes(rawNewEmailVerification)) {
     throw new Error("EMAIL_VERIFICATION_NEW_ACCOUNTS must be a boolean");
+  }
+  if (!["1", "true", "yes", "0", "false", "no"].includes(rawEmailOnboarding)) {
+    throw new Error("EMAIL_ONBOARDING_ENABLED must be a boolean");
   }
   if (productionLike && !["1", "true", "yes"].includes(rawNewEmailVerification)) {
     throw new Error("EMAIL_VERIFICATION_NEW_ACCOUNTS must be true in production");
@@ -140,6 +147,7 @@ export function loadConfig(
     sessionLifetimeSeconds: 7 * 24 * 60 * 60,
     offlineAuthPrivateKey: rawOfflinePrivateKey || null,
     newEmailVerificationEnabled: ["1", "true", "yes"].includes(rawNewEmailVerification),
+    emailOnboardingEnabled: ["1", "true", "yes"].includes(rawEmailOnboarding),
     googleClientId: rawGoogleClientId || null,
     appUrl: rawAppUrl || origins[0],
     billingAppUrlConfigured: Boolean(rawAppUrl),

@@ -311,8 +311,11 @@ conflict recovery before resuming writes. Production and DNS were untouched.
 `adaptive-lifting-production`, Static Assets from `dist/`, SPA fallback, and
 the same `/api/*` proxy to a required production Supabase project origin. The
 origin is deliberately `https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co`;
-the production project does not exist yet, and the committed config fails
-closed. It contains no service-role/publishable key, JWT or provider secret and
+the committed config fails closed. The owner-verified 2026-10-15 checkpoint
+identifies the initialized production project as `gadusaizqnshxqcckibq` in
+`ap-northeast-2` on Free. Generate the ignored local configuration with that
+reference; deployment still requires separate approval.
+It contains no service-role/publishable key, JWT or provider secret and
 has `workers_dev` disabled. The staging `wrangler.jsonc` and existing Worker
 remain unchanged.
 

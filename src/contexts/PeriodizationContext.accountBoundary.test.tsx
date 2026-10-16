@@ -23,10 +23,10 @@ vi.mock('../services/sync_engine', () => ({ queueMutation: vi.fn(async () => und
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
 let node: HTMLDivElement;
-const cycle = (name: string) => ({ id: name, name, workouts: [] }) as any;
+const cycle = (id: string) => ({ id, workouts: [] }) as any;
 function Probe() {
   const { microcycles } = usePeriodization();
-  return <span>{microcycles.map((item) => item.name).join(',')}</span>;
+  return <span>{microcycles.map((item) => item.id).join(',')}</span>;
 }
 
 import { PeriodizationProvider, usePeriodization } from './PeriodizationContext';

@@ -96,6 +96,7 @@ function noStore(body: unknown): Response {
 }
 
 async function register(request: Request, db: Database, config: AppConfig): Promise<Response> {
+  requireOnboardingEnabled(config);
   const body = await jsonBody(request);
   const email = emailAddress(body.email);
   if (body.password === undefined) validationError("password", true);
@@ -144,6 +145,7 @@ async function register(request: Request, db: Database, config: AppConfig): Prom
 }
 
 async function resend(request: Request, db: Database, config: AppConfig): Promise<Response> {
+  requireOnboardingEnabled(config);
   const body = await jsonBody(request);
   if (body.email === undefined) validationError("email", true);
   if (typeof body.email !== "string") validationError("email");
@@ -162,6 +164,13 @@ async function resend(request: Request, db: Database, config: AppConfig): Promis
   );
   if (result.denial === "email_config_unavailable") throw new ApiError(503, "Email verification is temporarily unavailable");
   return noStore({ message: GENERIC_MESSAGE });
+}
+
+function requireOnboardingEnabled(config: AppConfig): void {
+  const production = ["production", "prod"].includes(config.appEnv ?? "");
+  if (config.emailOnboardingEnabled === false || (production && config.emailOnboardingEnabled !== true)) {
+    throw new ApiError(503, "Email verification is temporarily unavailable");
+  }
 }
 
 async function verify(request: Request, db: Database): Promise<Response> {

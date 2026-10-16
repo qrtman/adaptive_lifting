@@ -15,6 +15,10 @@ table, policy, role, grants, and partition metadata without changing them.
 
 - Production API serves `POST /api/realtime/token` and has the matching
   `REALTIME_JWT_PRIVATE_JWK` configured as an Edge Function secret.
+- Target only project `gadusaizqnshxqcckibq` and
+  `https://app.goatedmethod.me`. The independent production `kid` must match
+  `REALTIME_JWT_KEY_ID` or the private JWK's `kid`; the staging key ID is rejected.
+  Local signing tests do not prove that the hosted verification key matches.
 - The production project's signing-key verification configuration accepts the
   corresponding ES256 key, and public channel access is disabled.
 - A legitimate owner test account can sign in through the Adaptive Lifting
@@ -46,11 +50,16 @@ table, policy, role, grants, and partition metadata without changing them.
 5. Attempt a private subscription without a Realtime token and a direct join
    using the ordinary Adaptive Lifting app session token. Require both to be
    rejected. Never set a public-channel option.
-6. If supported by the deployed client, verify that a newly requested token is
-   denied after the app session is revoked and that an expired Realtime token
-   cannot start a new subscription. Keep token expiry distinct from immediate
-   app-session revocation: an already issued 60-second capability remains
-   valid until its own expiry.
+6. Retain the owner's capability in memory, wait beyond its returned expiry,
+   then open a **new connection** and private join with that expired capability.
+   Require an explicit authentication rejection. Do not reuse an existing
+   joined channel or count a timeout as denial.
+7. Log out/revoke the test app session through the supported application flow.
+   Require token issuance with that session to return HTTP 401, including after
+   a fresh login establishes a different session. Check an expired app session
+   separately. An already issued 60-second capability remains valid until its
+   own expiry; do not claim immediate WebSocket revocation. Unobserved or
+   unsupported cases remain NOT VERIFIED and block a full E2E PASS.
 
 ## Evidence and cleanup
 

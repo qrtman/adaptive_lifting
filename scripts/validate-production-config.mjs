@@ -11,6 +11,7 @@ const viteEnvExamplePath = join(root, '.env.production.example');
 const migrationDir = join(root, 'supabase', 'migrations');
 const publicViteKeys = new Set(['VITE_BACKEND_URL', 'VITE_OFFLINE_AUTH_PUBLIC_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_CLIENT_DATA_GENERATION']);
 const stagingRef = 'admyuepbbtstayaydjmo';
+const productionRef = 'gadusaizqnshxqcckibq';
 const productionOriginPlaceholder = 'https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co';
 const expectedEnv = {
   APP_ENV: 'production',
@@ -21,6 +22,7 @@ const expectedEnv = {
   STRIPE_EXPECT_LIVEMODE: 'false',
   VOUCHER_BILLING_ENABLED: 'false',
   EMAIL_VERIFICATION_ENFORCE_LEGACY: 'false',
+  EMAIL_ONBOARDING_ENABLED: 'false',
 };
 
 function fail(message) {
@@ -142,7 +144,7 @@ export function validateProductionConfig({ local = false } = {}) {
   const origin = prod.vars?.SUPABASE_PROJECT_ORIGIN;
   if (local) {
     const originMatch = /^https:\/\/([a-z0-9]{20})\.supabase\.co$/.exec(origin ?? '');
-    if (!originMatch || originMatch[1] === stagingRef) fail('local production config needs a valid non-staging Supabase project origin');
+    if (!originMatch || originMatch[1] !== productionRef) fail('local production config must target the approved Supabase production project');
   } else if (origin !== productionOriginPlaceholder) {
     fail('committed production Supabase origin must remain an explicit fail-closed placeholder until project identity is approved');
   }

@@ -7,6 +7,7 @@ import {
 import { requireSelf } from "../functions/_shared/auth/authorization.ts";
 import { verifyAppJwt } from "../functions/_shared/auth/jwt.ts";
 import { ApiError } from "../functions/_shared/errors/mod.ts";
+import { fernetDecrypt, fernetEncrypt } from "../functions/_shared/fernet.ts";
 import type {
   AppUser,
   AuthRepository,
@@ -224,6 +225,7 @@ Deno.test("deleted and email-verification-required users reject; eligible passwo
     assert(error instanceof ApiError && error.status === 403);
     assert(
       typeof error.detail !== "string" &&
+        !Array.isArray(error.detail) &&
         error.detail.code === "EMAIL_VERIFICATION_REQUIRED",
     );
   }
@@ -297,5 +299,36 @@ Deno.test("config fails closed and preserves legacy flag", () => {
     assert(
       error instanceof Error && error.message.includes("JWT_SECRET_CURRENT"),
     );
+  }
+});
+
+const syntheticFernetKey = btoa(String.fromCharCode(
+  ...Uint8Array.from({ length: 32 }, (_, index) => index),
+));
+
+Deno.test("Fernet roundtrips empty and Unicode email payloads", async () => {
+  for (const plaintext of ["", '{"verification_token":"synthetic-only","name":"선수"}']) {
+    const encrypted = await fernetEncrypt(plaintext, syntheticFernetKey);
+    assert(await fernetDecrypt(encrypted, syntheticFernetKey) === plaintext);
+  }
+});
+
+Deno.test("Fernet rejects modified version, IV, ciphertext, and signature bytes", async () => {
+  const encrypted = await fernetEncrypt("synthetic email payload", syntheticFernetKey);
+  const bytes = Uint8Array.from(
+    atob(encrypted.replace(/-/g, "+").replace(/_/g, "/")),
+    (char) => char.charCodeAt(0),
+  );
+  for (const index of [0, 9, 25, bytes.length - 1]) {
+    const changed = bytes.slice();
+    changed[index] ^= 1;
+    const token = btoa(String.fromCharCode(...changed))
+      .replace(/\+/g, "-").replace(/\//g, "_");
+    try {
+      await fernetDecrypt(token, syntheticFernetKey);
+      throw new Error("expected encrypted payload rejection");
+    } catch (error) {
+      assert(error instanceof Error && error.message === "Invalid encrypted email payload");
+    }
   }
 });

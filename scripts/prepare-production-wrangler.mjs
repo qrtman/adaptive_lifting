@@ -6,10 +6,14 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const templatePath = resolve(root, 'wrangler.production.jsonc');
 const outputPath = resolve(root, 'wrangler.production.local.jsonc');
 const stagingRef = 'admyuepbbtstayaydjmo';
+const productionRef = 'gadusaizqnshxqcckibq';
 
 export function makeProductionWranglerConfig(projectRef) {
   if (!/^[a-z0-9]{20}$/.test(projectRef) || projectRef === stagingRef) {
     throw new Error('Provide the verified 20-character production project reference; staging is rejected.');
+  }
+  if (projectRef !== productionRef) {
+    throw new Error('Project reference does not match the approved production project.');
   }
   const config = JSON.parse(readFileSync(templatePath, 'utf8'));
   config.vars.SUPABASE_PROJECT_ORIGIN = `https://${projectRef}.supabase.co`;

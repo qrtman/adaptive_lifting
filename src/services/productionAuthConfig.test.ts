@@ -26,4 +26,18 @@ describe('fresh production auth configuration', () => {
     expect(config.newEmailVerificationEnabled).toBe(true);
     expect(config.allowedOrigins).toEqual(['https://app.goatedmethod.me']);
   });
+
+  it('loads the Realtime private JWK from the same variable used by the signer', () => {
+    const syntheticJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', d: 'synthetic-test-only' });
+    const values = productionEnv({
+      REALTIME_JWT_PRIVATE_JWK: syntheticJwk,
+      REALTIME_SIGNING_JWK: 'obsolete-variable-must-not-win',
+    });
+    expect(loadConfig((name) => values[name]).realtimeSigningJwk).toBe(syntheticJwk);
+  });
+
+  it('does not load the obsolete Realtime signing variable', () => {
+    const values = productionEnv({ REALTIME_SIGNING_JWK: 'obsolete-variable' });
+    expect(loadConfig((name) => values[name]).realtimeSigningJwk).toBeNull();
+  });
 });

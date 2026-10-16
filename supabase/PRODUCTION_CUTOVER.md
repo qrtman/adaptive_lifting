@@ -2,7 +2,7 @@
 
 **Owner decision (2026-10-10): production starts with a completely fresh application database and new user accounts.** No legacy accounts, passwords, sessions, training records, billing state, provider credentials, queued jobs, or identities will be imported. The historical importer and rehearsal remain archived engineering tools only.
 
-This runbook prepares a future launch. It does not provision a project, create a Worker, set production secrets, enable providers, route the domain, or authorize paid services. The production domain is `https://app.goatedmethod.me`; the existing proxied Tunnel CNAME and historical database/backups/Tunnel remain untouched.
+This runbook tracks the fresh production launch. The production database has been initialized; the runbook does not create or bootstrap a project, create a Worker, set production secrets, enable providers, route the domain, or authorize paid services. The production domain is `https://app.goatedmethod.me`; the existing proxied Tunnel CNAME and historical database/backups/Tunnel remain untouched.
 
 ## Target architecture
 
@@ -15,17 +15,27 @@ This runbook prepares a future launch. It does not provision a project, create a
 
 ## Remaining launch sequence
 
+**2026-10-15 continuation checkpoint:** the owner reports production project
+`gadusaizqnshxqcckibq`, `ap-northeast-2`, Free is initialized and its 63-version
+ledger, catalog, postflight and core behavior checks passed. Steps 1–2 below
+are retained as historical provisioning instructions. **Do not run bootstrap
+or reapply migrations on this nonempty project.** Production API/Worker rollout,
+verified sender, isolated backup restore, live Realtime and traffic cutover
+remain pending. This checkpoint does not claim a fresh live verification.
+
 ### 1. Owner approves the project and operating plan
 
-Record the new Supabase organization/project reference, region, plan, expected usage, cost ceiling, email sender, backup/recovery objective, and named operators. Confirm the Cloudflare account and existing `goatedmethod.me` zone. The Supabase organization’s current free-project slots and owner billing preferences must be checked in Dashboard; no project has been created or plan selected here.
+Project reference, region and Free plan are established in the checkpoint above.
+Still record expected usage, cost ceiling, exact email sender, recovery objectives
+and named operators. Reconfirm the Cloudflare account and zone before cutover.
 
 Free feasibility is limited: current Supabase documentation lists two active Free projects across organizations where the owner/admin is a member, 500 MB database size per project, 1 GB disk with read-only behavior after the 500 MB database quota, 5 GB egress, 1 GB storage, 500,000 Edge Function calls, 2 million Realtime messages, and 200 peak Realtime connections. Free projects can pause after seven days of low activity, and Free does not include downloadable platform backups. Usage restrictions may affect service if quotas are continually exceeded. This is suitable only if the owner accepts inactivity pauses, tight limits, and an independently operated backup/restore process. Verify current terms before provisioning. See [Supabase billing and quotas](https://supabase.com/docs/guides/platform/billing-on-supabase), [Free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing), [database size limits](https://supabase.com/docs/guides/platform/database-size), and [fair-use restrictions](https://supabase.com/docs/guides/platform/billing-faq).
 
 Pro currently starts at $25/month and includes daily backups retained for seven days; point-in-time recovery is an additional paid option. These are options for an explicit owner decision, not authorization. See [Supabase pricing](https://supabase.com/pricing) and [backup guidance](https://supabase.com/docs/guides/database/backups).
 
-### 2. Bootstrap one new, empty managed project
+### 2. Historical bootstrap procedure — completed; do not rerun
 
-Never point the procedure at staging, the historical database, or any nonempty application database. From the exact reviewed commit, run `supabase/bootstrap/deploy-managed.ps1`. Its default mode is read-only; `-Apply` requires an explicit project ref, matching direct database hostname, a protected schema checkpoint location, and typed project-ref confirmation. It refuses the validated staging ref, application objects, migration records, Supabase Auth users, or Storage objects.
+The production project is nonempty and already has the checked-in migration ledger. Never point the bootstrap procedure at production again, staging, the historical database, or any nonempty application database. `supabase/bootstrap/deploy-managed.ps1` is retained for historical evidence and future explicitly approved empty targets only.
 
 The checked-in order is:
 
@@ -56,6 +66,11 @@ Run `npm run validate:production:local`, `npm run build:production`, and the Wra
 
 Before routing, perform a fresh read-only zone/DNS/Worker-route check and record the then-current Tunnel CNAME, proxy mode, zone owner, and existing Worker routes. The earlier read-only preparation found a proxied `app.goatedmethod.me` CNAME to the Cloudflare Tunnel and no Worker route; that is historical evidence, not a claim about present-day state.
 
+Read-only Cloudflare API inspection at `2026-10-15T11:33:36Z` confirmed the
+`goatedmethod.me` zone is active, `app.goatedmethod.me` still has its proxied
+Tunnel CNAME, and the zone has no Worker routes. No change was made. Recheck
+immediately before any separately authorized route cutover.
+
 After separate cutover authorization, attach the production Worker route `app.goatedmethod.me/*` in the existing `goatedmethod.me` zone. Preserve the existing CNAME; do not replace, delete, or point it to staging. Confirm route precedence and TLS. Rollback of routing means removing the Worker route so the preserved Tunnel CNAME resumes handling requests; this restores the old route only and does not undo writes to the new app database.
 
 ### 6. Verify the empty production application
@@ -75,9 +90,19 @@ Before first write, rollback may remove the Worker route and return traffic to t
 ## Current status
 
 - Staging remains validated and is not changed by this procedure.
-- Production project, production Worker and production secrets: not provisioned.
+- Production project: initialized per the owner-verified checkpoint above.
+- Production Worker/API rollout and secrets: not independently verified here.
 - Production domain route and DNS: unchanged.
 - Historical data decision: final fresh start; no import is in the launch path.
 - Providers: disabled pending separate activation checks.
 - Backups: procedure documented; production restore remains unverified until a real rehearsal.
 - No paid action or production cutover is authorized by this document.
+
+Current local release gates (2026-10-15): production build/asset scan and Worker
+dry run PASS for the ignored config targeting `gadusaizqnshxqcckibq`; no upload
+or route change occurred. API and email worker startup now reject a different
+database project/runtime role or app origin. `EMAIL_ONBOARDING_ENABLED=false`
+keeps registration/resend closed until an authorized inbox test succeeds.
+See [email readiness](../docs/production-email-readiness.md),
+[recovery](../docs/production-recovery.md), and
+[Realtime E2E](bootstrap/PRODUCTION_REALTIME_E2E.md) for remaining owner actions.
