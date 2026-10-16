@@ -1,67 +1,78 @@
 # Adaptive Lifting
 
-Adaptive Lifting is an auto-regulatory periodization app for coaches and
-athletes. The training plan remains athlete-owned; linked coaches receive
+Adaptive Lifting is an auto-regulatory training planning and logging app for
+coaches and athletes. Training plans belong to athletes; a linked coach receives
 shared access through the coach-code relationship flow.
 
-## Runtime architecture
+## Start here
 
-Supabase Edge Functions and PostgreSQL are the sole active application backend.
-Private database interfaces, Postgres Cron/pg_net, and Supabase Realtime
-support API requests, workers, scheduled jobs, and live updates. The custom
-application authentication remains separate from Supabase Auth: HS256 app JWTs
-use the application sessions table; offline grants and Realtime tokens use
-separate ES256 keys.
+- [Production status](docs/PRODUCTION_STATUS.md) — authoritative dated
+  checkpoint for completed work, pending gates, and constraints.
+- [System architecture](architecture.md) — the selected active architecture,
+  domain model, math, security, offline sync, and runtime contracts.
+- [Design system](design.md) — UI patterns and interaction contracts.
+- [Development and verification](#development-and-verification).
+- [Production launch runbook](supabase/PRODUCTION_CUTOVER.md) — continue from
+  the deployed API; no database bootstrap or migration replay.
+- [Cloudflare deployment](docs/cloudflare-workers.md) — staging evidence and
+  the pending production Worker preparation/deployment procedure.
+- [Supabase backend and migrations](supabase/README.md) — runtime boundaries,
+  local checks, and migration history.
+- [Email verification and onboarding](docs/email-verification.md) — behavior
+  and security contract; [production email readiness](docs/production-email-readiness.md)
+  tracks the provider gate.
+- [Realtime](supabase/REALTIME_SPIKE.md) — implementation evidence;
+  [production Realtime E2E](supabase/bootstrap/PRODUCTION_REALTIME_E2E.md) is
+  still a separate pending gate.
+- [Backup and recovery](docs/production-recovery.md) — recovery requirements,
+  evidence, and unresolved implementation choices.
+- [Documentation index and policy](docs/README.md).
+- [Historical material](docs/README.md#historical-and-superseded-records) —
+  retained audits and experiments are evidence, not current deployment plans.
 
-Cloudflare Workers Static Assets is the selected frontend host. It serves the
-Vite bundle directly with SPA fallback and invokes a small Worker only for
-same-origin /api/* requests. That Worker forwards to the Supabase api Edge
-Function. Staging is deployed and validated. The legacy production application
-is offline; the new production database is initialized with the reviewed schema
-and migrations, while the production app is not yet deployed and will start with
-new accounts at `app.goatedmethod.me`. The existing Tunnel and historical data
-are retained separately and are not imported. See
-`supabase/PRODUCTION_CUTOVER.md` for the current fresh-launch procedure.
+## Selected runtime architecture
 
-See architecture.md for application contracts and supabase/README.md for the
-Supabase runtime and migration layout.
+The application is a React/Vite progressive web app. Cloudflare Workers Static
+Assets is the selected frontend host, with a same-origin Worker proxy for
+`/api/*`. Supabase Edge Functions and PostgreSQL provide the application API,
+workers, and persistence. Supabase Realtime provides private live
+synchronization when its production release gate passes.
 
-## Local development
+Application accounts use custom application JWTs and HttpOnly cookie sessions,
+backed by the application sessions table. Supabase Auth is not the application
+account system. Python/FastAPI under `backend/` is retained for compatibility,
+historical migration context, and mathematical parity tests; it is not an
+active application runtime. See [architecture.md](architecture.md) for the
+complete contract.
 
-Install dependencies with npm ci, copy .env.example to .env, and set
-API_EDGE_TARGET to the Supabase project origin. Vite reads it for the Edge-only
-dev proxy. In PowerShell, set the value before starting Vite:
+## Development and verification
 
-    $env:API_EDGE_TARGET = "https://<project-ref>.supabase.co"
-    npm run dev
+Install dependencies with `npm ci`, copy `.env.example` to `.env`, and set the
+development API target before starting Vite:
 
-Vite proxies every /api/* request to the corresponding
-/functions/v1/api/* Edge path, preserving credentials and request data. If
-API_EDGE_TARGET is missing, API requests return an explicit configuration
-error; they never fall back to a Python server. The Python implementation
-under backend/ is retained for compatibility and math parity tests only.
+```powershell
+$env:API_EDGE_TARGET = "https://<project-ref>.supabase.co"
+npm run dev
+```
 
-## Frontend hosting
+The dev proxy forwards `/api/*` to the corresponding Supabase function path.
+It does not fall back to Python. Common checks:
 
-The app is built to dist/. Wrangler configuration uses Cloudflare Workers
-Static Assets, SPA fallback, and selective Worker-first routing for /api/*.
-Realtime stays connected to Supabase directly. Stripe and Telegram provider
-webhooks continue to use Supabase Edge endpoints directly. Configure only
-public Vite build values; all application secrets remain in Supabase Edge/Vault
-configuration. Never put private keys, database credentials, provider secrets,
-or app signing keys into the frontend build.
+```text
+npm test
+npm run lint
+npm run build
+```
 
-Production uses its separate fail-closed Wrangler config and a
-`production-fresh-v1` browser-storage namespace, leaving historical browser
-stores inert. See docs/cloudflare-workers.md and
-supabase/PRODUCTION_CUTOVER.md. No production deployment or cutover is
-performed by this change.
+Python tests are compatibility/parity checks. Supabase Edge tests and SQL
+migrations are under `supabase/`. Production changes require the approvals and
+release gates in [the production status](docs/PRODUCTION_STATUS.md) and
+[cutover runbook](supabase/PRODUCTION_CUTOVER.md).
 
-## Checks
+## Documentation authority
 
-    npm test
-    npm run lint
-    npm run build
-
-Python compatibility tests remain under backend/; Supabase Edge tests and
-migrations are under supabase/.
+See [docs/README.md](docs/README.md) for the source-of-truth map and maintenance
+policy. In brief: `architecture.md` records stable architecture and behavior;
+`docs/PRODUCTION_STATUS.md` records changing production facts; the cutover
+runbook records how to proceed safely. Older audits remain clearly labeled
+historical and must not override those current documents.

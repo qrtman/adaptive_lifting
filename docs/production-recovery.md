@@ -1,7 +1,13 @@
 # Production backup and recovery
 
-**Status, 2026-10-16: production backup, restore, and R2 recovery remain BLOCKED / NOT TESTED.**
-A historical hosted synthetic restore run is recorded below. It did not use real
+**HISTORICAL / EXPLORATORY RECORD — not an approved production backup design.**
+As of the authoritative [production status](PRODUCTION_STATUS.md), an
+independent encrypted production backup and isolated restore remain
+**BLOCKED / NOT TESTED**; the method, provider, storage location, and tooling
+are undecided. R2/GitHub-hosted workflows, local PostgreSQL/Docker, and
+VeraCrypt have been explored or discussed but none is selected. The notes below
+preserve synthetic engineering evidence and proposals; they are not current
+requirements or authorization. A historical hosted synthetic restore run did not use real
 data, production credentials, a production export, provider requests, production
 mutations, or R2, and does not establish production recoverability. In this branch,
 `scripts/recovery/synthetic-drill.workflow.yml` is an inert reviewed template; no
@@ -9,17 +15,18 @@ active workflow exists under `.github/workflows/`. The hosted-runner + Cloudflar
 production route remains unconfigured, cost-untested, and unexercised with
 production data.
 
-The current assigned production target is `gadusaizqnshxqcckibq`, already initialized
+The recorded production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
 ledger, reset it, or restore into it.** Older “project not provisioned” wording in
-the architecture and launch runbook predates this state. The historical database,
+superseded audits predates this state. The historical database,
 backups, and WSL distribution are separate and remain untouched.
 
-## Task and boundaries
+## Historical proposal and boundaries
 
-Task: implement a cloud-only encrypted backup and isolated restore path for the
-Supabase Free production database. The owner's PC holds code and runbooks only;
-production database contents, restored databases and backup keys stay off the PC.
+Historical proposal: implement a cloud-only encrypted backup and isolated
+restore path for the Supabase Free production database. This proposal was not
+accepted as the production backup decision and must not constrain future
+selection by itself.
 
 Source of truth:
 

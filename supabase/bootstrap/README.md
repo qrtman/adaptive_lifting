@@ -1,9 +1,17 @@
-# Empty-database application bootstrap
+# Historical empty-database bootstrap evidence
 
-This directory contains executable database foundation tooling. It does not
-deploy an application, import data, create cloud infrastructure, or connect to
-production. The confirmed production domain is `app.goatedmethod.me`; no domain
-or project origin belongs in this schema artifact.
+> **HISTORICAL / NOT THE PRODUCTION LAUNCH PROCEDURE.** Production project
+> `gadusaizqnshxqcckibq` is already initialized and all 63 migrations are
+> applied and validated. Never run bootstrap, `-Apply`, or migration replay
+> against production or staging. The guarded tooling and evidence below are
+> retained for audit and for a separately approved, genuinely empty future
+> target only. Current state: [production status](../../docs/PRODUCTION_STATUS.md).
+
+This directory contains executable database foundation tooling. Its history
+includes an explicitly authorized production initialization. That work is
+complete; this file is not authority to connect to or change production. The
+confirmed production domain is `app.goatedmethod.me`; no domain or project
+origin belongs in the schema artifact.
 
 ## Artifact and provenance
 
@@ -122,157 +130,24 @@ succeeded against an isolated disposable PostgreSQL database using inherited
 .\supabase\bootstrap\deploy-managed.ps1 -ValidateFilesOnly
 ```
 
-For the authorized Seoul production Session Pooler, the exact target is
-`gadusaizqnshxqcckibq` / `aws-0-ap-northeast-2.pooler.supabase.com:5432` /
-`postgres.gadusaizqnshxqcckibq`. Port 6543 is rejected. The script also
-supports a matching direct `db.<project-ref>.supabase.co` or `.com` connection
-where IPv6 is available. It will not accept arbitrary pooler endpoints.
+The production-specific invocation, credentials, and connection details have
+been removed from active instructions because initialization is complete. Do
+not use this document to connect to or mutate that target. Any future
+empty-database bootstrap requires a newly reviewed exact-target runbook and
+separate authorization. The old `-Apply` guard does not make it an appropriate
+production launch step now.
 
-Enter the database password locally into the current PowerShell process
-environment only (never a command argument, transcript, log, or file). Then
-run the first command without `-Apply` for read-only identity/emptiness checks.
-The command does not echo or accept the password as an argument. Example:
+These checkpoints are evidence only, not independent backups. Production
+backup and restore are unresolved; see
+[`docs/PRODUCTION_STATUS.md`](../../docs/PRODUCTION_STATUS.md).
+## Completed API-only release reference
 
-```powershell
-.\supabase\bootstrap\deploy-managed.ps1 `
-  -ProjectRef gadusaizqnshxqcckibq `
-  -DatabaseHost aws-0-ap-northeast-2.pooler.supabase.com `
-  -DatabasePort 5432 `
-  -DatabaseUsername postgres.gadusaizqnshxqcckibq `
-  -ConnectionMode SessionPooler
-```
-
-`psql` receives the same exact host, port and username; the Supabase CLI gets
-the corresponding password-free connection URI, which the argument builder
-checks against the authorized project, pooler, username, port and TLS mode.
-`--skip-vault` prevents deployment-time Vault secret sync. An interactive
-exact-project confirmation remains required before a checkpoint or SQL
-write.
-
-By default, `-Apply` verifies `pg_dump --version` and captures the existing
-schema-only checkpoint. The narrowly scoped `-EmptyDatabasePsqlCheckpoint`
-alternative is available only for this exact production project through the
-approved Session Pooler and only after the complete empty-target preflight.
-It uses `psql` to save a catalog-only JSON snapshot, project/database identity,
-PostgreSQL version, exact baseline and 63 migration hashes, and a second
-prewrite emptiness/catalog recheck. Checkpoint files are placed in a Windows
-directory with inheritance disabled and access limited to the current owner,
-SYSTEM, and local Administrators; files are marked read-only. A failed write,
-missing artifact, changed catalog, nonempty table/schema, or unexpected
-migration record stops before SQL changes. The checkpoint is explicitly **not
-a restorable backup**. Do not bypass Windows Application Control to run
-`pg_dump`.
-
-Both checkpoint modes are evidence only and are not independent backups. Before
-public launch, arrange an independent encrypted database backup and complete a
-successful restore rehearsal. Backup availability and restoration are not
-verified by this bootstrap workflow.
-
-The psql-only option for the approved empty production project is:
-
-```powershell
-$CheckpointDirectory = Join-Path $env:TEMP ("adaptive-lifting-production-" + [guid]::NewGuid().ToString('N'))
-.\supabase\bootstrap\deploy-managed.ps1 `
-  -ProjectRef gadusaizqnshxqcckibq `
-  -DatabaseHost aws-0-ap-northeast-2.pooler.supabase.com `
-  -DatabasePort 5432 `
-  -DatabaseUsername postgres.gadusaizqnshxqcckibq `
-  -ConnectionMode SessionPooler `
-  -CheckpointDirectory $CheckpointDirectory `
-  -EmptyDatabasePsqlCheckpoint -Apply
-```
-
-The read-only invocation above must pass immediately before this apply
-invocation. Use a new checkpoint directory outside the checkout for each
-attempt. The script asks for the exact typed project confirmation, captures
-the protected catalog evidence, and repeats the emptiness check before the
-first database write.
-
-Only the separately authorized bootstrap procedure uses `-Apply`; it refuses
-any application table, user, storage object, or migration record. Do not use
-this workflow on staging or an existing application database.
-
-## Initial API-only release gate (Realtime off)
-
-The migration creates `al_edge_catalog_runtime` as a restricted LOGIN role;
-it does not create or embed its password. After the schema is ready and before
-deploying the API, set a unique role password through an interactive secure
-`psql` session (`\password al_edge_catalog_runtime`) and store the matching
-TLS database URL only in the production Edge secret manager. If that role
-password still needs to be set, treat that as a separately authorized database
-change. For the initial API-only smoke release, provision only `DATABASE_URL` using
-the restricted runtime role and `JWT_SECRET_CURRENT`. Apply the non-secret
-settings from `supabase/production.env.example`, especially
-`REALTIME_TOKENS_ENABLED=false`, `EMAIL_ONBOARDING_ENABLED=false`, and disabled
-billing. Realtime token signing, offline grants, email payload encryption, and
-provider credentials are not startup requirements while those features remain
-disabled or unavailable. Do not configure `JWT_SECRET_PREVIOUS` for fresh
-production. Keep
-`supabase/config.toml`'s custom JWT `verify_jwt=false` setting so the existing
-custom cookie/session verifier remains the auth boundary. Disable the Data API
-in the project settings and verify REST/GraphQL are unavailable; SQL cannot
-read back that platform-level setting. No Supabase Auth is introduced.
-
-Before storing `DATABASE_URL`, verify it privately targets the approved
-production project and the restricted `al_edge_catalog_runtime` login, uses
-the approved direct or session-pooler hostname, database `postgres`, port
-5432, and TLS (`sslmode=require`). Using that exact connection, run these
-read-only checks and confirm the effective user is the restricted runtime
-role, TLS is active, and the role has neither elevated attributes nor missing
-required RPC grants:
-
-```sql
-select current_user, session_user, current_database(), ssl
-from pg_catalog.pg_stat_ssl
-where pid = pg_catalog.pg_backend_pid();
-
-select rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
-       rolreplication, rolbypassrls
-from pg_catalog.pg_roles
-where rolname = current_user;
-
-select pg_catalog.has_function_privilege(
-  current_user,
-  'al_private.al_auth_login(text,text,text,text,boolean)',
-  'EXECUTE'
-) as can_execute_login_rpc;
-```
-
-An enabled `REALTIME_TOKENS_ENABLED=true` must load and validate the matching
-private P-256 signer at startup; missing or invalid signing configuration
-fails startup. With Realtime disabled, `/api/realtime/token` returns 503 and
-cannot issue a token. Verify that response in the direct-function smoke tests.
-Keep signup disabled, Google sign-in absent, and billing disabled for this
-release. Email registration remains unavailable until sender setup and a
-separately authorized onboarding test.
-
-After partial failure, do not rerun the bootstrap blindly. Preserve the
-checkpoint and database, inspect the exact catalog/ledger and logs, then either
-apply a reviewed forward fix or obtain separate approval to abandon that still
-empty new project. The checkpoint is schema-only and is not a verified restore
-rehearsal.
-
-`application.sql` lives in `supabase/bootstrap/`, outside the CLI's local
-`supabase/migrations/` directory. Therefore `supabase db push` does **not**
-discover or apply the bootstrap. The operator must apply it explicitly before
-the first migration push. The CLI compares local migration timestamps with
-`supabase_migrations.schema_migrations` and records versions after applying
-SQL; it does not compare the SQL file hashes. Thus the four byte-only source
-corrections retain their existing 62 version identifiers and do not require
-rewriting applied staging history. The local harness does not model this CLI
-ledger or platform orchestration; it applies raw SQL to disposable databases
-and tests schema outcome. See Supabase's [migration guide](https://supabase.com/docs/guides/deployment/database-migrations)
-and [`db push` reference](https://supabase.com/docs/reference/cli/supabase-db-push)
-for the managed workflow and ledger behavior.
-
-Containers have no external network, no published ports, no host/database
-mounts, and a temporary filesystem. Synthetic constraint tests roll back; the
-containers and anonymous image volumes are removed on success or failure.
-An interrupted process can leave a labeled container; inspect only this
-harness's containers with `docker ps -a --filter
-label=adaptive-lifting.bootstrap=true`, then remove the explicitly named
-disposable container with `docker rm -f -v <name>`.
-
+The initial production API-only release is complete. The old pre-deployment
+secret, database, and smoke-test checklist has been removed because it is
+superseded. See [`docs/PRODUCTION_STATUS.md`](../../docs/PRODUCTION_STATUS.md)
+for recorded results and [`supabase/PRODUCTION_CUTOVER.md`](../PRODUCTION_CUTOVER.md)
+for the remaining release path. Do not use this bootstrap document to provision
+secrets, alter roles, or deploy the API.
 ## Managed dependencies and limits
 
 `managed-prerequisites.sql` is the ordered prerequisite artifact: `extensions`
@@ -347,7 +222,10 @@ and normalized hashes are in `sql-eof-correction-audit.json`.
 Future migration application must use the new empty-target guard; production
 project provisioning and cutover are not authorized here.
 
-## Production recovery preparation
+## Historical recovery preparation notes
+
+The requirements below are generic recovery considerations, not an approved backup provider or implementation. The method remains undecided; see the [production status](../../docs/PRODUCTION_STATUS.md) before taking action.
+
 
 Choose the production Supabase plan and retention requirement before provisioning.
 Supabase documents daily managed database backups on paid plans and PITR as a

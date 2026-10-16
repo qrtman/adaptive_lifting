@@ -5,7 +5,7 @@
 > **Foundation:** Mike Tuchscherer's Reactive Training Systems (RTS) - Autoregulated Training  
 > **Companion Document:** `design.md` (Visual Design System & Style Guide)
 
-> **Selected runtime (staging validated):** Supabase Edge Functions and PostgreSQL are the application backend; Cloudflare Workers Static Assets is the selected frontend host. Current production traffic has not been independently verified and production cutover is not authorized. Python under backend/ is retained for compatibility, schema history and math parity tests only; it is not required as an application server. FastAPI and SQLite descriptions below refer to that retained reference implementation.
+> **Selected active architecture:** React/Vite PWA → Cloudflare Workers Static Assets with a same-origin `/api/*` Worker proxy → Supabase Edge Functions → Supabase PostgreSQL. Supabase Realtime provides private live synchronization when its production gate is enabled. Application accounts use custom application JWTs and HttpOnly cookie sessions; Supabase Auth is not the application account system. The production `api` Edge Function is deployed and its initial health/security checks passed; public hostname cutover is pending. See [the authoritative production status](docs/PRODUCTION_STATUS.md). Python/FastAPI, SQLite, Caddy, and other historical runtime descriptions below are retained implementation history or compatibility references, not active application hosting requirements.
 
 ---
 
@@ -37,6 +37,18 @@
 Adaptive Lifting is a powerlifting periodization dashboard that replaces rigid spreadsheets with a dynamic, auto-regulatory planning and logging system. It serves two distinct user personas - **Coaches** who design mesocycle-level training blocks and prescribe workouts, and **Athletes** who execute sessions on the gym floor, logging weight, reps, and RPE in real-time.
 
 The system's core differentiator is its **RTS Math Engine**, which delivers real-time e1RM projections, INOL fatigue tracking, and ACWR workload diagnostics directly within the training grid. This gives coaches objective, chronologically-sound metrics to autoregulate loading without requiring complex external spreadsheets.
+
+### Active architecture boundary
+
+The production architecture is the React/Vite PWA hosted by Cloudflare Workers
+Static Assets, a same-origin Worker proxy for `/api/*`, and Supabase Edge
+Functions plus PostgreSQL. Private PostgreSQL RPCs, Cron/pg_net, and supporting
+managed services are used where implemented. Supabase Realtime is the selected
+private synchronization service; its production signing configuration and
+end-to-end gate are still pending. Custom application JWTs and HttpOnly cookie
+sessions are authoritative for app accounts. Supabase Auth is not used for
+those accounts. Python/FastAPI and SQLite references in this document describe
+the retained compatibility/parity implementation, not production services.
 
 ---
 
@@ -1441,7 +1453,18 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 
 ### 15.2 Target Runtime Topology
 
-The selected runtime architecture uses Supabase Edge Functions, private PostgreSQL interfaces, Postgres Cron/pg_net, and Supabase Realtime. Cloudflare Workers Static Assets is the selected frontend host. Staging is deployed and validated. The legacy production application is offline; the new production app is not deployed. Its confirmed domain is `app.goatedmethod.me`, and the owner has decided it will use a fresh production database and new user accounts, with no historical data import. The production database has been initialized with its reviewed schema and migrations. The Worker serves the Vite/PWA build directly and runs only for same-origin API requests so the existing HttpOnly app session cookie continues to work.
+The selected runtime is React/Vite on Cloudflare Workers Static Assets, with a
+thin same-origin `/api/*` Worker proxy to Supabase Edge Functions and
+PostgreSQL. Supabase Cron/pg_net and private Edge workers provide scheduled
+processing. Realtime is the selected private live-sync service, currently
+disabled in production pending its signing and end-to-end gate. Application
+identity uses custom JWTs and HttpOnly cookie sessions, not Supabase Auth. The
+production `api` Edge Function is deployed and its initial health/security
+checks passed. Production PostgreSQL is initialized with all 63 migrations;
+the Cloudflare Worker deployment and hostname route remain pending. The
+production host is `app.goatedmethod.me`; the fresh-start decision excludes
+legacy account and training-data import. See
+[`docs/PRODUCTION_STATUS.md`](docs/PRODUCTION_STATUS.md) for dated state.
 
 ```mermaid
 graph TD
@@ -1461,7 +1484,7 @@ graph TD
 | Workers | Supabase Cron/`pg_net` + private Edge Functions | Email verification and Google Sheets outbox processing. Python workers are not required. |
 | Database | Supabase PostgreSQL | Canonical application data through narrow private SQL interfaces. |
 | Realtime | Supabase Realtime | Private Broadcast authorization using short-lived app-issued ES256 grants. |
-| Backups | Supabase platform backup plus independent encrypted export | Production backup/retention/restore configuration is a release gate; current production backup status is unknown. |
+| Backups | Decision pending | An independent encrypted production backup and isolated restore are required before real-user writes. Provider, storage location, tooling, cadence, and retention are not selected. Synthetic rehearsals are not production recovery evidence. |
 
 ### 15.3 Environment Strategy
 
@@ -1469,7 +1492,7 @@ graph TD
 | :--- | :--- | :--- |
 | Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
 | Staging | Supabase staging project plus deployed Cloudflare Workers Static Assets Worker | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
-| Production | Existing initialized Supabase project `gadusaizqnshxqcckibq` plus a separately approved distinct Cloudflare Worker at `app.goatedmethod.me` | Fresh launch target with the checked-in migrations already applied; API/Worker release and production traffic cutover remain separate approvals and have not been performed. |
+| Production | Initialized Supabase project `gadusaizqnshxqcckibq`; API deployed; Cloudflare Worker and route pending | Fresh launch with all 63 checked-in migrations already applied. Do not replay migrations. Worker deployment and hostname traffic cutover are separate approvals. |
 
 Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths. Production starts without legacy accounts, sessions, training data, billing state, provider credentials, or queued jobs. The existing legacy database, backups, and Tunnel are retained separately and are not reset or imported.
 
@@ -1479,22 +1502,40 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | :--- | :--- |
 | **JWT Secrets** | Fresh production uses a new `JWT_SECRET_CURRENT`; leave `JWT_SECRET_PREVIOUS` unset because no old sessions are carried forward. Never hardcode either key. |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
-| **Database Migrations** | Apply the reviewed clean-schema bootstrap before the 63 checked-in Supabase SQL migrations; those migrations alone are not a complete empty-database bootstrap |
+| **Database Migrations** | Production is initialized and all 63 migrations are applied and validated. Never bootstrap or replay them. Any future schema change requires its own reviewed migration and authorization. |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
-| **Backup** | PostgreSQL backups must be scheduled, retained, and restore-tested |
+| **Backup** | An independent encrypted backup and isolated restore are required before real-user writes; method, cadence, retention, and key custody remain undecided |
 | **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |
 | **API routing** | Browser requests remain relative /api/*; Cloudflare maps requests to the Supabase Edge API and preserves method, query, body, Origin, Cookie, Authorization, and response headers |
 | **Realtime** | Permit secure WebSocket connections to the configured Supabase Realtime endpoint; do not route them to the API function |
 | **Browser storage** | Production uses a distinct `production-fresh-v1` IndexedDB/localStorage namespace. Legacy stores remain inert and old offline mutations or authorization grants are never imported. Account-scoped queue records are not replayed by another account. |
 
-### 15.5 Backup & Restore Contract
+### 15.5 Backup & Restore Requirement
 
-- **Backup Cadence:** The target is a nightly encrypted PostgreSQL restore point with at least 14 retained points. Scheduling and retention remain disabled until production capture and an isolated production-point restore are verified and explicitly authorized.
-- **Restore Drill:** Synthetic recovery tests run on an ephemeral hosted runner. Production-point recovery must be tested in a separately isolated disposable database with outbound side effects disabled; the shared staging project and owner workstation are not restore targets.
-- **Export Safety:** The recovery archive and row reconciliation manifest come from one read-only repeatable-read PostgreSQL snapshot. Ordinary CSV/JSON exports are not a database backup.
-- **Disaster Recovery Target:** For single-coach deployments, target RPO <= 24 hours and RTO <= 4 hours; these targets are not yet measured or verified.
+- An independent encrypted production PostgreSQL backup and a verified restore
+  into an isolated target are required before accepting real-user writes.
+- The method, provider, storage location, capture cadence, retention, and key
+  custody are undecided. Do not treat R2, GitHub Actions, VeraCrypt, local
+  Docker/PostgreSQL, or another experiment as selected without an explicit
+  decision.
+- Restore tests must use an isolated target with outbound side effects disabled
+  and verify schema, data, roles/grants, and recovery metadata. The shared
+  staging project and production database are not restore targets.
+- Ordinary CSV/JSON exports and schema checkpoints are not a restorable database
+  backup. Production capture and restore remain unverified; see
+  [`docs/production-recovery.md`](docs/production-recovery.md) and the status
+  page.
 
 ### 15.6 Runtime Configuration
+
+The active Supabase Edge environment checklist is
+[`supabase/production.env.example`](supabase/production.env.example). Edge
+secrets belong in the Supabase secret manager or the designated private Vault
+RPCs, never in browser build values or repository files. Keep onboarding,
+Realtime token issuance, and billing disabled until their release gates pass;
+Google sign-in remains unconfigured. The table below is historical Python
+compatibility-runtime configuration and is not an Edge Function deployment
+checklist.
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
@@ -1515,7 +1556,10 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 | `GOOGLE_CLIENT_ID` | Google login enabled | OAuth web client ID used to verify ID tokens. |
 | `VITE_GOOGLE_CLIENT_ID` | Google login enabled | Matching public client ID baked into the frontend build. |
 
-### 15.7 Local SQLite Operating Mode
+### 15.7 Retained SQLite Compatibility Mode
+
+SQLite describes local or legacy Python compatibility behavior only. It is not
+the production database and is not a prerequisite to run the active API.
 
 - **WAL Mode:** Local SQLite uses write-ahead logging to improve reader/writer concurrency.
 - **Busy Timeout:** Connections use a bounded busy timeout so temporary write contention retries before returning `503`.
@@ -1523,9 +1567,9 @@ Staging and production must use different Telegram bots, Google OAuth clients, P
 - **Migration Gate:** Application startup fails if database migrations are pending or partially applied.
 - **Upgrade Boundary:** Production uses PostgreSQL; SQLite remains for local development and supported legacy installations.
 
-### 15.8 Deployment Non-Goals
+### 15.8 Deployment Boundaries
 
-- **Production cutover:** Cloudflare Workers Static Assets is selected and staging is deployed; production release, infrastructure, and traffic cutover require separate readiness evidence and explicit owner approval.
+- **Production status:** the Supabase API is deployed; Cloudflare Worker deployment and hostname cutover remain pending. See the dated status page and cutover runbook. Each production action requires separate exact-target approval.
 - **Cross-origin browser API calls:** Do not bypass the same-origin `/api` route. The current Secure, HttpOnly, `SameSite=Lax` cookie policy is not treated as compatible with arbitrary cross-site calls to the Supabase project host.
 - **Kubernetes:** Deferred until multi-tenant SaaS scale or multiple independently scalable services justify the operational overhead.
 
@@ -1553,13 +1597,11 @@ host/proxy must meet these requirements before release:
   configured Supabase Realtime service. The `/api` rewrite must not capture or
   transform Realtime WebSocket traffic.
 
-The Caddy staging exercise in supabase/STAGING_VALIDATION.md is historical evidence for the host contract. Caddy is removed; Cloudflare Workers Static Assets is the selected frontend host.
-one instance of this contract only. It is not a selected provider, required
-production service, or commitment to Caddy.
-
-See README.md for tested dump/restore commands, encryption-key retention, and
-rollback to a new empty database. Production rejects SQLite URLs. PostgreSQL
-connections use pool pre-ping to recover stale connections after database restarts.
+The Caddy staging exercise in `supabase/STAGING_VALIDATION.md` is historical
+evidence for the host contract. Caddy is not selected or required; Cloudflare
+Workers Static Assets is the chosen frontend host. Production rejects SQLite
+URLs. Python connection-pool behavior elsewhere in this document belongs to
+the retained compatibility implementation, not the active Edge runtime.
 Sync field allowlists prohibit ownership, ID, parent and relationship reassignment.
 
 ---

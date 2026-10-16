@@ -1,15 +1,10 @@
-# Supabase launch runbook
+# Supabase operator notes: billing, vouchers, and recovery
 
-The target production application runtime is the static frontend host and
-Supabase Edge Functions. Staging is deployed; current production hosting and
-data have not been independently verified. Do not deploy `backend/main.py`,
-`backend/worker.py`, FastAPI, or a Python database process as the target
-runtime. Python code remains a compatibility/migration source only.
-
-Use [the production cutover plan](../supabase/PRODUCTION_CUTOVER.md) and
-[readiness audit](../supabase/PRODUCTION_READINESS_AUDIT.md) for prerequisites,
-owner confirmations, the schema-bootstrap gate, migration/backup rehearsal,
-provider E2E, cutover approval, monitoring, and rollback/recovery limits.
+This page records operator-only billing and voucher safeguards. It is not a
+production release checklist. See the
+[authoritative production status](PRODUCTION_STATUS.md) and
+[production cutover runbook](../supabase/PRODUCTION_CUTOVER.md) for release
+state and procedure. Python operator code is not part of the active runtime.
 
 ## Billing operations
 

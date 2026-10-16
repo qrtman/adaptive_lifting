@@ -1,108 +1,90 @@
-# Fresh production launch runbook
+# Production launch runbook
 
-**Owner decision (2026-10-10): production starts with a completely fresh application database and new user accounts.** No legacy accounts, passwords, sessions, training records, billing state, provider credentials, queued jobs, or identities will be imported. The historical importer and rehearsal remain archived engineering tools only.
+This runbook continues from the deployed, healthy production Supabase API. It
+does not provision a project or database. The changing production facts and
+dated test evidence live in [the production status page](../docs/PRODUCTION_STATUS.md).
 
-This runbook tracks the fresh production launch. The production database has been initialized; the runbook does not create or bootstrap a project, create a Worker, set production secrets, enable providers, route the domain, or authorize paid services. The production domain is `https://app.goatedmethod.me`; the existing proxied Tunnel CNAME and historical database/backups/Tunnel remain untouched.
+## Selected production architecture
 
-## Target architecture
+- React/Vite PWA served by Cloudflare Workers Static Assets.
+- The Cloudflare Worker serves static assets and proxies same-origin `/api/*`
+  requests to the Supabase `api` Edge Function.
+- Supabase Edge Functions and PostgreSQL provide application APIs, workers,
+  and canonical persistence. Supabase Realtime connects directly when enabled.
+- Custom application JWTs and HttpOnly cookie sessions are the application
+  identity system; Supabase Auth is not used for application accounts.
+- Python/FastAPI is retained for compatibility, historical migrations, and
+  mathematical parity tests only. It is not a production runtime or launch
+  prerequisite.
 
-- React/Vite PWA served as Cloudflare Workers Static Assets, with SPA fallback.
-- A separate production Worker serves assets and forwards same-origin `/api/*` requests only to the configured production Supabase Edge API.
-- Supabase Edge Functions and PostgreSQL private RPCs are the application backend; Realtime connects directly to the production Supabase project.
-- The app retains custom JWT and HttpOnly cookie authentication. Supabase Auth is not used.
-- No Python/FastAPI runtime, Caddy, Compose, Render, or alternate backend host is part of the new production application.
-- Production browser data uses the stable `production-fresh-v1` IndexedDB and localStorage namespace. Legacy browser stores remain inert; old mutation queues and cached grants are never imported or replayed.
+## Release sequence
 
-## Remaining launch sequence
+1. **Confirm the baseline.** Read the status page, verify the intended branch,
+   exact commit, clean worktree, project, and current production state. Use the
+   current production API; do not deploy an unreviewed API change as part of the
+   frontend step.
+2. **Prepare the production frontend.** Generate the ignored local Wrangler
+   configuration from the checked-in production template using the verified
+   project reference. Run the production configuration validator, production
+   build, asset scan, and Wrangler dry run. Confirm no staging origin or private
+   values are present. See [Cloudflare deployment](../docs/cloudflare-workers.md).
+3. **Deploy the production Worker only with separate exact-target approval.**
+   Verify the Cloudflare account, Worker name, config, project origin, and
+   deployment diff immediately before deploy. Keep `workers_dev` disabled.
+   Record the Worker version and run HTTPS, SPA/deep-link, static asset, PWA,
+   same-origin `/api/health`, cookie forwarding, Origin, and no-cache checks.
+   Do not attach the production hostname route in this step.
+4. **Complete the service gates.** Before public traffic or real-user writes,
+   finish a genuine independent encrypted production database backup and an
+   isolated restore; verify production email delivery and onboarding; configure
+   and test private Realtime; complete security, monitoring, and operational
+   checks. Keep email onboarding, Realtime token issuance,
+   billing, and Google sign-in disabled until their individual gates and
+   separate activation approvals pass. Backup method remains undecided; do not
+   treat an experiment or synthetic restore as production recovery.
+5. **Complete browser acceptance before cutover.** Test the production build
+   and API through a non-public path using synthetic accounts. That test path
+   must preserve the intended origin/cookie behavior without changing the
+   existing hostname route. The path is not yet established; if it cannot be
+   provided, record this gate as blocked and request a separately scoped
+   decision. Do not route public traffic merely to make testing possible.
+6. **Cut over the existing hostname only with separate public-traffic
+   authorization.** Make a
+   fresh read-only inspection of the `goatedmethod.me` zone, current
+   `app.goatedmethod.me` Tunnel record, route precedence, Worker, and TLS. Attach
+   the reviewed Worker route while preserving DNS and Tunnel configuration.
+   Record before/after evidence and a named abort decision. Immediately run the
+   approved post-route health and routing smoke checks; the route action itself
+   is public traffic cutover and is not authorized by this document.
+7. **Update the status page.** Record exact environment, project, branch,
+   commit/version, checks, results, and limitations. Do not record secret
+   values.
 
-**2026-10-15 continuation checkpoint:** the owner reports production project
-`gadusaizqnshxqcckibq`, `ap-northeast-2`, Free is initialized and its 63-version
-ledger, catalog, postflight and core behavior checks passed. Steps 1–2 below
-are retained as historical provisioning instructions. **Do not run bootstrap
-or reapply migrations on this nonempty project.** Production API/Worker rollout,
-verified sender, isolated backup restore, live Realtime and traffic cutover
-remain pending. This checkpoint does not claim a fresh live verification.
+## Migration and database safety
 
-### 1. Owner approves the project and operating plan
+Production PostgreSQL is already initialized and its 63 migrations have been
+applied and validated. **Never rerun bootstrap, replay or repair the production
+migration ledger, reset production, or restore into production as part of
+launch.** A future database change requires its own reviewed migration and
+explicit authorization. The retained bootstrap procedure is not the launch
+procedure; see [Supabase runtime and migration notes](README.md).
 
-Project reference, region and Free plan are established in the checkpoint above.
-Still record expected usage, cost ceiling, exact email sender, recovery objectives
-and named operators. Reconfirm the Cloudflare account and zone before cutover.
+## Traffic, writes, and rollback limits
 
-Free feasibility is limited: current Supabase documentation lists two active Free projects across organizations where the owner/admin is a member, 500 MB database size per project, 1 GB disk with read-only behavior after the 500 MB database quota, 5 GB egress, 1 GB storage, 500,000 Edge Function calls, 2 million Realtime messages, and 200 peak Realtime connections. Free projects can pause after seven days of low activity, and Free does not include downloadable platform backups. Usage restrictions may affect service if quotas are continually exceeded. This is suitable only if the owner accepts inactivity pauses, tight limits, and an independently operated backup/restore process. Verify current terms before provisioning. See [Supabase billing and quotas](https://supabase.com/docs/guides/platform/billing-on-supabase), [Free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing), [database size limits](https://supabase.com/docs/guides/platform/database-size), and [fair-use restrictions](https://supabase.com/docs/guides/platform/billing-faq).
+Existing DNS and the Cloudflare Tunnel remain unchanged until the separately
+authorized route cutover. A Worker deployment without the hostname route does
+not by itself move public traffic. Keep disabled integrations closed.
 
-Pro currently starts at $25/month and includes daily backups retained for seven days; point-in-time recovery is an additional paid option. These are options for an explicit owner decision, not authorization. See [Supabase pricing](https://supabase.com/pricing) and [backup guidance](https://supabase.com/docs/guides/database/backups).
+Before real writes, require a verified restore path and an owner who can decide
+recovery. Removing a Worker route only restores the prior route; it does not
+undo writes. The old application is not the active runtime and must not be
+assumed compatible with the new production schema. After writes begin, prefer a
+reviewed forward fix or recovery into an isolated target; do not promise
+rollback to the legacy application.
 
-### 2. Historical bootstrap procedure — completed; do not rerun
+## Approval boundaries
 
-The production project is nonempty and already has the checked-in migration ledger. Never point the bootstrap procedure at production again, staging, the historical database, or any nonempty application database. `supabase/bootstrap/deploy-managed.ps1` is retained for historical evidence and future explicitly approved empty targets only.
-
-The checked-in order is:
-
-1. Verify authenticated project identity and empty application schema.
-2. Apply `supabase/bootstrap/managed-prerequisites.sql` and explicitly apply `supabase/bootstrap/application.sql`.
-3. Inspect the migration ledger, dry-run, then apply the 63 checked-in migrations in exact order and assert exact ledger versions.
-4. Verify the managed catalog, grants, private RPC permissions, required extensions/Vault/Cron/Realtime prerequisites, and no browser table access.
-5. Verify Supabase Data API is disabled in Dashboard and REST/GraphQL are unavailable. The SQL harness cannot verify this platform setting.
-6. Run rollback-only synthetic SQL behavior checks and controlled synthetic application tests.
-
-`application.sql` is outside `supabase/migrations/`; Supabase CLI does not discover it. The guarded script applies it explicitly. Never use `local-managed-fixture.sql` on managed Supabase. Do not run these steps until a new project has been separately approved.
-
-### 3. Configure fresh production secrets and email onboarding
-
-Create new, independent production keys; never reuse staging or legacy keys. Configure a new restricted database runtime password and TLS URL, `JWT_SECRET_CURRENT`, `REALTIME_JWT_PRIVATE_JWK`, `OFFLINE_AUTH_PRIVATE_KEY`, and email payload-encryption key. Do not set `JWT_SECRET_PREVIOUS` for this fresh launch. Put private values only in the Supabase secret manager/Vault; use [production.env.example](production.env.example) as the non-secret setting checklist. Confirm custom JWT verification is still performed by the app (`verify_jwt=false` at the Edge gateway), Data API access remains disabled, and custom session cookies are host-only, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`.
-
-Self-service password registration is enabled only with email verification required. New password accounts and Google-created accounts begin as `ATHLETE`; there are no seeded or administrator accounts. Without a configured sender and email worker/Vault dispatch secrets, registration must fail closed and show the unavailable state. Configure and test a verified sender before opening signup. Never bypass verification. To create a coach, the account must first register and verify; an authorized database operator may then use the audited `al_private.al_operator_promote_coach` procedure, followed by the workspace setup procedure where required. These functions are not public application RPCs and no client-controlled role promotion is permitted.
-
-Keep Stripe, vouchers, Telegram and Google Sheets disabled. Google sign-in is optional and must not be configured until its client, callback/origin and real redirect E2E have separate approval. `APP_URL` must be proven through the relevant provider-dependent flow before enabling that provider.
-
-### 4. Prepare the isolated production Worker and build
-
-Use `wrangler.production.jsonc` and `scripts/prepare-production-wrangler.mjs` to generate the ignored local production config only after the approved Supabase project reference exists. The committed origin is a placeholder and validation rejects staging fallback. The production Worker identity is `adaptive-lifting-production`, `workers_dev` is disabled, assets use `dist/`, SPA fallback is enabled, and only `/api/*` runs the thin proxy. Realtime uses the same production project origin directly from the browser over WebSocket and is never sent through the API proxy.
-
-Run `npm run validate:production:local`, `npm run build:production`, and the Wrangler dry run against the generated production config. Verify the output contains no private credentials and no staging host/project references. Deploy Edge API and Worker only in an explicitly approved release window, API first, then assets. Do not deploy from the staging Wrangler config.
-
-### 5. Connect the existing hostname without changing its CNAME
-
-Before routing, perform a fresh read-only zone/DNS/Worker-route check and record the then-current Tunnel CNAME, proxy mode, zone owner, and existing Worker routes. The earlier read-only preparation found a proxied `app.goatedmethod.me` CNAME to the Cloudflare Tunnel and no Worker route; that is historical evidence, not a claim about present-day state.
-
-Read-only Cloudflare API inspection at `2026-10-15T11:33:36Z` confirmed the
-`goatedmethod.me` zone is active, `app.goatedmethod.me` still has its proxied
-Tunnel CNAME, and the zone has no Worker routes. No change was made. Recheck
-immediately before any separately authorized route cutover.
-
-After separate cutover authorization, attach the production Worker route `app.goatedmethod.me/*` in the existing `goatedmethod.me` zone. Preserve the existing CNAME; do not replace, delete, or point it to staging. Confirm route precedence and TLS. Rollback of routing means removing the Worker route so the preserved Tunnel CNAME resumes handling requests; this restores the old route only and does not undo writes to the new app database.
-
-### 6. Verify the empty production application
-
-With test accounts only, verify registration, email verification, login/logout, `/api/auth/me`, secure cookies, session continuity, same-origin API, CSRF, PWA update, deep-link refresh, private Realtime, empty new-athlete plan, and athlete/coach authorization. Confirm new accounts have no preloaded training records. If no verified sender exists, keep public password signup closed and report onboarding as not ready. Do not send real provider messages or payments during smoke tests.
-
-### 7. Backups and recovery
-
-Before accepting real user writes, choose a backup plan and complete a real restore rehearsal into an isolated project. For every plan, retain an independent encrypted logical export outside the database, protect encryption keys separately, record migration/catalog/row/domain checks, and test Cron/outbox isolation before restored jobs can run. A schema-only checkpoint from the bootstrap procedure is not a backup or verified restore. Free plan has no downloadable platform backup and can pause for inactivity; therefore production use requires an owner-approved independent backup operator and tested restore path. If that cannot be staffed and tested, select a plan with suitable backups or delay launch.
-
-## Cutover gates and rollback
-
-Before connecting traffic, attach dated evidence for project identity/region/plan, empty database bootstrap, 63 migration versions, Data API denial, fresh secrets, verified sender/onboarding, production build/Worker dry run, domain route check, candidate smoke tests, backup restore, monitoring owner and cost ceiling. Owner approval must explicitly name the production release commit, maintenance window, route action, acceptance/abort authority and recovery decision.
-
-Before first write, rollback may remove the Worker route and return traffic to the preserved Tunnel CNAME. After new production writes, routing rollback alone is insufficient: the old application is offline and no historical application database is being migrated, while the new app’s schema/data are independent. Keep writes in maintenance mode and use a forward fix or recover the new database from the verified backup. Do not imply that old frontend/API code is compatible with new production writes. Preserve historical database, backups and Tunnel; this launch procedure does not reset them.
-
-## Current status
-
-- Staging remains validated and is not changed by this procedure.
-- Production project: initialized per the owner-verified checkpoint above.
-- Production Worker/API rollout and secrets: not independently verified here.
-- Production domain route and DNS: unchanged.
-- Historical data decision: final fresh start; no import is in the launch path.
-- Providers: disabled pending separate activation checks.
-- Backups: procedure documented; production restore remains unverified until a real rehearsal.
-- No paid action or production cutover is authorized by this document.
-
-Current local release gates (2026-10-15): production build/asset scan and Worker
-dry run PASS for the ignored config targeting `gadusaizqnshxqcckibq`; no upload
-or route change occurred. API and email worker startup now reject a different
-database project/runtime role or app origin. `EMAIL_ONBOARDING_ENABLED=false`
-keeps registration/resend closed until an authorized inbox test succeeds.
-See [email readiness](../docs/production-email-readiness.md),
-[recovery](../docs/production-recovery.md), and
-[Realtime E2E](bootstrap/PRODUCTION_REALTIME_E2E.md) for remaining owner actions.
+Each production action requires its own explicit approval naming the exact
+target and action: Worker deployment, route cutover, provider activation,
+secret/role changes, database changes, or production data export/restore. This
+runbook is procedure only and grants no authorization for those operations.

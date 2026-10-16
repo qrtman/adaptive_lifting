@@ -1,5 +1,11 @@
 # Isolated staging validation runbook
 
+> **HISTORICAL STAGING EVIDENCE.** This file records staging-only validation
+> and prior planning snapshots. Its production references and status statements
+> are historical, not current production instructions. Use
+> [`docs/PRODUCTION_STATUS.md`](../docs/PRODUCTION_STATUS.md) and
+> [`PRODUCTION_CUTOVER.md`](PRODUCTION_CUTOVER.md) for production.
+
 Target only the existing Free project named `adaptive-lifting-staging` in
 `ap-northeast-2`. Confirm its actual project ref in the Supabase Dashboard or
 official MCP/CLI account listing before any SQL, secret, setting, or deploy

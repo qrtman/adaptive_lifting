@@ -4,7 +4,7 @@ This guide retains the original stable-source design details below. The current 
 
 ## Current Supabase-native onboarding runtime
 
-The account-onboarding routes and verification-email delivery worker now run in Supabase Edge Functions. `supabase/migrations/20261006150000_auth_onboarding_email_worker.sql` installs private database RPCs and a one-minute `pg_cron` wake; `20261006144200_email_worker_clear_claim_on_retry.sql` clears the claim token after a retryable result. Only the Edge runtime can execute onboarding and delivery RPCs. Google Sheets outbox processing also runs in a Supabase Edge Function; no Python worker is part of the active runtime. Supabase Auth is not used.
+The account-onboarding routes and verification-email delivery worker are implemented as Supabase Edge Functions. The production email worker/provider path is still pending; see [production status](PRODUCTION_STATUS.md). `supabase/migrations/20261006150000_auth_onboarding_email_worker.sql` installs private database RPCs and a one-minute `pg_cron` wake; `20261006144200_email_worker_clear_claim_on_retry.sql` clears the claim token after a retryable result. Only the Edge runtime can execute onboarding and delivery RPCs. Google Sheets outbox processing also runs in a Supabase Edge Function; no Python worker is part of the active runtime. Supabase Auth is not used.
 
 The verification payload Fernet key is held in Vault as `adaptive_lifting_email_payload_encryption_key`. Delivery uses `adaptive_lifting_resend_api_key`, `adaptive_lifting_email_from`, and `adaptive_lifting_email_app_url` in Vault, or a complete matching set of Edge environment secrets. Internal cron dispatch uses separately named Vault secrets and a private worker bearer check. The worker checks delivery configuration before claiming jobs and processes only `email-verification` rows. Missing Resend, sender, or app URL configuration leaves queued jobs untouched and returns a generic unavailable result. Secret values do not belong in migrations or this document.
 
@@ -68,13 +68,20 @@ Use an owned transactional subdomain and complete [Resend domain verification](h
 
 Publish a DMARC record at the relevant `_dmarc` domain with a monitored aggregate-report address. Start with reporting (`p=none`) while validating all legitimate sending sources, then move to quarantine/reject after verifying aligned SPF/DKIM and inbox delivery. Check actual delivered message headers, including DMARC alignment, rather than assuming a DNS record alone is sufficient. See the [provider's DMARC setup guide](https://resend.com/docs/dashboard/domains/dmarc).
 
-## Validation and rollout
+## Staging validation and production gate
+
+The numbered procedure below is implementation validation guidance, primarily
+for staging. Production migrations are already applied, the API is deployed,
+and onboarding remains disabled pending sender and worker verification. Do not
+replay migrations. Use [production status](PRODUCTION_STATUS.md) and the
+[production cutover runbook](../supabase/PRODUCTION_CUTOVER.md) for current
+production state and release sequencing.
 
 1. Back up and restore-test a staging database. Use separate staging keys, provider/domain, OAuth clients and Telegram bot. Run `alembic upgrade head`, repeat it, and run `alembic check`. Do not migrate production as part of local validation.
 2. Configure real email delivery and offline keys; leave legacy enforcement false. Build the frontend with the matching public key. For Supabase-native onboarding, confirm the Cron schedule, private worker authorization, and Vault/Edge configuration. The Supabase google-sheets-worker Edge Function remains responsible for Google Sheets.
 3. Register a staging password account; verify that no cookie/token is issued and protected APIs fail. Confirm real inbox delivery, sender identity, HTML/text, DNS authentication, fragment link preservation, explicit POST, token reuse/expiry, resend replacement and failed-provider recovery. Check logs/APM for token or URL capture. Disable request-body logging on authentication endpoints.
 4. Monitor queued/failed email jobs, provider acceptance, bounces, delivery latency and authentication rate-limit events. Treat exhausted email jobs as recovery through a fresh resend after cooldown; do not manually reveal stored tokens. Registration does not report successful delivery merely because a job is queued.
-5. The Supabase-native onboarding migration deploys the API Edge routes, private email worker, database functions, and cron schedule together. Keep `EMAIL_VERIFICATION_NEW_ACCOUNTS=true`, `EMAIL_VERIFICATION_ENFORCE_LEGACY=false`. Configure the independent Fernet payload key in Supabase Vault. Delivery also needs `adaptive_lifting_resend_api_key`, `adaptive_lifting_email_from`, and `adaptive_lifting_email_app_url` in Vault, or the equivalent Edge secrets. The worker returns unavailable before claiming work when delivery configuration is absent. Existing pending accounts still require verification and recovery.
+5. The migration installs database functions and the Cron wake; it does not deploy Edge Function code. Deploy the matching API/worker only through a separately approved release. For production, verify all sender, dispatch, and Vault/Edge settings and complete a controlled inbox test before enabling onboarding. The worker returns unavailable before claiming work when delivery configuration is absent. Existing pending accounts still require verification and recovery.
 6. Plan any legacy enforcement separately, including advance communication and recovery delivery. Do not bulk fabricate verified timestamps or revoke historical sessions/subscriptions merely because verification was previously unknown.
 
 Prefer a forward fix over rolling back to old authentication code once pending accounts exist. The old code cannot enforce the new policy. Migration downgrade preserves core data but removes verification state and email jobs; it is tested for development/recovery, not a safe production feature toggle. Re-upgrading a downgraded database treats its then-existing accounts as historical, so use a reviewed backup/recovery strategy if a production downgrade is ever necessary.

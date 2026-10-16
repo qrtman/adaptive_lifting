@@ -3,7 +3,8 @@
 ## Current decision
 
 The repository has an implemented, fail-closed password onboarding path, but
-production email onboarding is **not ready to open**. The owner's verified
+production email onboarding is **not ready to open**. See the
+[authoritative production status](PRODUCTION_STATUS.md). The owner's verified
 checkpoint identifies production project `gadusaizqnshxqcckibq` in
 `ap-northeast-2` on Free, initialized with all 63 migrations. Do not bootstrap
 or reapply them. A verified sender has not been established by this review. Local tests

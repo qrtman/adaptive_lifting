@@ -86,7 +86,12 @@ Set `EMAIL_VERIFICATION_NEW_ACCOUNTS=true`, `EMAIL_VERIFICATION_ENFORCE_LEGACY=f
 
 Follow the [rollout instructions](email-verification.md#validation-and-rollout): restore-test a staging backup, configure the verified sender/DNS and independent secrets, migrate/repeat/check, build with the pinned public key, start API plus standalone worker, then validate real email delivery and old sessions/subscriptions/relationships/integrations. Exercise expiry/reuse/resend/retry, scan logs/APM for credential capture, and validate offline/reconnect behavior. Monitor queued/failed email jobs, provider acceptance and authentication failures.
 
-Only after staging acceptance and explicit deployment authorization should an operator back up production, briefly pause password registration, drain old processes, apply the migration and deploy matching API/worker/frontend builds before reopening registration. Keep legacy enforcement disabled initially. Plan later enforcement with communication/recovery; prefer forward fixes over downgrading authentication code once pending users exist. No production action was executed here.
+> **HISTORICAL / SUPERSEDED rollout note:** the instructions in the preceding
+> paragraph describe the old Python deployment and are not valid for the
+> current Supabase production project. Production has all 63 migrations applied
+> and the API deployed. Never reapply those migrations. Use
+> [`docs/PRODUCTION_STATUS.md`](PRODUCTION_STATUS.md) and
+> [`supabase/PRODUCTION_CUTOVER.md`](../supabase/PRODUCTION_CUTOVER.md).
 
 ## Files created
 

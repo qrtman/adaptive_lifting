@@ -1,14 +1,15 @@
 # Production readiness audit (planning only)
 
-> **Superseded launch decision (2026-10-10):** the owner has finalized a
+> **HISTORICAL / SUPERSEDED — do not use as the current launch checklist.** The
+> owner finalized a
 > completely fresh production application database. Historical users,
 > passwords, sessions, training records, billing, provider credentials and
 > queued jobs will not be imported. Historical import/reconciliation and
 > session continuity sections below are retained only as dated audit evidence;
 > they are not production launch gates. Follow the current
-> [fresh production launch runbook](PRODUCTION_CUTOVER.md). The production
-> domain is confirmed as `https://app.goatedmethod.me`; no production project
-> has been provisioned.
+> [current production launch runbook](PRODUCTION_CUTOVER.md) and
+> [authoritative production status](../docs/PRODUCTION_STATUS.md). Statements
+> below describe the state assessed in October 2026 and are not current status.
 
 **Assessment date:** 2026-10-09  
 **Repository state reviewed:** `supabase-staging-validation` at

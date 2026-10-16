@@ -305,16 +305,22 @@ assume that restoring only the prior Edge Function or Worker restores
 compatibility with migration 63. Verify live authenticated reads, writes, and
 conflict recovery before resuming writes. Production and DNS were untouched.
 
-## Production Worker preparation (not deployed)
+## Production Worker preparation — PENDING
+
+The Supabase production API is deployed and passed its initial direct
+health/security smoke checks. This section covers only the pending Cloudflare
+Worker/frontend release. Current state is in
+[`PRODUCTION_STATUS.md`](PRODUCTION_STATUS.md); hostname routing remains
+separate and unauthorized until its explicit cutover approval.
 
 `wrangler.production.jsonc` is a separate production-only Worker configuration:
 `adaptive-lifting-production`, Static Assets from `dist/`, SPA fallback, and
 the same `/api/*` proxy to a required production Supabase project origin. The
 origin is deliberately `https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co`;
-the committed config fails closed. The owner-verified 2026-10-15 checkpoint
-identifies the initialized production project as `gadusaizqnshxqcckibq` in
-`ap-northeast-2` on Free. Generate the ignored local configuration with that
-reference; deployment still requires separate approval.
+the committed config fails closed. The production project is
+`gadusaizqnshxqcckibq` in `ap-northeast-2`. Generate the ignored local
+configuration with that reference; deployment still requires separate
+approval.
 It contains no service-role/publishable key, JWT or provider secret and
 has `workers_dev` disabled. The staging `wrangler.jsonc` and existing Worker
 remain unchanged.
@@ -344,8 +350,9 @@ any future browser Realtime client must derive its `wss://<production-ref>.supab
 endpoint from the same verified production project, never staging. The Worker
 proxies only HTTP `/api/*` requests and does not proxy WebSockets.
 
-After production provisioning and a separate deployment approval, generate an
-ignored local Wrangler config from the committed template:
+After verifying the existing production project configuration and receiving a
+separate Worker deployment approval, generate an ignored local Wrangler config
+from the committed template:
 
 ```text
 node scripts/prepare-production-wrangler.mjs <verified-production-project-ref>
