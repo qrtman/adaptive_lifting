@@ -11,6 +11,6 @@ Deno.serve(
   createHandler(
     config,
     databaseFromUrl(config.databaseUrl),
-    realtimeSigner,
+    realtimeSigner ?? undefined,
   ),
 );
