@@ -193,8 +193,25 @@ function buildAndScan() {
       fail(`production build output contains a private credential marker: ${file.slice(root.length + 1)}`);
     }
   }
-  for (const required of ['index.html', 'sw.js']) {
+  for (const required of ['index.html', 'sw.js', 'manifest.webmanifest', 'app-icon.svg', 'app-icon-192.png', 'app-icon-512.png']) {
     if (!existsSync(join(root, 'dist', required))) fail(`production PWA output is missing ${required}`);
+  }
+  const manifest = readJson(join(root, 'dist', 'manifest.webmanifest'));
+  if (manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone' ||
+      !manifest.icons?.some((icon) => icon.src === '/app-icon.svg' && icon.sizes === 'any' && icon.type === 'image/svg+xml')) {
+    fail('production PWA manifest is incomplete');
+  }
+  for (const size of [192, 512]) {
+    const icon = manifest.icons?.find((item) => item.src === `/app-icon-${size}.png`);
+    if (!icon || icon.sizes !== `${size}x${size}` || icon.type !== 'image/png' ||
+        !['any', 'maskable', 'any maskable'].includes(icon.purpose)) {
+      fail(`production PWA manifest is missing its ${size}x${size} PNG icon`);
+    }
+    const png = readFileSync(join(root, 'dist', `app-icon-${size}.png`));
+    if (png.length < 24 || !png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+        png.readUInt32BE(16) !== size || png.readUInt32BE(20) !== size) {
+      fail(`production PWA ${size}x${size} icon is not a valid PNG of the declared size`);
+    }
   }
 }
 
