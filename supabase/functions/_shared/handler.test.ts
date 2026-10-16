@@ -1,4 +1,4 @@
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createHandler } from "./handler.ts";
 import type { AppConfig } from "./config.ts";
 import type { Database, SqlClient } from "./db/mod.ts";
@@ -85,4 +85,29 @@ Deno.test("signed provider webhook exceptions continue to their independent auth
 
   assert(stripe.status !== 403, "Stripe must reach its signature/configuration guard");
   assert(telegram.status !== 403, "Telegram must reach its secret-token/configuration guard");
+});
+
+Deno.test("disabled Realtime returns 503 even if a signer is supplied and never touches the database", async () => {
+  const harness = database();
+  const handler = createHandler(
+    { ...config, realtimeTokensEnabled: false },
+    harness.db,
+    { kid: "test-kid", jwk: { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d" } },
+  );
+  const response = await handler(new Request("https://edge.example.test/api/realtime/token", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://staging.example.test" },
+    body: JSON.stringify({ workout_id: "workout-1" }),
+  }));
+  assertEquals(response.status, 503);
+  assertEquals(harness.connections(), 0);
+});
+
+Deno.test("Realtime cannot be configured enabled without a validated signer", () => {
+  const harness = database();
+  assertThrows(
+    () => createHandler({ ...config, realtimeTokensEnabled: true }, harness.db),
+    Error,
+    "no validated signing key was loaded",
+  );
 });

@@ -83,6 +83,14 @@ export async function loadRealtimeSigner(
   return signer;
 }
 
+/** Disabled Realtime must not inspect or require signing material. */
+export async function loadRealtimeSignerIfEnabled(
+  enabled: boolean,
+  read = (name: string) => Deno.env.get(name),
+): Promise<RealtimeSigner | null> {
+  return enabled ? await loadRealtimeSigner(read) : null;
+}
+
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 export async function issueRealtimeToken(

@@ -192,19 +192,59 @@ Only the separately authorized bootstrap procedure uses `-Apply`; it refuses
 any application table, user, storage object, or migration record. Do not use
 this workflow on staging or an existing application database.
 
+## Initial API-only release gate (Realtime off)
+
 The migration creates `al_edge_catalog_runtime` as a restricted LOGIN role;
 it does not create or embed its password. After the schema is ready and before
 deploying the API, set a unique role password through an interactive secure
 `psql` session (`\password al_edge_catalog_runtime`) and store the matching
-TLS database URL only in the production Edge secret manager. Configure the
-non-secret settings from `supabase/production.env.example`, plus the required
-private secret names listed there; `REALTIME_JWT_PRIVATE_JWK` is required by
-the current API entrypoint at process startup. Do not configure
-`JWT_SECRET_PREVIOUS` for fresh production. Keep
+TLS database URL only in the production Edge secret manager. If that role
+password still needs to be set, treat that as a separately authorized database
+change. For the initial API-only smoke release, provision only `DATABASE_URL` using
+the restricted runtime role and `JWT_SECRET_CURRENT`. Apply the non-secret
+settings from `supabase/production.env.example`, especially
+`REALTIME_TOKENS_ENABLED=false`, `EMAIL_ONBOARDING_ENABLED=false`, and disabled
+billing. Realtime token signing, offline grants, email payload encryption, and
+provider credentials are not startup requirements while those features remain
+disabled or unavailable. Do not configure `JWT_SECRET_PREVIOUS` for fresh
+production. Keep
 `supabase/config.toml`'s custom JWT `verify_jwt=false` setting so the existing
 custom cookie/session verifier remains the auth boundary. Disable the Data API
 in the project settings and verify REST/GraphQL are unavailable; SQL cannot
 read back that platform-level setting. No Supabase Auth is introduced.
+
+Before storing `DATABASE_URL`, verify it privately targets the approved
+production project and the restricted `al_edge_catalog_runtime` login, uses
+the approved direct or session-pooler hostname, database `postgres`, port
+5432, and TLS (`sslmode=require`). Using that exact connection, run these
+read-only checks and confirm the effective user is the restricted runtime
+role, TLS is active, and the role has neither elevated attributes nor missing
+required RPC grants:
+
+```sql
+select current_user, session_user, current_database(), ssl
+from pg_catalog.pg_stat_ssl
+where pid = pg_catalog.pg_backend_pid();
+
+select rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+       rolreplication, rolbypassrls
+from pg_catalog.pg_roles
+where rolname = current_user;
+
+select pg_catalog.has_function_privilege(
+  current_user,
+  'al_private.al_auth_login(text,text,text,text,boolean)',
+  'EXECUTE'
+) as can_execute_login_rpc;
+```
+
+An enabled `REALTIME_TOKENS_ENABLED=true` must load and validate the matching
+private P-256 signer at startup; missing or invalid signing configuration
+fails startup. With Realtime disabled, `/api/realtime/token` returns 503 and
+cannot issue a token. Verify that response in the direct-function smoke tests.
+Keep signup disabled, Google sign-in absent, and billing disabled for this
+release. Email registration remains unavailable until sender setup and a
+separately authorized onboarding test.
 
 After partial failure, do not rerun the bootstrap blindly. Preserve the
 checkpoint and database, inspect the exact catalog/ledger and logs, then either

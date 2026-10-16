@@ -21,6 +21,7 @@ export interface AppConfig {
   googleSheetsClientSecret?: string | null;
   integrationEncryptionKey?: string | null;
   realtimeSigningJwk?: string | null;
+  realtimeTokensEnabled?: boolean;
   stripeBillingEnabled?: boolean;
   stripeBillingEnabledConfigured?: boolean;
   stripeSecretKey?: string | null;
@@ -69,6 +70,7 @@ export function loadConfig(
   const rawSheetsClientSecret = read("GOOGLE_OAUTH_CLIENT_SECRET")?.trim() ?? "";
   const rawIntegrationEncryptionKey = read("INTEGRATION_ENCRYPTION_KEY")?.trim() ?? "";
   const rawRealtimeSigningJwk = read("REALTIME_JWT_PRIVATE_JWK")?.trim() ?? "";
+  const rawRealtimeTokensEnabled = (read("REALTIME_TOKENS_ENABLED") ?? "false").trim().toLowerCase();
   const stripeEnabledValue = read("STRIPE_BILLING_ENABLED");
   const stripeLiveValue = read("STRIPE_EXPECT_LIVEMODE");
   const voucherBillingValue = read("VOUCHER_BILLING_ENABLED");
@@ -85,6 +87,9 @@ export function loadConfig(
   }
   if (!databaseUrl || !/^postgres(ql)?:\/\//.test(databaseUrl)) {
     throw new Error("DATABASE_URL must be a PostgreSQL connection URL");
+  }
+  if (!["1", "true", "yes", "0", "false", "no"].includes(rawRealtimeTokensEnabled)) {
+    throw new Error("REALTIME_TOKENS_ENABLED must be a boolean");
   }
   if (!jwtCurrent) throw new Error("JWT_SECRET_CURRENT is required");
   if (!origins.length || origins.includes("*")) {
@@ -161,6 +166,7 @@ export function loadConfig(
     googleSheetsClientSecret: rawSheetsClientSecret || null,
     integrationEncryptionKey: rawIntegrationEncryptionKey || null,
     realtimeSigningJwk: rawRealtimeSigningJwk || null,
+    realtimeTokensEnabled: ["1", "true", "yes"].includes(rawRealtimeTokensEnabled),
     stripeBillingEnabled: ["1", "true", "yes"].includes(stripeEnabledRaw),
     stripeBillingEnabledConfigured: stripeEnabledValue !== undefined,
     stripeSecretKey: read("STRIPE_SECRET_KEY")?.trim() || null,

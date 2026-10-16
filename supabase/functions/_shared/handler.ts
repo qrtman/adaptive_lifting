@@ -34,7 +34,10 @@ export function createHandler(
   db: Database,
   realtimeSigner?: RealtimeSigner,
 ) {
-  const realtimeTokenHandler = realtimeSigner
+  if (config.realtimeTokensEnabled === true && !realtimeSigner) {
+    throw new Error("Realtime is enabled but no validated signing key was loaded");
+  }
+  const realtimeTokenHandler = config.realtimeTokensEnabled === true && realtimeSigner
     ? createRealtimeTokenHandler(config, db, realtimeSigner)
     : null;
   return async (request: Request): Promise<Response> => {
