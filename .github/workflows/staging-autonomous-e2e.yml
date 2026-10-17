@@ -1,0 +1,53 @@
+name: Autonomous staging smoke
+
+on:
+  push:
+    branches:
+      - test/staging-autonomous-e2e
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-autonomous-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  staging-smoke:
+    name: Staging browser and regression checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      STAGING_URL: https://adaptive-lifting-staging.gartman-bekaali.workers.dev
+    steps:
+      - name: Check out isolated testing branch
+        uses: actions/checkout@v4
+      - name: Configure Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check frontend types
+        run: npm run lint
+      - name: Run automated regression tests
+        run: npm test
+      - name: Build frontend for credential scanning
+        run: npm run build
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run deployed staging browser smoke
+        run: node scripts/cloudflare-staging-smoke.mjs > staging-smoke-report.json
+      - name: Show sanitized smoke results
+        if: success()
+        run: cat staging-smoke-report.json
+      - name: Preserve staging smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smoke-results
+          path: staging-smoke-report.json
+          if-no-files-found: ignore
+          retention-days: 7
