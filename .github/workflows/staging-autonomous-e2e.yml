@@ -21,7 +21,6 @@ jobs:
       CI: "true"
       STAGING_URL: https://adaptive-lifting-staging.gartman-bekaali.workers.dev
       STAGING_PROJECT_REF: admyuepbbtstayaydjmo
-      STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
     steps:
       - name: Check out isolated testing branch
         uses: actions/checkout@v4
@@ -46,9 +45,13 @@ jobs:
         if: success()
         run: cat staging-smoke-report.json
       - name: Run authenticated staging E2E
+        env:
+          STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
         run: node scripts/staging-authenticated-e2e.mjs > staging-authenticated-e2e-report.json
       - name: Independently clean up and verify staging fixtures
         if: always()
+        env:
+          STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
         run: node scripts/staging-authenticated-e2e.mjs --cleanup-only
       - name: Preserve sanitized authenticated E2E results
         if: always()
