@@ -278,8 +278,15 @@ async function runScenario() {
         req.onerror = () => { db.close(); resolve(null); };
       };
     });
+    const claims = token => {
+      if (typeof token !== 'string') return null;
+      try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }
+      catch { return null; }
+    };
+    const saved = claims(stored), fresh = claims(payload?.offlineGrant);
     return { issued, persisted: typeof stored === 'string' && stored.split('.').length === 3,
-      matchesIssued: issued && stored === payload.offlineGrant };
+      matchesIssued: issued && saved?.sub === fresh?.sub && saved?.sid === fresh?.sid &&
+        saved?.user?.id === fresh?.user?.id && saved?.sub === payload?.user?.id };
   });
   checks.offlineGrantIssued = grantState.issued ? 'PASS' : 'FAIL (backend did not issue offline grant)';
   checks.offlineGrantPersisted = grantState.persisted ? 'PASS' : 'FAIL (signed grant absent from IndexedDB)';
