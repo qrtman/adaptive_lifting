@@ -4,12 +4,13 @@
 
 **Branch:** `production-bootstrap`
 
-**Last verified repository/release commit:**
+**Last verified production API release commit:**
 `367fa8a1ddb7329086ce0e9afb17a93a5d040da9`
 
 **Project:** `gadusaizqnshxqcckibq` (Seoul / `ap-northeast-2`)
-**Status source:** owner-provided release history in the current launch record;
-items below are not a fresh live inspection by this documentation update.
+**Status source:** owner-provided release history and dated read-only
+Cloudflare/Supabase readbacks. Each section distinguishes historical release
+evidence from later configuration readbacks.
 
 Use this page for changing production facts. Use
 [the architecture](../architecture.md) for stable system decisions and
@@ -51,8 +52,10 @@ Use this page for changing production facts. Use
 - Deployed config: Worker-only `wrangler.production.local.jsonc`, origin
   `https://gadusaizqnshxqcckibq.supabase.co`, Static Assets from `dist/`,
   SPA fallback and `/api/*` Worker-first routing. The config omits `routes`
-  and `custom_domains`; `workers_dev` is false. Cloudflare readback reports
-  the workers.dev subdomain and previews disabled.
+  and `custom_domains`; `workers_dev` is false. At deployment-time readback,
+  the workers.dev subdomain and preview/version URLs were disabled. See the
+  current configuration readback below; preview/version URLs were enabled
+  later, without changing the production Worker version.
 - Read-only post-deploy checks found no Worker route in the `goatedmethod.me`
   zone and no custom domain for `app.goatedmethod.me`. DNS, Tunnel, staging,
   Supabase settings, and database configuration were not changed.
@@ -65,9 +68,65 @@ Use this page for changing production facts. Use
 
 ## Pending and blocked gates
 
-- **PENDING:** Complete browser end-to-end validation of the production build
-  and API before public launch. A non-public test path must be established;
-  do not change the production hostname route just to test it.
+- **BLOCKED / NOT TESTED:** Production-origin browser end-to-end validation is
+  incomplete. The Worker remains without a production hostname route or custom
+  domain, and its general `workers.dev` route is disabled. Version URLs are
+  enabled and a Cloudflare Access application is configured for preview
+  traffic, but Access enforcement has not been independently tested. Treat the
+  Version URL as internet-routable until unauthenticated denial is verified.
+  No local HTTPS origin-preserving harness is implemented or verified.
+  Production-origin cookie/CSRF and authenticated session behavior remain
+  unverified. Do not enable onboarding or create synthetic production accounts
+  under existing authorization.
+
+### Production preview endpoint configuration — read-only check 2026-10-17
+
+A fresh Cloudflare API readback confirmed the production Worker deployment
+remains version `1e0c6269-0794-4068-b0f0-ffb901d35883` at 100%, with the
+production Supabase origin, Static Assets, SPA fallback, and `/api/*`
+Worker-first routing. Its general `workers.dev` route is disabled, while
+Version URLs are enabled. The account has no Worker custom-domain bindings;
+the `goatedmethod.me` zone's Worker route list is empty in the current
+read-only check. No production hostname route, DNS record, or Tunnel
+configuration was changed for this test path.
+
+The Worker has a Cloudflare Access application named
+`adaptive-lifting-production - Cloudflare Workers`, targeting the
+`preview_worker` destination only. Its attached reusable Allow policy,
+`Cloudflare Workers Preview URLs`, includes only
+`gartman.bekaali@gmail.com` and has no Exclude or Require selectors. Cloudflare
+readback reports one application using that policy. This documents the
+configured rule; it does not prove enforcement. Unauthenticated denial and
+authenticated operator access have not been independently tested, and no
+production-origin browser smoke test has been run. The Version URL is enabled
+and internet-routable, so keep the production browser acceptance gate
+**BLOCKED / NOT TESTED** until enforcement and the required browser conditions
+are exercised safely. Do not use the route-free state as evidence that the
+Version URL is inaccessible.
+
+An earlier read-only preflight on 2026-10-17 observed Access and Version URLs
+disabled and could not read billing profile/subscription details because the
+API identity lacked permission. The current readback shows Zero Trust and the
+preview Access application are now configured; the earlier observation is
+historical, not current state. No local HTTPS harness is implemented. No DNS,
+Tunnel, production hostname route, Worker version, staging, or Supabase
+configuration was changed as part of that preflight or this documentation
+update.
+
+Cloudflare documents that enabled Version URLs are publicly routable unless
+protected by Access and that Access can target a Worker's preview deployments
+([Version URLs](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/),
+[Workers Access](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)).
+Use the account's current Access policy readback above as configuration
+evidence only; browser enforcement remains untested.
+
+If this temporary test path is later retired, disable Version URLs for this
+Worker and verify `previews_enabled=false` before removing its Access
+application attachment. Then verify the general `workers.dev` route remains
+disabled and recheck Worker custom domains and the `goatedmethod.me` route
+list. Do not delete the reusable preview policy if another application uses
+it. Recheck DNS and Tunnel state separately; neither is part of this test
+endpoint's teardown.
 - **PENDING:** Recheck and perform the existing hostname Worker-route cutover
   only after separate authorization. Preserve current DNS and Cloudflare
   Tunnel routing until then.
