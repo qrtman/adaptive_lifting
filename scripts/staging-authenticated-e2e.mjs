@@ -30,7 +30,7 @@ function requireStagingTarget() {
   // Supabase's Seoul session pooler uses .supabase.com, not .supabase.co.
   // The pooler username's project suffix identifies which project is targeted.
   const stagingSessionPooler =
-    /^aws-\\d+-ap-northeast-2\\.pooler\\.supabase\\.com$/.test(databaseUrl.hostname) &&
+    /^aws-\d+-ap-northeast-2\.pooler\.supabase\.com$/.test(databaseUrl.hostname) &&
     databaseUrl.port === '5432' && username.endsWith(`.${projectRef}`);
   assert.ok(['postgres:', 'postgresql:'].includes(databaseUrl.protocol), 'Staging connection must use PostgreSQL');
   assert.ok(directStaging || stagingSessionPooler, 'Database URL must target the exact staging project directly or through its Seoul session pooler');
