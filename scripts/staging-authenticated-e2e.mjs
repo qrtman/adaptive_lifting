@@ -333,12 +333,21 @@ async function runScenario() {
   await athletePage.evaluate(() => navigator.serviceWorker.ready);
   await athleteContext.setOffline(true);
   await athletePage.reload();
-  await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible', timeout: 15000 });
-  const offline = await athletePage.evaluate(() => ({ online: navigator.onLine, serviceWorker: Boolean(navigator.serviceWorker.controller) }));
+  const offline = await athletePage.evaluate(() => ({
+    online: navigator.onLine,
+    serviceWorker: Boolean(navigator.serviceWorker.controller),
+  }));
   assert.equal(offline.online, false);
   assert.ok(offline.serviceWorker, 'PWA offline page is not controlled by the service worker');
+  const offlineAuthenticatedUi = await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible', timeout: 10000 })
+    .then(() => true, () => false);
+  checks.pwaOfflineShell = 'PASS';
+  checks.offlineAuthenticatedRestore = offlineAuthenticatedUi
+    ? 'PASS'
+    : 'FAIL (authenticated application did not restore after offline PWA reload)';
   await athleteContext.setOffline(false);
-  checks.pwaOffline = 'PASS';
+  await athletePage.reload();
+  await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible', timeout: 15000 });
 
   await athletePage.getByRole('button', { name: 'Sign out' }).click();
   await athletePage.getByTestId('login-card').waitFor({ state: 'visible' });
@@ -404,9 +413,10 @@ try {
 
 if (!isCleanupOnly) {
   checks.syntheticCleanup ??= manifest ? 'NOT VERIFIED' : 'NOT NEEDED';
+  const hasFailedChecks = Object.values(checks).some((result) => String(result).startsWith('FAIL'));
   const status = cleanupError ? 'FAIL'
     : scenarioError && /Missing required GitHub secret STAGING_E2E_DATABASE_URL/.test(scenarioError.message) ? 'BLOCKED'
-    : scenarioError ? 'FAIL' : 'PASS';
+    : scenarioError || hasFailedChecks ? 'FAIL' : 'PASS';
   const report = {
     target: { worker: stagingUrl.origin, projectRef },
     checks,
@@ -418,6 +428,9 @@ if (!isCleanupOnly) {
 }
 if (scenarioError) {
   console.error(`Authenticated staging E2E failed: ${scenarioError.message}`);
+  process.exitCode = 1;
+} else if (!isCleanupOnly && Object.values(checks).some((result) => String(result).startsWith('FAIL'))) {
+  console.error('Authenticated staging E2E completed with failing checks; see sanitized artifact.');
   process.exitCode = 1;
 }
 if (cleanupError) {
