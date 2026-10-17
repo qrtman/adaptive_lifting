@@ -83,6 +83,23 @@ async function cleanOwnedRows() {
     await client.query('delete from public.sync_mutations m using public.client_devices d where m.client_device_id=d.id and d.user_id=any($1::text[])', [ids]);
     await client.query('delete from public.client_devices where user_id = any($1::text[])', [ids]);
     await client.query('delete from public.sessions where user_id = any($1::text[])', [ids]);
+    const workspaceResult = await client.query('select id from public.workspaces where owner_user_id=any($1::text[])', [ids]);
+    const workspaceIds = workspaceResult.rows.map(row => row.id);
+    const grantResult = await client.query('select id from public.access_grants where workspace_id=any($1::text[])', [workspaceIds]);
+    const grantIds = grantResult.rows.map(row => row.id);
+    await client.query("delete from public.audit_events where (resource_type='Workspace' and resource_id=any($1::text[])) or (resource_type='AccessGrant' and resource_id=any($2::text[])) or (resource_type='User' and resource_id=any($3::text[]))", [workspaceIds,grantIds,ids]);
+    await client.query('delete from public.integration_outbox where connection_id in (select id from public.integration_connections where user_id=any($1::text[]))', [ids]);
+    await client.query('delete from public.integration_connections where user_id=any($1::text[])', [ids]);
+    await client.query('delete from public.oauth_states where user_id=any($1::text[])', [ids]);
+    await client.query('delete from public.insight_cards where owner_user_id=any($1::text[])', [ids]);
+    await client.query('delete from public.sheet_publications where coach_id=any($1::text[])', [ids]);
+    await client.query('delete from public.vouchers where assigned_user_id=any($1::text[]) or redeemed_by_user_id=any($1::text[]) or created_by_user_id=any($1::text[])', [ids]);
+    await client.query('delete from public.access_grants where workspace_id=any($1::text[])', [workspaceIds]);
+    await client.query('delete from public.billing_checkout_reservations where workspace_id=any($1::text[])', [workspaceIds]);
+    await client.query('delete from public.subscriptions where workspace_id=any($1::text[])', [workspaceIds]);
+    await client.query('delete from public.billing_customers where workspace_id=any($1::text[])', [workspaceIds]);
+    await client.query('delete from public.workspace_members where workspace_id=any($1::text[]) or user_id=any($2::text[])', [workspaceIds,ids]);
+    await client.query('delete from public.workspaces where id=any($1::text[]) and owner_user_id=any($2::text[])', [workspaceIds,ids]);
     await client.query('delete from public.users where id = any($1::text[]) and email like $2', [ids, `${manifest.namespace}-%@example.invalid`]);
     await client.query('commit');
   } catch (error) {
@@ -108,6 +125,10 @@ async function independentlyVerifyCleanup() {
       (select count(*)::int from public.client_devices where user_id = any($2::text[])) as client_devices,
       (select count(*)::int from public.day_notes where owner_id = any($2::text[])) as day_notes,
       (select count(*)::int from public.integration_connections where user_id = any($2::text[])) as integration_connections,
+      (select count(*)::int from public.workspaces where owner_user_id=any($2::text[])) as workspaces,
+      (select count(*)::int from public.workspace_members where user_id=any($2::text[])) as workspace_members,
+      (select count(*)::int from public.access_grants where workspace_id in (select id from public.workspaces where owner_user_id=any($2::text[]))) as coach_access_grants,
+      (select count(*)::int from public.insight_cards where owner_user_id=any($2::text[])) as insight_cards,
       (select count(*)::int from public.users where email like $1) as synthetic_users
   `, [`${manifest.namespace}-%@example.invalid`, manifest.userIds ?? []]);
   const counts = query.rows[0];
@@ -156,6 +177,13 @@ async function provisionFixture(role) {
   } catch (error) {
     await db.query('rollback');
     throw error;
+  }
+  if (role === 'coach') {
+    // Standard staging operator grant, expiring after one day; no auth bypass.
+    const granted = await db.query("select al_private.al_operator_grant_coach_access($1::text,'coach_beta',1,false,$2::text) as result",
+      [email, `Disposable staging E2E: ${manifest.namespace}`]);
+    assert.equal(granted.rows[0]?.result?.userId, userId, 'fixture coach grant targets unexpected account');
+    assert.equal(granted.rows[0]?.result?.planKey, 'coach_beta', 'fixture coach entitlement is not active');
   }
   return { email, password, userId, token };
 }
@@ -233,6 +261,30 @@ async function runScenario() {
   assert.equal(me.status, 200);
   assert.equal(me.body.user.email, athlete.email);
   assert.match(me.headers.cacheControl ?? '', /private,\s*no-store/i);
+  // Sanitized diagnostics for deployed backend issuance and browser persistence.
+  // Do not report the JWT value or locally cached signed grant.
+  const grantState = await athletePage.evaluate(async () => {
+    const response = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+    const payload = await response.json().catch(() => null);
+    const issued = typeof payload?.offlineGrant === 'string' && payload.offlineGrant.split('.').length === 3;
+    const stored = await new Promise(resolve => {
+      const open = indexedDB.open('adaptive_lifting_db');
+      open.onerror = () => resolve(null);
+      open.onsuccess = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains('snapshots')) { db.close(); resolve(null); return; }
+        const req = db.transaction('snapshots','readonly').objectStore('snapshots').get('auth:offline-grant');
+        req.onsuccess = () => { const value = req.result?.data ?? null; db.close(); resolve(value); };
+        req.onerror = () => { db.close(); resolve(null); };
+      };
+    });
+    return { issued, persisted: typeof stored === 'string' && stored.split('.').length === 3,
+      matchesIssued: issued && stored === payload.offlineGrant };
+  });
+  checks.offlineGrantIssued = grantState.issued ? 'PASS' : 'FAIL (backend did not issue offline grant)';
+  checks.offlineGrantPersisted = grantState.persisted ? 'PASS' : 'FAIL (signed grant absent from IndexedDB)';
+  checks.offlineGrantMatchesIssued = grantState.matchesIssued ? 'PASS' : 'FAIL (stored grant missing or differs from issued grant)';
+
   await athletePage.reload();
   await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible' });
   assert.equal((await appRequest(athletePage, 'GET', '/api/auth/me')).status, 200);
