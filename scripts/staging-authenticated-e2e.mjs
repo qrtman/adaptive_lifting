@@ -351,8 +351,20 @@ async function runScenario() {
 
   await athletePage.getByRole('button', { name: 'Sign out' }).click();
   await athletePage.getByTestId('login-card').waitFor({ state: 'visible' });
-  assert.equal((await athleteContext.cookies()).some((cookie) => cookie.name === 'session_id'), false);
-  assert.equal((await athleteContext.request.get('/api/auth/me')).status(), 401);
+  // The frontend deliberately does not await the logout HTTP request before
+  // clearing the UI. Wait for the server response to expire the session cookie.
+  const logoutDeadline = Date.now() + 15000;
+  let fullyLoggedOut = false;
+  while (Date.now() < logoutDeadline) {
+    const cookiePresent = (await athleteContext.cookies()).some((cookie) => cookie.name === 'session_id');
+    const meResponse = await athleteContext.request.get('/api/auth/me');
+    if (!cookiePresent && meResponse.status() === 401) {
+      fullyLoggedOut = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+  assert.ok(fullyLoggedOut, 'Logout did not clear the cookie and revoke the session within 15 seconds');
   checks.logoutRevocation = 'PASS';
 
   const coachContext = await browser.newContext({ baseURL: stagingUrl.origin, viewport: { width: 1440, height: 900 } });
