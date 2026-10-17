@@ -240,8 +240,17 @@ async function runScenario() {
   assert.ok(sessionId, 'staging session response omitted id');
   manifest.sessionIds = [sessionId];
   await writeFile(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
+  // The test creates this workout directly via API; unlike the app's own
+  // creation dialog, that does not invoke reloadMicrocycles in React state.
   await athletePage.goto('/#/sessions');
-  await athletePage.getByTestId(`sessions-card-${sessionId}`).waitFor({ state: 'visible' });
+  await athletePage.reload({ waitUntil: 'networkidle' });
+  try {
+    await athletePage.getByTestId(`sessions-card-${sessionId}`).waitFor({ state: 'visible', timeout: 15000 });
+  } catch {
+    const cards = await athletePage.locator('[data-testid^="sessions-card-"]').count();
+    const plan = await appRequest(athletePage, 'GET', '/api/microcycles');
+    throw new Error(`Created staging session absent from refreshed UI (renderedCards=${cards}, planStatus=${plan.status})`);
+  }
   await athleteContext.setOffline(true);
   await athletePage.getByTestId(`sessions-actions-${sessionId}`).click();
   await athletePage.getByTestId(`sessions-edit-${sessionId}`).click();
