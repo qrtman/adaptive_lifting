@@ -38,10 +38,36 @@ Use this page for changing production facts. Use
 - The deployed API release includes the Supabase API bundling fix at the
   verified commit above.
 
+### Production Cloudflare Worker deployment — 2026-10-17
+
+- **CONFIRMED:** Deployed `adaptive-lifting-production` from branch
+  `production-bootstrap`, release commit
+  `3d4dd591a94116a7fc1eb1e5c487a4b284a973cb`, in account
+  `05a07c48f5e8e3afb784e11931502508` (Gartman.bekaali@gmail.com's Account).
+- Wrangler 4.149.0 reported a successful upload of 10 static assets at
+  `2026-10-17T10:47:32.850655Z`. Worker version
+  `1e0c6269-0794-4068-b0f0-ffb901d35883` is active at 100% in deployment
+  `2c3b2d0e-20bf-45f6-a91b-64c21b993a9c`.
+- Deployed config: Worker-only `wrangler.production.local.jsonc`, origin
+  `https://gadusaizqnshxqcckibq.supabase.co`, Static Assets from `dist/`,
+  SPA fallback and `/api/*` Worker-first routing. The config omits `routes`
+  and `custom_domains`; `workers_dev` is false. Cloudflare readback reports
+  the workers.dev subdomain and previews disabled.
+- Read-only post-deploy checks found no Worker route in the `goatedmethod.me`
+  zone and no custom domain for `app.goatedmethod.me`. DNS, Tunnel, staging,
+  Supabase settings, and database configuration were not changed.
+- Production validation, local config validation, production build, full test
+  suite (432 passed, 1 skipped), lint, audit (zero vulnerabilities), and
+  `npx wrangler deploy --config wrangler.production.local.jsonc --dry-run`
+  passed before deployment. Browser E2E was not run because this route-free
+  Worker has no public address; production-origin cookie and CSRF behavior
+  remain unverified in a browser.
+
 ## Pending and blocked gates
 
-- **PENDING:** Prepare, deploy, and validate the production Cloudflare Worker
-  and production frontend build.
+- **PENDING:** Complete browser end-to-end validation of the production build
+  and API before public launch. A non-public test path must be established;
+  do not change the production hostname route just to test it.
 - **PENDING:** Recheck and perform the existing hostname Worker-route cutover
   only after separate authorization. Preserve current DNS and Cloudflare
   Tunnel routing until then.
@@ -54,9 +80,6 @@ Use this page for changing production facts. Use
   PostgreSQL backup and complete a restore into a genuinely isolated target.
   The backup method is undecided. R2/GitHub hosted proposals, VeraCrypt/local
   approaches, and other experiments are not approved architecture.
-- **PENDING:** Complete browser end-to-end validation of the production build
-  and API before public launch. A non-public test path must be established;
-  do not change the production hostname route just to test it.
 - **PENDING:** Complete final security, monitoring, recovery, and operational
   checks.
 - **NOT AUTHORIZED:** Public launch or public traffic cutover.
