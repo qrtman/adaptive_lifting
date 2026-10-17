@@ -313,17 +313,22 @@ Worker/frontend release. Current state is in
 [`PRODUCTION_STATUS.md`](PRODUCTION_STATUS.md); hostname routing remains
 separate and unauthorized until its explicit cutover approval.
 
-`wrangler.production.jsonc` is a separate production-only Worker configuration:
-`adaptive-lifting-production`, Static Assets from `dist/`, SPA fallback, and
-the same `/api/*` proxy to a required production Supabase project origin. The
-origin is deliberately `https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co`;
-the committed config fails closed. The production project is
-`gadusaizqnshxqcckibq` in `ap-northeast-2`. Generate the ignored local
-configuration with that reference; deployment still requires separate
-approval.
-It contains no service-role/publishable key, JWT or provider secret and
-has `workers_dev` disabled. The staging `wrangler.jsonc` and existing Worker
-remain unchanged.
+`wrangler.production.jsonc` is the production **Worker-only deployment**
+configuration: `adaptive-lifting-production`, Static Assets from `dist/`, SPA
+fallback, and the same `/api/*` proxy to a required production Supabase project
+origin. It has no route or custom domain and keeps `workers_dev` disabled, so a
+deployment using the generated local config cannot attach the production
+hostname or expose a `workers.dev` URL. The origin is deliberately
+`https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co`; the committed config
+fails closed. The production project is `gadusaizqnshxqcckibq` in
+`ap-northeast-2`.
+
+The exact `app.goatedmethod.me/*` route is preserved only in
+`wrangler.production.cutover.jsonc`. That file is reserved for a separately
+authorized hostname cutover and must not be used for Worker-only deployment.
+The production validator checks that the deployment config is route-free and
+that the cutover config differs only by that exact route. The staging
+`wrangler.jsonc` and existing Worker remain unchanged.
 
 The production Vite build sets `VITE_CLIENT_DATA_GENERATION=production-fresh-v1`.
 On `app.goatedmethod.me`, the app opens a separate IndexedDB database and uses
@@ -350,9 +355,8 @@ any future browser Realtime client must derive its `wss://<production-ref>.supab
 endpoint from the same verified production project, never staging. The Worker
 proxies only HTTP `/api/*` requests and does not proxy WebSockets.
 
-After verifying the existing production project configuration and receiving a
-separate Worker deployment approval, generate an ignored local Wrangler config
-from the committed template:
+Generate and inspect the ignored, route-free local Wrangler config from the
+committed Worker-only template:
 
 ```text
 node scripts/prepare-production-wrangler.mjs <verified-production-project-ref>
@@ -361,13 +365,26 @@ npm run validate:production:local
 npx wrangler deploy --config wrangler.production.local.jsonc --dry-run
 ```
 
-Then, only after separate production release authorization, deploy the exact
-reviewed commit with the same config. The generator rejects the staging ref
-and writes no cloud resources. Inspect the generated origin and selected
-Cloudflare account before any deploy; record the resulting Worker version for
-rollback. Restore a recorded previous production Worker version for code
-rollback; do not remove the hostname route unless a live alternate origin has
-been confirmed. Use `npx wrangler versions list --config
+The generator rejects the staging ref and writes no cloud resources. The
+route-free generated file is the only config for a future Worker-only deploy;
+the validator fails closed if it contains a route or custom domain. Worker
+deployment still requires separate exact-target authorization. A route-free
+Worker with `workers_dev` disabled is not publicly addressable, so a successful
+dry run does not provide a browser URL or prove live Cloudflare behavior.
+
+The existing local option is `npm run preview:cloudflare` (`wrangler dev
+--local`), which can exercise the built static app, SPA fallback, PWA files and
+Worker proxy locally. It does not reproduce production-hosted browser behavior:
+the production API allows the production frontend origin for cookie mutations,
+and the local origin is different. The existing staging `workers.dev` app is
+available for staging-only evidence, not as a production acceptance path. A
+non-public browser test of the production build/API with production-origin
+cookie and CSRF behavior remains pending; its access path must be selected and
+authorized separately. Do not enable `workers_dev`, add a preview route, or use
+the production hostname to make the Worker publicly testable.
+
+After a separately authorized Worker deployment, record its version for
+rollback. Use `npx wrangler versions list --config
 wrangler.production.local.jsonc --name adaptive-lifting-production` to record
 available versions, then `npx wrangler rollback <recorded-version-id>
 --config wrangler.production.local.jsonc --name adaptive-lifting-production`
@@ -380,9 +397,9 @@ reviewed database compatibility decision.
 A read-only Cloudflare zone/DNS/routes inspection on 2026-10-10 found the
 `goatedmethod.me` zone active, `app.goatedmethod.me` on a proxied CNAME to a
 Cloudflare Tunnel hostname, and no Worker route for the app hostname. No DNS,
-route, Worker or zone setting was changed. The prepared production config uses
-a route (`app.goatedmethod.me/*`) rather than a Custom Domain, preserving the
-current DNS record. Cloudflare documents that Custom Domains cannot be created
+route, Worker or zone setting was changed. The separate future cutover config
+uses a route (`app.goatedmethod.me/*`) rather than a Custom Domain, preserving
+the current DNS record. Cloudflare documents that Custom Domains cannot be created
 while a hostname has an existing CNAME; do not delete/replace the current
 record as part of this preparation. See Cloudflare's
 [Custom Domains limitations](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
@@ -390,8 +407,8 @@ and [Worker Routes configuration](https://developers.cloudflare.com/workers/conf
 
 Future connection steps, after separate approval: verify the zone/account and
 current DNS record again; confirm the old Tunnel target and any route ownership
-with the domain owner; dry-run and deploy the verified production
-Worker/config, which attaches the exact app-host route while preserving the CNAME;
+with the domain owner; review and validate the separate cutover config, then
+deploy it only under explicit hostname cutover approval, preserving the CNAME;
 verify TLS, SPA,
 PWA, `/api/health`, cookie origin and no-store responses; then monitor and keep
 the prior Worker version available. The CNAME points to historical tunnel

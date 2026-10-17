@@ -24,10 +24,13 @@ dated test evidence live in [the production status page](../docs/PRODUCTION_STAT
    current production API; do not deploy an unreviewed API change as part of the
    frontend step.
 2. **Prepare the production frontend.** Generate the ignored local Wrangler
-   configuration from the checked-in production template using the verified
-   project reference. Run the production configuration validator, production
-   build, asset scan, and Wrangler dry run. Confirm no staging origin or private
-   values are present. See [Cloudflare deployment](../docs/cloudflare-workers.md).
+   configuration from the checked-in route-free Worker-only template using the
+   verified project reference. Run the production configuration validator,
+   production build, asset scan, and Wrangler dry run. Confirm no hostname
+   route, staging origin, or private values are present. The separate
+   `wrangler.production.cutover.jsonc` preserves the future hostname route and
+   is reserved for separately authorized cutover. See
+   [Cloudflare deployment](../docs/cloudflare-workers.md).
 3. **Deploy the production Worker only with separate exact-target approval.**
    Verify the Cloudflare account, Worker name, config, project origin, and
    deployment diff immediately before deploy. Keep `workers_dev` disabled.
@@ -42,12 +45,15 @@ dated test evidence live in [the production status page](../docs/PRODUCTION_STAT
    billing, and Google sign-in disabled until their individual gates and
    separate activation approvals pass. Backup method remains undecided; do not
    treat an experiment or synthetic restore as production recovery.
-5. **Complete browser acceptance before cutover.** Test the production build
-   and API through a non-public path using synthetic accounts. That test path
-   must preserve the intended origin/cookie behavior without changing the
-   existing hostname route. The path is not yet established; if it cannot be
-   provided, record this gate as blocked and request a separately scoped
-   decision. Do not route public traffic merely to make testing possible.
+5. **Complete browser acceptance before cutover.** A route-free Worker with
+   `workers_dev` disabled has no public browser URL. The existing supported
+   local option (`wrangler dev --local`) can exercise static/PWA behavior and
+   proxy code, but a localhost origin does not validate production cookie and
+   CSRF behavior. The staging `workers.dev` app is staging-only evidence. A
+   non-public production browser path that preserves production-origin
+   behavior is not established; select and authorize one separately before
+   claiming browser acceptance. Do not enable `workers_dev`, route public
+   traffic, or change DNS merely to make testing possible.
 6. **Cut over the existing hostname only with separate public-traffic
    authorization.** Make a
    fresh read-only inspection of the `goatedmethod.me` zone, current

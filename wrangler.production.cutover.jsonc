@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "adaptive-lifting-production",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-10-09",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "app.goatedmethod.me/*",
+      "zone_name": "goatedmethod.me"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "SUPABASE_PROJECT_ORIGIN": "https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co"
+  },
+  "assets": {
+    "directory": "./dist/",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  }
+}

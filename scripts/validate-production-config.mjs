@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const productionConfigPath = join(root, 'wrangler.production.jsonc');
+const cutoverConfigPath = join(root, 'wrangler.production.cutover.jsonc');
 const stagingConfigPath = join(root, 'wrangler.jsonc');
 const envExamplePath = join(root, 'supabase', 'production.env.example');
 const viteEnvExamplePath = join(root, '.env.production.example');
@@ -120,6 +121,7 @@ function verifyRuntimeBoundaries() {
 export function validateProductionConfig({ local = false } = {}) {
   const configPath = local ? join(root, 'wrangler.production.local.jsonc') : productionConfigPath;
   const prod = readJson(configPath);
+  const cutover = readJson(cutoverConfigPath);
   const staging = readJson(stagingConfigPath);
   const { values: env, viteValues } = parseEnvExamples();
   const versions = verifyMigrationOrder();
@@ -132,14 +134,40 @@ export function validateProductionConfig({ local = false } = {}) {
   }
   if (prod.main !== 'cloudflare/worker.ts') fail('unexpected Worker entrypoint');
   if (prod.workers_dev !== false) fail('production workers.dev must stay disabled');
+  if (Object.hasOwn(prod, 'routes') || Object.hasOwn(prod, 'route') || Object.hasOwn(prod, 'custom_domains')) {
+    fail('worker-only production config must not attach a route or custom domain');
+  }
+  const allowedConfigKeys = ['$schema', 'name', 'main', 'compatibility_date', 'workers_dev', 'observability', 'vars', 'assets'];
+  if (Object.keys(prod).some((key) => !allowedConfigKeys.includes(key))) {
+    fail('worker-only production config contains an unexpected deployment binding or resource');
+  }
+  if (JSON.stringify(Object.keys(prod.vars ?? {}).sort()) !== JSON.stringify(['SUPABASE_PROJECT_ORIGIN'])) {
+    fail('production Worker vars must contain only the Supabase project origin');
+  }
+  if (JSON.stringify(Object.keys(prod.assets ?? {}).sort()) !==
+      JSON.stringify(['binding', 'directory', 'not_found_handling', 'run_worker_first'].sort()) ||
+      JSON.stringify(prod.assets.run_worker_first) !== JSON.stringify(['/api/*']) ||
+      prod.observability?.enabled !== true || Object.keys(prod.observability).length !== 1) {
+    fail('production Worker contains unexpected assets, routes, observability, or resource configuration');
+  }
+  if (JSON.stringify(cutover.routes) !== JSON.stringify([{ pattern: 'app.goatedmethod.me/*', zone_name: 'goatedmethod.me' }])) {
+    fail('future cutover config must preserve only the exact app hostname route');
+  }
+  const { routes: cutoverRoutes, ...cutoverBase } = cutover;
+  if (cutoverBase.vars?.SUPABASE_PROJECT_ORIGIN !== productionOriginPlaceholder) {
+    fail('future cutover config must retain the fail-closed production project placeholder');
+  }
+  const normalizedCutoverBase = {
+    ...cutoverBase,
+    vars: { ...cutoverBase.vars, SUPABASE_PROJECT_ORIGIN: prod.vars?.SUPABASE_PROJECT_ORIGIN },
+  };
+  if (JSON.stringify(normalizedCutoverBase) !== JSON.stringify(prod)) {
+    fail('future cutover config must differ from worker-only config only by the protected hostname route');
+  }
   if (prod.assets?.directory !== './dist/' || prod.assets?.binding !== 'ASSETS' ||
       prod.assets?.not_found_handling !== 'single-page-application' ||
       !prod.assets?.run_worker_first?.includes('/api/*')) {
     fail('production Static Assets or SPA/API routing is incomplete');
-  }
-  if (!prod.routes?.some((route) => route.pattern === 'app.goatedmethod.me/*' &&
-      route.zone_name === 'goatedmethod.me' && !route.custom_domain)) {
-    fail('production app hostname route is not configured for the existing zone');
   }
   const origin = prod.vars?.SUPABASE_PROJECT_ORIGIN;
   if (local) {

@@ -16,6 +16,10 @@ export function makeProductionWranglerConfig(projectRef) {
     throw new Error('Project reference does not match the approved production project.');
   }
   const config = JSON.parse(readFileSync(templatePath, 'utf8'));
+  if (config.workers_dev !== false || Object.hasOwn(config, 'routes') ||
+      Object.hasOwn(config, 'route') || Object.hasOwn(config, 'custom_domains')) {
+    throw new Error('Worker-only production template must keep workers.dev disabled and contain no hostname route or custom domain.');
+  }
   config.vars.SUPABASE_PROJECT_ORIGIN = `https://${projectRef}.supabase.co`;
   return `${JSON.stringify(config, null, 2)}\n`;
 }

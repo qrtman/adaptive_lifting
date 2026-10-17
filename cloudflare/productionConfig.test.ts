@@ -1,19 +1,29 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { validateProductionConfig } from '../scripts/validate-production-config.mjs';
 import { makeProductionWranglerConfig } from '../scripts/prepare-production-wrangler.mjs';
 
 describe('isolated production release configuration', () => {
-  it('keeps production routing, assets and project identity separate from staging', () => {
+  it('keeps the worker-only production config route-free and separate from staging', () => {
     const { prod, staging, env, versions } = validateProductionConfig();
     expect(prod.name).toBe('adaptive-lifting-production');
     expect(staging.name).toBe('adaptive-lifting-staging');
     expect(prod.vars.SUPABASE_PROJECT_ORIGIN).toContain('REQUIRED_PRODUCTION_PROJECT_REF');
     expect(prod.assets.not_found_handling).toBe('single-page-application');
     expect(prod.assets.run_worker_first).toContain('/api/*');
-    expect(prod.routes[0].pattern).toBe('app.goatedmethod.me/*');
+    expect(prod.workers_dev).toBe(false);
+    expect(prod.routes).toBeUndefined();
     expect(env.get('APP_ENV')).toBe('production');
     expect(env.get('COOKIE_SECURE')).toBe('true');
     expect(versions).toHaveLength(63);
+  });
+
+  it('preserves the exact hostname route only in the separate future cutover config', () => {
+    const cutover = JSON.parse(readFileSync(resolve(process.cwd(), 'wrangler.production.cutover.jsonc'), 'utf8'));
+    expect(cutover.routes).toEqual([{ pattern: 'app.goatedmethod.me/*', zone_name: 'goatedmethod.me' }]);
+    const { routes: _routes, ...cutoverBase } = cutover;
+    expect(cutoverBase).toEqual(validateProductionConfig().prod);
   });
 
   it('builds a local production config only from the approved project ref', () => {
@@ -22,6 +32,8 @@ describe('isolated production release configuration', () => {
     const config = JSON.parse(makeProductionWranglerConfig('gadusaizqnshxqcckibq'));
     expect(config.name).toBe('adaptive-lifting-production');
     expect(config.vars.SUPABASE_PROJECT_ORIGIN).toBe('https://gadusaizqnshxqcckibq.supabase.co');
+    expect(config.workers_dev).toBe(false);
+    expect(config.routes).toBeUndefined();
   });
 
   it('ships an installable PWA manifest and root icon in the production build', async () => {
