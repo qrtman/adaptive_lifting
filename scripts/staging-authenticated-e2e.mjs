@@ -122,30 +122,36 @@ async function fetchJson(url, options = {}) {
   return { response, body };
 }
 
-async function registerFixture(role) {
+async function provisionFixture(role) {
+  // Staging-only SQL fixture. Registration deliberately returns the same HTTP
+  // 200 for new, duplicate and rate-limited requests; it cannot reliably seed E2E.
+  // This path runs only with the verified staging DB URL, never in the app API.
   const email = fixtureEmail(role);
   const password = `Staging-${randomBytes(20).toString('base64url')}-9!`;
-  const result = await request.post('/api/auth/register', {
-    headers: { origin: stagingUrl.origin },
-    data: { email, password },
-  });
-  assert.equal(result.status(), 200, `staging registration failed (${result.status()}); response body omitted`);
-  const found = await db.query('select id from public.users where email=$1', [email]);
-  assert.equal(found.rows.length, 1, 'registered synthetic user was not found in staging');
-  const userId = found.rows[0].id;
-  manifest.userIds.push(userId);
-  await writeFile(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
-
+  const userId = randomUUID();
+  const tokenId = randomUUID();
   const token = randomBytes(32).toString('base64url');
   const hash = createHash('sha256').update(token).digest('hex');
+  const existing = await db.query('select id from public.users where email=$1', [email]);
+  assert.equal(existing.rows.length, 0, 'synthetic fixture email already exists');
+  // Persist the allocated identity *before* any DB write so the cleanup-only
+  // job can find it after a partial failure or runner interruption.
+  manifest.userIds.push(userId);
+  await writeFile(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
   await db.query('begin');
   try {
-    if (role === 'coach') await db.query("update public.users set role='COACH' where id=$1", [userId]);
-    const tokenRows = await db.query('select id from public.email_verification_tokens where user_id=$1 and consumed_at is null and invalidated_at is null order by created_at desc limit 1', [userId]);
-    assert.equal(tokenRows.rows.length, 1, 'staging registration did not create one active verification token');
-    const tokenId = tokenRows.rows[0].id;
-    await db.query('update public.email_verification_tokens set token_hash=$1 where id=$2 and user_id=$3', [hash, tokenId, userId]);
-    await db.query("update public.integration_outbox set status='cancelled', encrypted_payload=null, retry_after=null, claim_token=null where verification_token_id=$1", [tokenId]);
+    await db.query(`
+      insert into public.users
+        (id,email,hashed_password,role,email_verification_required,
+         email_verification_legacy_exempt,email_verified_at)
+      values ($1,$2,extensions.crypt($3,extensions.gen_salt('bf',12)),$4,true,false,null)
+    `, [userId, email, password, role === 'coach' ? 'COACH' : 'ATHLETE']);
+    await db.query(`
+      insert into public.email_verification_tokens
+        (id,user_id,token_hash,created_at,expires_at,is_resend,consumed_at,invalidated_at)
+      values ($1,$2,$3,timezone('utc',clock_timestamp()),
+              timezone('utc',clock_timestamp()) + interval '24 hours',false,null,null)
+    `, [tokenId,userId,hash]);
     await db.query('commit');
   } catch (error) {
     await db.query('rollback');
@@ -153,7 +159,6 @@ async function registerFixture(role) {
   }
   return { email, password, userId, token };
 }
-
 async function signIn(page, account) {
   await page.goto('/');
   await page.getByPlaceholder('coach@example.com').fill(account.email);
@@ -203,8 +208,8 @@ async function runScenario() {
   browser = await chromium.launch({ headless: true });
   const athleteContext = await browser.newContext({ baseURL: stagingUrl.origin, viewport: { width: 1440, height: 900 } });
   const athletePage = await athleteContext.newPage();
-  const athlete = await registerFixture('athlete');
-  const coach = await registerFixture('coach');
+  const athlete = await provisionFixture('athlete');
+  const coach = await provisionFixture('coach');
   await verifyFixture(athletePage, athlete);
   // Verification tokens are captured only during full document load. A second
   // fragment navigation on the same /verify-email page does not re-run index.html.
@@ -214,7 +219,8 @@ async function runScenario() {
   } finally {
     await coachVerificationPage.close();
   }
-  checks.registrationAndVerification = 'PASS';
+  checks.registration = 'NOT TESTED (generic public registration is separately rate-limited; synthetic accounts seeded through staging-only PostgreSQL)';
+  checks.syntheticProvisioningAndVerification = 'PASS';
 
   await signIn(athletePage, athlete);
   const cookies = await athleteContext.cookies();
