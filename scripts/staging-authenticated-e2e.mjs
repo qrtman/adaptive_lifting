@@ -206,7 +206,14 @@ async function runScenario() {
   const athlete = await registerFixture('athlete');
   const coach = await registerFixture('coach');
   await verifyFixture(athletePage, athlete);
-  await verifyFixture(athletePage, coach);
+  // Verification tokens are captured only during full document load. A second
+  // fragment navigation on the same /verify-email page does not re-run index.html.
+  const coachVerificationPage = await athleteContext.newPage();
+  try {
+    await verifyFixture(coachVerificationPage, coach);
+  } finally {
+    await coachVerificationPage.close();
+  }
   checks.registrationAndVerification = 'PASS';
 
   await signIn(athletePage, athlete);
