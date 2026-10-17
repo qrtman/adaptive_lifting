@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createPublicKey, randomBytes, randomUUID, verify as cryptoVerify } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { chromium, request as playwrightRequest } from '@playwright/test';
 import pg from 'pg';
@@ -291,6 +291,46 @@ async function runScenario() {
   checks.offlineGrantIssued = grantState.issued ? 'PASS' : 'FAIL (backend did not issue offline grant)';
   checks.offlineGrantPersisted = grantState.persisted ? 'PASS' : 'FAIL (signed grant absent from IndexedDB)';
   checks.offlineGrantMatchesIssued = grantState.matchesIssued ? 'PASS' : 'FAIL (stored grant missing or differs from issued grant)';
+  // Read the staging Vault signing PEM only inside the trusted Actions runner;
+  // derive the *public* SPKI key in memory. Neither the PEM, JWT, nor public
+  // key bytes are printed or written to reports. The exact staging DB target
+  // guard has already run above. No production database is accessed.
+  const keyRows = await db.query('select al_private.get_offline_auth_private_key() as private_key');
+  const privatePem = keyRows.rows[0]?.private_key ?? '';
+  if (!privatePem) {
+    checks.offlineVaultSignature = 'NOT TESTED (staging Vault private key unavailable)';
+    checks.offlineDeployedPublicKey = 'NOT TESTED (staging Vault private key unavailable)';
+  } else {
+    const publicPem = createPublicKey(privatePem).export({ type: 'spki', format: 'pem' });
+    const token = await athletePage.evaluate(async () => {
+      const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+      const body = await r.json().catch(() => null);
+      return typeof body?.offlineGrant === 'string' ? body.offlineGrant : null;
+    });
+    if (!token) {
+      checks.offlineVaultSignature = 'NOT TESTED (backend did not return a signed grant)';
+      checks.offlineDeployedPublicKey = 'NOT TESTED (backend did not return a signed grant)';
+    } else {
+      const segments = token.split('.');
+      const validSignature = segments.length === 3 && cryptoVerify(
+        'sha256', Buffer.from(`${segments[0]}.${segments[1]}`),
+        { key: publicPem, dsaEncoding: 'ieee-p1363' }, Buffer.from(segments[2], 'base64url'));
+      checks.offlineVaultSignature = validSignature ? 'PASS' : 'FAIL (issued grant does not verify against staging Vault public key)';
+      const publicLines = publicPem.split(/\r?\n/).filter(line => line && !line.startsWith('-----'));
+      const publicBase64 = publicLines.join('');
+      const deployedContainsKey = await athletePage.evaluate(async ({ lines, joined }) => {
+        const scripts = [...document.querySelectorAll('script[src]')].map(el => el.src)
+          .filter(src => new URL(src).origin === location.origin);
+        const sourceTexts = await Promise.all(scripts.map(async src => {
+          try { const r = await fetch(src); return r.ok ? await r.text() : ''; }
+          catch { return ''; }
+        }));
+        return sourceTexts.some(text => text.includes(joined) || lines.every(line => text.includes(line)));
+      }, { lines: publicLines, joined: publicBase64 });
+      checks.offlineDeployedPublicKey = deployedContainsKey
+        ? 'PASS' : 'FAIL (deployed frontend bundle does not contain the public key corresponding to staging Vault)';
+    }
+  }
 
   await athletePage.reload();
   await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible' });
