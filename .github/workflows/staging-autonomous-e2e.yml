@@ -44,14 +44,23 @@ jobs:
       - name: Show sanitized smoke results
         if: success()
         run: cat staging-smoke-report.json
+      - name: Install Supabase database root CA for verified TLS
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt \
+            --output supabase-root-ca-2021.crt
+          openssl x509 -in supabase-root-ca-2021.crt -noout -checkend 86400
+          openssl x509 -in supabase-root-ca-2021.crt -noout -subject -nameopt RFC2253 | grep -F 'CN=Supabase Root 2021 CA'
       - name: Run authenticated staging E2E
         env:
           STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/supabase-root-ca-2021.crt
         run: node scripts/staging-authenticated-e2e.mjs > staging-authenticated-e2e-report.json
       - name: Independently clean up and verify staging fixtures
         if: always()
         env:
           STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/supabase-root-ca-2021.crt
         run: node scripts/staging-authenticated-e2e.mjs --cleanup-only
       - name: Preserve sanitized authenticated E2E results
         if: always()
