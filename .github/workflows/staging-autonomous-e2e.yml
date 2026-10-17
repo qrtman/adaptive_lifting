@@ -16,10 +16,12 @@ jobs:
   staging-smoke:
     name: Staging browser and regression checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       CI: "true"
       STAGING_URL: https://adaptive-lifting-staging.gartman-bekaali.workers.dev
+      STAGING_PROJECT_REF: admyuepbbtstayaydjmo
+      STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
     steps:
       - name: Check out isolated testing branch
         uses: actions/checkout@v4
@@ -43,6 +45,19 @@ jobs:
       - name: Show sanitized smoke results
         if: success()
         run: cat staging-smoke-report.json
+      - name: Run authenticated staging E2E
+        run: node scripts/staging-authenticated-e2e.mjs > staging-authenticated-e2e-report.json
+      - name: Independently clean up and verify staging fixtures
+        if: always()
+        run: node scripts/staging-authenticated-e2e.mjs --cleanup-only
+      - name: Preserve sanitized authenticated E2E results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-authenticated-e2e-results
+          path: staging-authenticated-e2e-report.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Preserve staging smoke results
         if: always()
         uses: actions/upload-artifact@v4
