@@ -25,10 +25,17 @@ function requireStagingTarget() {
   const raw = process.env.STAGING_E2E_DATABASE_URL;
   assert.ok(raw, 'Missing required GitHub secret STAGING_E2E_DATABASE_URL');
   const databaseUrl = new URL(raw);
-  const safeIdentity = decodeURIComponent(databaseUrl.username).includes(projectRef) ||
-    databaseUrl.hostname === `db.${projectRef}.supabase.co`;
-  assert.ok(safeIdentity, 'Staging database URL identity does not identify the confirmed staging project');
-  assert.ok(databaseUrl.hostname.endsWith('.supabase.co'), 'Database host is not a Supabase host');
+  const username = decodeURIComponent(databaseUrl.username);
+  const directStaging = databaseUrl.hostname === `db.${projectRef}.supabase.co`;
+  // Supabase's Seoul session pooler uses .supabase.com, not .supabase.co.
+  // The pooler username's project suffix identifies which project is targeted.
+  const stagingSessionPooler =
+    /^aws-\\d+-ap-northeast-2\\.pooler\\.supabase\\.com$/.test(databaseUrl.hostname) &&
+    databaseUrl.port === '5432' && username.endsWith(`.${projectRef}`);
+  assert.ok(['postgres:', 'postgresql:'].includes(databaseUrl.protocol), 'Staging connection must use PostgreSQL');
+  assert.ok(directStaging || stagingSessionPooler, 'Database URL must target the exact staging project directly or through its Seoul session pooler');
+  assert.equal(databaseUrl.pathname, '/postgres', 'Staging E2E must target the postgres database');
+  assert.ok(databaseUrl.password, 'Staging database URL must contain a password');
   return raw;
 }
 
