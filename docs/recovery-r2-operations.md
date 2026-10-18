@@ -2,18 +2,18 @@
 
 **Owner decision required; not activated.** This guide and the companion workflow
 prepare an option for review. No R2 bucket, lifecycle rule, credential, repository
-variable, secret, or environment protection has been configured. Workflow schedule
-definitions are on the test branch and are not active. Production recovery remains
+variable, secret, or environment protection has been configured. Workflow definitions are inert `.yml.template` files under
+`scripts/recovery/prepared-workflows/`, outside GitHub Actions discovery. Production recovery remains
 **BLOCKED / NOT TESTED** until an authorized production capture is retrieved and
 restored successfully in isolation.
 
 ## Prepared workflow behavior
 
-[`recovery-daily-backup.yml`](../.github/workflows/recovery-daily-backup.yml) defines
+[`recovery-daily-backup.yml`](../scripts/recovery/prepared-workflows/recovery-daily-backup.yml.template) defines
 a daily schedule at 18:17 UTC (03:17 Korea time). GitHub scheduled runs use the
-default branch. The backup and monitor workflows are being prepared on a test branch,
-so neither schedule will run until both workflow files have been merged to the
-repository's default branch.
+default branch. The backup and monitor definitions are templates outside `.github/workflows/`.
+A separately authorized activation change must install them in that directory
+on the default branch; repository consolidation alone cannot schedule them.
 The production job also checks that the ref is the repository's default branch and
 that repository variable `RECOVERY_BACKUP_ENABLED` is exactly `true`. Scheduled
 production runs additionally require repository variable
@@ -54,7 +54,7 @@ archive or manifest metadata or any credential.
 GitHub's normal Actions failure notifications can report a run that starts and fails,
 subject to the owner's notification settings; they do not reliably alert when GitHub
 skips or delays a scheduled run, or when the workflow is disabled. The separate prepared
-[`recovery-backup-missed-run-monitor.yml`](../.github/workflows/recovery-backup-missed-run-monitor.yml)
+[`recovery-backup-missed-run-monitor.yml`](../scripts/recovery/prepared-workflows/recovery-backup-missed-run-monitor.yml.template)
 uses only `GITHUB_TOKEN` with `actions: read` to query the backup workflow's run
 history. At 21:17 UTC it checks that the latest scheduled run on the default branch
 is no older than 26 hours, completed successfully, and has a successful

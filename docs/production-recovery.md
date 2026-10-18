@@ -9,8 +9,8 @@ synthetic engineering evidence and historical proposals; they are not
 authorization. A hosted synthetic restore run did not use real
 data, production credentials, a production export, provider requests, production
 mutations, or R2, and does not establish production recoverability. The active
-`.github/workflows/recovery-synthetic-drill.yml` is restricted to this dedicated
-recovery-test branch and synthetic fixtures. It has no production credentials, data
+`.github/workflows/synthetic-recovery.yml` is manual-only on the default
+branch and restricted to synthetic fixtures. It has no production credentials, data
 path, storage access, schedule, or retention job. The hosted-runner production
 capture/storage route remains unconfigured and unexercised with production data.
 An independent workflow step checks Docker for leftover labeled test containers and
@@ -691,3 +691,17 @@ No database, credential, Cloudflare, R2, or GitHub environment setting was
 accessed or changed for this checkpoint. No bucket was provisioned, no object was
 read or written, and no production data was captured. Synthetic verification is
 not production evidence.
+
+
+## Repository consolidation — 2026-10-18
+
+The consolidated source preserves the recovery, staging E2E, production bootstrap,
+and main histories. Historical branch-specific checkpoints above remain evidence
+for their recorded commits, rather than instructions to resume those branches.
+The single synthetic restore workflow is `synthetic-recovery.yml`, manually
+dispatched on the default branch. The R2 connectivity workflow remains manual.
+Production backup and missed-run monitor definitions are retained as inert
+`.yml.template` files under `scripts/recovery/prepared-workflows/`, outside
+GitHub's workflow directory. Merging repository history cannot activate them;
+activation requires a separately reviewed move into `.github/workflows/` as well
+as the existing configuration gates. No production backup was run by consolidation.

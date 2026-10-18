@@ -1,0 +1,105 @@
+# One-time, manual, synthetic-only R2 connectivity check.
+# No production database access, schedules, or production backup activation.
+name: Verify synthetic R2 ciphertext round trip
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: recovery-r2-synthetic-connectivity
+  cancel-in-progress: false
+
+jobs:
+  r2-synthetic:
+    name: Encrypted upload, readback, and exact-key cleanup
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production-recovery
+    steps:
+      - name: Install checksum-pinned age without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tool_dir="$(mktemp -d "$RUNNER_TEMP/al-r2-age-XXXXXX")"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz \
+            --output "$tool_dir/age.tar.gz"
+          printf '%s  %s\n' bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377 "$tool_dir/age.tar.gz" | sha256sum --check --strict
+          tar -xzf "$tool_dir/age.tar.gz" -C "$tool_dir" age/age
+          echo "$tool_dir/age" >> "$GITHUB_PATH"
+      - name: Encrypt a synthetic file and verify R2 round trip
+        shell: bash
+        env:
+          RECOVERY_R2_ACCOUNT_ID: ${{ vars.RECOVERY_R2_ACCOUNT_ID }}
+          RECOVERY_R2_BUCKET: ${{ vars.RECOVERY_R2_BUCKET }}
+          RECOVERY_AGE_RECIPIENT: ${{ vars.RECOVERY_AGE_RECIPIENT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.RECOVERY_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RECOVERY_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+          AWS_CONFIG_FILE: /dev/null
+          AWS_SHARED_CREDENTIALS_FILE: /dev/null
+          AWS_CLI_AUTO_PROMPT: 'off'
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$GITHUB_REPOSITORY" = 'qrtman/adaptive_lifting'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          test "$RECOVERY_R2_ACCOUNT_ID" = '05a07c48f5e8e3afb784e11931502508'
+          test "$RECOVERY_R2_BUCKET" = 'adaptive-lifting-production-recovery'
+          [[ "$AWS_ACCESS_KEY_ID" =~ ^[a-f0-9]{32}$ ]] || { echo '::error::R2 Access Key ID is missing or malformed.'; exit 1; }
+          [[ "$AWS_SECRET_ACCESS_KEY" =~ ^[a-f0-9]{64}$ ]] || { echo '::error::R2 Secret Access Key is missing or malformed.'; exit 1; }
+          [[ "$RECOVERY_AGE_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]] || { echo '::error::age recipient is missing or malformed.'; exit 1; }
+          command -v aws >/dev/null
+          command -v age >/dev/null
+
+          endpoint="https://${RECOVERY_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          bucket="$RECOVERY_R2_BUCKET"
+          key="production/adaptive-lifting/synthetic-r2-test/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/$(openssl rand -hex 16).age"
+          dir="$(mktemp -d "$RUNNER_TEMP/al-r2-roundtrip-XXXXXX")"
+          uploaded=false
+          cleanup() {
+            code=$?
+            trap - EXIT
+            if [[ "$uploaded" == true ]]; then
+              if aws s3api delete-object --bucket "$bucket" --key "$key" \
+                   --endpoint-url "$endpoint" --region auto --no-cli-pager >/dev/null &&
+                 [[ "$(aws s3api list-objects-v2 --bucket "$bucket" --prefix "$key" \
+                        --max-keys 1 --endpoint-url "$endpoint" --region auto \
+                        --query KeyCount --output text --no-cli-pager)" == 0 ]]; then
+                echo 'Synthetic test object deleted and absence verified.'
+              else
+                echo "::error::Test object cleanup NOT VERIFIED. Inspect exactly: s3://$bucket/$key"
+                code=1
+              fi
+            fi
+            rm -rf -- "$dir"
+            exit "$code"
+          }
+          trap cleanup EXIT
+
+          printf 'Adaptive Lifting synthetic-only R2 test: run=%s attempt=%s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$dir/plaintext.txt"
+          age -r "$RECOVERY_AGE_RECIPIENT" -o "$dir/payload.age" "$dir/plaintext.txt"
+          rm -f -- "$dir/plaintext.txt"
+
+          # Create-only PUT: never overwrite any existing key.
+          aws s3api put-object --bucket "$bucket" --key "$key" \
+            --body "$dir/payload.age" --if-none-match '*' \
+            --endpoint-url "$endpoint" --region auto --no-cli-pager >/dev/null
+          uploaded=true
+          aws s3api get-object --bucket "$bucket" --key "$key" \
+            "$dir/readback.age" --endpoint-url "$endpoint" --region auto \
+            --no-cli-pager >/dev/null
+          expected="$(sha256sum "$dir/payload.age" | cut -d ' ' -f 1)"
+          actual="$(sha256sum "$dir/readback.age" | cut -d ' ' -f 1)"
+          [[ "$expected" == "$actual" ]] && cmp -s "$dir/payload.age" "$dir/readback.age"
+          echo 'Encrypted synthetic R2 upload, download, and SHA-256 verification passed.'

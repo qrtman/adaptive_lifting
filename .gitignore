@@ -11,6 +11,8 @@ references/
 test-results/
 playwright-report/
 blob-report/
+staging-*-report.json
+.staging-e2e-fixture.json
 .pytest_cache/
 __pycache__/
 *.pyc

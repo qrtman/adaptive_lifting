@@ -90,6 +90,26 @@ describe('apiService.addSessionExercise', () => {
     vi.stubEnv('VITE_BACKEND_URL', '');
   });
 
+  it('revokes local authorization and signals sign-in when adding a lift returns 401', async () => {
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ detail: 'Your session expired. Please sign in again.' }), { status: 401 },
+    )));
+    const denied = vi.fn();
+    window.addEventListener('auth-access-denied', denied);
+    try {
+      const { apiService } = await import('./api');
+      const { setOnlineAuthorization, canReadOffline } = await import('./authAuthorization');
+      setOnlineAuthorization({ id: 'athlete-1', role: 'ATHLETE' }, new Date(Date.now() + 60000).toISOString());
+      await expect(apiService.addSessionExercise('w-1', { title: 'Squat' }))
+        .rejects.toMatchObject({ name: 'ApiRequestError', status: 401 });
+      expect(denied).toHaveBeenCalledOnce();
+      expect(canReadOffline('athlete-1')).toBe(false);
+    } finally {
+      window.removeEventListener('auth-access-denied', denied);
+    }
+  });
+
   it('preserves the same-origin POST contract and planned values', async () => {
     const exercise = { id: 'e-1', title: 'Squat', sets: [] };
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(exercise), { status: 200 }));

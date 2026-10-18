@@ -6,6 +6,8 @@ shared access through the coach-code relationship flow.
 
 ## Start here
 
+- [Repository history and branch policy](docs/repository-state.md) — current
+  continuation path and preserved source checkpoints.
 - [Production status](docs/PRODUCTION_STATUS.md) — authoritative dated
   checkpoint for completed work, pending gates, and constraints.
 - [System architecture](architecture.md) — the selected active architecture,

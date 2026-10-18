@@ -2,7 +2,8 @@
 
 **Authoritative continuation checkpoint — 2026-10-17**
 
-**Branch:** `production-bootstrap`
+**Continuation branch:** `main` after the repository consolidation PR is merged.
+Historical deployments below retain their original branch and commit identifiers.
 
 **Last verified production API release commit:**
 `367fa8a1ddb7329086ce0e9afb17a93a5d040da9`
@@ -15,6 +16,16 @@ evidence from later configuration readbacks.
 Use this page for changing production facts. Use
 [the architecture](../architecture.md) for stable system decisions and
 [the cutover runbook](../supabase/PRODUCTION_CUTOVER.md) for release procedures.
+
+## Repository consolidation — 2026-10-18
+
+Recovery, staging E2E, production bootstrap, and main histories are consolidated
+for review on the existing recovery branch. See [repository state](repository-state.md)
+for the exact source tips and cleanup rules. This is a source-history operation;
+it does not change the deployed API, Worker, database, or release gates below.
+Staging validation and synthetic recovery workflows are manual-only on `main`.
+Prepared production backup and monitor workflows are inert templates outside
+`.github/workflows/`; their schedules cannot activate by merging this PR.
 
 ## Confirmed completed
 

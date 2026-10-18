@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
-const workflowUrl = new URL('../../.github/workflows/recovery-daily-backup.yml', import.meta.url);
-const monitorUrl = new URL('../../.github/workflows/recovery-backup-missed-run-monitor.yml', import.meta.url);
+const workflowUrl = new URL('./prepared-workflows/recovery-daily-backup.yml.template', import.meta.url);
+const monitorUrl = new URL('./prepared-workflows/recovery-backup-missed-run-monitor.yml.template', import.meta.url);
 
 const workflow = await readFile(workflowUrl, 'utf8');
 const monitor = await readFile(monitorUrl, 'utf8');
+
+test('production backup schedules remain outside GitHub workflow discovery', async () => {
+  const active = await readdir(new URL('../../.github/workflows/', import.meta.url));
+  assert.ok(!active.includes('recovery-daily-backup.yml'));
+  assert.ok(!active.includes('recovery-backup-missed-run-monitor.yml'));
+  assert.match(workflow, /schedule:/);
+  assert.match(monitor, /schedule:/);
+});
 
 function extractJobCondition(source, jobName) {
   const jobStart = source.indexOf(`  ${jobName}:`);
