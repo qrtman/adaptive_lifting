@@ -16,7 +16,9 @@ so neither schedule will run until both workflow files have been merged to the
 repository's default branch.
 The production job also checks that the ref is the repository's default branch and
 that repository variable `RECOVERY_BACKUP_ENABLED` is exactly `true`. The CLI checks
-the GitHub event payload/ref/default-branch context again. The job is bound to the
+the GitHub event payload/ref context again (for manual dispatch it compares against
+the payload's default branch; scheduled events rely on GitHub's default-branch
+schedule guarantee because their webhook payload is not applicable). The job is bound to the
 `production-recovery` environment. Configure default-branch-only deployment
 restrictions and keep secrets in that environment. Do not require per-run human
 reviewers for this unattended daily job: required reviewers would pause each run.
@@ -30,6 +32,12 @@ or push trigger is configured. The workflow grants only `contents: read` to
 `GITHUB_TOKEN`, does not upload artifacts, does not print secrets, and does not
 delete R2 objects. The production job maps database and R2 credentials only into the
 backup command step after the branch and repository-variable guards have passed.
+Archive and encrypted-manifest uploads use separate immutable object keys. If one
+upload or readback succeeds and the next fails, the earlier ciphertext can remain as
+an uncommitted orphan; the command fails and has no deletion permission. Treat such
+objects as incomplete evidence, never as a recovery point. A later implementation
+needs a durable receipt that identifies both objects and sanitized evidence before
+any object can count toward retention.
 
 GitHub's normal Actions failure notifications can report a run that starts and fails,
 subject to the owner's notification settings; they do not reliably alert when GitHub
@@ -86,13 +94,17 @@ and [workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs#li
    before setting it to `true`.
 7. Before any production capture, review the CLI, dependencies, exact database
    identity, encryption, R2 upload/readback, cleanup, and sanitized evidence. The
-   prepared `scripts/recovery/production-backup.mjs` CLI validates the event/ref and
-   fails closed before connecting until an independently reviewed production
-   relation/version inventory is available. The workflow's no-argument production
-   invocation must remain nonzero until that prerequisite is satisfied. A successful
-   R2 byte readback establishes that uploaded ciphertext bytes match; it does not
-   establish authenticated decryption, restore success, or a verified recovery
-   point. Separately authorize and complete an isolated restore/reconciliation before
+   current `scripts/recovery/production-backup.mjs` command is an intentional
+   preflight stub: it exits before connecting and does not invoke the backup
+   orchestrator. Production capture therefore cannot run, even if credentials are
+   later supplied. Completion requires both a protected, independently reviewed
+   production relation/version inventory and reviewed CLI wiring that derives the
+   GitHub event gate internally before calling the orchestrator; caller-supplied
+   booleans are not proof of workflow context. Test that wiring with injected
+   synthetic adapters before any authorized live invocation. A successful R2 byte
+   readback establishes that uploaded ciphertext bytes match; it does not establish
+   authenticated decryption, restore success, or a verified recovery point.
+   Separately authorize and complete an isolated restore/reconciliation before
    calling any point recoverable. No live run is authorized by this document.
 
 The prepared runner verifies age 1.3.1 against its release archive SHA-256, installs

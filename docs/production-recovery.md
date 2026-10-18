@@ -667,16 +667,18 @@ for the workflow gates, setup values, cost estimate and lifecycle limitations.
 This decision does not authorize provisioning, credentials, production reads,
 exports, or schedule activation.
 
-The prepared daily workflow captures a pinned production PostgreSQL source,
-encrypts a custom archive and sensitive manifest to the public age recipient, then
-uploads each ciphertext object with conditional creation and independent R2
-readback. The backup CLI accepts only schedule or default-branch manual dispatch,
-but presently exits before opening a database connection because a complete,
-independently reviewed production relation inventory and exact deployed migration
-release list are not yet checked in. Do not set `RECOVERY_BACKUP_ENABLED=true` or
-configure production secrets until that blocker and the separate approvals are
-resolved. Any successful encrypted upload would be classified only as captured,
-restore-unverified; it cannot by itself create a verified recovery point.
+The prepared workflow describes a pinned production PostgreSQL capture, encryption
+of a custom archive and sensitive manifest to the public age recipient, and
+conditional R2 upload with independent readback. The current CLI is an intentional
+preflight stub: it accepts only schedule or default-branch manual dispatch, then
+exits before connecting and never calls the backup orchestrator. Completing capture
+requires both a complete independently reviewed production relation/migration
+inventory and trusted CLI wiring that derives the workflow event gate internally.
+Do not set `RECOVERY_BACKUP_ENABLED=true` or configure production secrets until
+those engineering blockers and the separate approvals are resolved. Any successful
+encrypted upload would be classified only as captured, restore-unverified; it
+cannot by itself create a verified recovery point. A partial two-object upload may
+leave encrypted orphan ciphertext in R2; it is not a committed recovery point.
 
 The prepared missed-run monitor checks the latest scheduled workflow run and
 requires its `Protected production backup` job to have succeeded. A skipped
