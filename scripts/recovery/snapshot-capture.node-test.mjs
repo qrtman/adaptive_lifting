@@ -24,7 +24,7 @@ function fixture({ inventory = [relation], catalogRows = [catalog], rows = ['{"k
     if (sql.startsWith('SELECT current_database')) return { rows: [{ database: 'postgres', read_only: 'on', version: '170006', tls: true }] };
     if (sql.includes('AS policies')) return { rows: catalogRows };
     if (sql.includes('c.relkind AS kind')) return { rows: inventory };
-    if (sql.startsWith('SELECT version FROM')) return { rows: [{ version }] };
+    if (sql.includes('to_jsonb(m)::text AS record')) return { rows: [{ version, record: JSON.stringify({ version, statements: ['CREATE TABLE synthetic_fixture (id integer);'] }) }] };
     if (sql.startsWith('SELECT pg_export_snapshot')) return { rows: [{ snapshot: '00000003-0000001B-1', captured_at: '2026-10-15 00:00:00+00' }] };
     if (sql.startsWith('FETCH')) return { rows: fetch++ === 0 ? (chunks ?? rows.map((payload) => ({ row_bytes: `${Buffer.byteLength(payload)}`, offset: '1', chunk: payload }))) : [] };
     return { rows: [] };
@@ -63,6 +63,11 @@ test('snapshot stays open until archive and encrypted manifest sinks finish; onl
   assert.equal(manifest.tables[0].catalog.constraints[0].validated, true);
   assert.equal(manifest.tables[0].catalog.indexes[0].valid, true);
   assert.deepEqual(manifest.tables[0].catalog.policies[0].roles, ['authenticated']);
+  assert.deepEqual(manifest.migrationVersions, [version]);
+  assert.equal(manifest.migrationLedger.count, 1);
+  assert.equal(manifest.migrationLedger.sha256,
+    createHash('sha256').update(`${Buffer.byteLength(JSON.stringify({ version, statements: ['CREATE TABLE synthetic_fixture (id integer);'] }))}:`)
+      .update(JSON.stringify({ version, statements: ['CREATE TABLE synthetic_fixture (id integer);'] })).digest('hex'));
   const catalogQuery = client.queries.find((q) => q.sql.includes('AS policies'));
   assert.deepEqual(catalogQuery.values, ['public', 'workouts']);
   assert.match(catalogQuery.sql, /pg_get_constraintdef/);
@@ -114,6 +119,35 @@ test('migration mismatch fails before snapshot export and archive output', async
   await assert.rejects(captureSnapshot(options(client, { expectedVersions: ['20261002000000'] })), /Snapshot capture failed/);
   assert.ok(!client.queries.some((q) => q.sql.startsWith('SELECT pg_export_snapshot')));
   assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+});
+
+test('migration ledger digest covers full recorded statements and malformed records fail closed', async () => {
+  const first = fixture();
+  const original = first.query.bind(first);
+  first.query = async (sql, values) => sql.includes('to_jsonb(m)::text AS record')
+    ? { rows: [{ version, record: JSON.stringify({ version, statements: ['SELECT 1;'] }) }] }
+    : original(sql, values);
+  let manifest;
+  await captureSnapshot(options(first, { persistManifest: async (value) => { manifest = value; } }));
+  const second = fixture();
+  const secondOriginal = second.query.bind(second);
+  second.query = async (sql, values) => sql.includes('to_jsonb(m)::text AS record')
+    ? { rows: [{ version, record: JSON.stringify({ version, statements: ['SELECT 2;'] }) }] }
+    : secondOriginal(sql, values);
+  let changedManifest;
+  await captureSnapshot(options(second, { persistManifest: async (value) => { changedManifest = value; } }));
+  assert.notEqual(manifest.migrationLedger.sha256, changedManifest.migrationLedger.sha256);
+
+  for (const records of [[], [{ version, record: '' }], [{ version: 'not-a-version', record: '{}' }]]) {
+    const client = fixture();
+    const query = client.query.bind(client);
+    client.query = async (sql, values) => sql.includes('to_jsonb(m)::text AS record')
+      ? { rows: records } : query(sql, values);
+    let archiveStarted = false;
+    await assert.rejects(captureSnapshot(options(client, { captureArchive: async () => { archiveStarted = true; } })), /Snapshot capture failed/);
+    assert.equal(archiveStarted, false);
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  }
 });
 
 test('missing or malformed relation catalog metadata fails before archive output', async () => {

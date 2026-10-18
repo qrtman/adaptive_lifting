@@ -82,6 +82,24 @@ function sameInventory(actual, expected) {
   return JSON.stringify(relationKeys(actual)) === JSON.stringify(relationKeys(expected));
 }
 
+function migrationLedgerDigest(records, expectedVersions) {
+  if (!Array.isArray(records)) throw new Error('Migration ledger is incomplete.');
+  const versions = [];
+  const hash = createHash('sha256');
+  for (const { version, record } of records) {
+    if (typeof version !== 'string' || !/^\d{14}$/.test(version) || typeof record !== 'string' || !record.length) {
+      throw new Error('Migration ledger is malformed.');
+    }
+    const bytes = Buffer.from(record, 'utf8');
+    hash.update(`${bytes.length}:`).update(bytes);
+    versions.push(version);
+  }
+  if (JSON.stringify(versions) !== JSON.stringify([...expectedVersions].sort())) {
+    throw new Error('Migration ledger differs from the reviewed release.');
+  }
+  return { count: records.length, sha256: hash.digest('hex') };
+}
+
 /** Same-snapshot archive + bounded row manifests. All returned manifests are
  * sensitive and MUST be encrypted by persistManifest; never log them.
  * Sequence values, global roles, Vault keys and extension recovery are separate
@@ -125,8 +143,10 @@ export async function captureSnapshot({ client, schemas, expectedRelations, expe
     }
     const names = relations.map((r) => `${quoteIdentifier(r.schema)}.${quoteIdentifier(r.name)}`);
     await client.query(`LOCK TABLE ${names.join(', ')} IN ACCESS SHARE MODE`);
-    const versions = (await client.query('SELECT version FROM supabase_migrations.schema_migrations ORDER BY version')).rows.map((r) => r.version);
-    if (JSON.stringify(versions) !== JSON.stringify([...expectedVersions].sort())) throw new Error('Migration ledger differs from the reviewed release.');
+    const migrationRecords = (await client.query(`SELECT version, to_jsonb(m)::text AS record
+      FROM supabase_migrations.schema_migrations AS m ORDER BY version COLLATE "C"`)).rows;
+    const migrationLedger = migrationLedgerDigest(migrationRecords, expectedVersions);
+    const versions = migrationRecords.map(({ version }) => version);
     const snapshot = (await client.query('SELECT pg_export_snapshot() AS snapshot, transaction_timestamp()::text AS captured_at')).rows[0];
     const dumpArgs = snapshotDumpArgs(snapshot.snapshot, schemas);
     const tables = [];
@@ -180,7 +200,7 @@ export async function captureSnapshot({ client, schemas, expectedRelations, expe
     // exit, encryption, and all stream stages, not merely return its stdout handle.
     const archive = await captureArchive({ snapshot: snapshot.snapshot, dumpArgs });
     await persistManifest({ format: 'adaptive-snapshot-v1', capturedAt: snapshot.captured_at,
-      serverVersion: identity.version, migrationVersions: versions, tables });
+      serverVersion: identity.version, migrationVersions: versions, migrationLedger, tables });
     result = { status: 'captured-restore-unverified', archive, tableCount: tables.length };
   } catch {
     // Native errors can include SQL literals, records or credentials.

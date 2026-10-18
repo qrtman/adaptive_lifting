@@ -9,11 +9,11 @@ VeraCrypt have been explored or discussed but none is selected. The notes below
 preserve synthetic engineering evidence and proposals; they are not current
 requirements or authorization. A historical hosted synthetic restore run did not use real
 data, production credentials, a production export, provider requests, production
-mutations, or R2, and does not establish production recoverability. In this branch,
-`scripts/recovery/synthetic-drill.workflow.yml` is an inert reviewed template; no
-active workflow exists under `.github/workflows/`. The hosted-runner + Cloudflare R2
-production route remains unconfigured, cost-untested, and unexercised with
-production data.
+mutations, or R2, and does not establish production recoverability. The active
+`.github/workflows/recovery-synthetic-drill.yml` is restricted to this dedicated
+recovery-test branch and synthetic fixtures. It has no production credentials, data
+path, storage access, schedule, or retention job. The hosted-runner production
+capture/storage route remains unconfigured and unexercised with production data.
 
 The recorded production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
@@ -83,10 +83,11 @@ pull/container execution belongs exclusively on the approved hosted runner.
 unit tests in `synthetic-drill.node-test.mjs`. It has no production source, credential,
 R2 upload or scheduler mode. Its runtime guard rejects a local/self-hosted runner.
 The historical workflow record points to a manually dispatched hosted job with no
-schedule or secrets. The current branch contains only the inert workflow template
-described above. The historical job downloaded checksum-pinned age and the
-digest-pinned database image, created synthetic fixtures and an ephemeral encryption
-identity, encrypted a custom-format dump, decrypted and restored into a second
+schedule or secrets. The historical template remains inert; this recovery branch
+adds a separate branch-scoped workflow with no production inputs. The hosted job
+downloads checksum-pinned age and the digest-pinned database image, creates
+synthetic fixtures and an ephemeral encryption identity, encrypts a custom-format
+dump, decrypts and restores into a second
 network-isolated database, compared the fixtures, and cleaned up.
 
 The workflow was tested at commit
@@ -169,14 +170,16 @@ clients; running those tests on the PC does not create a database or private key
   authorization described below.
 
 These components do **not** constitute a complete production backup implementation.
-The per-table catalog snapshot is now present, but still needs validation against
-the real PostgreSQL 17 schema and comparison with restored catalog output. Remaining
-engineering includes a complete schema/role/extension/sequence inventory, snapshot-to-archive TOC
-reconciliation, encrypted manifest bundling and publication/commit marker, a
-reviewed protected hosted workflow, authenticated retrieval/decryption, and the
-actual application restore checks. Do not enable production capture merely because
-the component tests pass. An uploaded object left by a failed run is uncommitted;
-its existence is not a successful restore point, and automatic deletion is disabled.
+The per-table catalog snapshot now records a digest of every complete migration-ledger
+row as well as the expected version sequence. This is only a source-side synthetic
+library check; it still needs comparison with the restored archive and validation
+against the actual production PostgreSQL 17 catalog. Remaining engineering includes a
+complete schema/role/extension/sequence inventory, snapshot-to-archive TOC
+reconciliation, encrypted manifest bundling and a publication/commit marker,
+authenticated retrieval/decryption, and actual application restore checks. Do not
+enable production capture merely because component or synthetic tests pass. An
+uploaded object left by a failed run is uncommitted; its existence is not a successful
+restore point, and automatic deletion is disabled.
 
 Code-only verification:
 
@@ -184,11 +187,12 @@ Code-only verification:
 node --test scripts/recovery/*.node-test.mjs
 ```
 
-Current local component checkpoint, verified 2026-10-16: **59/59 Node tests PASS**
+Current local component checkpoint, verified 2026-10-18: **60/60 Node tests PASS**
 across all recovery unit-test files. The synthetic drill imports `encrypt-stream.mjs`
 and `snapshot-capture.mjs`; the independent `ciphertext-store.mjs` component
-implements the documented R2 ciphertext transfer boundary. The recovery workflow
-template runs the complete `scripts/recovery/*.node-test.mjs` suite. These files and
+implements the documented R2 ciphertext transfer boundary. The branch-scoped
+synthetic recovery workflow runs the complete `scripts/recovery/*.node-test.mjs` suite.
+These files and
 their tests must be included together in any clean checkout that runs the recovery
 tests or synthetic drill. The production-source adapter tests use mocked clients/processes
 and synthetic CA text on Windows; its Linux file-mode check only runs on Linux.
@@ -202,7 +206,8 @@ encryption, authenticated decryption and original archive SHA-256/size compariso
 isolated single-transaction restore, source/restored fixture comparisons, and
 container/temp-file cleanup before PASS. The encrypted synthetic artifact was 9,144
 bytes. The run used no production credentials, R2, production data, or schedules.
-The template remains inert in this checkout. This hosted integration still does not
+The historical template remains inert; a branch-scoped synthetic workflow is now
+active. Its hosted result still does not
 exercise the production schema, source adapter, catalog/sequence completeness, key
 custody, or R2 behavior; production recovery remains BLOCKED / NOT TESTED. The
 current working tree extends that synthetic drill to execute and compare the new
@@ -305,6 +310,34 @@ Never delete the newest known verified point to make room for an unverified one.
 Apply retention only after a complete new point is uploaded and readable. Keep
 enough overlap for failures and avoid including staging or historical backups in
 the production retention rule.
+
+## Recovery architecture evaluation (2026-10-18)
+
+No option below is approved. Recommendation: use a dedicated private Amazon S3
+bucket in a separately controlled AWS account, with S3 Object Lock retention,
+client-side `age` encryption, and a decryption identity held in the owner's separate
+password-manager vault with a tested alternate recovery path. Use a manually
+dispatched, protected GitHub-hosted Linux runner for the first capture and isolated
+restore; the runner must have no secret except the one needed for that job, no
+pull-request trigger, and no reusable production plaintext. This favors provider and
+account separation plus deletion protection; it still trusts GitHub with transient
+plaintext and adds an AWS account/operations dependency. Do not create the bucket,
+keys, credentials, workflow secrets, or paid services until separately approved.
+
+| Option | Isolation and compatibility | Encryption, custody, recovery | Ongoing cost / operational trade-off |
+| --- | --- | --- | --- |
+| Supabase managed daily backup / PITR | Lowest operational effort and native PostgreSQL/platform fit. Same Supabase project/account failure domain; not an independent copy. Confirm project plan, downloadable backup capability, and isolated restore process first. | Provider-managed backup encryption; customer-held independent key is not established by the backup itself. A Supabase project/account loss may affect access. | Pro currently starts at $25/month and includes 7-day daily backups; Team starts at $599/month and includes 14 days. PITR is currently about $100/month for 7-day retention. Plan, compute, and usage charges are additional; managed backups complement rather than replace an independent copy. |
+| GitHub-hosted runner + Cloudflare R2 | R2 is outside Supabase, but reusing the existing Cloudflare account couples storage with the Worker account. R2 is S3-compatible but not all S3 APIs/features are implemented. R2 Bucket Locks are configured through Cloudflare APIs; the S3 API does not support Object Lock headers. GitHub temporarily processes plaintext. | `age` client-side encryption provides authenticated ciphertext. A separate R2 account/bucket reduces blast radius, but R2 account deletion and lock administration remain in one provider control plane. | R2 Standard has 10 GB-month free, then $0.015/GB-month, with free internet egress and included request quotas. A 20-minute Linux 2-core run is $0.12 at the listed $0.006/min rate if not covered by the Actions allowance. Dump size and allowance are unknown. |
+| GitHub-hosted runner + separate-account AWS S3 | Strong proposed provider/account separation and PostgreSQL custom-archive compatibility. Object Lock supports retention/WORM; validate the locked-object/version and lifecycle procedure in a disposable bucket. GitHub still processes plaintext. | Client-side `age` encryption plus S3 Object Lock. Keep the private identity outside GitHub and AWS storage; test its independent recovery path. | Illustrative S3 Standard rate is $0.023/GB-month for the first 50 TB in US East; 14 daily full restore points of size `D` GB require about `14 × D` GB steady storage, or `$0.322 × D/month`, plus requests, retrieval/transfer, runner time, and any key-management services. Region price and archive size are unmeasured. |
+| GitHub Actions artifacts | Convenient for sanitized test evidence only. Artifact storage is coupled to repository/account controls and retention; do not treat it as durable, independently administered backup storage. | Never use an artifact as the only ciphertext copy or key-custody location. | Private-repository runner minutes and storage depend on GitHub plan and remaining monthly allowance; no usage readback is available here. |
+
+These are public list-price examples, not an account quote. Supabase database
+backups do not include Storage object bytes. Inventory object storage separately if
+production uses Supabase Storage. Confirm AWS region, data residency, archive size,
+request/retrieval pattern, tax, and free allowances before selection. Prices and
+plan entitlements change.
+
+Sources: [Supabase plans](https://supabase.com/pricing), [Supabase PITR pricing](https://supabase.com/docs/guides/platform/manage-your-usage/point-in-time-recovery), [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/), [R2 bucket locks](https://developers.cloudflare.com/r2/buckets/bucket-locks/), [R2 S3 compatibility](https://developers.cloudflare.com/r2/api/s3/api/), [GitHub Actions runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing), [AWS S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html), and [AWS S3 pricing](https://aws.amazon.com/s3/pricing/).
 
 ## What a complete restore point contains
 
@@ -524,20 +557,46 @@ cookies, and isolated providers before routing or enabling each consumer.
 
 ## Authorization and remaining work
 
-Required next authorization must explicitly cover the exact production **read**
-export and sensitive backup/key handling, the off-site destination/runner and its
-cost ceiling, and the isolated restore target. The source adapter expects the
-existing database password only as protected hosted-job input
-`RECOVERY_DB_PASSWORD`, plus the project CA bundle as `RECOVERY_DB_CA_PEM`; it
-targets only the fixed production session pooler shown above. These inputs have
+Before a real production point is attempted, the owner must explicitly approve each
+item below and name the exact target, limits, and operator. None is granted by this
+synthetic recovery branch:
+
+- Select and approve the storage architecture, region, independent account, retention,
+  and maximum monthly/one-time cost. Approve any AWS/Supabase/GitHub account or paid
+  plan changes separately.
+- Authorize a one-time read export of production project `gadusaizqnshxqcckibq`,
+  including the schemas and sensitive application data in the archive, and accept
+  GitHub as the temporary processor if GitHub-hosted runners are selected.
+- Approve the exact runner/workflow ref, protected environment/reviewers, source
+  credentials, bucket-scoped upload/read permissions, and the creation/configuration
+  of any destination bucket or object-retention rules.
+- Name primary and alternate key custodians; approve the client-side encryption
+  scheme, owner-controlled private-key escrow, alternate-access test, and a
+  destination-independent key recovery procedure. The capture job must never receive
+  the decryption identity.
+- Approve the isolated disposable restore destination, image/version and region,
+  explicit network isolation, temporary plaintext handling, expected costs, test
+  window, cleanup method, and retention of sanitized evidence.
+- Accept the measured archive-size basis, 14-point retention policy, target RPO of
+  24 hours and target RTO of 4 hours; authorize a second operator/reviewer to inspect
+  sanitized evidence before any schedule or deletion policy is enabled.
+- Authorize provider/webhook/cron reconciliation and any post-restore validation
+  that could contact external systems. The first restore must leave those systems
+  disabled and prove zero outbound effects.
+
+Then configure only the narrowly scoped, owner-approved source credentials. The
+source adapter expects the existing database password only as protected hosted-job
+input `RECOVERY_DB_PASSWORD`, plus the project CA bundle as `RECOVERY_DB_CA_PEM`;
+it targets only the fixed production session pooler shown above. These inputs have
 not been collected or configured. The source user is privileged, so no production
 capture can proceed until the owner approves that exact data read and hosted
-processing scope. A dedicated read-only backup role would require a separate
-review and explicit database-change authorization; none has been created.
+processing scope. A dedicated read-only backup role would require a separate review
+and explicit database-change authorization; none has been created.
+
 Tool installation/allowlisting is an administrator action and does not authorize
-production access. Managed project creation, secret retrieval/copy, R2 credential
-or bucket changes, key escrow, scheduler configuration, provider reconciliation,
-return to service and traffic changes need their own exact scope before execution.
+production access. Managed project creation, secret retrieval/copy, R2 credential or
+bucket changes, key escrow, scheduler configuration, provider reconciliation,
+return to service, and traffic changes need exact scope before execution.
 
 Current gaps: production-specific runner authorization, key escrow/alternate access,
 scoped R2 access, complete catalog/sequence/security manifest and archive
