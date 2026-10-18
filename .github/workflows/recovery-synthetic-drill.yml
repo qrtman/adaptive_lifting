@@ -5,6 +5,8 @@ on:
       - test/production-recovery-gate
     paths:
       - '.github/workflows/recovery-synthetic-drill.yml'
+      - 'docs/PRODUCTION_STATUS.md'
+      - 'docs/production-recovery.md'
       - 'scripts/recovery/**'
   workflow_dispatch:
 permissions:

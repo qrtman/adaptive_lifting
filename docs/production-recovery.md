@@ -225,7 +225,7 @@ encryption, authenticated decryption and original archive SHA-256/size compariso
 isolated single-transaction restore, source/restored fixture comparisons, and
 container/temp-file cleanup before PASS. The encrypted synthetic artifact was 9,144
 bytes. The run used no production credentials, R2, production data, or schedules.
-The branch-scoped synthetic workflow is active. Latest hosted checkpoint: commit
+The branch-scoped synthetic workflow is active. Previous hosted checkpoint: commit
 [`5e46f5d`](https://github.com/qrtman/adaptive_lifting/commit/5e46f5dac64cb1abe0c014bc37879ed853fed871),
 run [39109793852](https://github.com/qrtman/adaptive_lifting/actions/runs/39109793852),
 completed PASS on 2026-10-18. It passed all 66 recovery unit/security tests and the
@@ -234,10 +234,20 @@ corruption rejection, row and relation-catalog reconciliation, cron/network
 isolation, and the new independent post-run check for leftover test containers or
 temporary archive directories. The synthetic ciphertext was 10,490 bytes; fixture
 resources were removed. No production data, source credentials, R2/S3 access, or
-production backup was used. This does not exercise the production schema, full
-role/extension/sequence inventory, manifest publication, key custody, off-site
-storage, or a real production-point restore. Production recovery remains
-BLOCKED / NOT TESTED.
+production backup was used.
+
+Latest hosted continuation: commit
+[`f9a9da0`](https://github.com/qrtman/adaptive_lifting/commit/f9a9da0bec6872c0b224e50af85a16bf7ea10837),
+run [39111285578](https://github.com/qrtman/adaptive_lifting/actions/runs/39111285578),
+completed PASS on 2026-10-18. It passed all **81 recovery tests**, the digest-pinned
+synthetic PostgreSQL restore with authenticated age encryption and corruption
+rejection, row and relation-catalog reconciliation, cron/network isolation, and the
+independent cleanup check. This run verifies the new catalog/TOC comparison helpers
+with synthetic fixtures and verifies archive temporary cleanup after manifest and
+transaction failures. It does not exercise the production schema, complete
+role/extension/sequence inventory collection, operational TOC acquisition, manifest
+publication, key custody, off-site storage, or a real production-point restore.
+Production recovery remains **BLOCKED / NOT TESTED**.
 
 ### Cloud-only key custody and activation inputs
 

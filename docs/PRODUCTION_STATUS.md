@@ -141,15 +141,16 @@ endpoint's teardown.
   approaches, and other experiments are not approved architecture.
 - **Recovery engineering checkpoint — 2026-10-18:** Work remains on
   `test/production-recovery-gate`, starting from `a063b570504279af5e1c3ebb090c3350e9584252`.
-  `SYNTHETIC_RECOVERY=PASS` was last established by hosted run
-  [39109793852](https://github.com/qrtman/adaptive_lifting/actions/runs/39109793852).
+  `SYNTHETIC_RECOVERY=PASS` was verified on commit
+  `f9a9da0bec6872c0b224e50af85a16bf7ea10837` by hosted run
+  [39111285578](https://github.com/qrtman/adaptive_lifting/actions/runs/39111285578).
   This continuation adds fail-closed catalog and archive-TOC comparison helpers,
   synthetic lifecycle checks, archive cleanup on snapshot failure, and failure-path
-  workflow cleanup verification. Local verification is 81/81 recovery tests and
-  TypeScript lint PASS; hosted validation for this continuation is pending. These
-  helpers do not collect a complete production inventory or establish a real
-  backup/restore. `PRODUCTION_RECOVERY=BLOCKED / NOT TESTED`; production data and
-  credentials have not been accessed.
+  workflow cleanup verification. Local and hosted verification are 81/81 recovery
+  tests and TypeScript lint PASS; the hosted drill and independent cleanup step also
+  passed. These helpers do not collect a complete production inventory or establish
+  a real backup/restore. `PRODUCTION_RECOVERY=BLOCKED / NOT TESTED`; production data
+  and credentials have not been accessed.
 - **PENDING:** Complete final security, monitoring, recovery, and operational
   checks.
 - **NOT AUTHORIZED:** Public launch or public traffic cutover.
