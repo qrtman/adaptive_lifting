@@ -20,6 +20,17 @@ test('pending and running attempts have explicit states before their deadline', 
   assert.equal(evaluateBackupState({ ...base, attempt: { id: 'run-1', state: 'running', startedAt: '2026-10-18T00:20:00Z' } }).status, 'running');
 });
 
+test('a synthetic lifecycle progresses from queued to running to verified', () => {
+  const queued = { id: 'synthetic-run-queued', state: 'pending' };
+  const running = { id: 'synthetic-run-active', state: 'running', startedAt: '2026-10-18T00:20:00Z' };
+  const completed = { ...attempt, id: 'synthetic-run-complete' };
+  const completedPoint = { ...point, attemptId: completed.id };
+
+  assert.equal(evaluateBackupState({ ...base, attempt: queued }).status, 'pending');
+  assert.equal(evaluateBackupState({ ...base, attempt: running }).status, 'running');
+  assert.equal(evaluateBackupState({ ...base, attempt: completed, point: completedPoint }).status, 'verified');
+});
+
 test('only latest fully verified artifact can report verified', () => {
   assert.deepEqual(evaluateBackupState({ ...base, attempt, point }), {
     status: 'verified', reason: 'latest attempt has a complete verified restore point',
@@ -35,6 +46,41 @@ test('older verified artifact cannot hide a latest failure or incomplete archive
   assert.equal(evaluateBackupState({ ...base, attempt: latestFailed, point }).status, 'failed');
   assert.equal(evaluateBackupState({ ...base, attempt: { ...attempt, id: 'run-2' }, point }).status, 'failed');
   assert.equal(evaluateBackupState({ ...base, attempt, point: { ...point, restoreVerified: false } }).status, 'failed');
+});
+
+test('missing, corrupt, or individually incomplete evidence never verifies a completed attempt', () => {
+  const cases = [
+    null,
+    {},
+    { ...point, verifiedAt: 'not-a-timestamp' },
+    { ...point, artifactId: '   ' },
+    { ...point, uploaded: false },
+    { ...point, readbackHashVerified: false },
+    { ...point, decryptionAuthenticated: false },
+    { ...point, restoreVerified: false },
+    { ...point, reconciliationVerified: false },
+    { ...point, cleanupVerified: false },
+  ];
+
+  for (const evidence of cases) {
+    assert.equal(evaluateBackupState({ ...base, attempt, point: evidence }).status, 'failed');
+  }
+});
+
+test('classifier output remains secret-free and does not expose supplied evidence', () => {
+  const secretBearingInput = {
+    ...attempt,
+    id: 'PRIVATE-ATTEMPT-IDENTIFIER',
+  };
+  const result = evaluateBackupState({
+    ...base,
+    attempt: secretBearingInput,
+    point: { ...point, artifactId: 'PRIVATE-OBJECT-NAME', attemptId: secretBearingInput.id },
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.status, 'verified');
+  assert.doesNotMatch(serialized, /PRIVATE-ATTEMPT-IDENTIFIER|PRIVATE-OBJECT-NAME/);
 });
 
 test('missing, failed, and overlong attempts become overdue only after the deadline/limit', () => {

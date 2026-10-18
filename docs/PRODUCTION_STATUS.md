@@ -139,6 +139,17 @@ endpoint's teardown.
   PostgreSQL backup and complete a restore into a genuinely isolated target.
   The backup method is undecided. R2/GitHub hosted proposals, VeraCrypt/local
   approaches, and other experiments are not approved architecture.
+- **Recovery engineering checkpoint — 2026-10-18:** Work remains on
+  `test/production-recovery-gate`, starting from `a063b570504279af5e1c3ebb090c3350e9584252`.
+  `SYNTHETIC_RECOVERY=PASS` was last established by hosted run
+  [39109793852](https://github.com/qrtman/adaptive_lifting/actions/runs/39109793852).
+  This continuation adds fail-closed catalog and archive-TOC comparison helpers,
+  synthetic lifecycle checks, archive cleanup on snapshot failure, and failure-path
+  workflow cleanup verification. Local verification is 81/81 recovery tests and
+  TypeScript lint PASS; hosted validation for this continuation is pending. These
+  helpers do not collect a complete production inventory or establish a real
+  backup/restore. `PRODUCTION_RECOVERY=BLOCKED / NOT TESTED`; production data and
+  credentials have not been accessed.
 - **PENDING:** Complete final security, monitoring, recovery, and operational
   checks.
 - **NOT AUTHORIZED:** Public launch or public traffic cutover.

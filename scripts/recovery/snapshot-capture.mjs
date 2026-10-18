@@ -122,6 +122,7 @@ export async function captureSnapshot({ client, schemas, expectedRelations, expe
   let begun = false;
   let failure;
   let result;
+  let archive;
   try {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     begun = true;
@@ -198,7 +199,7 @@ export async function captureSnapshot({ client, schemas, expectedRelations, expe
     }
     // Await adapters before ending the snapshot. An adapter must await pg_dump's
     // exit, encryption, and all stream stages, not merely return its stdout handle.
-    const archive = await captureArchive({ snapshot: snapshot.snapshot, dumpArgs });
+    archive = await captureArchive({ snapshot: snapshot.snapshot, dumpArgs });
     await persistManifest({ format: 'adaptive-snapshot-v1', capturedAt: snapshot.captured_at,
       serverVersion: identity.version, migrationVersions: versions, migrationLedger, tables });
     result = { status: 'captured-restore-unverified', archive, tableCount: tables.length };
@@ -209,6 +210,10 @@ export async function captureSnapshot({ client, schemas, expectedRelations, expe
   if (begun) {
     try { await client.query('ROLLBACK'); }
     catch { failure = new Error(failure ? 'Snapshot capture and transaction cleanup failed.' : 'Snapshot transaction cleanup failed.'); }
+  }
+  if (failure && typeof archive?.cleanup === 'function') {
+    try { await archive.cleanup(); }
+    catch { failure = new Error('Snapshot capture or transaction cleanup failed; archive cleanup also failed.'); }
   }
   if (failure) throw failure;
   return result;

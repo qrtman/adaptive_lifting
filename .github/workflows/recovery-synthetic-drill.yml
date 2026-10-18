@@ -48,6 +48,7 @@ jobs:
         shell: bash
         run: node scripts/recovery/synthetic-drill.mjs
       - name: Independently verify temporary fixture cleanup
+        if: always()
         shell: bash
         run: |
           set -euo pipefail

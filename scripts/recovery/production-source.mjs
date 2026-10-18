@@ -1,4 +1,5 @@
 import { spawn as nodeSpawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmod, lstat, mkdtemp, open, readFile, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -12,6 +13,156 @@ export const PRODUCTION_SOURCE = Object.freeze({
 });
 
 const PEM_CERT = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
+
+const CATALOG_KINDS = new Set([
+  'SCHEMA', 'TABLE', 'COLUMN', 'CONSTRAINT', 'INDEX', 'TRIGGER', 'POLICY', 'ROW SECURITY',
+  'FUNCTION', 'PROCEDURE', 'SEQUENCE', 'TYPE', 'VIEW', 'MATERIALIZED VIEW', 'EXTENSION',
+  'ROLE', 'ROLE MEMBERSHIP', 'DEFAULT ACL', 'PUBLICATION', 'PUBLICATION TABLE', 'EXTERNAL DEPENDENCY',
+]);
+const TOC_DESCRIPTIONS = [
+  'MATERIALIZED VIEW DATA', 'SEQUENCE OWNED BY', 'PUBLICATION TABLE', 'MATERIALIZED VIEW',
+  'CHECK CONSTRAINT', 'FK CONSTRAINT', 'TABLE ATTACH', 'INDEX ATTACH', 'ROW SECURITY',
+  'SEQUENCE SET', 'TABLE DATA', 'DEFAULT ACL', 'SHELL TYPE', 'EVENT TRIGGER',
+  'SCHEMA', 'TABLE', 'CONSTRAINT', 'INDEX', 'TRIGGER', 'POLICY', 'FUNCTION', 'PROCEDURE',
+  'SEQUENCE', 'TYPE', 'VIEW', 'EXTENSION', 'PUBLICATION', 'ACL', 'COMMENT', 'DEFAULT',
+  'COLLATION', 'DOMAIN', 'RULE', 'STATISTICS', 'TRANSFORM', 'OPERATOR', 'OPERATOR CLASS',
+  'OPERATOR FAMILY', 'AGGREGATE', 'CAST', 'CONVERSION', 'TEXT SEARCH CONFIGURATION',
+  'TEXT SEARCH DICTIONARY', 'TEXT SEARCH PARSER', 'TEXT SEARCH TEMPLATE',
+].sort((a, b) => b.length - a.length);
+const SIMPLE_TOC_IDENTIFIER = /^(?:-|[a-zA-Z_][a-zA-Z0-9_$]*)$/;
+const MAX_INVENTORY_ENTRIES = 100_000;
+const MAX_TOC_BYTES = 32 * 1024 * 1024;
+
+function validationError(stage, reason) {
+  // Never interpolate catalog names, definitions, TOC text or native diagnostics.
+  return new Error(`Recovery ${stage} validation failed: ${reason}. Review the protected inventory and regenerate complete evidence.`);
+}
+
+function protectedText(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 16_384 &&
+    !/[\x00-\x1f\x7f]/.test(value) && value.trim() === value;
+}
+
+function exactFields(record, fields) {
+  return record !== null && typeof record === 'object' && !Array.isArray(record) &&
+    Object.keys(record).sort().join('\0') === [...fields].sort().join('\0');
+}
+
+function keyedRecords(records, fields, keyFields, validate, stage, side) {
+  if (!Array.isArray(records) || records.length === 0 || records.length > MAX_INVENTORY_ENTRIES) {
+    throw validationError(stage, `${side} entries are empty, absent or exceed the supported bound`);
+  }
+  const keyed = new Map();
+  for (const record of records) {
+    if (!exactFields(record, fields) || !validate(record)) {
+      throw validationError(stage, `${side} entry shape or supported object kind is invalid`);
+    }
+    const key = JSON.stringify(keyFields.map((field) => record[field]));
+    if (keyed.has(key)) throw validationError(stage, `${side} entries contain a duplicate object identity`);
+    keyed.set(key, record);
+  }
+  return keyed;
+}
+
+function compareRecords(expected, actual, equal, stage) {
+  let missing = 0;
+  let inconsistent = 0;
+  let unexpected = 0;
+  for (const [key, record] of expected) {
+    if (!actual.has(key)) missing += 1;
+    else if (!equal(record, actual.get(key))) inconsistent += 1;
+  }
+  for (const key of actual.keys()) if (!expected.has(key)) unexpected += 1;
+  if (missing || inconsistent || unexpected) {
+    throw validationError(stage, `missing=${missing}, inconsistent=${inconsistent}, unexpected=${unexpected}`);
+  }
+}
+
+/** Pure comparison of independently supplied catalog records, NOT a collector or
+ * completeness proof. Each definitionSha256 must cover canonical definition and
+ * security metadata (including ownership/ACLs) from the same protected snapshot.
+ * Identities must include signatures/parent objects where needed. Schema/global
+ * dependencies must be explicit records; unsupported kinds fail rather than being
+ * silently ignored. Never derive the reviewed expected input from the actual input.
+ */
+export function reconcileCatalogInventory(input = {}) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw validationError('catalog', 'comparison inputs are malformed');
+  }
+  const { expected, actual } = input;
+  const fields = ['kind', 'schema', 'identity', 'definitionSha256'];
+  const validate = (record) => CATALOG_KINDS.has(record.kind) &&
+    (record.schema === null || protectedText(record.schema)) && protectedText(record.identity) &&
+    typeof record.definitionSha256 === 'string' && /^[a-f0-9]{64}$/.test(record.definitionSha256);
+  const reviewed = keyedRecords(expected, fields, ['kind', 'schema', 'identity'], validate, 'catalog', 'reviewed');
+  const observed = keyedRecords(actual, fields, ['kind', 'schema', 'identity'], validate, 'catalog', 'observed');
+  compareRecords(reviewed, observed, (a, b) => a.definitionSha256 === b.definitionSha256, 'catalog');
+  // A canonical identity/digest hash is safe to return; raw metadata stays protected.
+  const canonical = [...reviewed.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+    .map(([key, record]) => [key, record.definitionSha256]);
+  return Object.freeze({ status: 'catalog-matched', objectCount: reviewed.size,
+    sha256: createHash('sha256').update(JSON.stringify(canonical)).digest('hex') });
+}
+
+function tocRecordIsValid(record) {
+  return TOC_DESCRIPTIONS.includes(record.description) && typeof record.schema === 'string' &&
+    SIMPLE_TOC_IDENTIFIER.test(record.schema) && protectedText(record.tag) &&
+    typeof record.owner === 'string' && SIMPLE_TOC_IDENTIFIER.test(record.owner);
+}
+
+/** Parse complete, unfiltered PostgreSQL 17 `pg_restore --list` text supplied by
+ * an authorized caller. No processes, archive reads or database connections occur.
+ * Namespace/owner names containing whitespace or quoting are unsupported and
+ * require a reviewed parser extension. Tags/signatures remain exact opaque text.
+ * Comments/IDs are not evidence of catalog definition, row or sequence parity.
+ */
+export function parseArchiveToc(text) {
+  if (typeof text !== 'string' || Buffer.byteLength(text, 'utf8') > MAX_TOC_BYTES ||
+      /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)) {
+    throw validationError('archive TOC', 'listing is absent, malformed or exceeds the supported bound');
+  }
+  const records = [];
+  const ids = new Set();
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim() || line.startsWith(';')) continue;
+    const match = /^([1-9]\d*); (0|[1-9]\d*) (0|[1-9]\d*) (.+)$/.exec(line);
+    if (!match || !Number.isSafeInteger(Number(match[1])) || ids.has(match[1]) ||
+        Number(match[2]) > 4_294_967_295 || Number(match[3]) > 4_294_967_295) {
+      throw validationError('archive TOC', 'listing has an invalid or duplicate dump ID');
+    }
+    ids.add(match[1]);
+    const description = TOC_DESCRIPTIONS.find((value) => match[4].startsWith(`${value} `));
+    if (!description) throw validationError('archive TOC', 'listing contains an unsupported object description');
+    const entry = /^(\S+) (.+) (\S+)$/.exec(match[4].slice(description.length + 1));
+    const record = entry && { description, schema: entry[1], tag: entry[2], owner: entry[3] };
+    if (!record || !tocRecordIsValid(record)) {
+      throw validationError('archive TOC', 'listing entry cannot be represented without ambiguity');
+    }
+    records.push(Object.freeze(record));
+    if (records.length > MAX_INVENTORY_ENTRIES) throw validationError('archive TOC', 'listing exceeds the entry bound');
+  }
+  if (!records.length) throw validationError('archive TOC', 'listing contains no objects');
+  return Object.freeze(records);
+}
+
+/** Exact bidirectional multitype TOC check. expectedEntries must be independently
+ * reviewed from the snapshot/catalog, including data, sequence state, owners,
+ * ACL/default-ACL entries and other required auxiliary entries. This helper does
+ * not generate that inventory or prove the supplied listing is unfiltered or
+ * authenticated. Success never marks an archive restored/recoverable.
+ */
+export function reconcileArchiveToc(input = {}) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw validationError('archive TOC', 'comparison inputs are malformed');
+  }
+  const { expectedEntries, tocText } = input;
+  const fields = ['description', 'schema', 'tag', 'owner'];
+  const keyFields = ['description', 'schema', 'tag'];
+  const reviewed = keyedRecords(expectedEntries, fields, keyFields, tocRecordIsValid, 'archive TOC', 'reviewed');
+  const observed = keyedRecords(parseArchiveToc(tocText), fields, keyFields, tocRecordIsValid, 'archive TOC', 'observed');
+  compareRecords(reviewed, observed, (a, b) => a.owner === b.owner, 'archive TOC');
+  return Object.freeze({ status: 'archive-toc-matched', entryCount: reviewed.size });
+}
 
 export function assertHostedLinux(env = process.env, platform = process.platform) {
   if (env.GITHUB_ACTIONS !== 'true' || env.RUNNER_ENVIRONMENT !== 'github-hosted' || platform !== 'linux') {

@@ -191,8 +191,43 @@ test('archive, manifest and database failures always roll back and suppress sens
   }
 });
 
+test('manifest persistence failure cleans an already-created archive and hides cleanup details', async () => {
+  const client = fixture();
+  let cleaned = false;
+  await assert.rejects(captureSnapshot(options(client, {
+    captureArchive: async () => ({ encrypted: true, cleanup: async () => { cleaned = true; } }),
+    persistManifest: async () => { throw new Error('private manifest secret'); },
+  })), (error) => {
+    assert.match(error.message, /Snapshot capture failed/);
+    assert.doesNotMatch(error.message, /private manifest secret/);
+    return true;
+  });
+  assert.equal(cleaned, true);
+  assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+});
+
+test('archive cleanup failure remains visible without leaking the underlying diagnostic', async () => {
+  const client = fixture();
+  await assert.rejects(captureSnapshot(options(client, {
+    captureArchive: async () => ({ encrypted: true, cleanup: async () => { throw new Error('private filesystem path'); } }),
+    persistManifest: async () => { throw new Error('private manifest secret'); },
+  })), (error) => {
+    assert.match(error.message, /archive cleanup also failed/);
+    assert.doesNotMatch(error.message, /private filesystem path|private manifest secret/);
+    return true;
+  });
+});
+
 test('transaction cleanup failure never reports captured status', async () => {
   await assert.rejects(captureSnapshot(options(fixture({ rollbackFails: true }))), /transaction cleanup failed/);
+});
+
+test('transaction rollback failure also cleans the archive temporary material', async () => {
+  let cleaned = false;
+  await assert.rejects(captureSnapshot(options(fixture({ rollbackFails: true }), {
+    captureArchive: async () => ({ encrypted: true, cleanup: async () => { cleaned = true; } }),
+  })), /transaction cleanup failed/);
+  assert.equal(cleaned, true);
 });
 
 test('local/self-hosted capture rejects before touching supplied client', async () => {

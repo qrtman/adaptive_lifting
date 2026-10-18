@@ -14,9 +14,11 @@ mutations, or R2, and does not establish production recoverability. The active
 recovery-test branch and synthetic fixtures. It has no production credentials, data
 path, storage access, schedule, or retention job. The hosted-runner production
 capture/storage route remains unconfigured and unexercised with production data.
-After the synthetic drill reports PASS, a separate workflow step checks Docker for
-leftover labeled test containers and `/tmp` for fixture/encrypted-archive temp
-directories. Any match fails the job.
+An independent workflow step checks Docker for leftover labeled test containers and
+`/tmp` for fixture/encrypted-archive temp directories even when the drill step fails.
+Any match fails the job. The synthetic command helpers still lack per-process
+deadlines; a stalled process can reach the 20-minute job timeout before that cleanup
+check, so interruption cleanup remains a reliability gap.
 
 The recorded production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
@@ -170,7 +172,11 @@ clients; running those tests on the PC does not create a database or private key
   stdout into the encryption callback, and awaits both native exit and encryption.
   It has no CLI entrypoint or workflow and has not connected to production. The
   source user is privileged; provisioning or using it needs the exact owner
-  authorization described below.
+  authorization described below. Pure fail-closed helpers now compare independently
+  supplied catalog inventories and PostgreSQL archive TOC entries in both directions,
+  returning only redacted discrepancy counts. They do not collect catalogs, generate
+  the reviewed inventory, prove the TOC listing is complete or unfiltered, or verify a
+  restore; no production source adapter calls them yet.
 - `backup-state.mjs`: a pure status classifier distinguishes pending, running,
   failed, verified, and overdue attempts. A point counts as verified only when the
   latest attempt has matching uploaded-object readback, authenticated decryption,
@@ -180,16 +186,19 @@ clients; running those tests on the PC does not create a database or private key
   the chosen storage provider.
 
 These components do **not** constitute a complete production backup implementation.
-The per-table catalog snapshot now records a digest of every complete migration-ledger
-row as well as the expected version sequence. This is only a source-side synthetic
-library check; it still needs comparison with the restored archive and validation
-against the actual production PostgreSQL 17 catalog. Remaining engineering includes a
-complete schema/role/extension/sequence inventory, snapshot-to-archive TOC
-reconciliation, encrypted manifest bundling and a publication/commit marker,
-authenticated retrieval/decryption, and actual application restore checks. Do not
-enable production capture merely because component or synthetic tests pass. An
-uploaded object left by a failed run is uncommitted; its existence is not a successful
-restore point, and automatic deletion is disabled.
+The per-table catalog snapshot records a digest of every complete migration-ledger
+row and the expected version sequence. Comparison helpers now exist, but a complete
+expected inventory and archive listing are not collected or reconciled by an
+operational flow. Remaining engineering includes a complete
+schema/role/extension/sequence inventory, reviewed snapshot-to-archive TOC inputs and
+integration, encrypted manifest bundling and a publication/commit marker,
+authenticated retrieval/decryption, and actual application restore checks. On
+manifest or transaction failure, snapshot capture now calls the returned archive
+cleanup callback when available; adapters that create temporary material must return
+that callback, and cleanup failure remains fatal. Do not enable production capture
+merely because component or synthetic tests pass. An uploaded object left by a failed
+run is uncommitted; its existence is not a successful restore point, and automatic
+deletion is disabled.
 
 Code-only verification:
 
@@ -197,7 +206,7 @@ Code-only verification:
 node --test scripts/recovery/*.node-test.mjs
 ```
 
-Current local component checkpoint, verified 2026-10-18: **66/66 Node tests PASS**
+Current local component checkpoint, verified 2026-10-18: **81/81 Node tests PASS**
 across all recovery unit-test files. The synthetic drill imports `encrypt-stream.mjs`
 and `snapshot-capture.mjs`; the independent `ciphertext-store.mjs` component
 implements the documented R2 ciphertext transfer boundary. The branch-scoped
