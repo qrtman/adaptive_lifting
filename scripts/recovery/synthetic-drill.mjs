@@ -369,7 +369,7 @@ function runDiscard(binary, args) {
   });
 }
 
-export async function runDrill() {
+export async function runDrill({ env = process.env, platform = process.platform } = {}) {
   let stage = 'hosted runner guard';
   let originalError;
   let result;
@@ -378,7 +378,7 @@ export async function runDrill() {
   let encrypted;
   const started = [];
   try {
-    assertHostedRunnerEnvironment();
+    assertHostedRunnerEnvironment(env, platform);
     stage = 'check Docker and age tools';
     await Promise.all([
       runCapture('docker', ['version']),

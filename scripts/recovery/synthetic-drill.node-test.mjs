@@ -31,7 +31,7 @@ test('hosted-runner guard rejects local and non-GitHub environments', () => {
 });
 
 test('local drill entrypoint rejects before checking tools or creating files', async () => {
-  await assert.rejects(runDrill(), /restricted to a GitHub hosted Linux runner/);
+  await assert.rejects(runDrill({ env: {}, platform: 'win32' }), /restricted to a GitHub hosted Linux runner/);
 });
 
 test('synthetic drill pins the approved PostgreSQL image digest', () => {
