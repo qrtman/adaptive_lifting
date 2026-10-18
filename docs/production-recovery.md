@@ -657,3 +657,37 @@ scoped R2 access, complete catalog/sequence/security manifest and archive
 reconciliation, actual encrypted production backup, real production-point isolated
 restore, managed platform validation, measured RPO/RTO and alerting. The synthetic
 backup-component integration PASSes; production recovery remains BLOCKED / NOT TESTED.
+
+## GitHub Actions + Cloudflare R2 implementation checkpoint (2026-10-18)
+
+The owner has selected GitHub Actions with Cloudflare R2 Standard as the target
+backup architecture; AWS infrastructure is rejected. The implementation is being
+prepared on `test/production-recovery-gate`. See the [R2 operations guide](recovery-r2-operations.md)
+for the workflow gates, setup values, cost estimate and lifecycle limitations.
+This decision does not authorize provisioning, credentials, production reads,
+exports, or schedule activation.
+
+The prepared daily workflow captures a pinned production PostgreSQL source,
+encrypts a custom archive and sensitive manifest to the public age recipient, then
+uploads each ciphertext object with conditional creation and independent R2
+readback. The backup CLI accepts only schedule or default-branch manual dispatch,
+but presently exits before opening a database connection because a complete,
+independently reviewed production relation inventory and exact deployed migration
+release list are not yet checked in. Do not set `RECOVERY_BACKUP_ENABLED=true` or
+configure production secrets until that blocker and the separate approvals are
+resolved. Any successful encrypted upload would be classified only as captured,
+restore-unverified; it cannot by itself create a verified recovery point.
+
+The prepared missed-run monitor checks the latest scheduled workflow run and
+requires its `Protected production backup` job to have succeeded. A skipped
+production job does not count as a backup. GitHub scheduled runs execute only
+from the default branch, so the workflow on this test branch has no active
+production schedule. R2 lifecycle expiration is a separate manual owner decision;
+age-based expiry cannot preserve 14 complete points through missed or failed runs
+or pin the latest known recoverable point. Keep lifecycle disabled until an
+approved policy handles that gap.
+
+No database, credential, Cloudflare, R2, or GitHub environment setting was
+accessed or changed for this checkpoint. No bucket was provisioned, no object was
+read or written, and no production data was captured. Synthetic verification is
+not production evidence.
