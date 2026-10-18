@@ -170,6 +170,9 @@ test('SQL contract inventories security, stable dependency identities, extension
     'pg_proc', 'pg_sequence', 'pg_type', 'pg_roles', 'pg_auth_members', 'pg_default_acl', 'pg_extension', 'pg_depend', 'pg_identify_object',
     'pg_publication', 'pg_subscription', 'pg_seclabel', 'pg_description']) assert.ok(sql.includes(`pg_catalog.${catalog}`), catalog);
   assert.ok(sql.includes('LIMIT 100001'));
+  assert.ok(sql.includes('source_parent.reltoastrelid=source_object.oid'));
+  assert.ok(sql.includes('target_parent.reltoastrelid=target_object.oid'));
+  assert.ok(sql.includes("source_object.relkind='t'"));
   assert.ok(sql.includes('transaction_read_only'));
   assert.ok(!sql.includes('rolpassword'));
   assert.ok(!sql.includes('nextval('));

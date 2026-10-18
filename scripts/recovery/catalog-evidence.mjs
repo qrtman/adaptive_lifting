@@ -219,6 +219,10 @@ const acl = (expression) => `CASE WHEN ${expression} IS NULL THEN NULL ELSE coal
 const array = (expression) => `coalesce(to_jsonb(${expression}),'[]'::jsonb)`;
 const owner = (expression) => `pg_catalog.pg_get_userbyid(${expression})`;
 const address = (alias) => `jsonb_build_object('type',${alias}.type,'schema',${alias}.schema,'name',${alias}.name,'identity',${alias}.identity)`;
+const dependencyAddress = (object, toastNamespace, parent, namespace, identified) => `CASE WHEN ${object}.relkind='t'
+  AND ${toastNamespace}.nspname='pg_toast' AND ${parent}.oid IS NOT NULL AND d.deptype='i'
+  THEN jsonb_build_object('type',${identified}.type,'schema',${namespace}.nspname,'name',${parent}.relname,
+    'identity',${namespace}.nspname||'.'||${parent}.relname) ELSE ${address(identified)} END`;
 const entry = (kind, schema, identity, fields, from) => `SELECT ${kind}::text AS kind,${schema}::text AS schema,${identity}::text AS identity,
   jsonb_build_object(${Object.entries(fields).flatMap(([key, value]) => [`'${key}'`, value]).join(',')}) AS definition FROM ${from}`;
 
@@ -281,9 +285,20 @@ export function catalogEvidenceSql() {
       configuration: "coalesce((SELECT jsonb_agg(c::regclass::text ORDER BY ord) FROM unnest(e.extconfig) WITH ORDINALITY AS cfg(c,ord)),'[]'::jsonb)",
       conditions: array('e.extcondition'), members: "(SELECT coalesce(jsonb_agg(pg_catalog.pg_describe_object(d.classid,d.objid,d.objsubid) ORDER BY pg_catalog.pg_describe_object(d.classid,d.objid,d.objsubid) COLLATE \"C\"),'[]'::jsonb) FROM pg_catalog.pg_depend d WHERE d.refclassid='pg_catalog.pg_extension'::regclass AND d.refobjid=e.oid AND d.deptype='e')" },
       'extensions e JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace'),
-    entry("'EXTERNAL DEPENDENCY'", 'NULL', "s.type||':'||s.identity||'>'||t.type||':'||t.identity||':'||d.deptype", {
-      source: address('s'), target: address('t'), dependencyType: 'd.deptype' },
-      'dependencies d CROSS JOIN LATERAL pg_catalog.pg_identify_object(d.classid,d.objid,d.objsubid) s CROSS JOIN LATERAL pg_catalog.pg_identify_object(d.refclassid,d.refobjid,d.refobjsubid) t'),
+    entry("'EXTERNAL DEPENDENCY'", 'NULL', "s.type||':'||(stable.source_address->>'identity')||'>'||t.type||':'||(stable.target_address->>'identity')||':'||d.deptype", {
+      source: 'stable.source_address', target: 'stable.target_address', dependencyType: 'd.deptype' },
+      `dependencies d CROSS JOIN LATERAL pg_catalog.pg_identify_object(d.classid,d.objid,d.objsubid) s
+       CROSS JOIN LATERAL pg_catalog.pg_identify_object(d.refclassid,d.refobjid,d.refobjsubid) t
+       LEFT JOIN pg_catalog.pg_class source_object ON d.classid='pg_catalog.pg_class'::regclass AND source_object.oid=d.objid AND source_object.relkind='t'
+       LEFT JOIN pg_catalog.pg_namespace source_toast_namespace ON source_toast_namespace.oid=source_object.relnamespace
+       LEFT JOIN pg_catalog.pg_class source_parent ON source_parent.reltoastrelid=source_object.oid
+       LEFT JOIN ns source_namespace ON source_namespace.oid=source_parent.relnamespace
+       LEFT JOIN pg_catalog.pg_class target_object ON d.refclassid='pg_catalog.pg_class'::regclass AND target_object.oid=d.refobjid AND target_object.relkind='t'
+       LEFT JOIN pg_catalog.pg_namespace target_toast_namespace ON target_toast_namespace.oid=target_object.relnamespace
+       LEFT JOIN pg_catalog.pg_class target_parent ON target_parent.reltoastrelid=target_object.oid
+       LEFT JOIN ns target_namespace ON target_namespace.oid=target_parent.relnamespace
+       CROSS JOIN LATERAL (SELECT ${dependencyAddress('source_object', 'source_toast_namespace', 'source_parent', 'source_namespace', 's')} AS source_address,
+         ${dependencyAddress('target_object', 'target_toast_namespace', 'target_parent', 'target_namespace', 't')} AS target_address) stable`),
   ];
   return `WITH RECURSIVE
   ns AS (SELECT * FROM pg_catalog.pg_namespace WHERE nspname=ANY($1::text[]) LIMIT 100001),
