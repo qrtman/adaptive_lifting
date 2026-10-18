@@ -1,5 +1,9 @@
 # Repository state and branch policy
 
+The follow-up [remaining branch review](remaining-branch-review.md) records exact
+equivalence evidence for 12 additional retirements and eight branches retained
+for separate product decisions. Read it before interpreting the original inventory.
+
 ## Consolidation checkpoint — 2026-10-18
 
 `main` is the continuation branch after the consolidation PR merges. Use its
