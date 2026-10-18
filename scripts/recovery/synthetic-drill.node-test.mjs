@@ -37,6 +37,8 @@ test('failure evidence exposes only bounded process and encryption classes', () 
   assert.equal(safeFailureClass(processFailure), 'PROCESS_EXIT');
   assert.equal(safeFailureClass(new Error('age encryption failed; source and command details were suppressed.')), 'AGE_FAILED');
   assert.equal(safeFailureClass(new Error('age encryption timed out; partial ciphertext was removed.')), 'AGE_TIMEOUT');
+  assert.equal(safeFailureClass(new Error('Restored snapshot or sequence safety mismatch.')), 'RESTORED_SNAPSHOT_MISMATCH');
+  assert.equal(safeFailureClass(new Error('Recovery catalog validation failed: missing=1. Review the protected inventory and regenerate complete evidence.')), 'RESTORED_CATALOG_MISMATCH');
   assert.equal(safeFailureClass(new Error('secret-bearing arbitrary diagnostic')), 'UNCLASSIFIED');
 });
 

@@ -431,6 +431,10 @@ export function safeFailureClass(error) {
   if (error?.message === 'age encryption failed; source and command details were suppressed.') return 'AGE_FAILED';
   if (error?.message === 'age encryption timed out; partial ciphertext was removed.') return 'AGE_TIMEOUT';
   if (error?.message === 'Encryption was aborted; partial ciphertext was removed.') return 'INTERRUPTED';
+  if (error?.message === 'Restored row/migration manifest mismatch.') return 'RESTORED_MANIFEST_MISMATCH';
+  if (error?.message === 'Restored snapshot or sequence safety mismatch.') return 'RESTORED_SNAPSHOT_MISMATCH';
+  if (typeof error?.message === 'string' && error.message.startsWith('Recovery catalog validation failed:')) return 'RESTORED_CATALOG_MISMATCH';
+  if (error?.message === 'Reviewed migration inventory mismatch.') return 'MIGRATION_INVENTORY_MISMATCH';
   return 'UNCLASSIFIED';
 }
 
