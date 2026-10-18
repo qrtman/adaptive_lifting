@@ -1,12 +1,17 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import { Writable } from 'node:stream';
+import { Writable, Readable } from 'node:stream';
+import { createInterface } from 'node:readline';
+import { runCommand, startCommand } from './process-runner.mjs';
+import { collectCatalogEvidence, assertSyntheticCatalogFixture, collectSyntheticArchiveToc } from './catalog-evidence.mjs';
+import { evaluateBackupState } from './backup-state.mjs';
+import { reconcileArchiveToc, reconcileCatalogInventory } from './production-source.mjs';
 import { encryptArchiveStream } from './encrypt-stream.mjs';
 import { manifestCursorSql, RELATION_CATALOG_SQL } from './snapshot-capture.mjs';
 
@@ -14,6 +19,9 @@ export const IMAGE = 'supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515f
 const LABEL = 'adaptive-lifting.synthetic-recovery=true';
 const SOCKET = '/tmp';
 const DB_NAME = 'postgres';
+const commandContext = new AsyncLocalStorage();
+const WORK_MS = 8 * 60_000;
+const CLEANUP_MS = 60_000;
 
 export function assertHostedRunnerEnvironment(env = process.env, platform = process.platform) {
   if (env.GITHUB_ACTIONS !== 'true' || platform !== 'linux' || env.RUNNER_ENVIRONMENT !== 'github-hosted') {
@@ -138,7 +146,7 @@ export function commandPlan(image, names, artifact, recipient) {
     source: dockerRunArgs(names.source, image),
     restore: dockerRunArgs(names.restore, image),
     dump: ['docker', 'exec', '-i', names.source, 'pg_dump', '-h', SOCKET, '-U', 'postgres', '-d', DB_NAME,
-      '--format=custom', '--schema=synthetic_recovery'],
+      '--strict-names', '--no-password', '--file=-', '--format=custom', '--schema=synthetic_recovery'],
     encrypt: ['age', '-r', recipient, '-o', artifact],
     decrypt: ['age', '-d', '-i', '<private-key>', artifact],
     restoreCommand: ['docker', 'exec', '-i', names.restore, 'pg_restore', '-h', SOCKET, '-U', 'postgres', '-d', DB_NAME,
@@ -147,59 +155,30 @@ export function commandPlan(image, names, artifact, recipient) {
   };
 }
 
-function runCapture(binary, args, { input, cwd, safeDiagnostic = false } = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, windowsHide: true });
-    const stdout = [];
-    let stderrBytes = 0;
-    const stderrPreview = [];
-    let stderrPreviewBytes = 0;
-    let stdinError;
-    child.stdout.on('data', (chunk) => stdout.push(chunk));
-    child.stderr.on('data', (chunk) => {
-      stderrBytes += chunk.length;
-      if (safeDiagnostic && stderrPreviewBytes < 2_000) {
-        const kept = chunk.subarray(0, 2_000 - stderrPreviewBytes);
-        stderrPreview.push(kept);
-        stderrPreviewBytes += kept.length;
-      }
-    });
-    child.stdin.on('error', (error) => { stdinError = error; });
-    child.on('error', () => reject(new Error(`Could not start required command: ${binary}.`)));
-    child.on('close', (code) => {
-      if (code !== 0) {
-        const firstError = safeDiagnostic
-          ? Buffer.concat(stderrPreview).toString('utf8').split(/\r?\n/).find((line) => line.startsWith('ERROR:'))
-          : undefined;
-        const diagnostic = firstError ? `; synthetic SQL diagnostic: ${firstError.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 240)}` : '';
-        reject(new Error(`Required command failed: ${binary} (exit ${code ?? 'signal'}${diagnostic}).`));
-      }
-      else if (stdinError) reject(new Error(`Input pipe failed for required command: ${binary}.`));
-      else resolve({ stdout: Buffer.concat(stdout), stderrBytes });
-    });
-    if (input !== undefined) child.stdin.end(input);
-    else child.stdin.end();
-  });
+async function runCapture(binary, args, { input, cwd } = {}) {
+  const result = await runCommand(binary, args, { ...commandContext.getStore(), input, cwd });
+  return { ...result, stdout: Buffer.from(result.stdout), stderrBytes: Buffer.byteLength(result.stderr) };
 }
 
-function start(binary, args, { drainStdout = false } = {}) {
-  const child = spawn(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+function start(binary, args, { drainStdout = false, timeoutMs } = {}) {
+  const handle = startCommand(binary, args, { ...commandContext.getStore(), ...(timeoutMs ? { timeoutMs } : {}) });
   let stderrBytes = 0;
-  child.stderr.on('data', (chunk) => { stderrBytes += chunk.length; });
-  if (drainStdout) child.stdout.on('data', () => {});
-  const closed = new Promise((resolve, reject) => {
-    child.on('error', () => reject(new Error(`Could not start required command: ${binary}.`)));
-    child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Required command failed: ${binary} (exit ${code ?? 'signal'}).`)));
-  });
-  return { child, closed, get stderrBytes() { return stderrBytes; } };
+  handle.child?.stderr.on('data', (chunk) => { stderrBytes += chunk.length; });
+  if (drainStdout) handle.child?.stdout.on('data', () => {});
+  return { ...handle, get stderrBytes() { return stderrBytes; } };
+}
+
+export function archiveTocResult({ stdout, stderrBytes, code, signal }) {
+  if (code !== 0 || signal !== null || stderrBytes !== 0) throw new Error('Synthetic archive listing command failed or produced diagnostics.');
+  return { stdout, stderr: '', code, signal };
 }
 
 export async function pipeAndCheck(from, to) {
   try {
     await Promise.all([pipeline(from.child.stdout, to.child.stdin), from.closed, to.closed]);
   } catch (error) {
-    from.child.kill();
-    to.child.kill();
+    if (from.abort) void from.abort().catch(() => {}); else from.child.kill();
+    if (to.abort) void to.abort().catch(() => {}); else to.child.kill();
     await Promise.allSettled([from.closed, to.closed]);
     throw error;
   }
@@ -242,6 +221,11 @@ async function psql(name, sql) {
 
 const FIXTURE_SQL = `
 CREATE SCHEMA synthetic_recovery;
+CREATE ROLE al_recovery_reader NOLOGIN;
+GRANT USAGE ON SCHEMA synthetic_recovery TO al_recovery_reader;
+ALTER DEFAULT PRIVILEGES IN SCHEMA synthetic_recovery GRANT SELECT ON TABLES TO al_recovery_reader;
+CREATE TABLE synthetic_recovery.schema_migrations (version text PRIMARY KEY, statements text[] NOT NULL);
+INSERT INTO synthetic_recovery.schema_migrations VALUES ('20260102030405', ARRAY['synthetic fixture v1']);
 CREATE SEQUENCE synthetic_recovery.workout_id_seq;
 CREATE TABLE synthetic_recovery.workouts (
   id bigint PRIMARY KEY DEFAULT nextval('synthetic_recovery.workout_id_seq'),
@@ -290,8 +274,136 @@ INSERT INTO synthetic_recovery.chunk_probe SELECT * FROM synthetic_recovery.chun
 INSERT INTO synthetic_recovery.chunk_probe VALUES (1.5, E'line one\\nline two|colon:', NULL);
 `;
 
-export function chunkProbeSql() {
+export const EXPECTED_RELATIONS = Object.freeze([
+  'chunk_probe', 'idempotency_keys', 'revisions', 'schema_migrations', 'tombstones', 'workouts',
+]);
+
+export function expectedSyntheticToc() {
+  const entries = [];
+  const add = (description, tag, schema = 'synthetic_recovery', owner = 'postgres') => entries.push({ description, schema, tag, owner });
+  add('SCHEMA', 'synthetic_recovery', '-');
+  add('ACL', 'SCHEMA synthetic_recovery', '-');
+  add('FUNCTION', 'touch_workout()');
+  add('SEQUENCE', 'workout_id_seq');
+  add('SEQUENCE OWNED BY', 'workout_id_seq');
+  add('SEQUENCE SET', 'workout_id_seq');
+  add('DEFAULT', 'workouts id');
+  for (const table of EXPECTED_RELATIONS) {
+    add('TABLE', table); add('TABLE DATA', table); add('ACL', `TABLE ${table}`);
+  }
+  for (const [table, constraint] of [
+    ['workouts', 'workouts_pkey'], ['workouts', 'workouts_athlete_id_key'],
+    ['tombstones', 'tombstones_pkey'], ['revisions', 'revisions_pkey'],
+    ['schema_migrations', 'schema_migrations_pkey'], ['idempotency_keys', 'idempotency_keys_pkey'],
+  ]) add('CONSTRAINT', `${table} ${constraint}`);
+  add('INDEX', 'workouts_active_logged_at_idx');
+  add('TRIGGER', 'workouts workouts_touch');
+  add('POLICY', 'workouts workouts_owner');
+  add('ROW SECURITY', 'workouts');
+  add('DEFAULT ACL', 'DEFAULT PRIVILEGES FOR TABLES');
+  return entries;
+}
+
+async function collectFixtureCatalog(name, snapshot) {
+  const client = { query: async (sql, values) => {
+    if (values !== undefined && (values.length !== 1 || JSON.stringify(values[0]) !== '["synthetic_recovery"]')) throw new Error('Unexpected synthetic catalog parameters.');
+    const statement = values === undefined ? sql : sql.replaceAll('$1', "ARRAY['synthetic_recovery']::text[]");
+    const output = await snapshotQuery(name, `SELECT row_to_json(result)::text FROM (${statement}) result`, snapshot);
+    return { rows: output.split('\n').filter(Boolean).map((line) => JSON.parse(line)) };
+  } };
+  const evidence = await collectCatalogEvidence({ client, schemas: ['synthetic_recovery'] });
+  assertSyntheticCatalogFixture({ entries: evidence.entries, includeLedger: true, includeReader: true });
+  return evidence;
+}
+
+async function holdSnapshot(name) {
+  const holder = start('docker', ['exec', '-i', name, 'psql', '-X', '-h', SOCKET, '-U', 'postgres', '-d', DB_NAME,
+    '-v', 'ON_ERROR_STOP=1', '-A', '-t', '-q'], { timeoutMs: 600_000 });
+  const lines = createInterface({ input: holder.child.stdout });
+  const snapshot = await new Promise((resolve, reject) => {
+    lines.on('line', (line) => {
+      if (/^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/i.test(line)) resolve(line);
+    });
+    holder.closed.then(() => reject(new Error('Snapshot holder ended before export.')), reject);
+    holder.child.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SELECT pg_export_snapshot();\n');
+  });
+  return { snapshot, async close() { holder.child.stdin.end('ROLLBACK;\n'); await holder.closed; lines.close(); } };
+}
+
+async function snapshotQuery(name, sql, snapshot) {
+  if (snapshot && !/^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/i.test(snapshot)) throw new Error('Invalid synthetic snapshot.');
+  return psql(name, `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+    ${snapshot ? `SET TRANSACTION SNAPSHOT '${snapshot}';` : ''}
+    SET LOCAL TimeZone='UTC'; SET LOCAL DateStyle='ISO,YMD'; SET LOCAL extra_float_digits=3;
+    SET LOCAL bytea_output='hex'; SET LOCAL client_encoding='UTF8';
+    SET LOCAL search_path=pg_catalog;
+    ${sql}; ROLLBACK;`);
+}
+
+async function rowManifest(name, snapshot) {
+  const inventory = JSON.parse(await snapshotQuery(name, `SELECT coalesce(json_agg(c.relname ORDER BY c.relname),'[]')
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='synthetic_recovery' AND c.relkind IN ('r','p','f','m')`, snapshot));
+  if (JSON.stringify(inventory) !== JSON.stringify(EXPECTED_RELATIONS)) throw new Error('Reviewed synthetic relation inventory mismatch.');
+  const tables = [];
+  for (const table of EXPECTED_RELATIONS) {
+    const query = manifestCursorSql('synthetic_recovery', table).split(' CURSOR FOR')[1];
+    const jsonOutput = await snapshotQuery(name, `SELECT row_to_json(x)::text FROM (${query}) x`, snapshot);
+    const hash = createHash('sha256'); let count = 0; let remaining = 0;
+    for (const line of jsonOutput ? jsonOutput.split('\n') : []) {
+      const row = JSON.parse(line); const bytes = Buffer.from(row.chunk);
+      if (bytes.length > 65536 || !/^\d+$/.test(row.row_bytes)) throw new Error('Invalid manifest chunk.');
+      if (row.offset === '1') { if (remaining !== 0) throw new Error('Incomplete manifest row.'); remaining = Number(row.row_bytes); hash.update(`${remaining}:`); count++; }
+      remaining -= bytes.length; if (remaining < 0) throw new Error('Manifest framing mismatch.'); hash.update(bytes);
+    }
+    if (remaining !== 0) throw new Error('Incomplete manifest row.');
+    tables.push({ table, count, sha256: hash.digest('hex') });
+  }
+  const migrations = JSON.parse(await snapshotQuery(name, `SELECT json_agg(version ORDER BY version) FROM synthetic_recovery.schema_migrations`, snapshot));
+  if (JSON.stringify(migrations) !== '["20260102030405"]') throw new Error('Reviewed migration inventory mismatch.');
+  return { format: 'synthetic-manifest-v1', migrations, tables };
+}
+
+export const REQUIRED_CHECKS = Object.freeze([
+  'isolation', 'snapshot', 'manifest', 'manifestAuthenticated', 'archiveAuthenticated', 'corruptionRejected',
+  'syntheticReadback', 'toc', 'catalog', 'rows', 'migrations', 'sequences', 'cleanup',
+]);
+
+export function reconcileRestoredEvidence({ sourceManifest, restoredManifest, sourceRecords, restoredRecords, sourceSnapshot, restoredSnapshot } = {}) {
+  if (!sourceManifest || !restoredManifest || !sourceSnapshot || !restoredSnapshot ||
+      !Array.isArray(sourceManifest.tables) || !Array.isArray(restoredManifest.tables) ||
+      JSON.stringify(sourceManifest.tables.map((item) => item.table)) !== JSON.stringify(EXPECTED_RELATIONS) ||
+      JSON.stringify(sourceManifest.migrations) !== '["20260102030405"]' ||
+      JSON.stringify(sourceManifest) !== JSON.stringify(restoredManifest)) throw new Error('Restored row/migration manifest mismatch.');
+  reconcileCatalogInventory({ expected: sourceRecords, actual: restoredRecords });
+  if (JSON.stringify(sourceSnapshot) !== JSON.stringify(restoredSnapshot) ||
+      restoredSnapshot.sequence?.last_value !== 25 || restoredSnapshot.sequence?.is_called !== true ||
+      !Array.isArray(restoredSnapshot.workouts) ||
+      restoredSnapshot.workouts.some((row) => row.id >= restoredSnapshot.sequence.last_value)) {
+    throw new Error('Restored snapshot or sequence safety mismatch.');
+  }
+  return { rows: true, migrations: true, catalog: true, sequences: true };
+}
+
+export function finalizeEvidence({ id, startedAt, checks, failed = false, now = new Date().toISOString() }) {
+  const complete = !failed && REQUIRED_CHECKS.every((check) => checks[check] === true);
+  const attempt = { id, startedAt, completedAt: now, state: complete ? 'succeeded' : 'failed' };
+  // This is a local synthetic restore lifecycle, never an off-site upload claim.
+  const state = evaluateBackupState({ now, expectedBy: now, maxRunMs: WORK_MS,
+    attempt, point: complete ? { artifactId: id, attemptId: id, verifiedAt: now,
+      uploaded: true, readbackHashVerified: true, decryptionAuthenticated: true,
+      restoreVerified: true, reconciliationVerified: true, cleanupVerified: true } : null });
+  return { format: 'synthetic-recovery-result-v1', scope: 'isolated-synthetic-only', status: complete ? 'PASS' : 'FAIL',
+    lifecycle: state.status, productionRecovery: 'NOT TESTED', offsiteRetrieval: 'NOT TESTED',
+    pointStorage: 'synthetic-local-copy',
+    catalogCoverage: 'reviewed fixture objects and source-restored dependency equality; independent dependency inventory NOT TESTED',
+    startedAt, completedAt: now, checks: Object.fromEntries(REQUIRED_CHECKS.map((key) => [key, checks[key] === true ? 'PASS' : 'FAIL'])) };
+}
+
+export function chunkProbeSql(snapshot) {
+  if (snapshot && !/^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/i.test(snapshot)) throw new Error('Invalid synthetic snapshot.');
   return `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+    ${snapshot ? `SET TRANSACTION SNAPSHOT '${snapshot}';` : ''}
     SET LOCAL TimeZone='UTC'; SET LOCAL DateStyle='ISO, YMD'; SET LOCAL extra_float_digits=3;
     SET LOCAL bytea_output='hex'; SET LOCAL client_encoding='UTF8';
     ${manifestCursorSql('synthetic_recovery', 'chunk_probe')};
@@ -315,7 +427,7 @@ async function verifyOriginalArchiveHash(artifact, keyPath, expectedHash, expect
   try {
     await Promise.all([pipeline(decrypt.child.stdout, sink), decrypt.closed]);
   } catch {
-    decrypt.child.kill();
+    void decrypt.abort().catch(() => {});
     await Promise.allSettled([decrypt.closed]);
     throw new Error('Synthetic archive authenticated hash verification failed.');
   }
@@ -377,21 +489,37 @@ async function verifyCorruptionRejected(artifact, keyPath, dir) {
   if (code === 0) throw new Error('Corrupted backup ciphertext was accepted.');
 }
 
-function runDiscard(binary, args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { stdio: 'ignore', windowsHide: true });
-    child.on('error', () => reject(new Error(`Could not start required command: ${binary}.`)));
-    child.on('close', resolve);
-  });
+async function runDiscard(binary, args) {
+  try { await runCapture(binary, args); return 0; }
+  catch (error) { if (error.code === 'EXIT') return 1; throw error; }
 }
 
-export async function runDrill({ env = process.env, platform = process.platform } = {}) {
+export async function runDrill({ env = process.env, platform = process.platform, workMs = WORK_MS } = {}) {
+  assertHostedRunnerEnvironment(env, platform);
+  if (!Number.isSafeInteger(workMs) || workMs < 10 || workMs > WORK_MS) throw new Error('Invalid work deadline.');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), workMs);
+  const interrupt = () => controller.abort();
+  process.on('SIGTERM', interrupt); process.on('SIGINT', interrupt);
+  try {
+    return await commandContext.run({ signal: controller.signal, timeoutMs: 120_000 }, () => executeDrill({ env, platform }));
+  } finally {
+    clearTimeout(timer); process.removeListener('SIGTERM', interrupt); process.removeListener('SIGINT', interrupt);
+  }
+}
+
+async function executeDrill({ env, platform }) {
   let stage = 'hosted runner guard';
   let originalError;
   let result;
   let tempDir;
   let names;
   let encrypted;
+  let protectedManifest;
+  let holder;
+  const checks = {};
+  const id = randomUUID();
+  const startedAt = new Date().toISOString();
   const started = [];
   try {
     assertHostedRunnerEnvironment(env, platform);
@@ -429,15 +557,29 @@ export async function runDrill({ env = process.env, platform = process.platform 
     await psql(names.source, FIXTURE_SQL);
     stage = 'verify source isolation and cron after fixture SQL';
     await Promise.all([inspectContainer(names.source), assertCronDisabled(names.source)]);
-    stage = 'capture source snapshot';
-    const sourceSnapshot = JSON.parse(await psql(names.source, SNAPSHOT_SQL));
+    checks.isolation = true;
+    stage = 'hold exported source snapshot';
+    holder = await holdSnapshot(names.source);
+    checks.snapshot = true;
+    stage = 'capture complete same-snapshot source manifest';
+    const sourceManifest = await rowManifest(names.source, holder.snapshot);
+    checks.manifest = true;
+    const sourceSnapshot = JSON.parse(await snapshotQuery(names.source, SNAPSHOT_SQL, holder.snapshot));
+    const sourceEvidence = await collectFixtureCatalog(names.source, holder.snapshot);
+    stage = 'encrypt protected manifest';
+    const manifestText = JSON.stringify({ rows: sourceManifest, catalog: sourceEvidence.entries, snapshot: sourceSnapshot });
+    protectedManifest = await encryptArchiveStream(Readable.from([manifestText]), recipient, commandContext.getStore());
+    await verifyOriginalArchiveHash(protectedManifest.outputPath, keyPath, protectedManifest.archiveSha256, protectedManifest.archiveBytes);
+    const manifestReadback = await runCapture('age', ['-d', '-i', keyPath, protectedManifest.outputPath]);
+    if (manifestReadback.stdout.toString('utf8') !== manifestText) throw new Error('Protected manifest readback mismatch.');
+    checks.manifestAuthenticated = true;
     stage = 'exercise bounded manifest SQL on large UTF-8 duplicate fixture rows';
-    const sourceChunks = await psql(names.source, chunkProbeSql());
+    const sourceChunks = await psql(names.source, chunkProbeSql(holder.snapshot));
     if (!sourceChunks.includes('16385|') || !sourceChunks.includes('12345678901234567890.1234567890')) {
       throw new Error('Synthetic chunked manifest fixture was not fully exercised.');
     }
     stage = 'execute relation catalog query against synthetic PostgreSQL';
-    const sourceCatalog = JSON.parse(await psql(names.source, catalogProbeSql()));
+    const sourceCatalog = JSON.parse(await snapshotQuery(names.source, catalogProbeSql(), holder.snapshot));
     if (sourceCatalog.kind !== 'r' || !sourceCatalog.row_security ||
         !sourceCatalog.policies.some((policy) => policy.name === 'workouts_owner') ||
         !sourceCatalog.triggers.some((trigger) => trigger.name === 'workouts_touch')) {
@@ -445,21 +587,52 @@ export async function runDrill({ env = process.env, platform = process.platform 
     }
 
     stage = 'dump and encrypt synthetic fixture';
-    const dump = start('docker', commandPlan(image, names, '<ciphertext>', recipient).dump.slice(1));
+    const dump = start('docker', [...commandPlan(image, names, '<ciphertext>', recipient).dump.slice(1), `--snapshot=${holder.snapshot}`]);
     const abort = new AbortController();
-    const encryption = encryptArchiveStream(dump.child.stdout, recipient, { signal: abort.signal })
+    const encryption = encryptArchiveStream(dump.child.stdout, recipient, { ...commandContext.getStore(), signal: AbortSignal.any([abort.signal, commandContext.getStore().signal]) })
       .then((value) => { encrypted = value; return value; });
     const dumpComplete = dump.closed.catch((error) => { abort.abort(); throw error; });
     try { await Promise.all([encryption, dumpComplete]); }
     catch (error) {
-      dump.child.kill(); abort.abort();
+      void dump.abort().catch(() => {}); abort.abort();
       await Promise.allSettled([encryption, dumpComplete]);
       throw error;
     }
-    const artifact = encrypted.outputPath;
+    await holder.close(); holder = undefined;
+    stage = 'synthetic ciphertext store and independent readback';
+    const originalBytes = await readFile(encrypted.outputPath);
+    const originalCipherHash = createHash('sha256').update(originalBytes).digest('hex');
+    const artifact = join(tempDir, 'synthetic-readback.age');
+    await copyFile(encrypted.outputPath, artifact);
+    await chmod(artifact, 0o600);
+    const readback = await readFile(artifact);
+    if (readback.length !== originalBytes.length || createHash('sha256').update(readback).digest('hex') !== originalCipherHash) {
+      throw new Error('Synthetic ciphertext store readback mismatch.');
+    }
+    checks.syntheticReadback = true;
     stage = 'verify encrypted fixture and corruption rejection';
     await verifyCorruptionRejected(artifact, keyPath, tempDir);
+    checks.corruptionRejected = true;
     await verifyOriginalArchiveHash(artifact, keyPath, encrypted.archiveSha256, encrypted.archiveBytes);
+    checks.archiveAuthenticated = true;
+    stage = 'reconcile real authenticated custom archive TOC';
+    const toc = await collectSyntheticArchiveToc({ archivePath: '-', run: async (_binary, args) => {
+      if (args[0] === '--version') {
+        return archiveTocResult(await runCapture('docker', ['exec', names.source, 'pg_restore', '--version']));
+      }
+      const decrypt = start('age', ['-d', '-i', keyPath, artifact]);
+      // The collector's '-' is its stdin sentinel; omit the native filename so
+      // pg_restore reads the authenticated custom archive from the pipe.
+      const list = start('docker', ['exec', '-i', names.source, 'pg_restore', '--list']);
+      const chunks = []; let bytes = 0;
+      list.child.stdout.on('data', (chunk) => { bytes += chunk.length; if (bytes > 1024 * 1024) void list.abort().catch(() => {}); else chunks.push(chunk); });
+      await pipeAndCheck(decrypt, list);
+      return archiveTocResult({ ...await list.closed, stdout: Buffer.concat(chunks), stderrBytes: list.stderrBytes });
+    } });
+    reconcileArchiveToc({ expectedEntries: expectedSyntheticToc(), tocText: toc.tocText });
+    checks.toc = true;
+    stage = 'prepare reviewed restore role prerequisite';
+    await psql(names.restore, 'CREATE ROLE al_recovery_reader NOLOGIN;');
 
     stage = 'verify restore target isolation and cron before restore';
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
@@ -471,7 +644,10 @@ export async function runDrill({ env = process.env, platform = process.platform 
     await Promise.all([inspectContainer(names.restore), assertCronDisabled(names.restore)]);
     stage = 'compare restored fixture snapshot';
     const restoredSnapshot = JSON.parse(await psql(names.restore, SNAPSHOT_SQL));
-    if (JSON.stringify(sourceSnapshot) !== JSON.stringify(restoredSnapshot)) throw new Error('Restored synthetic fixture does not match the source snapshot.');
+    const restoredManifest = await rowManifest(names.restore);
+    const restoredEvidence = await collectFixtureCatalog(names.restore);
+    Object.assign(checks, reconcileRestoredEvidence({ sourceManifest, restoredManifest, sourceRecords: sourceEvidence.records,
+      restoredRecords: restoredEvidence.records, sourceSnapshot, restoredSnapshot }));
     stage = 'compare restored bounded manifest fixture chunks';
     if (await psql(names.restore, chunkProbeSql()) !== sourceChunks) throw new Error('Restored chunked manifest differs from source.');
     stage = 'compare restored relation catalog metadata';
@@ -486,6 +662,7 @@ export async function runDrill({ env = process.env, platform = process.platform 
         'rows, revisions, tombstones, idempotency, sequence, constraints, and indexes match',
         'relation catalog SQL and restored ownership/RLS/columns/constraints/indexes/triggers/policies match'],
       artifact_bytes: (await stat(artifact)).size,
+      artifact_sha256: createHash('sha256').update(await readFile(artifact)).digest('hex'),
       source: names.source,
       restore: names.restore,
     };
@@ -494,27 +671,38 @@ export async function runDrill({ env = process.env, platform = process.platform 
   }
 
   const cleanupErrors = [];
-  if (started.length) {
-    try { await cleanupOwnedContainers(started); } catch (error) {
-      cleanupErrors.push(...(error instanceof AggregateError ? error.errors : [error]));
+  const cleanupController = new AbortController();
+  const cleanupTimer = setTimeout(() => cleanupController.abort(), CLEANUP_MS);
+  await commandContext.run({ signal: cleanupController.signal, timeoutMs: 15_000 }, async () => {
+    if (holder) { try { await holder.close(); } catch { cleanupErrors.push(new Error('Snapshot holder cleanup failed.')); } }
+    if (started.length) {
+      try { await cleanupOwnedContainers(started); } catch (error) {
+        cleanupErrors.push(...(error instanceof AggregateError ? error.errors : [error]));
+      }
     }
-  }
-  if (tempDir) {
-    try { await rm(tempDir, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }
-  }
-  if (encrypted) {
-    try { await encrypted.cleanup(); } catch (error) { cleanupErrors.push(error); }
-  }
+    if (tempDir) {
+      try { await rm(tempDir, { recursive: true, force: true }); } catch { cleanupErrors.push(new Error('Private fixture directory cleanup failed.')); }
+    }
+    for (const item of [encrypted, protectedManifest]) {
+      if (item) { try { await item.cleanup(); } catch { cleanupErrors.push(new Error('Encrypted fixture cleanup failed.')); } }
+    }
+  });
+  clearTimeout(cleanupTimer);
+  if (cleanupController.signal.aborted) cleanupErrors.push(new Error('Cleanup deadline exceeded.'));
+  if (!originalError && commandContext.getStore().signal.aborted) originalError = new Error('Synthetic work interrupted or deadline exceeded.');
+  checks.cleanup = cleanupErrors.length === 0;
   const finalError = combineRunErrors(stage, originalError, cleanupErrors);
-  if (finalError) throw finalError;
-  return result;
+  const envelope = finalizeEvidence({ id, startedAt, checks, failed: Boolean(finalError) });
+  if (finalError) { finalError.evidence = { ...envelope, failedStage: stage }; throw finalError; }
+  if (envelope.status !== 'PASS') { const error = new Error('Synthetic recovery evidence is incomplete.'); error.evidence = envelope; throw error; }
+  return { ...envelope, image: result.image, artifact_bytes: result.artifact_bytes, artifact_sha256: result.artifact_sha256 };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   runDrill().then((result) => {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   }).catch((error) => {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(`${JSON.stringify(error.evidence ?? { status: 'FAIL', lifecycle: 'failed', error: 'Synthetic recovery failed before capture.' }, null, 2)}\n`);
     process.exitCode = 1;
   });
 }

@@ -16,9 +16,105 @@ import {
   pipeAndCheck,
   safeContainerSummary,
   runDrill,
+  REQUIRED_CHECKS,
+  finalizeEvidence,
+  expectedSyntheticToc,
+  EXPECTED_RELATIONS,
+  reconcileRestoredEvidence,
+  archiveTocResult,
 } from './synthetic-drill.mjs';
+import { collectSyntheticArchiveToc } from './catalog-evidence.mjs';
+import { parseArchiveToc, reconcileArchiveToc } from './production-source.mjs';
 
 const image = IMAGE;
+
+test('reviewed ACL entries match PostgreSQL 17 namespace and type-prefixed tag formatting', () => {
+  // pg_dump.c dumpACL supplies namespace separately and tags each ACL with
+  // type + name. The schema object itself has no namespace.
+  const parsed = parseArchiveToc('1; 0 0 ACL - SCHEMA synthetic_recovery postgres\n' +
+    '2; 0 0 ACL synthetic_recovery TABLE workouts postgres\n');
+  const expected = expectedSyntheticToc().filter((entry) => entry.description === 'ACL' &&
+    (entry.tag === 'SCHEMA synthetic_recovery' || entry.tag === 'TABLE workouts'));
+  assert.deepEqual(parsed, expected);
+});
+
+test('validated inline fixture CHECKs stay in TABLE definitions and unexpected separate entries fail', () => {
+  // PostgreSQL 17 emits CHECK CONSTRAINT entries only when a CHECK must be
+  // separate; this fixture uses validated inline CHECKs without dependency cycles.
+  assert.ok(!expectedSyntheticToc().some((entry) => entry.description === 'CHECK CONSTRAINT'));
+  assert.throws(() => reconcileArchiveToc({
+    expectedEntries: [{ description: 'TABLE', schema: 'synthetic_recovery', tag: 'workouts', owner: 'postgres' }],
+    tocText: '1; 1259 123 TABLE synthetic_recovery workouts postgres\n' +
+      '2; 2606 124 CHECK CONSTRAINT synthetic_recovery workouts workouts_load_kg_check postgres\n',
+  }), /unexpected=1/);
+});
+
+test('injected TOC runner preserves exact exit evidence and rejects any stderr or signal', async () => {
+  const calls = [];
+  const result = await collectSyntheticArchiveToc({ archivePath: '-', run: async (binary, args) => {
+    calls.push([binary, ...args]);
+    return archiveTocResult({ stdout: args[0] === '--version' ? 'pg_restore (PostgreSQL) 17.6\n' :
+      '1; 2615 123 SCHEMA - synthetic_recovery postgres\n', stderrBytes: 0, code: 0, signal: null });
+  } });
+  assert.equal(result.entries.length, 1);
+  assert.deepEqual(calls, [['pg_restore', '--version'], ['pg_restore', '--list', '-']]);
+  for (const override of [{ stderrBytes: 1 }, { code: 1 }, { code: null }, { signal: 'SIGTERM' }, { signal: undefined }]) {
+    assert.throws(() => archiveTocResult({ stdout: 'sensitive', stderrBytes: 0, code: 0, signal: null, ...override }),
+      { message: 'Synthetic archive listing command failed or produced diagnostics.' });
+  }
+});
+
+test('integrated restored evidence rejects missing rows, ledger, catalog, sequence and changed values', () => {
+  const manifest = { migrations: ['20260102030405'], tables: EXPECTED_RELATIONS.map((table) => ({ table, count: 1, sha256: 'a'.repeat(64) })) };
+  const records = [{ kind: 'TABLE', schema: 'synthetic_recovery', identity: 'workouts', definitionSha256: 'a'.repeat(64) }];
+  const snapshot = { sequence: { last_value: 25, is_called: true }, workouts: [{ id: 12, load_kg: 60 }] };
+  const input = { sourceManifest: manifest, restoredManifest: structuredClone(manifest), sourceRecords: records,
+    restoredRecords: structuredClone(records), sourceSnapshot: snapshot, restoredSnapshot: structuredClone(snapshot) };
+  assert.deepEqual(reconcileRestoredEvidence(input), { rows: true, migrations: true, catalog: true, sequences: true });
+  for (const mutate of [
+    (value) => { value.restoredManifest = undefined; },
+    (value) => { value.restoredManifest.tables.pop(); },
+    (value) => { value.restoredManifest.tables[0].count++; },
+    (value) => { value.restoredManifest.tables[0].sha256 = 'b'.repeat(64); },
+    (value) => { value.restoredManifest.migrations = []; },
+    (value) => { value.restoredRecords = []; },
+    (value) => { value.restoredRecords[0].definitionSha256 = 'b'.repeat(64); },
+    (value) => { value.restoredSnapshot.sequence.last_value = 12; },
+    (value) => { value.restoredSnapshot.workouts[0].load_kg = 61; },
+  ]) {
+    const changed = structuredClone(input); mutate(changed);
+    assert.throws(() => reconcileRestoredEvidence(changed));
+  }
+});
+
+test('one sanitized envelope requires every integrated assertion and cleanup before verified', () => {
+  const complete = Object.fromEntries(REQUIRED_CHECKS.map((key) => [key, true]));
+  const input = { id: 'synthetic-test', startedAt: '2026-01-01T00:00:00Z', now: '2026-01-01T00:01:00Z' };
+  assert.equal(finalizeEvidence({ ...input, checks: complete }).lifecycle, 'verified');
+  for (const key of REQUIRED_CHECKS) {
+    for (const value of [false, undefined, 'PASS', 1]) {
+      const result = finalizeEvidence({ ...input, checks: { ...complete, [key]: value } });
+      assert.equal(result.status, 'FAIL', key);
+      assert.equal(result.lifecycle, 'failed', key);
+    }
+  }
+  for (const reason of ['mismatch', 'unauthenticated', 'timeout', 'SIGTERM', 'cleanup failure']) {
+    const result = finalizeEvidence({ ...input, checks: complete, failed: true });
+    assert.equal(result.lifecycle, 'failed', reason);
+    assert.equal(result.productionRecovery, 'NOT TESTED');
+    assert.equal(result.offsiteRetrieval, 'NOT TESTED');
+  }
+});
+
+test('reviewed fixture inventories include ledger, all data, sequences, policies and ACLs independently', () => {
+  const entries = expectedSyntheticToc();
+  for (const table of EXPECTED_RELATIONS) assert.ok(entries.some((entry) => entry.description === 'TABLE DATA' && entry.tag === table));
+  for (const description of ['SEQUENCE SET', 'ROW SECURITY', 'POLICY', 'TRIGGER', 'DEFAULT ACL', 'ACL']) {
+    assert.ok(entries.some((entry) => entry.description === description));
+  }
+  assert.equal(entries.filter((entry) => entry.description === 'TABLE').length, 6);
+  assert.equal(entries.filter((entry) => entry.description === 'TABLE DATA').length, 6);
+});
 
 test('hosted-runner guard rejects local and non-GitHub environments', () => {
   assert.doesNotThrow(() => assertHostedRunnerEnvironment({ GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted' }, 'linux'));

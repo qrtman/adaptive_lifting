@@ -16,9 +16,27 @@ path, storage access, schedule, or retention job. The hosted-runner production
 capture/storage route remains unconfigured and unexercised with production data.
 An independent workflow step checks Docker for leftover labeled test containers and
 `/tmp` for fixture/encrypted-archive temp directories even when the drill step fails.
-Any match fails the job. The synthetic command helpers still lack per-process
-deadlines; a stalled process can reach the 20-minute job timeout before that cleanup
-check, so interruption cleanup remains a reliability gap.
+Any match fails the job. The current synthetic implementation uses bounded command
+execution, an eight-minute work deadline, and a fresh one-minute cleanup deadline.
+The drill step has an eleven-minute cap inside the twenty-five-minute job, leaving time
+for the independent always-run cleanup check. Checkout, unit checks and tool
+installation also have bounded step caps below the job deadline. SIGINT/SIGTERM
+abort work; cleanup uses its own signal. Forced runner loss cannot guarantee cleanup execution.
+
+The integrated drill holds a real exported source snapshot while row manifests,
+migration-ledger and catalog/security evidence and the custom-format dump import
+it. The independently specified fixture inventory covers every synthetic table,
+archive TOC entry and user-object catalog identity. Captured dependency and extension
+records are compared source versus restore; a separately reviewed complete dependency
+identity inventory is still NOT TESTED and must not be inferred from that comparison.
+The protected manifest is streamed directly through age into mode-0600 ciphertext, authenticated and compared in memory.
+The actual encrypted dump is authenticated, inspected with PostgreSQL 17
+`pg_restore --list`, restored into the network-denied target, and compared against
+the source manifest/catalog/sequence state. Sensitive plaintext is never an artifact.
+A single sanitized result envelope remains failed unless all checks and cleanup pass.
+Its lifecycle is a local synthetic rehearsal; off-site upload/retrieval and production
+recovery remain NOT TESTED. The new integrated hosted path still requires a successful
+hosted run; pure local tests do not prove the SQL collector or exact real TOC matches.
 
 The recorded production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
