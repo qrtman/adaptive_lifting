@@ -400,6 +400,18 @@ export function finalizeEvidence({ id, startedAt, checks, failed = false, now = 
     startedAt, completedAt: now, checks: Object.fromEntries(REQUIRED_CHECKS.map((key) => [key, checks[key] === true ? 'PASS' : 'FAIL'])) };
 }
 
+// Publish only bounded error classes: command text, stderr, paths, recipients,
+// and any source-derived values must never enter workflow output.
+export function safeFailureClass(error) {
+  if (error?.name === 'ProcessCommandError' && typeof error.code === 'string' && /^[A-Z_]{2,32}$/.test(error.code)) {
+    return `PROCESS_${error.code}`;
+  }
+  if (error?.message === 'age encryption failed; source and command details were suppressed.') return 'AGE_FAILED';
+  if (error?.message === 'age encryption timed out; partial ciphertext was removed.') return 'AGE_TIMEOUT';
+  if (error?.message === 'Encryption was aborted; partial ciphertext was removed.') return 'INTERRUPTED';
+  return 'UNCLASSIFIED';
+}
+
 export function chunkProbeSql(snapshot) {
   if (snapshot && !/^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/i.test(snapshot)) throw new Error('Invalid synthetic snapshot.');
   return `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
@@ -693,7 +705,7 @@ async function executeDrill({ env, platform }) {
   checks.cleanup = cleanupErrors.length === 0;
   const finalError = combineRunErrors(stage, originalError, cleanupErrors);
   const envelope = finalizeEvidence({ id, startedAt, checks, failed: Boolean(finalError) });
-  if (finalError) { finalError.evidence = { ...envelope, failedStage: stage }; throw finalError; }
+  if (finalError) { finalError.evidence = { ...envelope, failedStage: stage, failureClass: safeFailureClass(originalError) }; throw finalError; }
   if (envelope.status !== 'PASS') { const error = new Error('Synthetic recovery evidence is incomplete.'); error.evidence = envelope; throw error; }
   return { ...envelope, image: result.image, artifact_bytes: result.artifact_bytes, artifact_sha256: result.artifact_sha256 };
 }

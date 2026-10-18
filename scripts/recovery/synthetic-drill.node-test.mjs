@@ -22,11 +22,21 @@ import {
   EXPECTED_RELATIONS,
   reconcileRestoredEvidence,
   archiveTocResult,
+  safeFailureClass,
 } from './synthetic-drill.mjs';
 import { collectSyntheticArchiveToc } from './catalog-evidence.mjs';
 import { parseArchiveToc, reconcileArchiveToc } from './production-source.mjs';
 
 const image = IMAGE;
+
+test('failure evidence exposes only bounded process and encryption classes', () => {
+  const processFailure = new Error('Recovery command failed (EXIT).');
+  processFailure.name = 'ProcessCommandError'; processFailure.code = 'EXIT';
+  assert.equal(safeFailureClass(processFailure), 'PROCESS_EXIT');
+  assert.equal(safeFailureClass(new Error('age encryption failed; source and command details were suppressed.')), 'AGE_FAILED');
+  assert.equal(safeFailureClass(new Error('age encryption timed out; partial ciphertext was removed.')), 'AGE_TIMEOUT');
+  assert.equal(safeFailureClass(new Error('secret-bearing arbitrary diagnostic')), 'UNCLASSIFIED');
+});
 
 test('reviewed ACL entries match PostgreSQL 17 namespace and type-prefixed tag formatting', () => {
   // pg_dump.c dumpACL supplies namespace separately and tags each ACL with
