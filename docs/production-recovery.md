@@ -281,8 +281,9 @@ the private identity must not be accessible to that job. A separate protected ma
 restore environment receives it only for an authorized recovery drill.
 
 Also choose/verify the dedicated private R2 destination and a bucket-scoped static
-credential, GitHub protected environment/default branch and reviewers, pinned
-toolchain, and primary/alternate alert destination. A syntactically valid prefix
+credential, GitHub protected environment with default-branch-only deployment
+restrictions, pinned toolchain, and primary/alternate alert destination. Do not
+require per-run environment reviewers for an unattended daily job. A syntactically valid prefix
 does not enforce an R2 permission boundary. Creating credentials, setting secrets,
 changing bucket protections, publishing a production workflow, and processing
 production data each require exact owner authorization; none occurred for this
@@ -621,7 +622,8 @@ synthetic recovery branch:
 - Authorize a one-time read export of production project `gadusaizqnshxqcckibq`,
   including the schemas and sensitive application data in the archive, and accept
   GitHub as the temporary processor if GitHub-hosted runners are selected.
-- Approve the exact runner/workflow ref, protected environment/reviewers, source
+- Approve the exact runner/workflow ref, protected environment with default-branch-only
+  deployment restrictions (no per-run reviewer gate for unattended scheduling), source
   credentials, bucket-scoped upload/read permissions, and the creation/configuration
   of any destination bucket or object-retention rules.
 - Name primary and alternate key custodians; approve the client-side encryption
@@ -682,11 +684,15 @@ only as captured, restore-unverified; it cannot by itself create a verified reco
 point. A partial two-object upload may leave encrypted orphan ciphertext in R2; it
 is not a committed recovery point.
 
-The prepared missed-run monitor checks the latest scheduled workflow run and
-requires its `Protected production backup` job to have succeeded. A skipped
-production job does not count as a backup. GitHub scheduled runs execute only
-from the default branch, so the workflow on this test branch has no active
-production schedule. R2 lifecycle expiration is a separate manual owner decision;
+The prepared workflows use separate opt-ins. `RECOVERY_BACKUP_ENABLED=true` allows
+an explicitly authorized default-branch manual capture. Daily schedule runs and the
+missed-run monitor additionally require `RECOVERY_BACKUP_SCHEDULE_ENABLED=true`;
+leave that variable false for the first capture. After retrieval, isolated
+restore/reconciliation and owner acceptance, a separate owner decision may enable
+the schedule variable. The monitor requires the latest scheduled workflow run and
+its `Protected production backup` job to have succeeded; a skipped production job
+does not count as a backup. GitHub scheduled runs execute only from the default
+branch, so the workflow on this test branch has no active production schedule. R2 lifecycle expiration is a separate manual owner decision;
 age-based expiry cannot preserve 14 complete points through missed or failed runs
 or pin the latest known recoverable point. Keep lifecycle disabled until an
 approved policy handles that gap.

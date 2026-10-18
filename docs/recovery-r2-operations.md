@@ -15,7 +15,12 @@ default branch. The backup and monitor workflows are being prepared on a test br
 so neither schedule will run until both workflow files have been merged to the
 repository's default branch.
 The production job also checks that the ref is the repository's default branch and
-that repository variable `RECOVERY_BACKUP_ENABLED` is exactly `true`. The CLI checks
+that repository variable `RECOVERY_BACKUP_ENABLED` is exactly `true`. Scheduled
+production runs additionally require repository variable
+`RECOVERY_BACKUP_SCHEDULE_ENABLED` to be exactly `true`; workflow dispatch on the
+default branch requires only `RECOVERY_BACKUP_ENABLED`. This permits an explicitly
+authorized first manual capture while unattended scheduling and the missed-run
+monitor remain skipped. The CLI checks
 the GitHub event payload/ref context again (for manual dispatch it compares against
 the payload's default branch; scheduled events rely on GitHub's default-branch
 schedule guarantee because their webhook payload is not applicable). The job is bound to the
@@ -23,7 +28,9 @@ schedule guarantee because their webhook payload is not applicable). The job is 
 restrictions and keep secrets in that environment. Do not require per-run human
 reviewers for this unattended daily job: required reviewers would pause each run.
 Instead, require an owner-reviewed protected workflow commit and a separate explicit
-owner activation decision before setting `RECOVERY_BACKUP_ENABLED` to `true`.
+owner activation decision before setting `RECOVERY_BACKUP_ENABLED` to `true`. Keep
+`RECOVERY_BACKUP_SCHEDULE_ENABLED` false until a captured point has passed isolated
+restore/reconciliation and the owner has accepted that evidence.
 
 `workflow_dispatch` on another branch runs only the secret-free validation job. It
 checks out the dispatched commit with checkout credentials disabled and runs local
@@ -46,7 +53,8 @@ skips or delays a scheduled run, or when the workflow is disabled. The separate 
 uses only `GITHUB_TOKEN` with `actions: read` to query the backup workflow's run
 history. At 21:17 UTC it checks that the latest scheduled run on the default branch
 is no older than 26 hours, completed successfully, and has a successful
-`Protected production backup` job. This catches a validation-only success with a
+`Protected production backup` job. It runs only when both backup variables are true,
+so it skips while scheduling is disabled. This catches a validation-only success with a
 skipped production job. A missing or stale run or unsuccessful production job fails
 the monitor so normal Actions failure notifications can fire. GitHub's schedule event
 uses the default branch; the monitor also checks the branch named by that event
@@ -88,10 +96,9 @@ and [workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs#li
 6. Configure the GitHub `production-recovery` environment with default-branch-only
    deployment restrictions and environment secrets. Do not add required reviewers
    to the unattended job. Confirm repository default-branch protection and
-   notification settings. Keep `RECOVERY_BACKUP_ENABLED` false until an
-   owner-reviewed protected workflow commit, complete authorized manual capture,
-   and isolated restore have passed; then obtain a separate explicit owner decision
-   before setting it to `true`.
+   notification settings. Require an owner-reviewed protected workflow commit.
+   Keep both `RECOVERY_BACKUP_ENABLED` and `RECOVERY_BACKUP_SCHEDULE_ENABLED` false
+   until the setup and review gates below are satisfied.
 7. Before any production capture, review the CLI, dependencies, exact database
    identity, encryption, R2 upload/readback, cleanup, and sanitized evidence. The
    current `scripts/recovery/production-backup.mjs` CLI reads only the fixed sibling
@@ -106,8 +113,14 @@ and [workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs#li
    adapters before any authorized live invocation. A successful R2 byte readback
    establishes that uploaded ciphertext bytes match; it does not establish
    authenticated decryption, restore success, or a verified recovery point.
-   Separately authorize and complete an isolated restore/reconciliation before
-   calling any point recoverable. No live run is authorized by this document.
+   After the fixed inventory is independently reviewed and checked in, the owner may
+   separately authorize a first manual capture: set `RECOVERY_BACKUP_ENABLED` true
+   while keeping `RECOVERY_BACKUP_SCHEDULE_ENABLED` false, then dispatch only from
+   the default branch. This does not activate the daily schedule or monitor. Retrieve
+   the point and complete isolated restore/reconciliation and owner acceptance before
+   calling it recoverable. Only then, after a separate owner decision, set
+   `RECOVERY_BACKUP_SCHEDULE_ENABLED` true to allow daily scheduled runs and the
+   missed-run monitor. No live run or activation is authorized by this document.
 
 The prepared runner verifies age 1.3.1 against its release archive SHA-256, installs
 the PostgreSQL 17 client from the signed PostgreSQL Apt repository after checking its
@@ -175,6 +188,10 @@ deletion logic to the backup workflow.
 ## Current readiness
 
 - Workflow is prepared but gated; production execution has not been enabled.
+- `RECOVERY_BACKUP_ENABLED` controls authorized default-branch manual capture and
+  is required for all production runs. `RECOVERY_BACKUP_SCHEDULE_ENABLED` is a
+  separate opt-in required by the daily schedule and missed-run monitor; leave it
+  false until a manually captured point is restored/reconciled and accepted.
 - The workflow lives on a test branch and its schedule will not execute until merged
   to the repository's default branch.
 - The CLI can call the tested orchestrator only when an independently reviewed
