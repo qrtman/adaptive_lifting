@@ -94,15 +94,17 @@ and [workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs#li
    before setting it to `true`.
 7. Before any production capture, review the CLI, dependencies, exact database
    identity, encryption, R2 upload/readback, cleanup, and sanitized evidence. The
-   current `scripts/recovery/production-backup.mjs` command is an intentional
-   preflight stub: it exits before connecting and does not invoke the backup
-   orchestrator. Production capture therefore cannot run, even if credentials are
-   later supplied. Completion requires both a protected, independently reviewed
-   production relation/version inventory and reviewed CLI wiring that derives the
-   GitHub event gate internally before calling the orchestrator; caller-supplied
-   booleans are not proof of workflow context. Test that wiring with injected
-   synthetic adapters before any authorized live invocation. A successful R2 byte
-   readback establishes that uploaded ciphertext bytes match; it does not establish
+   current `scripts/recovery/production-backup.mjs` CLI reads only the fixed sibling
+   file `scripts/recovery/production-release-inventory.json`, validates its exact
+   pinned source/schema/relation/version fields, derives the GitHub event gate
+   internally, and then calls the backup orchestrator. That inventory file is
+   currently absent, so the CLI exits before connecting and production capture
+   cannot run, even if credentials are later supplied. Create and independently
+   review the exact deployed production inventory and migration version list before
+   adding that file in a protected commit. Caller-supplied booleans are not proof of
+   workflow context. Test the CLI path with synthetic inventory and injected
+   adapters before any authorized live invocation. A successful R2 byte readback
+   establishes that uploaded ciphertext bytes match; it does not establish
    authenticated decryption, restore success, or a verified recovery point.
    Separately authorize and complete an isolated restore/reconciliation before
    calling any point recoverable. No live run is authorized by this document.
@@ -175,9 +177,10 @@ deletion logic to the backup workflow.
 - Workflow is prepared but gated; production execution has not been enabled.
 - The workflow lives on a test branch and its schedule will not execute until merged
   to the repository's default branch.
-- The CLI currently fails closed until an independently reviewed production
-  relation/version inventory is supplied. A successful ciphertext readback would
-  still not mean that a restore was verified.
+- The CLI can call the tested orchestrator only when an independently reviewed
+  production relation/version inventory is checked in at its fixed path. That file
+  is absent, so it currently fails closed before a source connection. A successful
+  ciphertext readback would still not mean that a restore was verified.
 - GitHub environment protections, secrets, variables, and alerts are not configured
   by this change.
 - No R2 provisioning, credential changes, lifecycle rule, object reads/writes, or

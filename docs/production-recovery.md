@@ -669,16 +669,18 @@ exports, or schedule activation.
 
 The prepared workflow describes a pinned production PostgreSQL capture, encryption
 of a custom archive and sensitive manifest to the public age recipient, and
-conditional R2 upload with independent readback. The current CLI is an intentional
-preflight stub: it accepts only schedule or default-branch manual dispatch, then
-exits before connecting and never calls the backup orchestrator. Completing capture
-requires both a complete independently reviewed production relation/migration
-inventory and trusted CLI wiring that derives the workflow event gate internally.
-Do not set `RECOVERY_BACKUP_ENABLED=true` or configure production secrets until
-those engineering blockers and the separate approvals are resolved. Any successful
-encrypted upload would be classified only as captured, restore-unverified; it
-cannot by itself create a verified recovery point. A partial two-object upload may
-leave encrypted orphan ciphertext in R2; it is not a committed recovery point.
+conditional R2 upload with independent readback. The CLI now calls the existing
+backup orchestrator only after it loads and strictly validates the fixed sibling
+`scripts/recovery/production-release-inventory.json` and derives the workflow event
+gate internally. That inventory file is absent, so the CLI currently exits before
+connecting. Completing capture still requires the exact deployed production
+relation/migration inventory, added and independently reviewed in a protected
+commit, plus separate production authorizations. Do not set
+`RECOVERY_BACKUP_ENABLED=true` or configure production secrets until those blockers
+and approvals are resolved. Any successful encrypted upload would be classified
+only as captured, restore-unverified; it cannot by itself create a verified recovery
+point. A partial two-object upload may leave encrypted orphan ciphertext in R2; it
+is not a committed recovery point.
 
 The prepared missed-run monitor checks the latest scheduled workflow run and
 requires its `Protected production backup` job to have succeeded. A skipped

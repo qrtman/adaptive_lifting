@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 import {
   PRODUCTION_SOURCE,
   assertHostedLinux,
@@ -17,6 +17,10 @@ const SCHEMAS = Object.freeze(['public', 'al_private', 'supabase_migrations']);
 const TARGET_FIELDS = Object.freeze(['project', 'host', 'port', 'user', 'database', 'majorVersion']);
 const ALLOWED_EVENTS = new Set(['schedule', 'workflow_dispatch']);
 const MODULE_PATH = resolve(fileURLToPath(import.meta.url));
+export const PRODUCTION_RELEASE_INVENTORY_PATH = join(dirname(MODULE_PATH), 'production-release-inventory.json');
+const INVENTORY_FORMAT = 'adaptive-production-release-v1';
+const MAX_INVENTORY_RELATIONS = 100_000;
+const MAX_INVENTORY_VERSIONS = 10_000;
 
 function sameTarget(candidate) {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
@@ -72,6 +76,87 @@ function artifactHandle(value) {
 function validUploadResult(result, key) {
   return result && result.key === key && Number.isSafeInteger(result.size) && result.size >= 0 &&
     typeof result.sha256 === 'string' && /^[a-f0-9]{64}$/.test(result.sha256) && result.byteVerified === true;
+}
+
+const exactKeys = (value, fields) => value !== null && typeof value === 'object' && !Array.isArray(value) &&
+  Object.keys(value).sort().join('\0') === [...fields].sort().join('\0');
+
+/** Parse a committed, independently reviewed production release inventory. */
+export function parseProductionReleaseInventory(input) {
+  let inventory = input;
+  if (typeof inventory === 'string' || Buffer.isBuffer(inventory)) {
+    try { inventory = JSON.parse(inventory.toString()); }
+    catch { throw new Error('Blocked: production release inventory JSON is invalid.'); }
+  }
+  if (!exactKeys(inventory, ['format', 'source', 'schemas', 'expectedRelations', 'expectedVersions']) ||
+      inventory.format !== INVENTORY_FORMAT || !sameTarget(inventory.source) ||
+      JSON.stringify(inventory.schemas) !== JSON.stringify(SCHEMAS)) {
+    throw new Error('Blocked: production release inventory shape or pinned target is invalid.');
+  }
+  const { expectedRelations, expectedVersions } = inventory;
+  if (!Array.isArray(expectedRelations) || expectedRelations.length === 0 ||
+      expectedRelations.length > MAX_INVENTORY_RELATIONS ||
+      !Array.isArray(expectedVersions) || expectedVersions.length === 0 ||
+      expectedVersions.length > MAX_INVENTORY_VERSIONS) {
+    throw new Error('Blocked: production release inventory is empty or exceeds supported bounds.');
+  }
+  const seenRelations = new Set();
+  for (const relation of expectedRelations) {
+    if (!exactKeys(relation, ['schema', 'name', 'kind', 'persistence', 'inherited']) ||
+        !SCHEMAS.includes(relation.schema) || typeof relation.name !== 'string' ||
+        !/^[A-Za-z_][A-Za-z0-9_$]{0,62}$/.test(relation.name) || relation.kind !== 'r' ||
+        relation.persistence !== 'p' || relation.inherited !== false) {
+      throw new Error('Blocked: production release relation inventory is malformed or unsupported.');
+    }
+    const key = `${relation.schema}\0${relation.name}`;
+    if (seenRelations.has(key)) throw new Error('Blocked: production release relation inventory contains duplicates.');
+    seenRelations.add(key);
+  }
+  let previousVersion = '';
+  for (const version of expectedVersions) {
+    if (typeof version !== 'string' || !/^\d{14}$/.test(version) || version <= previousVersion) {
+      throw new Error('Blocked: production release migration versions must be unique and sorted.');
+    }
+    previousVersion = version;
+  }
+  return Object.freeze({
+    format: INVENTORY_FORMAT,
+    source: PRODUCTION_SOURCE,
+    schemas: SCHEMAS,
+    expectedRelations: Object.freeze(expectedRelations.map((relation) => Object.freeze({ ...relation }))),
+    expectedVersions: Object.freeze([...expectedVersions]),
+  });
+}
+
+export function buildProductionBackupCliOptions({ env, platform, eventPayload, inventory }) {
+  assertHostedLinux(env, platform);
+  if (env.RECOVERY_BACKUP_ENABLED !== 'true') throw new Error('Production backup opt-in is disabled.');
+  const eventGate = deriveGitHubDefaultBranchGate({ env, eventPayload });
+  if (!eventGate) throw new Error('GitHub event/ref does not identify an allowed default-branch run.');
+  if (!validRecipient(env.RECOVERY_AGE_RECIPIENT) || privateIdentityPresent(env)) {
+    throw new Error('Recipient-only age encryption configuration is required.');
+  }
+  const r2 = {
+    accountId: env.RECOVERY_R2_ACCOUNT_ID,
+    bucket: env.RECOVERY_R2_BUCKET,
+    prefix: env.RECOVERY_R2_PREFIX,
+  };
+  storageTarget(r2);
+  if (typeof env.AWS_ACCESS_KEY_ID !== 'string' || !env.AWS_ACCESS_KEY_ID.trim() ||
+      typeof env.AWS_SECRET_ACCESS_KEY !== 'string' || !env.AWS_SECRET_ACCESS_KEY.trim()) {
+    throw new Error('Protected R2 credentials are unavailable.');
+  }
+  const reviewed = parseProductionReleaseInventory(inventory);
+  return Object.freeze({
+    env,
+    platform,
+    eventGate,
+    sourceTarget: PRODUCTION_SOURCE,
+    expectedRelations: reviewed.expectedRelations,
+    expectedVersions: reviewed.expectedVersions,
+    r2: Object.freeze(r2),
+    recipient: env.RECOVERY_AGE_RECIPIENT,
+  });
 }
 
 /**
@@ -196,45 +281,50 @@ export async function runProductionBackup({
   }
 }
 
-export async function runProductionBackupCli({ env = process.env, platform = process.platform } = {}) {
-  try {
-    assertHostedLinux(env, platform);
-    if (env.RECOVERY_BACKUP_ENABLED !== 'true') throw new Error('Explicit production backup opt-in is disabled.');
-    if (typeof env.GITHUB_EVENT_PATH !== 'string' || !env.GITHUB_EVENT_PATH) {
-      throw new Error('GitHub event payload is unavailable.');
-    }
-    let eventPayload;
-    try { eventPayload = JSON.parse(await readFile(env.GITHUB_EVENT_PATH, 'utf8')); }
-    catch { throw new Error('GitHub event payload could not be validated.'); }
-    if (!deriveGitHubDefaultBranchGate({ env, eventPayload })) {
-      throw new Error('GitHub event/ref does not identify an allowed default-branch run.');
-    }
-    if (!validRecipient(env.RECOVERY_AGE_RECIPIENT) || privateIdentityPresent(env)) {
-      throw new Error('Recipient-only age encryption configuration is required.');
-    }
-    const r2 = {
-      accountId: env.RECOVERY_R2_ACCOUNT_ID,
-      bucket: env.RECOVERY_R2_BUCKET,
-      prefix: env.RECOVERY_R2_PREFIX,
-    };
-    storageTarget(r2);
-    if (typeof env.AWS_ACCESS_KEY_ID !== 'string' || !env.AWS_ACCESS_KEY_ID.trim() ||
-        typeof env.AWS_SECRET_ACCESS_KEY !== 'string' || !env.AWS_SECRET_ACCESS_KEY.trim()) {
-      throw new Error('Protected R2 credentials are unavailable.');
-    }
+async function readGitHubEventPayload(env) {
+  if (env.GITHUB_EVENT_NAME === 'schedule') return {};
+  if (typeof env.GITHUB_EVENT_PATH !== 'string' || !env.GITHUB_EVENT_PATH) {
+    throw new Error('GitHub event payload is unavailable.');
+  }
+  try { return JSON.parse(await readFile(env.GITHUB_EVENT_PATH, 'utf8')); }
+  catch { throw new Error('GitHub event payload could not be validated.'); }
+}
 
-    // The tracked repo contains synthetic fixtures and migration source files,
-    // but no independently reviewed, complete production relation inventory
-    // plus exact deployed migration release list. Deriving either from the live
-    // source would compare the source to itself, so this CLI intentionally stops
-    // before connection until a reviewed static inventory is added.
-    throw new Error('Blocked: no independently reviewed production release inventory is available; no source connection was attempted.');
+export async function loadProductionReleaseInventory() {
+  let content;
+  try { content = await readFile(PRODUCTION_RELEASE_INVENTORY_PATH, 'utf8'); }
+  catch { throw new Error('Blocked: committed production release inventory is unavailable; no source connection was attempted.'); }
+  try { return parseProductionReleaseInventory(content); }
+  catch (error) {
+    if (typeof error?.message === 'string' && error.message.startsWith('Blocked:')) throw error;
+    throw new Error('Blocked: committed production release inventory is invalid; no source connection was attempted.');
+  }
+}
+
+export async function runProductionBackupCli({
+  env = process.env,
+  platform = process.platform,
+  preflightOnly = false,
+  readEventPayload = readGitHubEventPayload,
+  loadInventory = loadProductionReleaseInventory,
+  backupRunner = runProductionBackup,
+} = {}) {
+  try {
+    if (typeof loadInventory !== 'function' || typeof readEventPayload !== 'function' || typeof backupRunner !== 'function') {
+      throw new Error('CLI adapters are invalid.');
+    }
+    const eventPayload = await readEventPayload(env);
+    const inventory = await loadInventory();
+    const options = buildProductionBackupCliOptions({ env, platform, eventPayload, inventory });
+    if (preflightOnly) return Object.freeze({ ok: true, status: 'preflight-passed' });
+    const result = await backupRunner(options);
+    if (result?.status !== 'captured-restore-unverified') throw new Error('Backup did not complete with verified object readbacks.');
+    return Object.freeze({ ok: true, status: 'captured-restore-unverified' });
   } catch (error) {
     const message = typeof error?.message === 'string' && error.message.startsWith('Blocked:')
       ? error.message
-      : 'Production backup CLI preflight failed; protected details were suppressed.';
-    process.stderr.write(`${message}\n`);
-    process.exitCode = 1;
+      : 'Production backup CLI failed; protected details were suppressed.';
+    return Object.freeze({ ok: false, error: message });
   }
 }
 
@@ -243,6 +333,11 @@ if (process.argv[1] && resolve(process.argv[1]) === MODULE_PATH) {
     process.stderr.write('Production backup CLI arguments are invalid.\n');
     process.exitCode = 1;
   } else {
-    await runProductionBackupCli();
+    const result = await runProductionBackupCli({ preflightOnly: process.argv.includes('--preflight') });
+    if (result.ok) process.stdout.write(`Production backup status: ${result.status}\n`);
+    else {
+      process.stderr.write(`${result.error}\n`);
+      process.exitCode = 1;
+    }
   }
 }
