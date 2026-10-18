@@ -47,3 +47,11 @@ jobs:
       - name: Run isolated synthetic encrypted backup and restore
         shell: bash
         run: node scripts/recovery/synthetic-drill.mjs
+      - name: Independently verify temporary fixture cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          containers="$(docker ps -aq --filter label=adaptive-lifting.synthetic-recovery=true)"
+          test -z "$containers"
+          leftover_dir="$(find /tmp -maxdepth 1 -type d \( -name 'al-synthetic-recovery-*' -o -name 'adaptive-age-*' \) -print -quit)"
+          test -z "$leftover_dir"

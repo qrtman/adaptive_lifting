@@ -14,6 +14,9 @@ mutations, or R2, and does not establish production recoverability. The active
 recovery-test branch and synthetic fixtures. It has no production credentials, data
 path, storage access, schedule, or retention job. The hosted-runner production
 capture/storage route remains unconfigured and unexercised with production data.
+After the synthetic drill reports PASS, a separate workflow step checks Docker for
+leftover labeled test containers and `/tmp` for fixture/encrypted-archive temp
+directories. Any match fails the job.
 
 The recorded production target is `gadusaizqnshxqcckibq`, already initialized
 with the 63 migrations. **Do not bootstrap it, reapply those migrations, repair its
