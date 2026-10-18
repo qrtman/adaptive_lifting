@@ -171,6 +171,13 @@ clients; running those tests on the PC does not create a database or private key
   It has no CLI entrypoint or workflow and has not connected to production. The
   source user is privileged; provisioning or using it needs the exact owner
   authorization described below.
+- `backup-state.mjs`: a pure status classifier distinguishes pending, running,
+  failed, verified, and overdue attempts. A point counts as verified only when the
+  latest attempt has matching uploaded-object readback, authenticated decryption,
+  isolated restore, reconciliation, and cleanup evidence. An older successful point
+  cannot mask a newer failure. No scheduler, production evidence store, or alert
+  integration is configured; those still need approval and implementation against
+  the chosen storage provider.
 
 These components do **not** constitute a complete production backup implementation.
 The per-table catalog snapshot now records a digest of every complete migration-ledger
@@ -190,7 +197,7 @@ Code-only verification:
 node --test scripts/recovery/*.node-test.mjs
 ```
 
-Current local component checkpoint, verified 2026-10-18: **60/60 Node tests PASS**
+Current local component checkpoint, verified 2026-10-18: **66/66 Node tests PASS**
 across all recovery unit-test files. The synthetic drill imports `encrypt-stream.mjs`
 and `snapshot-capture.mjs`; the independent `ciphertext-store.mjs` component
 implements the documented R2 ciphertext transfer boundary. The branch-scoped
