@@ -147,18 +147,33 @@ export function commandPlan(image, names, artifact, recipient) {
   };
 }
 
-function runCapture(binary, args, { input, cwd } = {}) {
+function runCapture(binary, args, { input, cwd, safeDiagnostic = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, windowsHide: true });
     const stdout = [];
     let stderrBytes = 0;
+    const stderrPreview = [];
+    let stderrPreviewBytes = 0;
     let stdinError;
     child.stdout.on('data', (chunk) => stdout.push(chunk));
-    child.stderr.on('data', (chunk) => { stderrBytes += chunk.length; });
+    child.stderr.on('data', (chunk) => {
+      stderrBytes += chunk.length;
+      if (safeDiagnostic && stderrPreviewBytes < 2_000) {
+        const kept = chunk.subarray(0, 2_000 - stderrPreviewBytes);
+        stderrPreview.push(kept);
+        stderrPreviewBytes += kept.length;
+      }
+    });
     child.stdin.on('error', (error) => { stdinError = error; });
     child.on('error', () => reject(new Error(`Could not start required command: ${binary}.`)));
     child.on('close', (code) => {
-      if (code !== 0) reject(new Error(`Required command failed: ${binary} (exit ${code ?? 'signal'}).`));
+      if (code !== 0) {
+        const firstError = safeDiagnostic
+          ? Buffer.concat(stderrPreview).toString('utf8').split(/\r?\n/).find((line) => line.startsWith('ERROR:'))
+          : undefined;
+        const diagnostic = firstError ? `; synthetic SQL diagnostic: ${firstError.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 240)}` : '';
+        reject(new Error(`Required command failed: ${binary} (exit ${code ?? 'signal'}${diagnostic}).`));
+      }
       else if (stdinError) reject(new Error(`Input pipe failed for required command: ${binary}.`));
       else resolve({ stdout: Buffer.concat(stdout), stderrBytes });
     });
@@ -221,7 +236,7 @@ async function cleanupOwnedContainers(names) {
 
 async function psql(name, sql) {
   const { stdout } = await docker(['exec', '-i', name, 'psql', '-X', '-h', SOCKET, '-U', 'postgres', '-d', DB_NAME,
-    '-v', 'ON_ERROR_STOP=1', '-A', '-t', '-q'], { input: sql });
+    '-v', 'ON_ERROR_STOP=1', '-A', '-t', '-q'], { input: sql, safeDiagnostic: true });
   return stdout.toString('utf8').trim();
 }
 
