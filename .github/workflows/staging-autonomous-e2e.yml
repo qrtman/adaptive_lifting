@@ -31,19 +31,6 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Check frontend types
-        run: npm run lint
-      - name: Run automated regression tests
-        run: npm test
-      - name: Build frontend for credential scanning
-        run: npm run build
-      - name: Install headless Chromium
-        run: npx playwright install --with-deps chromium
-      - name: Run deployed staging browser smoke
-        run: node scripts/cloudflare-staging-smoke.mjs > staging-smoke-report.json
-      - name: Show sanitized smoke results
-        if: success()
-        run: cat staging-smoke-report.json
       - name: Install Supabase database root CA for verified TLS
         run: |
           curl --fail --silent --show-error --location --retry 3 \
@@ -51,6 +38,34 @@ jobs:
             --output supabase-root-ca-2021.crt
           openssl x509 -in supabase-root-ca-2021.crt -noout -checkend 86400
           openssl x509 -in supabase-root-ca-2021.crt -noout -subject -nameopt RFC2253 | grep -F 'CN=Supabase Root 2021 CA'
+      - name: Derive staging offline authorization public key
+        id: staging-offline-key
+        env:
+          STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/supabase-root-ca-2021.crt
+        run: node scripts/derive-staging-offline-public-key.mjs
+      - name: Check frontend types
+        run: npm run lint
+      - name: Run automated regression tests
+        run: npm test
+      - name: Build frontend for credential scanning
+        env:
+          VITE_OFFLINE_AUTH_PUBLIC_KEY: ${{ steps.staging-offline-key.outputs.public_key }}
+        run: npm run build
+      - name: Verify staging-only Worker deploy target
+        run: node -e "const c=JSON.parse(require('node:fs').readFileSync('wrangler.jsonc','utf8')); if(c.name!=='adaptive-lifting-staging'||c.vars?.SUPABASE_PROJECT_ORIGIN!=='https://admyuepbbtstayaydjmo.supabase.co') process.exit(1); console.log('Staging Worker and Supabase project target verified.');"
+      - name: Deploy frontend to staging Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config wrangler.jsonc --message "Staging offline auth E2E $GITHUB_SHA"
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run deployed staging browser smoke
+        run: node scripts/cloudflare-staging-smoke.mjs > staging-smoke-report.json
+      - name: Show sanitized smoke results
+        if: success()
+        run: cat staging-smoke-report.json
       - name: Run authenticated staging E2E
         env:
           STAGING_E2E_DATABASE_URL: ${{ secrets.STAGING_E2E_DATABASE_URL }}

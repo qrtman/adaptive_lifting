@@ -3,6 +3,7 @@ import { createHash, createPublicKey, randomBytes, randomUUID, verify as cryptoV
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { chromium, request as playwrightRequest } from '@playwright/test';
 import pg from 'pg';
+import { SignJWT, importPKCS8 } from 'jose';
 
 const { Client } = pg;
 const projectRef = 'admyuepbbtstayaydjmo';
@@ -60,6 +61,13 @@ async function cleanOwnedRows() {
   const found = await client.query('select id from public.users where email like $1', [`${manifest.namespace}-%@example.invalid`]);
   const ids = [...new Set([...(manifest.userIds ?? []), ...found.rows.map((row) => row.id)])];
   if (!ids.length) return;
+  const workspaceResult = await client.query('select id from public.workspaces where owner_user_id=any($1::text[])', [ids]);
+  manifest.workspaceIds = [...new Set([...(manifest.workspaceIds ?? []), ...workspaceResult.rows.map(row => row.id)])];
+  const grantResult = manifest.workspaceIds.length
+    ? await client.query('select id from public.access_grants where workspace_id=any($1::text[])', [manifest.workspaceIds])
+    : { rows: [] };
+  manifest.accessGrantIds = [...new Set([...(manifest.accessGrantIds ?? []), ...grantResult.rows.map(row => row.id)])];
+  await writeFile(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
   await client.query('begin');
   try {
     await client.query(`
@@ -83,23 +91,19 @@ async function cleanOwnedRows() {
     await client.query('delete from public.sync_mutations m using public.client_devices d where m.client_device_id=d.id and d.user_id=any($1::text[])', [ids]);
     await client.query('delete from public.client_devices where user_id = any($1::text[])', [ids]);
     await client.query('delete from public.sessions where user_id = any($1::text[])', [ids]);
-    const workspaceResult = await client.query('select id from public.workspaces where owner_user_id=any($1::text[])', [ids]);
-    const workspaceIds = workspaceResult.rows.map(row => row.id);
-    const grantResult = await client.query('select id from public.access_grants where workspace_id=any($1::text[])', [workspaceIds]);
-    const grantIds = grantResult.rows.map(row => row.id);
-    await client.query("delete from public.audit_events where (resource_type='Workspace' and resource_id=any($1::text[])) or (resource_type='AccessGrant' and resource_id=any($2::text[])) or (resource_type='User' and resource_id=any($3::text[]))", [workspaceIds,grantIds,ids]);
+    await client.query("delete from public.audit_events where (resource_type='Workspace' and resource_id=any($1::text[])) or (resource_type='AccessGrant' and resource_id=any($2::text[])) or (resource_type='User' and resource_id=any($3::text[]))", [manifest.workspaceIds,manifest.accessGrantIds,ids]);
     await client.query('delete from public.integration_outbox where connection_id in (select id from public.integration_connections where user_id=any($1::text[]))', [ids]);
     await client.query('delete from public.integration_connections where user_id=any($1::text[])', [ids]);
     await client.query('delete from public.oauth_states where user_id=any($1::text[])', [ids]);
     await client.query('delete from public.insight_cards where owner_user_id=any($1::text[])', [ids]);
     await client.query('delete from public.sheet_publications where coach_id=any($1::text[])', [ids]);
     await client.query('delete from public.vouchers where assigned_user_id=any($1::text[]) or redeemed_by_user_id=any($1::text[]) or created_by_user_id=any($1::text[])', [ids]);
-    await client.query('delete from public.access_grants where workspace_id=any($1::text[])', [workspaceIds]);
-    await client.query('delete from public.billing_checkout_reservations where workspace_id=any($1::text[])', [workspaceIds]);
-    await client.query('delete from public.subscriptions where workspace_id=any($1::text[])', [workspaceIds]);
-    await client.query('delete from public.billing_customers where workspace_id=any($1::text[])', [workspaceIds]);
-    await client.query('delete from public.workspace_members where workspace_id=any($1::text[]) or user_id=any($2::text[])', [workspaceIds,ids]);
-    await client.query('delete from public.workspaces where id=any($1::text[]) and owner_user_id=any($2::text[])', [workspaceIds,ids]);
+    await client.query('delete from public.access_grants where id=any($1::text[]) or workspace_id=any($2::text[])', [manifest.accessGrantIds,manifest.workspaceIds]);
+    await client.query('delete from public.billing_checkout_reservations where workspace_id=any($1::text[])', [manifest.workspaceIds]);
+    await client.query('delete from public.subscriptions where workspace_id=any($1::text[])', [manifest.workspaceIds]);
+    await client.query('delete from public.billing_customers where workspace_id=any($1::text[])', [manifest.workspaceIds]);
+    await client.query('delete from public.workspace_members where workspace_id=any($1::text[]) or user_id=any($2::text[])', [manifest.workspaceIds,ids]);
+    await client.query('delete from public.workspaces where id=any($1::text[]) and owner_user_id=any($2::text[])', [manifest.workspaceIds,ids]);
     await client.query('delete from public.users where id = any($1::text[]) and email like $2', [ids, `${manifest.namespace}-%@example.invalid`]);
     await client.query('commit');
   } catch (error) {
@@ -125,12 +129,15 @@ async function independentlyVerifyCleanup() {
       (select count(*)::int from public.client_devices where user_id = any($2::text[])) as client_devices,
       (select count(*)::int from public.day_notes where owner_id = any($2::text[])) as day_notes,
       (select count(*)::int from public.integration_connections where user_id = any($2::text[])) as integration_connections,
-      (select count(*)::int from public.workspaces where owner_user_id=any($2::text[])) as workspaces,
-      (select count(*)::int from public.workspace_members where user_id=any($2::text[])) as workspace_members,
-      (select count(*)::int from public.access_grants where workspace_id in (select id from public.workspaces where owner_user_id=any($2::text[]))) as coach_access_grants,
+      (select count(*)::int from public.workspaces where owner_user_id=any($2::text[]) or id=any($3::text[])) as workspaces,
+      (select count(*)::int from public.workspace_members where user_id=any($2::text[]) or workspace_id=any($3::text[])) as workspace_members,
+      (select count(*)::int from public.access_grants where id=any($4::text[]) or workspace_id=any($3::text[])) as coach_access_grants,
+      (select count(*)::int from public.billing_checkout_reservations where workspace_id=any($3::text[])) as billing_checkout_reservations,
+      (select count(*)::int from public.subscriptions where workspace_id=any($3::text[])) as subscriptions,
+      (select count(*)::int from public.billing_customers where workspace_id=any($3::text[])) as billing_customers,
       (select count(*)::int from public.insight_cards where owner_user_id=any($2::text[])) as insight_cards,
       (select count(*)::int from public.users where email like $1) as synthetic_users
-  `, [`${manifest.namespace}-%@example.invalid`, manifest.userIds ?? []]);
+  `, [`${manifest.namespace}-%@example.invalid`, manifest.userIds ?? [], manifest.workspaceIds ?? [], manifest.accessGrantIds ?? []]);
   const counts = query.rows[0];
   const empty = Object.values(counts).every((count) => Number(count) === 0);
   assert.ok(empty, 'Synthetic fixture cleanup did not remove all independently queried records');
@@ -260,6 +267,7 @@ async function runScenario() {
   let me = await appRequest(athletePage, 'GET', '/api/auth/me');
   assert.equal(me.status, 200);
   assert.equal(me.body.user.email, athlete.email);
+  assert.deepEqual(me.body.scopes, [athlete.userId], 'unlinked athlete offline scope must contain only the athlete plan owner');
   assert.match(me.headers.cacheControl ?? '', /private,\s*no-store/i);
   // Sanitized diagnostics for deployed backend issuance and browser persistence.
   // Do not report the JWT value or locally cached signed grant.
@@ -296,12 +304,16 @@ async function runScenario() {
   // key bytes are printed or written to reports. The exact staging DB target
   // guard has already run above. No production database is accessed.
   const keyRows = await db.query('select al_private.get_offline_auth_private_key() as private_key');
-  const privatePem = keyRows.rows[0]?.private_key ?? '';
+  let privatePem = keyRows.rows[0]?.private_key ?? '';
+  let signingKey;
+  let offlineClaims;
   if (!privatePem) {
     checks.offlineVaultSignature = 'NOT TESTED (staging Vault private key unavailable)';
     checks.offlineDeployedPublicKey = 'NOT TESTED (staging Vault private key unavailable)';
+    checks.offlineGrantScopeAndExpiry = 'NOT TESTED (staging Vault private key unavailable)';
   } else {
     const publicPem = createPublicKey(privatePem).export({ type: 'spki', format: 'pem' });
+    signingKey = await importPKCS8(privatePem, 'ES256');
     const token = await athletePage.evaluate(async () => {
       const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
       const body = await r.json().catch(() => null);
@@ -316,6 +328,11 @@ async function runScenario() {
         'sha256', Buffer.from(`${segments[0]}.${segments[1]}`),
         { key: publicPem, dsaEncoding: 'ieee-p1363' }, Buffer.from(segments[2], 'base64url'));
       checks.offlineVaultSignature = validSignature ? 'PASS' : 'FAIL (issued grant does not verify against staging Vault public key)';
+      try { offlineClaims = JSON.parse(Buffer.from(segments[1], 'base64url').toString('utf8')); } catch { offlineClaims = null; }
+      const validClaims = offlineClaims?.sub === athlete.userId && offlineClaims?.user?.id === athlete.userId &&
+        Array.isArray(offlineClaims?.scopes) && offlineClaims.scopes.length === 1 && offlineClaims.scopes[0] === athlete.userId &&
+        offlineClaims?.exp > offlineClaims?.iat && offlineClaims?.exp - offlineClaims?.iat <= 86400;
+      checks.offlineGrantScopeAndExpiry = validClaims ? 'PASS' : 'FAIL (grant scope or expiry does not match the unlinked athlete session)';
       const publicLines = publicPem.split(/\r?\n/).filter(line => line && !line.startsWith('-----'));
       const publicBase64 = publicLines.join('');
       const deployedContainsKey = await athletePage.evaluate(async ({ lines, joined }) => {
@@ -331,6 +348,7 @@ async function runScenario() {
         ? 'PASS' : 'FAIL (deployed frontend bundle does not contain the public key corresponding to staging Vault)';
     }
   }
+  privatePem = '';
 
   await athletePage.reload();
   await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible' });
@@ -450,6 +468,33 @@ async function runScenario() {
   checks.offlineAuthenticatedRestore = offlineAuthenticatedUi
     ? 'PASS'
     : 'FAIL (authenticated application did not restore after offline PWA reload)';
+  if (signingKey && offlineClaims) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const expiredGrant = await new SignJWT({ sid: offlineClaims.sid, scopes: offlineClaims.scopes, user: offlineClaims.user })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setIssuer('adaptive-lifting')
+      .setAudience('adaptive-lifting-offline')
+      .setSubject(athlete.userId)
+      .setIssuedAt(nowSeconds - 120)
+      .setExpirationTime(nowSeconds - 1)
+      .sign(signingKey);
+    await athletePage.evaluate(async token => new Promise((resolve, reject) => {
+      const open = indexedDB.open('adaptive_lifting_db');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const database = open.result;
+        const transaction = database.transaction('snapshots', 'readwrite');
+        transaction.objectStore('snapshots').put({ id: 'auth:offline-grant', data: token, updated_at: new Date().toISOString() });
+        transaction.oncomplete = () => { database.close(); resolve(true); };
+        transaction.onerror = () => { database.close(); reject(transaction.error); };
+      };
+    }), expiredGrant);
+    await athletePage.reload();
+    await athletePage.getByTestId('login-card').waitFor({ state: 'visible', timeout: 10000 });
+    checks.offlineGrantExpiryEnforced = 'PASS';
+  } else {
+    checks.offlineGrantExpiryEnforced = 'NOT TESTED (staging signing key or grant claims unavailable)';
+  }
   await athleteContext.setOffline(false);
   await athletePage.reload();
   await athletePage.getByTestId('nav-sessions').waitFor({ state: 'visible', timeout: 15000 });
@@ -471,6 +516,19 @@ async function runScenario() {
   }
   assert.ok(fullyLoggedOut, 'Logout did not clear the cookie and revoke the session within 15 seconds');
   checks.logoutRevocation = 'PASS';
+  const cachedGrantAfterLogout = await athletePage.evaluate(async () => new Promise(resolve => {
+    const open = indexedDB.open('adaptive_lifting_db');
+    open.onerror = () => resolve('ERROR');
+    open.onsuccess = () => {
+      const database = open.result;
+      if (!database.objectStoreNames.contains('snapshots')) { database.close(); resolve(null); return; }
+      const read = database.transaction('snapshots', 'readonly').objectStore('snapshots').get('auth:offline-grant');
+      read.onsuccess = () => { const value = read.result?.data ?? null; database.close(); resolve(value); };
+      read.onerror = () => { database.close(); resolve('ERROR'); };
+    };
+  }));
+  assert.equal(cachedGrantAfterLogout, null, 'Logout must remove the offline grant from IndexedDB');
+  checks.offlineGrantRevokedOnLogout = 'PASS';
 
   const coachContext = await browser.newContext({ baseURL: stagingUrl.origin, viewport: { width: 1440, height: 900 } });
   const coachPage = await coachContext.newPage();
@@ -530,7 +588,13 @@ try {
 
 if (!isCleanupOnly) {
   checks.syntheticCleanup ??= manifest ? 'NOT VERIFIED' : 'NOT NEEDED';
-  const hasFailedChecks = Object.values(checks).some((result) => String(result).startsWith('FAIL'));
+  const offlineAuthorizationChecks = [
+    'offlineGrantIssued', 'offlineGrantPersisted', 'offlineGrantMatchesIssued',
+    'offlineVaultSignature', 'offlineDeployedPublicKey', 'offlineGrantScopeAndExpiry',
+    'offlineAuthenticatedRestore', 'offlineGrantExpiryEnforced', 'offlineGrantRevokedOnLogout',
+  ];
+  const hasFailedChecks = Object.values(checks).some((result) => String(result).startsWith('FAIL')) ||
+    offlineAuthorizationChecks.some((name) => !String(checks[name] ?? '').startsWith('PASS'));
   const status = cleanupError ? 'FAIL'
     : scenarioError && /Missing required GitHub secret STAGING_E2E_DATABASE_URL/.test(scenarioError.message) ? 'BLOCKED'
     : scenarioError || hasFailedChecks ? 'FAIL' : 'PASS';
