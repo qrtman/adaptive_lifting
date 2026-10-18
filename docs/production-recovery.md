@@ -1,13 +1,12 @@
 # Production backup and recovery
 
-**HISTORICAL / EXPLORATORY RECORD — not an approved production backup design.**
-As of the authoritative [production status](PRODUCTION_STATUS.md), an
-independent encrypted production backup and isolated restore remain
-**BLOCKED / NOT TESTED**; the method, provider, storage location, and tooling
-are undecided. R2/GitHub-hosted workflows, local PostgreSQL/Docker, and
-VeraCrypt have been explored or discussed but none is selected. The notes below
-preserve synthetic engineering evidence and proposals; they are not current
-requirements or authorization. A historical hosted synthetic restore run did not use real
+**Engineering record; not production recovery evidence or activation approval.**
+As of the authoritative [production status](PRODUCTION_STATUS.md), independent
+encrypted production backup and isolated restore remain **BLOCKED / NOT TESTED**.
+The owner-selected target architecture is GitHub Actions with Cloudflare R2
+Standard, prepared but not activated or provisioned. The notes below preserve
+synthetic engineering evidence and historical proposals; they are not
+authorization. A hosted synthetic restore run did not use real
 data, production credentials, a production export, provider requests, production
 mutations, or R2, and does not establish production recoverability. The active
 `.github/workflows/recovery-synthetic-drill.yml` is restricted to this dedicated
@@ -309,7 +308,7 @@ no scheduler or cloud resource. Check measured dump size, transfer, retention
 capacity, and current quotas before choosing a storage/runner arrangement; a free
 tier is not evidence of zero charges.
 
-### Candidate: ephemeral GitHub runner + private Cloudflare R2
+### Owner-selected design: ephemeral GitHub runner + private Cloudflare R2
 
 Read-only inspection found an existing Cloudflare R2 bucket named
 `goatedmethod-production-backups`, in APAC, Standard storage, with public `r2.dev`
@@ -353,11 +352,9 @@ do not assume ordinary bucket tokens enforce a prefix boundary. Verify prefix
 restrictions are technically enforced, or use a dedicated bucket before giving a
 future job write/delete access. Do not reuse account-wide credentials.
 
-If GitHub is not an acceptable temporary processor, this option is rejected. A
-Supabase-managed paid backup/clone path can keep data within Supabase services, but
-its current plan eligibility, restore isolation, Cron/`pg_net` side effects, Vault
-key handling, and cost need separate verification before selection; native project
-clone is not automatically a safe substitute for the isolated restore drill.
+This selection is not production activation approval. If GitHub is not accepted as a
+temporary processor, pause and return for a new owner decision; do not silently switch
+to another provider or a Supabase clone path.
 
 Keep backups outside the project/database failure domain, under a dedicated
 production path with least-privilege access. Keep an independent encrypted copy.
@@ -366,33 +363,23 @@ Apply retention only after a complete new point is uploaded and readable. Keep
 enough overlap for failures and avoid including staging or historical backups in
 the production retention rule.
 
-## Recovery architecture evaluation (2026-10-18)
+## Owner-selected recovery architecture (2026-10-18)
 
-No option below is approved. Recommendation: use a dedicated private Amazon S3
-bucket in a separately controlled AWS account, with S3 Object Lock retention,
-client-side `age` encryption, and a decryption identity held in the owner's separate
-password-manager vault with a tested alternate recovery path. Use a manually
-dispatched, protected GitHub-hosted Linux runner for the first capture and isolated
-restore; the runner must have no secret except the one needed for that job, no
-pull-request trigger, and no reusable production plaintext. This favors provider and
-account separation plus deletion protection; it still trusts GitHub with transient
-plaintext and adds an AWS account/operations dependency. Do not create the bucket,
-keys, credentials, workflow secrets, or paid services until separately approved.
+The owner selected GitHub Actions with a private Cloudflare R2 Standard bucket.
+AWS is rejected. This selects the design direction only: no bucket, lifecycle rule,
+credential, GitHub secret, environment protection, or production schedule is
+configured. The prepared workflow uses client-side `age` encryption, immutable
+object keys, and ciphertext upload/readback checks. GitHub-hosted runners would
+temporarily process database plaintext during a future authorized capture, so that
+handling requires separate approval. Keep the private `age` identity outside GitHub
+and R2, with an independently tested offline recovery path.
 
-| Option | Isolation and compatibility | Encryption, custody, recovery | Ongoing cost / operational trade-off |
-| --- | --- | --- | --- |
-| Supabase managed daily backup / PITR | Lowest operational effort and native PostgreSQL/platform fit. Same Supabase project/account failure domain; not an independent copy. Confirm project plan, downloadable backup capability, and isolated restore process first. | Provider-managed backup encryption; customer-held independent key is not established by the backup itself. A Supabase project/account loss may affect access. | Pro currently starts at $25/month and includes 7-day daily backups; Team starts at $599/month and includes 14 days. PITR is currently about $100/month for 7-day retention. Plan, compute, and usage charges are additional; managed backups complement rather than replace an independent copy. |
-| GitHub-hosted runner + Cloudflare R2 | R2 is outside Supabase, but reusing the existing Cloudflare account couples storage with the Worker account. R2 is S3-compatible but not all S3 APIs/features are implemented. R2 Bucket Locks are configured through Cloudflare APIs; the S3 API does not support Object Lock headers. GitHub temporarily processes plaintext. | `age` client-side encryption provides authenticated ciphertext. A separate R2 account/bucket reduces blast radius, but R2 account deletion and lock administration remain in one provider control plane. | R2 Standard has 10 GB-month free, then $0.015/GB-month, with free internet egress and included request quotas. A 20-minute Linux 2-core run is $0.12 at the listed $0.006/min rate if not covered by the Actions allowance. Dump size and allowance are unknown. |
-| GitHub-hosted runner + separate-account AWS S3 | Strong proposed provider/account separation and PostgreSQL custom-archive compatibility. Object Lock supports retention/WORM; validate the locked-object/version and lifecycle procedure in a disposable bucket. GitHub still processes plaintext. | Client-side `age` encryption plus S3 Object Lock. Keep the private identity outside GitHub and AWS storage; test its independent recovery path. | Illustrative S3 Standard rate is $0.023/GB-month for the first 50 TB in US East; 14 daily full restore points of size `D` GB require about `14 × D` GB steady storage, or `$0.322 × D/month`, plus requests, retrieval/transfer, runner time, and any key-management services. Region price and archive size are unmeasured. |
-| GitHub Actions artifacts | Convenient for sanitized test evidence only. Artifact storage is coupled to repository/account controls and retention; do not treat it as durable, independently administered backup storage. | Never use an artifact as the only ciphertext copy or key-custody location. | Private-repository runner minutes and storage depend on GitHub plan and remaining monthly allowance; no usage readback is available here. |
-
-These are public list-price examples, not an account quote. Supabase database
-backups do not include Storage object bytes. Inventory object storage separately if
-production uses Supabase Storage. Confirm AWS region, data residency, archive size,
-request/retrieval pattern, tax, and free allowances before selection. Prices and
-plan entitlements change.
-
-Sources: [Supabase plans](https://supabase.com/pricing), [Supabase PITR pricing](https://supabase.com/docs/guides/platform/manage-your-usage/point-in-time-recovery), [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/), [R2 bucket locks](https://developers.cloudflare.com/r2/buckets/bucket-locks/), [R2 S3 compatibility](https://developers.cloudflare.com/r2/api/s3/api/), [GitHub Actions runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing), [AWS S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html), and [AWS S3 pricing](https://aws.amazon.com/s3/pricing/).
+Use native R2 expiration only as an owner-approved, best-effort storage policy. A
+14-day object-age rule does not guarantee 14 complete or verified restore points and
+cannot preserve the latest recoverable point after missed or failed runs. Do not add
+object deletion or retention behavior to the backup job. See the [R2 operations
+guide](recovery-r2-operations.md) for setup gates and the current estimate; recheck
+provider pricing before approval because rates and allowances can change.
 
 ## What a complete restore point contains
 
@@ -616,9 +603,8 @@ Before a real production point is attempted, the owner must explicitly approve e
 item below and name the exact target, limits, and operator. None is granted by this
 synthetic recovery branch:
 
-- Select and approve the storage architecture, region, independent account, retention,
-  and maximum monthly/one-time cost. Approve any AWS/Supabase/GitHub account or paid
-  plan changes separately.
+- Approve the dedicated private R2 bucket/account scope, region, best-effort
+  expiration policy, and maximum monthly/one-time cost before provisioning.
 - Authorize a one-time read export of production project `gadusaizqnshxqcckibq`,
   including the schemas and sensitive application data in the archive, and accept
   GitHub as the temporary processor if GitHub-hosted runners are selected.
@@ -681,8 +667,12 @@ commit, plus separate production authorizations. Do not set
 `RECOVERY_BACKUP_ENABLED=true` or configure production secrets until those blockers
 and approvals are resolved. Any successful encrypted upload would be classified
 only as captured, restore-unverified; it cannot by itself create a verified recovery
-point. A partial two-object upload may leave encrypted orphan ciphertext in R2; it
-is not a committed recovery point.
+point. The encrypted immutable receipt is published only after the archive and
+encrypted manifest both pass independent byte readback. It records their keys, byte
+sizes, SHA-256 digests, and sanitized capture provenance, and states
+`capture-only-restore-unverified`. A partial upload or receipt failure can leave
+orphan ciphertext; without a valid receipt the attempt is not a committed capture
+record or a verified recovery point.
 
 The prepared workflows use separate opt-ins. `RECOVERY_BACKUP_ENABLED=true` allows
 an explicitly authorized default-branch manual capture. Daily schedule runs and the

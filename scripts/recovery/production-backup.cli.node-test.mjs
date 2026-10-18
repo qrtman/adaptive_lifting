@@ -130,3 +130,63 @@ test('CLI fails closed on missing reviewed inventory before invoking backup runn
   assert.match(result.error, /^Blocked:/);
   assert.equal(backupCalls, 0);
 });
+
+test('CLI exposes only the verified receipt key after a capture-only success', async () => {
+  const result = await runProductionBackupCli({
+    env: protectedEnv(),
+    platform: 'linux',
+    readEventPayload: async () => ({}),
+    loadInventory: async () => parseProductionReleaseInventory(syntheticInventory()),
+    backupRunner: async () => ({
+      status: 'captured-restore-unverified',
+      artifacts: [
+        { kind: 'archive', key: 'production/recovery/20261018/archive.age', size: 410, sha256: 'b'.repeat(64), byteVerified: true },
+        { kind: 'manifest', key: 'production/recovery/20261018/manifest.age', size: 218, sha256: 'c'.repeat(64), byteVerified: true },
+        { kind: 'receipt', key: 'production/recovery/20261018/receipt.age', size: 83, sha256: 'a'.repeat(64), byteVerified: true },
+      ],
+    }),
+  });
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'captured-restore-unverified',
+    receiptKey: 'production/recovery/20261018/receipt.age',
+  });
+  assert.equal(Object.hasOwn(result, 'restoreVerified'), false);
+});
+
+test('CLI fails closed if no verified receipt key is available', async () => {
+  const result = await runProductionBackupCli({
+    env: protectedEnv(),
+    platform: 'linux',
+    readEventPayload: async () => ({}),
+    loadInventory: async () => parseProductionReleaseInventory(syntheticInventory()),
+    backupRunner: async () => ({ status: 'captured-restore-unverified', artifacts: [] }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal('receiptKey' in result, false);
+});
+
+test('CLI rejects duplicate or out-of-prefix recovery object keys', async (t) => {
+  for (const mutate of [
+    (artifacts) => { artifacts[2].key = artifacts[1].key; },
+    (artifacts) => { artifacts[2].key = 'other/recovery/receipt.age'; },
+  ]) {
+    await t.test('invalid object key set', async () => {
+      const artifacts = [
+        { kind: 'archive', key: 'production/recovery/20261018/archive.age', size: 410, sha256: 'b'.repeat(64), byteVerified: true },
+        { kind: 'manifest', key: 'production/recovery/20261018/manifest.age', size: 218, sha256: 'c'.repeat(64), byteVerified: true },
+        { kind: 'receipt', key: 'production/recovery/20261018/receipt.age', size: 83, sha256: 'a'.repeat(64), byteVerified: true },
+      ];
+      mutate(artifacts);
+      const result = await runProductionBackupCli({
+        env: protectedEnv(),
+        platform: 'linux',
+        readEventPayload: async () => ({}),
+        loadInventory: async () => parseProductionReleaseInventory(syntheticInventory()),
+        backupRunner: async () => ({ status: 'captured-restore-unverified', artifacts }),
+      });
+      assert.equal(result.ok, false);
+      assert.equal('receiptKey' in result, false);
+    });
+  }
+});

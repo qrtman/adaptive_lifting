@@ -137,8 +137,9 @@ endpoint's teardown.
   end to end. Realtime token issuance remains disabled.
 - **BLOCKED / NOT TESTED:** Establish an independent encrypted production
   PostgreSQL backup and complete a restore into a genuinely isolated target.
-  The backup method is undecided. R2/GitHub hosted proposals, VeraCrypt/local
-  approaches, and other experiments are not approved architecture.
+  Owner-selected target architecture: GitHub Actions with Cloudflare R2 Standard;
+  AWS is rejected. This is a design decision only. No bucket, lifecycle rule,
+  credentials, production capture, or schedule is configured or authorized.
 - **Recovery engineering checkpoint — 2026-10-18:** Work remains on
   `test/production-recovery-gate`, starting from `a063b570504279af5e1c3ebb090c3350e9584252`.
   `SYNTHETIC_RECOVERY=PASS` was verified on commit

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { PRODUCTION_SOURCE } from './production-source.mjs';
 import { runProductionBackup } from './production-backup.mjs';
@@ -64,7 +65,7 @@ function makeHarness({ failUploadAt = null, badReadbackAt = null, captureResult 
       return {
         key: args.key,
         size: bytes.length,
-        sha256: badReadbackAt === index ? '0'.repeat(64) : 'a'.repeat(64),
+        sha256: badReadbackAt === index ? '0'.repeat(64) : createHash('sha256').update(bytes).digest('hex'),
         byteVerified: badReadbackAt !== index,
       };
     },
@@ -104,17 +105,33 @@ test('injected synthetic flow encrypts archive and manifest, uploads immutable d
   const result = await runProductionBackup(backupOptions(adapters));
 
   assert.equal(result.status, 'captured-restore-unverified');
-  assert.equal(result.artifacts.length, 2);
-  assert.deepEqual(result.artifacts.map(({ kind }) => kind), ['archive', 'manifest']);
-  assert.equal(new Set(result.artifacts.map(({ key }) => key)).size, 2);
+  assert.equal(result.artifacts.length, 3);
+  assert.deepEqual(result.artifacts.map(({ kind }) => kind), ['archive', 'manifest', 'receipt']);
+  assert.equal(new Set(result.artifacts.map(({ key }) => key)).size, 3);
   assert.ok(result.artifacts.every(({ byteVerified }) => byteVerified === true));
   assert.ok(calls.encrypted.some((text) => text === 'SYNTHETIC_ARCHIVE_BYTES'));
   assert.ok(calls.encrypted.some((text) => text.includes(protectedRow)));
-  assert.equal(calls.uploaded.length, 2);
-  assert.deepEqual(calls.order, ['encrypt', 'encrypt', 'upload', 'upload']);
+  assert.equal(calls.uploaded.length, 3);
+  assert.deepEqual(calls.order, ['encrypt', 'encrypt', 'upload', 'upload', 'encrypt', 'upload']);
+  const receiptText = calls.encrypted.find((text) => text.includes('adaptive-recovery-receipt-v1'));
+  assert.ok(receiptText);
+  const receipt = JSON.parse(receiptText);
+  assert.equal(receipt.classification, 'capture-only-restore-unverified');
+  assert.equal(receipt.provenance.sourceProject, PRODUCTION_SOURCE.project);
+  assert.equal(receipt.provenance.event, 'schedule');
+  assert.equal(receipt.provenance.ref, 'refs/heads/main');
+  assert.deepEqual(receipt.artifacts.map(({ kind }) => kind), ['archive', 'manifest']);
+  assert.ok(receipt.artifacts.every(({ key, size, sha256 }) => typeof key === 'string' && Number.isSafeInteger(size) && /^[a-f0-9]{64}$/.test(sha256)));
+  for (const [index, recorded] of receipt.artifacts.entries()) {
+    const uploaded = calls.uploaded[index];
+    assert.equal(recorded.key, uploaded.key);
+    assert.equal(recorded.size, uploaded.bytes.length);
+    assert.equal(recorded.sha256, createHash('sha256').update(uploaded.bytes).digest('hex'));
+  }
+  assert.equal(receiptText.includes(protectedRow), false);
   assert.ok(calls.uploaded.every(({ key, bytes }) => key.startsWith('production/adaptive-lifting/') && bytes.includes(Buffer.from('SYNTHETIC-CIPHERTEXT\0'))));
   assert.equal(calls.cleanup.filter((item) => item === 'ca').length, 1);
-  assert.equal(calls.cleanup.filter((item) => typeof item === 'string' && item.endsWith('.age')).length, 2);
+  assert.equal(calls.cleanup.filter((item) => typeof item === 'string' && item.endsWith('.age')).length, 3);
   assert.equal(calls.close, 1);
   assert.equal('restoreVerified' in result, false);
   assert.equal('verified' in result, false);
@@ -195,7 +212,7 @@ test('wrong connected database or PostgreSQL version prevents capture and closes
 });
 
 test('upload and readback failures are sanitized, prevent success, and still clean owned resources', async (t) => {
-  for (const failure of [{ failUploadAt: 0 }, { badReadbackAt: 0 }, { failUploadAt: 1 }, { badReadbackAt: 1 }]) {
+  for (const failure of [{ failUploadAt: 0 }, { badReadbackAt: 0 }, { failUploadAt: 1 }, { badReadbackAt: 1 }, { failUploadAt: 2 }, { badReadbackAt: 2 }]) {
     await t.test(JSON.stringify(failure), async () => {
       const { calls, adapters } = makeHarness(failure);
       let thrown;
@@ -207,6 +224,19 @@ test('upload and readback failures are sanitized, prevent success, and still cle
       assert.equal(calls.cleanup.filter((item) => item === 'ca').length, 1);
       assert.ok(calls.cleanup.some((item) => typeof item === 'string' && item.endsWith('.age')));
       assert.equal(JSON.stringify(thrown).includes(protectedDiagnostic), false);
+    });
+  }
+});
+
+test('receipt publication is skipped after a partial archive or manifest upload', async (t) => {
+  for (const [label, failUploadAt] of [['archive', 0], ['manifest', 1]]) {
+    await t.test(label, async () => {
+      const { calls, adapters } = makeHarness({ failUploadAt });
+      await assert.rejects(runProductionBackup(backupOptions(adapters)), /Production backup failed/);
+      assert.equal(calls.uploaded.length, failUploadAt + 1);
+      assert.equal(calls.encrypted.some((text) => text.includes('adaptive-recovery-receipt-v1')), false);
+      assert.equal(calls.cleanup.filter((item) => item === 'ca').length, 1);
+      assert.equal(calls.close, 1);
     });
   }
 });

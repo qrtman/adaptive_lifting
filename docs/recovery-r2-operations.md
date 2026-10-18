@@ -39,12 +39,17 @@ or push trigger is configured. The workflow grants only `contents: read` to
 `GITHUB_TOKEN`, does not upload artifacts, does not print secrets, and does not
 delete R2 objects. The production job maps database and R2 credentials only into the
 backup command step after the branch and repository-variable guards have passed.
-Archive and encrypted-manifest uploads use separate immutable object keys. If one
-upload or readback succeeds and the next fails, the earlier ciphertext can remain as
-an uncommitted orphan; the command fails and has no deletion permission. Treat such
-objects as incomplete evidence, never as a recovery point. A later implementation
-needs a durable receipt that identifies both objects and sanitized evidence before
-any object can count toward retention.
+Archive, encrypted manifest, and encrypted capture receipt use separate immutable
+object keys. The receipt is published only after the archive and manifest each pass
+independent ciphertext readback; its own upload is also independently read back. It
+contains their keys, sizes, SHA-256 digests, and sanitized capture provenance, and it
+states `capture-only-restore-unverified`. A failed upload/readback can leave orphan
+ciphertext; the command fails and has no deletion permission. Without a verified
+receipt the attempt is incomplete, and even a valid receipt does not prove
+authenticated decryption or restore success.
+On successful completion the CLI reports only the capture-only status and receipt
+object key so an operator can locate the encrypted receipt; it does not print the
+archive or manifest metadata or any credential.
 
 GitHub's normal Actions failure notifications can report a run that starts and fails,
 subject to the owner's notification settings; they do not reliably alert when GitHub
@@ -135,13 +140,15 @@ pin update.
 
 Cloudflare currently lists Standard R2 storage at $0.015 per GB-month, with 10
 GB-month free and monthly free allowances of 1 million Class A and 10 million
-Class B operations. At the backup module's 5-GiB single-object limit, two objects
-(archive and encrypted manifest) daily for 14 days would be 140 GiB stored. This is
+Class B operations. At the backup module's 5-GiB single-object limit, the two
+payload objects (archive and encrypted manifest) daily for 14 days would be 140 GiB;
+the small encrypted receipt adds its own object and negligible storage at expected
+sizes. This is
 about 150.3 decimal GB-month; subtracting the free 10 GB-month leaves about 140.3
 billable GB-month, or **$2.10/month** at the listed rate. With the rough convention
 that GB and GiB are equivalent, the estimate is about $1.95/month. Actual objects
 should be smaller; objects over the single-PUT cap fail closed, so no multipart
-upload is implied. Two writes and two readbacks daily are about 60 Class A and 60
+upload is implied. Three writes and three readbacks daily are about 90 Class A and 90
 Class B requests per 30-day month, well below the listed free allowances. This
 estimate assumes objects expire promptly at the 14-day boundary. Cloudflare says
 expiration generally occurs within 24 hours after the specified time, while existing

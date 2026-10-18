@@ -265,6 +265,24 @@ export async function runProductionBackup({
     }
     const artifacts = [];
     for (const { kind, encrypted } of encryptedArtifacts) artifacts.push(await uploadEncrypted(encrypted, kind));
+    // Publish only after both encrypted capture objects have passed byte readback.
+    // The receipt is encrypted through the same age-only immutable storage path.
+    const receipt = Object.freeze({
+      format: 'adaptive-recovery-receipt-v1',
+      classification: 'capture-only-restore-unverified',
+      capturedAt: now.toISOString(),
+      provenance: Object.freeze({
+        sourceProject: PRODUCTION_SOURCE.project,
+        event: eventGate.event,
+        ref: eventGate.ref,
+      }),
+      artifacts: Object.freeze(artifacts.map(({ kind, key, size, sha256 }) =>
+        Object.freeze({ kind, key, size, sha256 }))),
+    });
+    const encryptedReceipt = await encrypt(
+      Readable.from([Buffer.from(JSON.stringify(receipt), 'utf8')]), recipient, { env, platform });
+    const verifiedReceipt = await uploadEncrypted(encryptedReceipt, 'receipt');
+    artifacts.push(verifiedReceipt);
     return Object.freeze({ status: 'captured-restore-unverified', source: PRODUCTION_SOURCE.project,
       artifacts: Object.freeze(artifacts) });
   } catch {
@@ -318,8 +336,23 @@ export async function runProductionBackupCli({
     const options = buildProductionBackupCliOptions({ env, platform, eventPayload, inventory });
     if (preflightOnly) return Object.freeze({ ok: true, status: 'preflight-passed' });
     const result = await backupRunner(options);
-    if (result?.status !== 'captured-restore-unverified') throw new Error('Backup did not complete with verified object readbacks.');
-    return Object.freeze({ ok: true, status: 'captured-restore-unverified' });
+    if (result?.status !== 'captured-restore-unverified' || !Array.isArray(result.artifacts) ||
+        result.artifacts.length !== 3 ||
+        result.artifacts.some((artifact, index) => artifact?.kind !== ['archive', 'manifest', 'receipt'][index] ||
+          !validUploadResult(artifact, artifact?.key))) {
+      throw new Error('Backup did not complete with verified object readbacks.');
+    }
+    const artifactKeys = result.artifacts.map(({ key }) => key);
+    const expectedPrefix = `${options.r2.prefix}/`;
+    if (new Set(artifactKeys).size !== artifactKeys.length || artifactKeys.some((key) =>
+      !key.startsWith(expectedPrefix) || !key.endsWith('.age') ||
+      /[\s\x00-\x1f\x7f\\]/.test(key) || key.split('/').some((part) => !part || part === '.' || part === '..'))) {
+      throw new Error('Backup artifact keys are invalid or not unique.');
+    }
+    const receipts = result.artifacts.filter((artifact) => artifact?.kind === 'receipt' &&
+      validUploadResult(artifact, artifact.key));
+    if (receipts.length !== 1) throw new Error('Backup did not publish one verified recovery receipt.');
+    return Object.freeze({ ok: true, status: 'captured-restore-unverified', receiptKey: receipts[0].key });
   } catch (error) {
     const message = typeof error?.message === 'string' && error.message.startsWith('Blocked:')
       ? error.message
@@ -334,7 +367,10 @@ if (process.argv[1] && resolve(process.argv[1]) === MODULE_PATH) {
     process.exitCode = 1;
   } else {
     const result = await runProductionBackupCli({ preflightOnly: process.argv.includes('--preflight') });
-    if (result.ok) process.stdout.write(`Production backup status: ${result.status}\n`);
+    if (result.ok) {
+      process.stdout.write(`Production backup status: ${result.status}\n`);
+      if (result.receiptKey) process.stdout.write(`Production backup receipt key: ${result.receiptKey}\n`);
+    }
     else {
       process.stderr.write(`${result.error}\n`);
       process.exitCode = 1;
