@@ -146,7 +146,7 @@ export function commandPlan(image, names, artifact, recipient) {
     source: dockerRunArgs(names.source, image),
     restore: dockerRunArgs(names.restore, image),
     dump: ['docker', 'exec', '-i', names.source, 'pg_dump', '-h', SOCKET, '-U', 'postgres', '-d', DB_NAME,
-      '--strict-names', '--no-password', '--file=-', '--format=custom', '--schema=synthetic_recovery'],
+      '--strict-names', '--no-password', '--format=custom', '--schema=synthetic_recovery'],
     encrypt: ['age', '-r', recipient, '-o', artifact],
     decrypt: ['age', '-d', '-i', '<private-key>', artifact],
     restoreCommand: ['docker', 'exec', '-i', names.restore, 'pg_restore', '-h', SOCKET, '-U', 'postgres', '-d', DB_NAME,

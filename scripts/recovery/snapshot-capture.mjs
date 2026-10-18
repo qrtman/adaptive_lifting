@@ -14,7 +14,9 @@ export function snapshotDumpArgs(snapshot, schemas) {
   if (!/^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/i.test(snapshot)) throw new Error('Invalid exported snapshot.');
   if (!Array.isArray(schemas) || !schemas.length || new Set(schemas).size !== schemas.length ||
       schemas.some((schema) => !/^[a-z_][a-z0-9_]*$/.test(schema))) throw new Error('Invalid dump schema allowlist.');
-  return ['--format=custom', '--strict-names', '--no-password', '--file=-',
+  // In custom format PostgreSQL treats --file=- as a literal filename. Leaving
+  // the filename unset sends the archive to stdout for streaming.
+  return ['--format=custom', '--strict-names', '--no-password',
     `--snapshot=${snapshot}`, ...schemas.map((schema) => `--schema=${schema}`)];
 }
 

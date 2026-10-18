@@ -328,7 +328,9 @@ function pgDumpArgs(snapshot, schemas) {
   }
   if (!Array.isArray(schemas) || schemas.length === 0 || new Set(schemas).size !== schemas.length ||
       schemas.some((schema) => !/^[a-z_][a-z0-9_]*$/.test(schema))) throw new Error('Invalid reviewed schema allowlist.');
-  return ['--no-password', '--format=custom', '--strict-names', '--file=-', `--snapshot=${snapshot}`,
+  // In custom format, --file=- is a literal filename, not stdout. Leave the
+  // filename unset so callers can stream pg_dump's binary stdout.
+  return ['--no-password', '--format=custom', '--strict-names', `--snapshot=${snapshot}`,
     ...schemas.map((schema) => `--schema=${schema}`)];
 }
 
@@ -461,7 +463,7 @@ export function productionArchiveCapture({ env = process.env, platform = process
   const fixedSchemas = ['public', 'al_private', 'supabase_migrations'];
   if (JSON.stringify(schemas) !== JSON.stringify(fixedSchemas)) throw new Error('Production archive schema scope is fixed and reviewed.');
   return async ({ snapshot, dumpArgs }) => {
-    if (JSON.stringify(dumpArgs) !== JSON.stringify(['--format=custom', '--strict-names', '--no-password', '--file=-',
+    if (JSON.stringify(dumpArgs) !== JSON.stringify(['--format=custom', '--strict-names', '--no-password',
       `--snapshot=${snapshot}`, ...fixedSchemas.map((schema) => `--schema=${schema}`)])) {
       throw new Error('Snapshot archive options differ from the reviewed production scope.');
     }

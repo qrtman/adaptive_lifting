@@ -240,7 +240,7 @@ test('local/self-hosted capture rejects before touching supplied client', async 
 
 test('dump flags preserve owners and ACLs; snapshot/schema input cannot inject options or SQL', () => {
   const args = snapshotDumpArgs('00000003-0000001B-1', ['public', 'al_private', 'supabase_migrations']);
-  assert.ok(args.includes('--strict-names') && args.includes('--file=-'));
+  assert.ok(args.includes('--strict-names') && !args.some((arg) => arg.startsWith('--file=')));
   assert.ok(!args.includes('--no-owner') && !args.includes('--no-acl'));
   for (const value of ["x'; COMMIT;--", '--snapshot=other', '']) assert.throws(() => snapshotDumpArgs(value, ['public']));
   assert.throws(() => snapshotDumpArgs('00000003-0000001B-1', ['public*']));

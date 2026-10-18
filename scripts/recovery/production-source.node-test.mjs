@@ -244,7 +244,7 @@ test('pg_dump receives a binary stdout stream and no inherited staging or passwo
   await dump.completion;
   assert.equal(Buffer.concat(chunks).toString('hex'), '000102ff');
   assert.equal(called.executable, 'pg_dump');
-  assert.deepEqual(called.args, ['--no-password', '--format=custom', '--strict-names', '--file=-',
+  assert.deepEqual(called.args, ['--no-password', '--format=custom', '--strict-names',
     `--snapshot=${snapshot}`, ...schemas.map((schema) => `--schema=${schema}`)]);
   assert.ok(!called.args.join(' ').includes(env.RECOVERY_DB_PASSWORD));
   assert.equal(called.options.shell, false);

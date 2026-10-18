@@ -273,6 +273,7 @@ test('command plan streams custom dump through age and restores in one transacti
   const names = containerNames('feedcafe');
   const plan = commandPlan(image, names, '/runner/temp/backup.age', 'age1recipient');
   assert.deepEqual(plan.dump.slice(-2), ['--format=custom', '--schema=synthetic_recovery']);
+  assert.ok(!plan.dump.some((arg) => arg.startsWith('--file=')), 'custom archives must use pg_dump stdout');
   assert.deepEqual(plan.encrypt.slice(0, 2), ['age', '-r']);
   assert.ok(plan.restoreCommand.includes('--single-transaction'));
   assert.ok(plan.restoreCommand.includes('--exit-on-error'));
