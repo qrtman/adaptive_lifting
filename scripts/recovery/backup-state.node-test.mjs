@@ -41,6 +41,7 @@ test('missing, failed, and overlong attempts become overdue only after the deadl
   const after = { ...base, now: '2026-10-18T02:00:00.000Z' };
   assert.equal(evaluateBackupState({ ...after, attempt: null }).status, 'overdue');
   assert.equal(evaluateBackupState({ ...after, attempt: { id: 'run-1', state: 'failed', startedAt: '2026-10-18T00:00:00Z', completedAt: '2026-10-18T00:10:00Z' } }).status, 'overdue');
+  assert.equal(evaluateBackupState({ ...after, attempt: { id: 'run-1', state: 'running', startedAt: '2026-10-18T01:55:00Z' } }).status, 'overdue');
   assert.equal(evaluateBackupState({ ...base, now: '2026-10-18T00:41:00Z', attempt: { id: 'run-1', state: 'running', startedAt: '2026-10-18T00:10:00Z' } }).status, 'overdue');
 });
 

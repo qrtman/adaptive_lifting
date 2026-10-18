@@ -37,6 +37,7 @@ export function evaluateBackupState({ now, expectedBy, maxRunMs, attempt = null,
   if (attempt.state === 'pending') return status(overdue ? 'overdue' : 'pending', overdue ? 'expected backup has not started' : 'latest attempt is queued');
   const startedMs = timestamp(attempt.startedAt, 'attempt.startedAt');
   if (attempt.state === 'running') {
+    if (overdue) return status('overdue', 'latest attempt is still running after its deadline');
     return nowMs - startedMs > maxRunMs
       ? status('overdue', 'latest attempt exceeded its maximum run duration')
       : status('running', 'latest attempt is still running');
