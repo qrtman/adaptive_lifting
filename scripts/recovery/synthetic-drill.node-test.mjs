@@ -23,6 +23,8 @@ import {
   reconcileRestoredEvidence,
   archiveTocResult,
   safeFailureClass,
+  classifyPgDumpDiagnostic,
+  classifyPgDumpExit,
 } from './synthetic-drill.mjs';
 import { collectSyntheticArchiveToc } from './catalog-evidence.mjs';
 import { parseArchiveToc, reconcileArchiveToc } from './production-source.mjs';
@@ -36,6 +38,20 @@ test('failure evidence exposes only bounded process and encryption classes', () 
   assert.equal(safeFailureClass(new Error('age encryption failed; source and command details were suppressed.')), 'AGE_FAILED');
   assert.equal(safeFailureClass(new Error('age encryption timed out; partial ciphertext was removed.')), 'AGE_TIMEOUT');
   assert.equal(safeFailureClass(new Error('secret-bearing arbitrary diagnostic')), 'UNCLASSIFIED');
+});
+
+test('pg_dump failures map bounded diagnostics to secret-free failure categories', () => {
+  assert.equal(classifyPgDumpDiagnostic('pg_dump: error: could not import the requested snapshot'), 'SNAPSHOT');
+  assert.equal(classifyPgDumpDiagnostic('ERROR: permission denied for schema synthetic_recovery'), 'PERMISSION');
+  assert.equal(classifyPgDumpDiagnostic('unrecognized option --bad'), 'OPTION');
+  assert.equal(classifyPgDumpDiagnostic('sensitive unclassified diagnostic'), 'UNKNOWN');
+  const error = new Error('Recovery command failed (EXIT).'); error.name = 'ProcessCommandError'; error.code = 'EXIT';
+  const classified = classifyPgDumpExit(error, 'SNAPSHOT');
+  assert.equal(classified.code, 'PG_DUMP_SNAPSHOT');
+  assert.equal(classified.message, 'Recovery command failed (PG_DUMP_SNAPSHOT).');
+  assert.equal(classifyPgDumpExit(error, 'UNKNOWN').message, 'Recovery command failed (PG_DUMP_UNKNOWN).');
+  const timeout = new Error('Recovery command failed (TIMEOUT).'); timeout.name = 'ProcessCommandError'; timeout.code = 'TIMEOUT';
+  assert.equal(classifyPgDumpExit(timeout, 'SNAPSHOT'), timeout);
 });
 
 test('reviewed ACL entries match PostgreSQL 17 namespace and type-prefixed tag formatting', () => {

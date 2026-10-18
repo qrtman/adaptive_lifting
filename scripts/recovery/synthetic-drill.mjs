@@ -160,12 +160,34 @@ async function runCapture(binary, args, { input, cwd } = {}) {
   return { ...result, stdout: Buffer.from(result.stdout), stderrBytes: Buffer.byteLength(result.stderr) };
 }
 
-function start(binary, args, { drainStdout = false, timeoutMs } = {}) {
+export function classifyPgDumpDiagnostic(diagnostic) {
+  const value = String(diagnostic).toLowerCase();
+  if (/snapshot.{0,40}(not found|does not exist|cannot be imported)|could not import.{0,40}snapshot/.test(value)) return 'SNAPSHOT';
+  if (/permission denied|must be owner|insufficient privilege/.test(value)) return 'PERMISSION';
+  if (/could not connect|connection refused|no such file or directory/.test(value)) return 'CONNECTION';
+  if (/unrecognized option|unknown option|invalid option/.test(value)) return 'OPTION';
+  if (/server version mismatch|unsupported version/.test(value)) return 'VERSION';
+  return 'UNKNOWN';
+}
+
+function start(binary, args, { drainStdout = false, timeoutMs, classifyStderr = false } = {}) {
   const handle = startCommand(binary, args, { ...commandContext.getStore(), ...(timeoutMs ? { timeoutMs } : {}) });
   let stderrBytes = 0;
-  handle.child?.stderr.on('data', (chunk) => { stderrBytes += chunk.length; });
+  let diagnostic = '';
+  handle.child?.stderr.on('data', (chunk) => {
+    stderrBytes += chunk.length;
+    if (classifyStderr && diagnostic.length < 8192) diagnostic += Buffer.from(chunk).toString('utf8').slice(0, 8192 - diagnostic.length);
+  });
   if (drainStdout) handle.child?.stdout.on('data', () => {});
-  return { ...handle, get stderrBytes() { return stderrBytes; } };
+  return { ...handle, get stderrBytes() { return stderrBytes; }, get diagnosticClass() { return classifyPgDumpDiagnostic(diagnostic); } };
+}
+
+export function classifyPgDumpExit(error, diagnosticClass) {
+  if (error?.name !== 'ProcessCommandError' || !['EXIT', 'SIGNAL'].includes(error.code)) return error;
+  const classified = new Error('Recovery command failed (PG_DUMP_' + diagnosticClass + ').');
+  classified.name = 'ProcessCommandError';
+  classified.code = `PG_DUMP_${diagnosticClass}`;
+  return classified;
 }
 
 export function archiveTocResult({ stdout, stderrBytes, code, signal }) {
@@ -599,11 +621,11 @@ async function executeDrill({ env, platform }) {
     }
 
     stage = 'dump and encrypt synthetic fixture';
-    const dump = start('docker', [...commandPlan(image, names, '<ciphertext>', recipient).dump.slice(1), `--snapshot=${holder.snapshot}`]);
+    const dump = start('docker', [...commandPlan(image, names, '<ciphertext>', recipient).dump.slice(1), `--snapshot=${holder.snapshot}`], { classifyStderr: true });
     const abort = new AbortController();
     const encryption = encryptArchiveStream(dump.child.stdout, recipient, { ...commandContext.getStore(), signal: AbortSignal.any([abort.signal, commandContext.getStore().signal]) })
       .then((value) => { encrypted = value; return value; });
-    const dumpComplete = dump.closed.catch((error) => { abort.abort(); throw error; });
+    const dumpComplete = dump.closed.catch((error) => { abort.abort(); throw classifyPgDumpExit(error, dump.diagnosticClass); });
     try { await Promise.all([encryption, dumpComplete]); }
     catch (error) {
       void dump.abort().catch(() => {}); abort.abort();
