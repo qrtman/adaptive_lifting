@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { API_BASE_URL } from '../services/apiBase';
+import { useAuth } from '../contexts/AuthContext';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { apiRequestError } from '../services/api';
+import { saasErrorMessage } from '../services/saasErrors';
 import { 
   FileSpreadsheet, CheckCircle2, XCircle, RefreshCw, 
   Trash2, Send, ExternalLink, Calendar, CheckSquare, Square, ChevronDown 
@@ -11,23 +16,28 @@ interface OutboxJob {
   status: string;
   attempts: number;
   error?: string | null;
+  result?: string | null;
 }
 
 export const SheetsPublishPanel: React.FC = () => {
+  const { user } = useAuth();
+  const { canUseIntegrations } = useAccountAccess();
+  const integrationBlocked = String(user?.role || '').toUpperCase() === 'COACH' && canUseIntegrations === false;
   const [status, setStatus] = useState<'idle' | 'loading' | 'disconnected' | 'connected' | 'error'>('idle');
-  const [roster, setRoster] = useState<any[]>([]);
+  const [roster, setRoster] = useState<Awaited<ReturnType<typeof apiService.fetchRoster>>>([]);
   const [selectedAthlete, setSelectedAthlete] = useState<string>('');
   const [sheetName, setSheetName] = useState<string>('Adaptive Lifting Export');
   const [selectedTabs, setSelectedTabs] = useState<string[]>(['Sets', 'Workouts', 'INOL', 'ACWR', 'e1RM']);
   const [recentJobs, setRecentJobs] = useState<OutboxJob[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
 
   const fetchStatusAndJobs = async (silent = false) => {
     if (!silent) setStatus('loading');
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets/status', {
-        headers: { 'credentials': 'include' }
+      const res = await fetch(`${API_BASE_URL}/api/integrations/google-sheets/status`, {
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
@@ -53,6 +63,7 @@ export const SheetsPublishPanel: React.FC = () => {
     try {
       const data = await apiService.fetchRoster();
       setRoster(data || []);
+      setRosterError(null);
       if (data && data.length > 0) {
         setSelectedAthlete(data[0].id);
         const emailPrefix = data[0].email.split('@')[0];
@@ -60,18 +71,17 @@ export const SheetsPublishPanel: React.FC = () => {
       }
     } catch (e) {
       console.error("Failed to load roster", e);
-      // Fallback roster for mock mode
-      const mockRoster = [{ id: 'mock-athlete-1', email: 'athlete@example.com' }];
-      setRoster(mockRoster);
-      setSelectedAthlete(mockRoster[0].id);
+      setRoster([]);
+      setSelectedAthlete('');
+      setRosterError('Could not load your active athlete roster.');
     }
   };
 
   const connectOAuth = async () => {
     setErrorMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets/auth-url', {
-        headers: { 'credentials': 'include' }
+      const res = await fetch(`${API_BASE_URL}/api/integrations/google-sheets/auth-url`, {
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -80,12 +90,12 @@ export const SheetsPublishPanel: React.FC = () => {
           window.open(data.auth_url, '_blank', 'width=600,height=700');
         }
       } else {
-        throw new Error("OAuth authorization request rejected by backend");
+        throw await apiRequestError(res, 'OAuth authorization request rejected by backend');
       }
     } catch (e: any) {
       console.error(e);
       setStatus('error');
-      setErrorMsg("Unable to retrieve authorization link. Ensure keys are configured.");
+      setErrorMsg(saasErrorMessage(e) || "Unable to retrieve authorization link. Ensure keys are configured.");
     }
   };
 
@@ -95,9 +105,9 @@ export const SheetsPublishPanel: React.FC = () => {
     }
     setStatus('loading');
     try {
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets', {
+      const res = await fetch(`${API_BASE_URL}/api/integrations/google-sheets`, {
         method: 'DELETE',
-        headers: { 'credentials': 'include' }
+        credentials: 'include'
       });
       if (res.ok) {
         setStatus('disconnected');
@@ -120,18 +130,18 @@ export const SheetsPublishPanel: React.FC = () => {
     setIsPublishing(true);
     try {
       const athleteObj = roster.find(a => a.id === selectedAthlete);
-      // Mock or fetch active mesocycle ID
-      const mockMesoId = athleteObj?.activeMesocycleId || "mesocycle-active-alpha-09";
+      const mesocycleId = athleteObj?.activeMesocycleId;
+      if (!mesocycleId) throw new Error('No live mesocycle is available for this athlete.');
       
-      const res = await fetch('http://localhost:8000/api/integrations/google-sheets/publish', {
+      const res = await fetch(`${API_BASE_URL}/api/integrations/google-sheets/publish`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 
           'Content-Type': 'application/json',
-          'credentials': 'include'
         },
         body: JSON.stringify({
           athlete_id: selectedAthlete,
-          mesocycle_id: mockMesoId,
+          mesocycle_id: mesocycleId,
           sheetName: sheetName,
           tabs: selectedTabs
         })
@@ -142,12 +152,11 @@ export const SheetsPublishPanel: React.FC = () => {
         fetchStatusAndJobs(true);
         alert("Mesocycle publication job successfully queued to Outbox!");
       } else {
-        const err = await res.json();
-        throw new Error(err.detail || "Server rejected queue request");
+        throw await apiRequestError(res, 'Server rejected queue request');
       }
     } catch (e: any) {
       console.error(e);
-      alert(`Publishing failed: ${e.message}`);
+      alert(saasErrorMessage(e) || `Publishing failed: ${e.message}`);
     } finally {
       setIsPublishing(false);
     }
@@ -230,8 +239,12 @@ export const SheetsPublishPanel: React.FC = () => {
         </div>
       )}
 
+      {rosterError && <p className="text-sm text-red-300 mb-3" role="alert">{rosterError}</p>}
+      {!rosterError && roster.length === 0 && <p className="text-sm text-gray-400 mb-3">No active athletes are available to publish.</p>}
+
       {status === 'disconnected' && (
         <div className="mt-4 space-y-4">
+          {integrationBlocked && <p className="text-xs text-gray-400" role="note">This coaching plan does not include Google Sheets integrations.</p>}
           <div className="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-gray-400">
             <p className="font-bold text-white mb-2">Spreadsheet Publishing Rule Constraints:</p>
             <ul className="list-disc list-inside space-y-1 pl-1 text-xs">
@@ -242,6 +255,8 @@ export const SheetsPublishPanel: React.FC = () => {
           </div>
           <button 
             onClick={connectOAuth}
+            disabled={integrationBlocked}
+            title={integrationBlocked ? 'This coaching plan does not include Google Sheets integrations.' : undefined}
             className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/15 rounded-lg font-bold text-sm transition-all flex items-center gap-2 cursor-pointer"
           >
             <FileSpreadsheet size={16} className="text-mac-green" />
@@ -313,9 +328,11 @@ export const SheetsPublishPanel: React.FC = () => {
 
           {/* Action Row */}
           <div className="flex flex-wrap items-center justify-between gap-4">
+            {integrationBlocked && <p className="w-full text-xs text-gray-400" role="note">This coaching plan does not include Google Sheets integrations. You can still review or disconnect the existing connection.</p>}
             <button 
               onClick={publishActiveMesocycle}
-              disabled={isPublishing || selectedTabs.length === 0}
+              disabled={isPublishing || selectedTabs.length === 0 || integrationBlocked || !roster.find(a => a.id === selectedAthlete)?.activeMesocycleId}
+              title={integrationBlocked ? 'This coaching plan does not include Google Sheets integrations.' : undefined}
               className="px-5 py-2.5 bg-[#34C759] hover:bg-green-600 text-white rounded-lg font-bold text-sm transition-all shadow-md shadow-green-500/10 cursor-pointer disabled:opacity-50 flex items-center gap-2"
             >
               {isPublishing ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
@@ -357,9 +374,9 @@ export const SheetsPublishPanel: React.FC = () => {
                       </div>
                     </div>
 
-                    {job.status === 'success' && job.error && (
+                    {job.status === 'success' && job.result && (
                       <a 
-                        href={job.error} 
+                        href={job.result}
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="px-3 py-1 bg-mac-green/10 hover:bg-mac-green/20 text-mac-green rounded font-bold text-[10px] border border-mac-green/20 flex items-center gap-1 transition-all shrink-0 cursor-pointer"

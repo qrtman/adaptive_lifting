@@ -1,6 +1,7 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Page } from '@playwright/test';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function signIn(page: Page, email: string, password: string) {
   await page.goto('/');
@@ -15,14 +16,14 @@ test('athlete sees sessions the linked coach created after reload', async ({ bro
   const coachEmail = `plan-coach-${suffix}@example.com`;
   const athleteEmail = `plan-ath-${suffix}@example.com`;
   const password = 'password123';
-  const coachApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
-  const athleteApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
+  const coachApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
+  const athleteApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
   const athletePage = await browser.newPage();
   try {
-    const coachReg = await coachApi.post('/api/auth/register', {
+    const coachReg = await registerVerified(coachApi, {
       data: { email: coachEmail, password, role: 'COACH' },
     });
-    const athleteReg = await athleteApi.post('/api/auth/register', {
+    const athleteReg = await registerVerified(athleteApi, {
       data: { email: athleteEmail, password, role: 'ATHLETE' },
     });
     expect(coachReg.ok()).toBeTruthy();

@@ -6,10 +6,17 @@ from pydantic import BaseModel, model_validator
 from typing import List, Dict, Any, Literal, Optional
 
 from .database import (
-    Workout, ExerciseSet, Exercise, SyncMutation, 
+    Workout, ExerciseSet, Exercise, SyncMutation, ClientDevice,
     WorkoutLock, DomainEvent, AuditEvent
 )
 from .math_utils import MATH_VERSION
+
+# Ownership, identity, relationships and server timestamps are never client writable.
+SYNC_FIELDS = {
+    "Workout": {"date", "dayLabel", "title", "color", "status", "athlete_bw", "block_label", "week_label"},
+    "Exercise": {"lexo_rank", "title", "variation", "tier", "lift_category", "movement_pattern", "lift_note", "tags_raw", "tags", "sets"},
+    "ExerciseSet": {"lexo_rank", "label", "scope", "plannedWeight", "plannedReps", "plannedRpe", "dropPercent", "isAuto", "actual", "reps", "executedRpe", "isTop", "intensity_type", "note", "velocity", "readiness", "hrv"},
+}
 
 class SyncFieldMutation(BaseModel):
     entity: str
@@ -48,6 +55,22 @@ def assert_math_version(payload: SyncPayload) -> None:
         )
 
 
+def ensure_client_device(db: Session, client_device_id: str, user_id: str) -> str:
+    """Register a browser device on first sync, scoped to the signed-in user."""
+    raw_device = db.get(ClientDevice, client_device_id)
+    device_id = client_device_id if raw_device is None or raw_device.user_id == user_id else f"{user_id}:{client_device_id}"
+    device = raw_device if device_id == client_device_id else db.get(ClientDevice, device_id)
+    if device is None:
+        device = ClientDevice(id=device_id, user_id=user_id, last_seen_at=datetime.utcnow())
+        db.add(device)
+        db.flush()
+    elif device.revoked_at is not None or device.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Client device is revoked or belongs to another user")
+    else:
+        device.last_seen_at = datetime.utcnow()
+    return device_id
+
+
 def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str) -> dict:
     if payload.mutation_type == "insight_card":
         raise HTTPException(
@@ -59,6 +82,7 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
     assert_math_version(payload)
     if not payload.workout_id:
         raise HTTPException(status_code=400, detail="workout_id required")
+    device_id = ensure_client_device(db, payload.client_device_id, current_user_id)
     
     workout = db.query(Workout).filter(Workout.id == payload.workout_id).first()
     if not workout:
@@ -77,7 +101,7 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
     for change in payload.changes:
         # Idempotency check
         existing_mut = db.query(SyncMutation).filter(
-            SyncMutation.client_device_id == payload.client_device_id,
+            SyncMutation.client_device_id == device_id,
             SyncMutation.mutation_id == change.mutation_id
         ).first()
         
@@ -98,7 +122,7 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
             rejected.append(change.mutation_id)
             conflicts.append({"mutation_id": change.mutation_id, "reason": "CLIENT_CLOCK_SKEW"})
             db.add(SyncMutation(
-                mutation_id=change.mutation_id, client_device_id=payload.client_device_id,
+                mutation_id=change.mutation_id, client_device_id=device_id,
                 entity_type=change.entity, entity_id=change.id, field_path="ALL",
                 updated_at=client_updated, result="REJECTED_CLOCK_SKEW"
             ))
@@ -134,13 +158,17 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
             rejected.append(change.mutation_id)
             conflicts.append({"mutation_id": change.mutation_id, "reason": "TOMBSTONE_CONFLICT"})
             db.add(SyncMutation(
-                mutation_id=change.mutation_id, client_device_id=payload.client_device_id,
+                mutation_id=change.mutation_id, client_device_id=device_id,
                 entity_type=change.entity, entity_id=change.id, field_path="ALL",
                 updated_at=client_updated, result="REJECTED_TOMBSTONE"
             ))
             continue
 
         fields = dict(change.fields or {})
+        if fields.keys() - SYNC_FIELDS[change.entity]:
+            rejected.append(change.mutation_id)
+            conflicts.append({"mutation_id": change.mutation_id, "reason": "FIELD_NOT_WRITABLE"})
+            continue
         sets_payload = fields.pop("sets", None) if change.entity == "Exercise" else None
         for field, value in fields.items():
             if hasattr(entity, field):
@@ -152,7 +180,7 @@ def resolve_sync_payload(db: Session, payload: SyncPayload, current_user_id: str
         entity.updated_at = datetime.utcnow()
         accepted_ids.append(change.mutation_id)
         db.add(SyncMutation(
-            mutation_id=change.mutation_id, client_device_id=payload.client_device_id,
+            mutation_id=change.mutation_id, client_device_id=device_id,
             entity_type=change.entity, entity_id=change.id, field_path="ALL",
             updated_at=client_updated, applied_at=datetime.utcnow(), result="ACCEPTED"
         ))

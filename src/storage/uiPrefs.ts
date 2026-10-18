@@ -1,8 +1,11 @@
+import { IS_FRESH_PRODUCTION_CLIENT, localStorageKeyForBoundary } from '../services/clientDataBoundary';
+
 /** LocalStorage is UI preferences only. Workout trees live in IndexedDB. */
 export const UI_KEYS = {
   roleMode: 'al_role_mode',
   role: 'al_role',
   email: 'al_email',
+  displayName: 'al_display_name',
   userId: 'al_user_id',
   appView: 'al_app_view',
   dashboardMode: 'al_dashboard_mode',
@@ -40,6 +43,9 @@ const LEGACY_WORKOUT_KEYS = [
 
 export function migrateAndPurgeLegacyStorage(): void {
   if (typeof localStorage === 'undefined') return;
+  // Production uses a new key namespace. Leave legacy preferences, identity,
+  // device ID, and workout keys untouched and unreachable.
+  if (IS_FRESH_PRODUCTION_CLIENT) return;
 
   for (const [from, to] of LEGACY_UI_MAP) {
     const next = localStorage.getItem(to);
@@ -56,15 +62,23 @@ export function migrateAndPurgeLegacyStorage(): void {
 }
 
 export function getUiPref(key: string): string | null {
-  return localStorage.getItem(key);
+  return localStorage.getItem(localStorageKeyForBoundary(key, IS_FRESH_PRODUCTION_CLIENT));
 }
 
 export function setUiPref(key: string, value: string): void {
-  localStorage.setItem(key, value);
+  localStorage.setItem(localStorageKeyForBoundary(key, IS_FRESH_PRODUCTION_CLIENT), value);
 }
 
 export function removeUiPref(key: string): void {
-  localStorage.removeItem(key);
+  localStorage.removeItem(localStorageKeyForBoundary(key, IS_FRESH_PRODUCTION_CLIENT));
+}
+
+/** Clear view selections when a different account signs into the production browser. */
+export function clearAccountSelectionForSwitch(freshProduction: boolean): void {
+  if (!freshProduction) return;
+  for (const key of [UI_KEYS.activeAthleteId, UI_KEYS.activeWorkoutId, UI_KEYS.activeMicrocycleId]) {
+    removeUiPref(key);
+  }
 }
 
 function athletePrefKey(base: string, athleteId: string): string {

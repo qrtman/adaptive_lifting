@@ -1,29 +1,39 @@
 import os
+import base64
 import uuid
 import hmac
 import hashlib
 import urllib.parse
 import json
 import requests
-import threading
 import time
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Header, Response
 from sqlalchemy.orm import Session
+try:
+    from cryptography.fernet import Fernet
+except Exception as exc:
+    raise RuntimeError(
+        "cryptography is required for integration credential encryption"
+    ) from exc
 
 from .database import (
     get_db, User, IntegrationConnection, IntegrationCredential, 
     IntegrationOutbox, WebhookEvent, SheetPublication, Workout, 
-    Microcycle, Exercise, ExerciseSet, CoachingRelationship
+    Microcycle, Exercise, ExerciseSet, CoachingRelationship, OAuthState
 )
-from .main import get_current_user
+from .main import get_current_user, start_session
 from .math_utils import calculate_e1rm_linear_decay, calculate_inol, calculate_dots
+from .email_verification import require_eligible_account
+from .runtime_config import is_production_like
+from .saas_access import require_integrations_access
 
 router = APIRouter()
 
 # --- Config & Keys ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "mock_bot_token")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "mock_webhook_secret")
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "mock_client_id")
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "mock_client_secret")
@@ -34,68 +44,78 @@ APP_URL = os.environ.get("APP_URL", "http://localhost:5173")
 PENDING_LINK_TOKENS = {}
 
 # --- Security Encryption / Decryption Helpers ---
-def encrypt_data(data: str, key: str) -> str:
+def _fernet_for_key(key: str) -> Fernet:
     try:
-        from cryptography.fernet import Fernet
-        import base64
         f_key = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
-        fernet = Fernet(f_key)
-        return fernet.encrypt(data.encode()).decode()
-    except Exception:
-        # Fallback compile-proof cipher (XOR with sha256 hash)
-        import base64
-        key_bytes = hashlib.sha256(key.encode()).digest()
-        data_bytes = data.encode()
-        out = bytearray()
-        for i, b in enumerate(data_bytes):
-            out.append(b ^ key_bytes[i % len(key_bytes)])
-        return base64.b64encode(out).decode()
+        return Fernet(f_key)
+    except Exception as exc:
+        raise RuntimeError("Integration credential encryption could not initialize") from exc
+
+
+def encrypt_data(data: str, key: str) -> str:
+    return _fernet_for_key(key).encrypt(data.encode()).decode()
 
 def decrypt_data(token: str, key: str) -> str:
-    try:
-        from cryptography.fernet import Fernet
-        import base64
-        f_key = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
-        fernet = Fernet(f_key)
-        return fernet.decrypt(token.encode()).decode()
-    except Exception:
-        import base64
-        key_bytes = hashlib.sha256(key.encode()).digest()
-        data_bytes = base64.b64decode(token.encode())
-        out = bytearray()
-        for i, b in enumerate(data_bytes):
-            out.append(b ^ key_bytes[i % len(key_bytes)])
-        return out.decode()
+    return _fernet_for_key(key).decrypt(token.encode()).decode()
 
 # --- Telegram Helper Functions ---
+TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = 5 * 60
+TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS = 30
+
+
 def verify_telegram_init_data(init_data: str, bot_token: str) -> dict:
-    if bot_token == "mock_bot_token" or init_data.startswith("mock_"):
-        # Local development / fallback testing bypass
-        return {
-            "id": 99999,
-            "first_name": "Mock Athlete",
-            "username": "mock_athlete",
-            "role": "ATHLETE"
-        }
+    """Verify Telegram WebApp initData and return its authenticated user object.
+
+    We accept data up to five minutes old and tolerate clocks up to 30 seconds
+    ahead. The freshness limit narrows the replay window but is not one-time
+    replay prevention.
+    """
+    if (
+        not isinstance(init_data, str) or not init_data
+        or not isinstance(bot_token, str) or not bot_token.strip()
+        or bot_token == "mock_bot_token"
+    ):
+        raise ValueError("Invalid Telegram authentication")
     try:
-        parsed = dict(urllib.parse.parse_qsl(init_data))
-        if "hash" not in parsed:
-            raise ValueError("Missing hash parameter")
-        
-        received_hash = parsed.pop("hash")
-        sorted_params = sorted(parsed.items())
-        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted_params)
-        
-        # Calculate key as HMAC-SHA256 of bot_token keyed by "WebAppData"
+        pairs = urllib.parse.parse_qsl(init_data, keep_blank_values=True, strict_parsing=True)
+        if not pairs:
+            raise ValueError
+        # Duplicate keys make the signed representation ambiguous across parsers.
+        if len({key for key, _ in pairs}) != len(pairs):
+            raise ValueError
+        parsed = dict(pairs)
+        received_hash = parsed.pop("hash", None)
+        if not received_hash or len(received_hash) != 64:
+            raise ValueError
+        try:
+            bytes.fromhex(received_hash)
+        except ValueError:
+            raise ValueError
+        data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(parsed.items()))
         secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
         calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
-        
-        if calculated_hash != received_hash:
-            raise ValueError("Hash mismatch")
-            
-        return json.loads(parsed.get("user", "{}"))
-    except Exception as e:
-        raise ValueError(f"Invalid Telegram authentication: {str(e)}")
+        if not hmac.compare_digest(calculated_hash, received_hash.lower()):
+            raise ValueError
+
+        auth_date_raw = parsed.get("auth_date")
+        if not auth_date_raw or not auth_date_raw.isascii() or not auth_date_raw.isdecimal():
+            raise ValueError
+        auth_date = int(auth_date_raw)
+        now = int(time.time())
+        age = now - auth_date
+        if age < -TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS or age > TELEGRAM_INIT_DATA_MAX_AGE_SECONDS:
+            raise ValueError
+
+        user_raw = parsed.get("user")
+        if not user_raw:
+            raise ValueError
+        user = json.loads(user_raw)
+        if not isinstance(user, dict) or isinstance(user.get("id"), bool) or not isinstance(user.get("id"), int) or user["id"] <= 0:
+            raise ValueError
+        return user
+    except (TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+        # Never include initData or the bot token in errors or logs.
+        raise ValueError("Invalid Telegram authentication") from None
 
 def send_telegram_message(chat_id: int, text: str, reply_markup: dict = None) -> bool:
     if TELEGRAM_BOT_TOKEN == "mock_bot_token":
@@ -120,9 +140,8 @@ def send_telegram_message(chat_id: int, text: str, reply_markup: dict = None) ->
 
 @router.post("/api/integrations/telegram/link-token")
 def generate_telegram_link_token(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Generate 8-character numeric link token
-    import random
-    token = "".join(random.choices("0123456789", k=8))
+    # This bearer token grants account access; it must resist guessing.
+    token = secrets.token_urlsafe(32)
     PENDING_LINK_TOKENS[token] = {
         "user_id": current_user.id,
         "expires_at": datetime.utcnow() + timedelta(minutes=10)
@@ -130,7 +149,7 @@ def generate_telegram_link_token(current_user: User = Depends(get_current_user),
     return {"token": token, "bot_username": "AdaptiveLiftingBot"}
 
 @router.post("/api/integrations/telegram/miniapp/session")
-def telegram_miniapp_session(req: dict, db: Session = Depends(get_db)):
+def telegram_miniapp_session(req: dict, response: Response, db: Session = Depends(get_db)):
     initData = req.get("initData")
     linkToken = req.get("linkToken")
     
@@ -158,6 +177,7 @@ def telegram_miniapp_session(req: dict, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="Associated user not found")
             
+        require_eligible_account(user)
         # Create connection
         conn = db.query(IntegrationConnection).filter(
             IntegrationConnection.user_id == user.id,
@@ -195,16 +215,12 @@ def telegram_miniapp_session(req: dict, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="User account missing")
             
-    # Success: Issue JWT Session token
-    from .main import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.id, "role": user.role}, expires_delta=access_token_expires
-    )
-    
+    # Use the same revocable server-side session and cookie as other login paths.
+    auth_payload = start_session(response, user)
+
     return {
         "status": "success",
-        "access_token": access_token,
+        "access_token": auth_payload["access_token"],
         "user": {"id": user.id, "email": user.email, "role": user.role, "tg_username": tg_user.get("username")}
     }
 
@@ -235,6 +251,10 @@ def get_telegram_status(current_user: User = Depends(get_current_user), db: Sess
 @router.post("/api/integrations/telegram/webhook")
 def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bot_api_secret_token: Optional[str] = Header(None)):
     # Verify webhook secret token if configured
+    env_name = (os.environ.get("APP_ENV") or os.environ.get("ENV") or "").strip().lower()
+    production_like = env_name in {"production", "staging", "prod"} or os.environ.get("COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
+    if production_like and (not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET or TELEGRAM_WEBHOOK_SECRET == "mock_webhook_secret"):
+        raise HTTPException(status_code=503, detail="Telegram webhook secret is not configured")
     if TELEGRAM_WEBHOOK_SECRET != "mock_webhook_secret":
         if x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
             raise HTTPException(status_code=403, detail="Invalid webhook secret token")
@@ -278,6 +298,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
             token = parts[1]
             token_info = PENDING_LINK_TOKENS.get(token)
             if token_info and token_info["expires_at"] > datetime.utcnow():
+                require_eligible_account(db.get(User, token_info["user_id"]))
                 # Link account
                 user_id = token_info["user_id"]
                 conn = db.query(IntegrationConnection).filter(
@@ -325,6 +346,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
         send_telegram_message(chat_id, "Linked user profile not found.")
         return {"status": "processed"}
         
+    require_eligible_account(linked_user)
     # Command processing
     if text == "/today":
         today_str = datetime.utcnow().strftime("%Y-%m-%d")
@@ -415,6 +437,7 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
             athlete = db.query(User).filter(User.id == r.athlete_id).first()
             if not athlete:
                 continue
+            require_eligible_account(athlete)
             w = db.query(Workout).join(Microcycle).filter(
                 Microcycle.owner_id == athlete.id,
                 Workout.date == today_str
@@ -436,8 +459,24 @@ def telegram_webhook(payload: dict, db: Session = Depends(get_db), x_telegram_bo
 # --- Google Sheets OAuth & Outbox Implementation ---
 
 @router.get("/api/integrations/google-sheets/auth-url")
-def get_sheets_auth_url(current_user: User = Depends(get_current_user)):
-    # Minimally scoped Sheets OAuth URL with CSRF state
+def get_sheets_auth_url(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Google Sheets is available to coaches")
+    require_integrations_access(db, current_user)
+    if is_production_like() and GOOGLE_OAUTH_CLIENT_ID in ("", "mock_client_id"):
+        raise HTTPException(status_code=503, detail="Google Sheets is not configured")
+    # Keep only a hash in storage; the bearer value is opaque, random, and short-lived.
+    now = datetime.utcnow()
+    db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(synchronize_session=False)
+    state = secrets.token_urlsafe(32)
+    db.add(OAuthState(
+        state_hash=hashlib.sha256(state.encode("utf-8")).hexdigest(),
+        user_id=current_user.id,
+        provider="google-sheets",
+        created_at=now,
+        expires_at=now + timedelta(minutes=10),
+    ))
+    db.commit()
     redirect_uri = f"{APP_URL}/api/integrations/google-sheets/callback"
     params = {
         "client_id": GOOGLE_OAUTH_CLIENT_ID,
@@ -446,16 +485,50 @@ def get_sheets_auth_url(current_user: User = Depends(get_current_user)):
         "scope": "https://www.googleapis.com/auth/spreadsheets",
         "access_type": "offline",
         "prompt": "consent",
-        "state": current_user.id
+        "state": state
     }
     url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     return {"auth_url": url}
 
 @router.get("/api/integrations/google-sheets/callback")
-def sheets_callback(code: str, state: str, db: Session = Depends(get_db)):
+def sheets_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
     # Exchange authorization code for tokens
+    if is_production_like() and GOOGLE_OAUTH_CLIENT_ID in ("", "mock_client_id"):
+        raise HTTPException(status_code=503, detail="Google Sheets is not configured")
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing authorization parameters")
+
+    state_hash = hashlib.sha256(state.encode("utf-8")).hexdigest()
+    state_record = db.query(OAuthState).filter(OAuthState.state_hash == state_hash).one_or_none()
+    if state_record is None:
+        raise HTTPException(status_code=400, detail="Invalid or already used OAuth state")
+    now = datetime.utcnow()
+    if state_record.expires_at <= now:
+        db.delete(state_record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Expired OAuth state")
+    if state_record.provider != "google-sheets":
+        db.delete(state_record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="OAuth state provider mismatch")
+    user_id = state_record.user_id
+    if not db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).one_or_none():
+        db.delete(state_record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="OAuth state user is unavailable")
+    callback_user = db.query(User).filter(User.id == user_id).one()
+    require_eligible_account(callback_user)
+    if callback_user.role == "COACH":
+        require_integrations_access(db, callback_user)
+    # A conditional DELETE makes consumption atomic across concurrent callbacks.
+    consumed = db.query(OAuthState).filter(
+        OAuthState.state_hash == state_hash,
+        OAuthState.provider == "google-sheets",
+        OAuthState.expires_at > now,
+    ).delete(synchronize_session=False)
+    db.commit()
+    if consumed != 1:
+        raise HTTPException(status_code=400, detail="Invalid or already used OAuth state")
         
     redirect_uri = f"{APP_URL}/api/integrations/google-sheets/callback"
     token_url = "https://oauth2.googleapis.com/token"
@@ -487,14 +560,14 @@ def sheets_callback(code: str, state: str, db: Session = Depends(get_db)):
             
     # Connect
     conn = db.query(IntegrationConnection).filter(
-        IntegrationConnection.user_id == state,
+        IntegrationConnection.user_id == user_id,
         IntegrationConnection.provider == "google-sheets"
     ).first()
     
     if not conn:
         conn = IntegrationConnection(
             id=str(uuid.uuid4()),
-            user_id=state,
+            user_id=user_id,
             provider="google-sheets",
             status="active",
             scopes="spreadsheets"
@@ -622,11 +695,15 @@ def publish_to_sheets(req: dict, current_user: User = Depends(get_current_user),
     rel = db.query(CoachingRelationship).filter(
         CoachingRelationship.coach_id == current_user.id,
         CoachingRelationship.athlete_id == athlete_id,
-        CoachingRelationship.ended_at.is_(None)
+        CoachingRelationship.ended_at.is_(None),
+        CoachingRelationship.deleted_at.is_(None)
     ).first()
     
     if not rel:
         raise HTTPException(status_code=403, detail="Unauthorized: No active relationship with this athlete")
+
+    require_eligible_account(db.get(User, athlete_id))
+    require_integrations_access(db, current_user)
         
     conn = db.query(IntegrationConnection).filter(
         IntegrationConnection.user_id == current_user.id,
@@ -732,6 +809,24 @@ def process_sheets_publish_job(job: IntegrationOutbox, db: Session) -> bool:
     sheet_name = payload.get("sheet_name", "Mesocycle Export")
     tabs = payload.get("tabs", ["Sets", "Workouts", "INOL", "ACWR", "e1RM"])
     
+    # Revalidate queued exports before accessing training or calling a provider.
+    connection = db.get(IntegrationConnection, job.connection_id)
+    coach = db.get(User, connection.user_id) if connection is not None else None
+    athlete = db.get(User, athlete_id) if athlete_id else None
+    try:
+        require_eligible_account(coach)
+        require_eligible_account(athlete)
+        if connection.status != "active" or coach.role != "COACH":
+            raise HTTPException(status_code=403)
+        relationship = db.query(CoachingRelationship).filter_by(coach_id=coach.id, athlete_id=athlete.id).filter(
+            CoachingRelationship.ended_at.is_(None), CoachingRelationship.deleted_at.is_(None)).first()
+        if relationship is None:
+            raise HTTPException(status_code=403)
+        require_integrations_access(db, coach)
+    except HTTPException:
+        job.status, job.attempt_count, job.result = "failed", 3, "Export authorization is no longer valid"
+        return False
+
     # 1. Fetch training data
     workouts = db.query(Workout).join(Microcycle).filter(
         Microcycle.mesocycle_id == mesocycle_id,
@@ -762,39 +857,79 @@ def process_sheets_publish_job(job: IntegrationOutbox, db: Session) -> bool:
         "Content-Type": "application/json"
     }
     
-    # Create Google Spreadsheet
-    try:
-        res_create = requests.post(
-            "https://sheets.googleapis.com/v4/spreadsheets",
-            headers=headers,
-            json={"properties": {"title": sheet_name}},
-            timeout=8
-        )
-        if res_create.status_code != 200:
+    # Persist the created resource ID separately from the user-visible result.
+    # If a later request fails or the worker exits, retries resume this sheet.
+    spreadsheet_id = payload.get("_spreadsheet_id")
+    if not spreadsheet_id:
+        if payload.get("_spreadsheet_create_started"):
             job.status = "failed"
-            job.result = f"Google Spreadsheet creation failed: {res_create.text}"
+            job.attempt_count = 3
+            job.result = "Spreadsheet creation outcome is uncertain; automatic retry stopped"
             return False
-            
-        ss_info = res_create.json()
-        spreadsheet_id = ss_info["spreadsheetId"]
-    except Exception as ex:
-        job.status = "failed"
-        job.result = f"Network failure during creation: {str(ex)}"
-        return False
+        # Persist intent before the external side effect. If the provider succeeds
+        # but the worker or database fails before the ID is checkpointed, recovery
+        # will stop instead of issuing a second create request.
+        payload["_spreadsheet_create_started"] = True
+        job.payload_json = json.dumps(payload)
+        db.commit()
+        try:
+            res_create = requests.post(
+                "https://sheets.googleapis.com/v4/spreadsheets",
+                headers=headers,
+                json={"properties": {"title": sheet_name}},
+                timeout=8
+            )
+            if res_create.status_code != 200:
+                job.status = "failed"
+                job.attempt_count = 3
+                job.result = f"Google Spreadsheet creation failed; automatic retry stopped: {res_create.text}"
+                return False
+
+            spreadsheet_id = res_create.json()["spreadsheetId"]
+            payload["_spreadsheet_id"] = spreadsheet_id
+            job.payload_json = json.dumps(payload)
+        except Exception as ex:
+            job.status = "failed"
+            # The provider may have created the sheet before the response was
+            # lost. Without an ID there is no safe automatic retry.
+            job.attempt_count = 3
+            job.result = f"Spreadsheet creation outcome is uncertain; automatic retry stopped: {str(ex)}"
+            return False
+        db.commit()
         
     # Create worksheets/tabs
-    sheets_requests = []
-    for tab in tabs:
-        sheets_requests.append({"addSheet": {"properties": {"title": tab}}})
-    sheets_requests.append({"deleteSheet": {"sheetId": 0}}) # Delete default first tab
-    
     try:
-        requests.post(
-            f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate",
+        current = requests.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}",
             headers=headers,
-            json={"requests": sheets_requests},
-            timeout=8
+            params={"fields": "sheets.properties(sheetId,title)"},
+            timeout=8,
         )
+        if current.status_code != 200:
+            job.status = "failed"
+            job.result = f"Could not inspect spreadsheet tabs: {current.text}"
+            return False
+        existing_sheets = current.json().get("sheets", [])
+        existing_titles = {sheet.get("properties", {}).get("title") for sheet in existing_sheets}
+        sheets_requests = [
+            {"addSheet": {"properties": {"title": tab}}}
+            for tab in tabs if tab not in existing_titles
+        ]
+        default_sheet = next((sheet.get("properties", {}) for sheet in existing_sheets
+                              if sheet.get("properties", {}).get("sheetId") == 0), None)
+        if default_sheet and default_sheet.get("title") not in tabs:
+            sheets_requests.append({"deleteSheet": {"sheetId": 0}})
+        if sheets_requests:
+            res_tabs = requests.post(
+                f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate",
+                headers=headers,
+                json={"requests": sheets_requests},
+                timeout=8
+            )
+            if res_tabs.status_code != 200:
+                job.status = "failed"
+                job.result = f"Sheet structure creation failed: {res_tabs.text}"
+                return False
     except Exception as ex:
         job.status = "failed"
         job.result = f"Sheet structure creation failed: {str(ex)}"
@@ -930,48 +1065,17 @@ def process_sheets_publish_job(job: IntegrationOutbox, db: Session) -> bool:
         job.result = f"Network error writing cells: {str(e)}"
         return False
 
-def background_outbox_processor():
-    """
-    Background thread processing sheets exports sequentially
-    """
-    print("[adaptive_lifting] Starting background outbox processor thread...")
-    while True:
-        try:
-            # Open local database session
-            from .database import SessionLocal
-            db = SessionLocal()
-            
-            # Fetch queued or failed retries
-            now = datetime.utcnow()
-            jobs = db.query(IntegrationOutbox).filter(
-                (IntegrationOutbox.status == "queued") | 
-                ((IntegrationOutbox.status == "failed") & (IntegrationOutbox.attempt_count < 3) & 
-                 ((IntegrationOutbox.retry_after.is_(None)) | (IntegrationOutbox.retry_after <= now)))
-            ).all()
-            
-            for job in jobs:
-                print(f"[WORKER] Processing export outbox job {job.id}...")
-                job.attempt_count += 1
-                success = process_sheets_publish_job(job, db)
-                
-                if success:
-                    print(f"[WORKER] Job {job.id} succeeded!")
-                else:
-                    print(f"[WORKER] Job {job.id} failed! Error: {job.result}")
-                    if job.attempt_count < 3:
-                        job.retry_after = datetime.utcnow() + timedelta(minutes=5 * job.attempt_count)
-                        job.status = "failed"
-                    else:
-                        job.status = "failed" # Final failure
-                        
-                db.commit()
-                
-            db.close()
-        except Exception as e:
-            print(f"[WORKER ERROR] Outbox exception: {str(e)}")
-            
-        time.sleep(10) # check every 10 seconds
+OUTBOX_POLL_SECONDS = 10
+OUTBOX_CLAIM_LEASE = timedelta(minutes=15)
 
-def start_background_worker():
-    t = threading.Thread(target=background_outbox_processor, daemon=True)
-    t.start()
+
+def claim_next_outbox_job(session_factory=None) -> Optional[str]:
+    """The Python integration worker is retired; Supabase owns Sheets claims."""
+    del session_factory
+    return None
+
+
+def process_next_outbox_job(session_factory=None) -> bool:
+    """Compatibility shim; email and Sheets outboxes are Supabase-native."""
+    del session_factory
+    return False

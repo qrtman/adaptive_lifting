@@ -1,27 +1,604 @@
+from backend.test_support import register_verified
+import asyncio
+import hashlib
+import hmac
+import json
+import sys
+from types import ModuleType
+import time
 import uuid
+import urllib.parse
+from datetime import datetime, timedelta
 
+import jwt
 from fastapi.testclient import TestClient
 
+from backend.database import AuditEvent, CoachingRelationship, DomainEvent, IntegrationConnection, Session as AuthSession, SessionLocal, User, Workout
+from backend import main as auth_main
 from backend.main import app
+from backend.sse_broadcaster import get_events
+from backend import sse_broadcaster
+from backend import integrations as telegram_integrations
+from backend.test_support import register_coach
 
 
-def test_register_and_login_set_session_cookie():
+def test_verified_fixture_and_login_set_session_cookie():
     client = TestClient(app)
     email = f"coach-{uuid.uuid4().hex[:10]}@example.com"
-    register_response = client.post(
-        "/api/auth/register",
-        json={"email": email, "password": "password123", "role": "COACH"},
+    register_response = register_verified(client,
+        json={"email": f"  {email.upper()}  ", "password": "password123", "role": "COACH"},
     )
     assert register_response.status_code == 200
+    assert register_response.json()["user"]["role"] == "ATHLETE"
+    assert register_response.json()["user"]["email"] == email
     assert "session_id" in register_response.cookies
 
     login_response = client.post(
         "/api/auth/login",
-        data={"username": email, "password": "password123"},
+        data={"username": f"  {email.upper()} ", "password": "password123"},
     )
     assert login_response.status_code == 200
     assert "session_id" in login_response.cookies
     assert login_response.cookies.get("session_id")
+
+
+def _google_claims(subject="google-subject-1", email="google-user@example.com", verified=True):
+    return {
+        "sub": subject,
+        "email": email,
+        "email_verified": verified,
+        "iss": "https://accounts.google.com",
+        "aud": "test-google-client-id",
+        "exp": 4_102_444_800,
+    }
+
+
+def test_google_login_verifies_id_token_and_creates_athlete(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    subject = f"google-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject))
+    response = TestClient(app).post(
+        "/api/auth/google", json={"token": "valid-id-token", "role": "ATHLETE", "email": "attacker@example.com"}
+    )
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == "google-user@example.com"
+    assert response.json()["user"]["role"] == "ATHLETE"
+    assert response.cookies.get("session_id")
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.google_sub == subject).one()
+        assert user.email == "google-user@example.com"
+        assert user.role == "ATHLETE"
+    finally:
+        db.close()
+
+
+def test_google_login_preserves_existing_google_linked_coach(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    subject = f"google-coach-subject-{uuid.uuid4().hex}"
+    email = f"google-coach-{uuid.uuid4().hex}@example.com"
+    db = SessionLocal()
+    try:
+        user = User(id=str(uuid.uuid4()), email=email, hashed_password="x", role="COACH", google_sub=subject)
+        db.add(user)
+        db.commit()
+    finally:
+        db.close()
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
+
+    response = TestClient(app).post("/api/auth/google", json={"token": "valid-id-token"})
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "COACH"
+
+
+def test_google_login_links_existing_user_only_with_verified_google_email(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    user_id = str(uuid.uuid4())
+    email = f"google-existing-{uuid.uuid4().hex}@example.com"
+    db = SessionLocal()
+    try:
+        db.add(User(id=user_id, email=email, hashed_password=auth_main.get_password_hash("password123"), role="ATHLETE", email_verified_at=datetime.utcnow()))
+        db.commit()
+    finally:
+        db.close()
+    subject = f"google-existing-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
+    client = TestClient(app)
+    assert client.post("/api/auth/google", json={"token": "valid-id-token"}).status_code == 409
+    assert client.post("/api/auth/login", data={"username": email, "password": "password123"}).status_code == 200
+    response = client.post("/api/auth/google", json={"token": "valid-id-token"})
+    assert response.status_code == 200
+    assert response.json()["user"]["id"] == user_id
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter(User.id == user_id).one().google_sub == subject
+    finally:
+        db.close()
+
+
+def test_google_login_rejects_unverified_email_and_deleted_account(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(verified=False))
+    client = TestClient(app)
+    assert client.post("/api/auth/google", json={"token": "valid-signature-unverified-email"}).status_code == 401
+
+    user_id = str(uuid.uuid4())
+    email = f"google-deleted-{uuid.uuid4().hex}@example.com"
+    db = SessionLocal()
+    try:
+        db.add(User(id=user_id, email=email, hashed_password="password-hash", role="ATHLETE", deleted_at=datetime.utcnow()))
+        db.commit()
+    finally:
+        db.close()
+    subject = f"google-deleted-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=subject, email=email))
+    assert client.post("/api/auth/google", json={"token": "valid-token"}).status_code == 403
+
+
+def test_google_login_rejects_duplicate_subject_and_mock_token(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    email = f"google-conflict-{uuid.uuid4().hex}@example.com"
+    subject = f"google-existing-subject-{uuid.uuid4().hex}"
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: _google_claims(subject=f"incoming-{subject}", email=email))
+    db = SessionLocal()
+    try:
+        db.add(User(id=str(uuid.uuid4()), email=email, hashed_password="x", role="COACH", google_sub=subject))
+        db.commit()
+    finally:
+        db.close()
+    client = TestClient(app)
+    response = client.post("/api/auth/google", json={"token": "valid-token"})
+    assert response.status_code == 409
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id: (_ for _ in ()).throw(ValueError("invalid token")))
+    assert client.post("/api/auth/google", json={"token": "mock_google_token_google-user"}).status_code == 401
+
+
+def test_google_login_requires_configuration_and_rejects_invalid_token_categories(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.setattr(auth_main, "verify_google_id_token", lambda *args: (_ for _ in ()).throw(AssertionError("must not verify without config")))
+    missing = client.post("/api/auth/google", json={"token": "anything"})
+    assert missing.status_code == 503
+    assert "GOOGLE_CLIENT_ID" in missing.json()["detail"]
+
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    for category in ("bad signature", "wrong audience", "expired"):
+        monkeypatch.setattr(auth_main, "verify_google_id_token", lambda token, client_id, category=category: (_ for _ in ()).throw(ValueError(category)))
+        assert client.post("/api/auth/google", json={"token": f"invalid-{category}"}).status_code == 401
+
+
+def test_google_login_calls_google_auth_verifier_with_server_audience(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "server-client-id")
+    google = ModuleType("google")
+    google.__path__ = []
+    auth = ModuleType("google.auth")
+    auth.__path__ = []
+    transport = ModuleType("google.auth.transport")
+    transport.__path__ = []
+    transport_requests = ModuleType("google.auth.transport.requests")
+    transport_requests.Request = lambda: "google-verification-request"
+    oauth2 = ModuleType("google.oauth2")
+    oauth2.__path__ = []
+    id_token = ModuleType("google.oauth2.id_token")
+    calls = []
+    test_email = f"google-wrapper-{uuid.uuid4().hex}@example.com"
+
+    def google_verifier(token, request, audience):
+        calls.append((token, request, audience))
+        if token in {"forged-signature", "wrong-audience", "expired-token"}:
+            raise ValueError("Google rejected token")
+        return _google_claims(subject=f"verified-{uuid.uuid4().hex}", email=test_email)
+
+    id_token.verify_oauth2_token = google_verifier
+    for name, module in {
+        "google": google,
+        "google.auth": auth,
+        "google.auth.transport": transport,
+        "google.auth.transport.requests": transport_requests,
+        "google.oauth2": oauth2,
+        "google.oauth2.id_token": id_token,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    client = TestClient(app)
+    valid = client.post("/api/auth/google", json={"token": "cryptographically-verified-by-library"})
+    assert valid.status_code == 200
+    for token in ("forged-signature", "wrong-audience", "expired-token"):
+        assert client.post("/api/auth/google", json={"token": token}).status_code == 401
+    assert all(call[1] == "google-verification-request" for call in calls)
+    assert all(call[2] == "server-client-id" for call in calls)
+
+
+def _register_auth_user(client, prefix="auth"):
+    email = f"{prefix}-{uuid.uuid4().hex}@example.com"
+    response = register_verified(client,
+        json={"email": email, "password": "password123"},
+    )
+    assert response.status_code == 200
+    return response.json()["user"]["id"], response.cookies.get("session_id")
+
+
+def _register_coach(client, email):
+    return register_coach(client, email)
+
+
+def test_registration_role_is_server_controlled_and_cli_promotes_after_reauthentication(capsys):
+    from backend.manage_user import main as manage_user_main
+
+    client = TestClient(app)
+    email = f"manual-coach-{uuid.uuid4().hex}@example.com"
+    created = register_verified(client, json={
+        "email": email,
+        "password": "password123",
+        "role": "COACH",
+    })
+    assert created.status_code == 200
+    assert created.json()["user"]["role"] == "ATHLETE"
+    assert client.post("/api/auth/coach-code", cookies=created.cookies).status_code == 403
+    assert client.get("/api/coach/roster", cookies=created.cookies).status_code == 403
+
+    assert manage_user_main(["promote-coach", f"  {email.upper()} "]) == 0
+    assert "Promoted" in capsys.readouterr().out
+    from backend.manage_user import grant_coach_access
+    assert grant_coach_access(email, "coach_beta", no_expiry=True, reason="test-fixture") == 0
+    capsys.readouterr()
+    client.cookies.clear()
+    signed_in = client.post("/api/auth/login", data={"username": email, "password": "password123"})
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["role"] == "COACH"
+    assert client.post("/api/auth/coach-code").status_code == 200
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).one()
+        event = db.query(AuditEvent).filter(
+            AuditEvent.event_type == "COACH_PROMOTED",
+            AuditEvent.resource_id == user.id,
+        ).one()
+        assert event.resource_type == "User"
+    finally:
+        db.close()
+
+    assert manage_user_main(["promote-coach", email]) == 0
+    assert "already a coach" in capsys.readouterr().out
+    assert manage_user_main(["promote-coach", "missing-user@example.com"]) == 1
+    assert "No account found" in capsys.readouterr().err
+
+
+def test_login_and_coach_cli_find_legacy_mixed_case_email(capsys):
+    from backend.manage_user import main as manage_user_main
+
+    email = f"Legacy-{uuid.uuid4().hex}@Example.com"
+    user_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(User(
+            id=user_id,
+            email=email,
+            hashed_password=auth_main.get_password_hash("password123"),
+            role="ATHLETE",
+            email_verification_legacy_exempt=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    client = TestClient(app)
+    signed_in = client.post(
+        "/api/auth/login",
+        data={"username": email.lower(), "password": "password123"},
+    )
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["id"] == user_id
+
+    assert manage_user_main(["promote-coach", email.lower()]) == 0
+    assert "Promoted" in capsys.readouterr().out
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter(User.id == user_id).one().role == "COACH"
+    finally:
+        db.close()
+
+
+def _make_test_token(user_id, session_id, exp=None):
+    payload = {"sub": user_id, "role": "ATHLETE", "session_id": session_id}
+    payload["exp"] = exp or datetime.utcnow() + timedelta(minutes=5)
+    return jwt.encode(payload, auth_main.SECRET_KEY, algorithm=auth_main.ALGORITHM)
+
+
+def _add_auth_session(user_id, session_id=None, expires_at=None):
+    session_id = session_id or str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(AuthSession(
+            id=session_id,
+            user_id=user_id,
+            jwt_id=session_id,
+            expires_at=expires_at or datetime.utcnow() + timedelta(minutes=5),
+        ))
+        db.commit()
+    finally:
+        db.close()
+    return session_id
+
+
+def test_active_session_token_authenticates_and_parallel_sessions_survive_logout():
+    client = TestClient(app)
+    user_id, first_token = _register_auth_user(client)
+    # Create a second independent session for this same account.
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        email = user.email
+    finally:
+        db.close()
+    second_login = client.post(
+        "/api/auth/login", data={"username": email, "password": "password123"}
+    )
+    assert second_login.status_code == 200
+    second_token = second_login.cookies.get("session_id")
+
+    client.cookies.clear()
+    assert client.get("/api/security/sessions", headers={"Authorization": f"Bearer {first_token}"}).status_code == 200
+    assert client.post(
+        "/api/auth/logout", headers={"Authorization": f"Bearer {first_token}"}
+    ).status_code == 200
+    client.cookies.clear()
+    assert client.get("/api/security/sessions", headers={"Authorization": f"Bearer {first_token}"}).status_code == 401
+    assert client.get("/api/security/sessions", headers={"Authorization": f"Bearer {second_token}"}).status_code == 200
+
+
+def test_auth_rejects_malformed_expired_missing_session_and_user_mismatch_tokens():
+    client = TestClient(app)
+    user_id, _ = _register_auth_user(client)
+    session_id = _add_auth_session(user_id)
+    other_user_id, _ = _register_auth_user(client)
+    other_session_id = _add_auth_session(other_user_id)
+    client.cookies.clear()
+
+    tokens = [
+        "malformed.token.value",
+        _make_test_token(user_id, session_id, datetime.utcnow() - timedelta(seconds=1)),
+        jwt.encode(
+            {"sub": user_id, "role": "ATHLETE", "session_id": session_id},
+            auth_main.SECRET_KEY,
+            algorithm=auth_main.ALGORITHM,
+        ),
+        _make_test_token(user_id, str(uuid.uuid4())),
+        _make_test_token(user_id, other_session_id),
+        _make_test_token(user_id, ""),
+    ]
+    for token in tokens:
+        response = client.get("/api/security/sessions", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 401
+
+    expired_session_id = _add_auth_session(
+        user_id, expires_at=datetime.utcnow() - timedelta(seconds=1)
+    )
+    response = client.get(
+        "/api/security/sessions",
+        headers={"Authorization": f"Bearer {_make_test_token(user_id, expired_session_id)}"},
+    )
+    assert response.status_code == 401
+
+
+def test_revoked_session_fails_immediately():
+    client = TestClient(app)
+    user_id, token = _register_auth_user(client)
+    db = SessionLocal()
+    try:
+        session = db.query(AuthSession).filter(AuthSession.user_id == user_id).first()
+        session.revoked_at = datetime.utcnow()
+        db.commit()
+    finally:
+        db.close()
+
+    client.cookies.clear()
+    response = client.get("/api/security/sessions", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+
+
+def test_session_management_revocation_invalidates_target_session():
+    client = TestClient(app)
+    _, token = _register_auth_user(client)
+    payload = auth_main.decode_access_token(token)
+    session_id = payload["session_id"]
+
+    revoked = client.delete(
+        f"/api/security/sessions/{session_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert revoked.status_code == 200
+    client.cookies.clear()
+    assert client.get(
+        "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 401
+
+
+def test_deleted_user_cannot_authenticate():
+    client = TestClient(app)
+    user_id, token = _register_auth_user(client)
+    db = SessionLocal()
+    try:
+        db.query(User).filter(User.id == user_id).update({User.deleted_at: datetime.utcnow()})
+        db.commit()
+    finally:
+        db.close()
+
+    client.cookies.clear()
+    assert client.get(
+        "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 401
+
+
+def _signed_telegram_init_data(bot_token, telegram_user_id):
+    params = {
+        "auth_date": str(int(time.time())),
+        "query_id": "test-query-id",
+        "user": json.dumps({"id": telegram_user_id, "first_name": "Test Athlete"}),
+    }
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(params.items()))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    params["hash"] = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    return urllib.parse.urlencode(params)
+
+
+def test_telegram_miniapp_login_issues_revocable_session(monkeypatch):
+    bot_token = "123456789:test-bot-token"
+    monkeypatch.setattr(telegram_integrations, "TELEGRAM_BOT_TOKEN", bot_token)
+    client = TestClient(app)
+    user_id, _ = _register_auth_user(client)
+    db = SessionLocal()
+    try:
+        db.add(IntegrationConnection(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            provider="telegram",
+            external_account_id="99999",
+            status="active",
+            scopes="miniapp,bot",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    init_data = _signed_telegram_init_data(bot_token, 99999)
+    login = client.post("/api/integrations/telegram/miniapp/session", json={"initData": init_data})
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    assert "session_id" in login.cookies
+    client.cookies.clear()
+    assert client.get(
+        "/api/security/sessions", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 200
+
+
+def test_telegram_miniapp_login_rejects_mock_input_with_real_bot_token(monkeypatch):
+    monkeypatch.setattr(telegram_integrations, "TELEGRAM_BOT_TOKEN", "123456789:real-bot-token")
+    response = TestClient(app).post(
+        "/api/integrations/telegram/miniapp/session", json={"initData": "mock_init_data"}
+    )
+    assert response.status_code == 401
+
+
+def test_live_workout_events_require_active_authentication():
+    client = TestClient(app)
+    response = client.get("/api/workouts/not-a-workout/live")
+    assert response.status_code == 401
+
+
+def test_live_workout_events_allow_owner_and_linked_coach_but_hide_workouts_from_other_users(monkeypatch):
+    owner_client = TestClient(app)
+    owner_id, owner_token = _register_auth_user(owner_client, "sse-owner")
+    coach_client = TestClient(app)
+    coach_email = f"sse-coach-{uuid.uuid4().hex}@example.com"
+    coach_response = _register_coach(coach_client, coach_email)
+    assert coach_response.status_code == 200
+    coach_id = coach_response.json()["user"]["id"]
+    coach_token = coach_response.cookies.get("session_id")
+    outsider_client = TestClient(app)
+    _, outsider_token = _register_auth_user(outsider_client, "sse-outsider")
+
+    workout_id = str(uuid.uuid4())
+    event_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(Workout(
+            id=workout_id,
+            date="2026-09-25",
+            dayLabel="2026-09-25",
+            title="Private SSE workout",
+            color="#fff",
+            status="IN_PROGRESS",
+            owner_id=owner_id,
+        ))
+        db.add(CoachingRelationship(coach_id=coach_id, athlete_id=owner_id))
+        db.flush()
+        db.add(DomainEvent(
+            id=event_id,
+            workout_id=workout_id,
+            event_type="SET_LOGGED",
+            payload_json='{"private":"workout event"}',
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    url = f"/api/workouts/{workout_id}/live"
+    # Existing and nonexistent IDs have identical status and body for an
+    # authenticated but unrelated user, preventing ID enumeration.
+    unrelated = TestClient(app, cookies={"session_id": outsider_token})
+    denied = unrelated.get(url)
+    missing = unrelated.get("/api/workouts/not-a-workout/live")
+    assert denied.status_code == missing.status_code == 404
+    assert denied.json() == missing.json()
+
+    # Browser EventSource sends the same-origin HttpOnly cookie automatically.
+    # Both the owner and an actively linked coach can receive authorized events.
+    # TestClient buffers streaming responses, so end the generator after its
+    # first real event instead of waiting forever for SSE heartbeats.
+    async def first_event(*args):
+        stream = get_events(*args)
+        try:
+            yield await anext(stream)
+        finally:
+            await stream.aclose()
+
+    monkeypatch.setattr(sse_broadcaster, "get_events", first_event)
+    for token in (owner_token, coach_token):
+        authorized = TestClient(app, cookies={"session_id": token})
+        with authorized.stream("GET", url) as response:
+            assert response.status_code == 200
+            lines = iter(response.iter_lines())
+            assert next(lines) == f"id: {event_id}"
+            assert next(lines) == "event: SET_LOGGED"
+            assert next(lines) == 'data: {"private":"workout event"}'
+
+
+def test_open_live_workout_stream_stops_after_session_revocation(monkeypatch):
+    client = TestClient(app)
+    user_id, token = _register_auth_user(client)
+    session_id = auth_main.decode_access_token(token)["session_id"]
+    workout_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(Workout(
+            id=workout_id,
+            date="2026-09-25",
+            dayLabel="2026-09-25",
+            title="Auth stream test",
+            color="#fff",
+            status="PLANNED",
+            owner_id=user_id,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    real_sleep = asyncio.sleep
+
+    async def fast_sleep(_seconds):
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+
+    async def check_stream_revocation():
+        stream = get_events(workout_id, user_id, session_id)
+        assert await stream.__anext__() == ": heartbeat\n\n"
+        revoke_db = SessionLocal()
+        try:
+            auth_session = revoke_db.query(AuthSession).filter(AuthSession.id == session_id).first()
+            auth_session.revoked_at = datetime.utcnow()
+            revoke_db.commit()
+        finally:
+            revoke_db.close()
+        try:
+            await stream.__anext__()
+            assert False, "revoked stream should have closed"
+        except StopAsyncIteration:
+            pass
+
+    asyncio.run(check_stream_revocation())
 
 
 def _workout_ids(tree):
@@ -36,29 +613,24 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     athlete1_email = f"athlete1-{suffix}@example.com"
     athlete2_email = f"athlete2-{suffix}@example.com"
 
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": coach_email, "password": "password123", "role": "COACH"},
-    )
+    coach = _register_coach(client, coach_email)
     assert coach.status_code == 200
     coach_cookies = dict(coach.cookies)
 
-    outsider = client.post(
-        "/api/auth/register",
-        json={"email": outsider_email, "password": "password123", "role": "COACH"},
-    )
+    outsider = _register_coach(client, outsider_email)
     assert outsider.status_code == 200
     outsider_cookies = dict(outsider.cookies)
 
-    athlete1 = client.post(
-        "/api/auth/register",
+    athlete1 = register_verified(client,
         json={"email": athlete1_email, "password": "password123", "role": "ATHLETE"},
     )
     assert athlete1.status_code == 200
     athlete1_cookies = dict(athlete1.cookies)
+    named_profile = client.patch("/api/auth/profile", json={"displayName": "Athlete One"}, cookies=athlete1_cookies)
+    assert named_profile.status_code == 200
+    assert named_profile.json()["displayName"] == "Athlete One"
 
-    athlete2 = client.post(
-        "/api/auth/register",
+    athlete2 = register_verified(client,
         json={"email": athlete2_email, "password": "password123", "role": "ATHLETE"},
     )
     assert athlete2.status_code == 200
@@ -83,6 +655,24 @@ def test_coach_code_link_unlink_keeps_empty_plan():
         cookies=athlete1_cookies,
     )
     assert link.status_code == 200
+    audit_db = SessionLocal()
+    try:
+        audit_db.add(AuditEvent(
+            id=f"private-{suffix}",
+            actor_user_id=athlete1.json()["user"]["id"],
+            event_type="PRIVATE_ATHLETE_EVENT",
+            resource_type="PrivateResource",
+            resource_id=suffix,
+        ))
+        audit_db.commit()
+    finally:
+        audit_db.close()
+    reused_code = client.post(
+        "/api/auth/link",
+        json={"code": coach_code},
+        cookies=athlete2_cookies,
+    )
+    assert reused_code.status_code == 404
 
     athlete1_mcs = client.get("/api/microcycles", cookies=athlete1_cookies)
     assert athlete1_mcs.status_code == 200
@@ -94,7 +684,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
 
     created = client.post(
         "/api/sessions",
-        json={"date": "2026-09-11", "title": "Squat day", "blockLabel": "Block2", "weekLabel": "Week3"},
+        json={"date": datetime.utcnow().date().isoformat(), "title": "Squat day", "blockLabel": "Block2", "weekLabel": "Week3"},
         cookies=athlete1_cookies,
     )
     assert created.status_code == 200
@@ -111,6 +701,7 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     assert athlete2_email not in emails
 
     athlete_id = next(row["id"] for row in roster_data if row["email"] == athlete1_email)
+    assert next(row for row in roster_data if row["id"] == athlete_id)["displayName"] == "Athlete One"
     coach_mcs = client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies)
     assert coach_mcs.status_code == 200
     assert session_id in _workout_ids(coach_mcs.json())
@@ -132,6 +723,17 @@ def test_coach_code_link_unlink_keeps_empty_plan():
 
     unlink = client.delete("/api/auth/link", cookies=athlete1_cookies)
     assert unlink.status_code == 200
+    athlete_audit = client.get("/api/security/audit-events", cookies=athlete1_cookies)
+    assert athlete_audit.status_code == 200
+    assert any(event["event_type"] == "ATHLETE_UNLINKED" for event in athlete_audit.json())
+
+    post_unlink = client.post(
+        "/api/sessions",
+        json={"date": (datetime.utcnow().date() + timedelta(days=1)).isoformat(), "title": "Solo day"},
+        cookies=athlete1_cookies,
+    )
+    assert post_unlink.status_code == 200
+    post_unlink_session_id = post_unlink.json()["id"]
 
     roster_after = client.get("/api/coach/roster", cookies=coach_cookies)
     assert athlete1_email not in [row["email"] for row in roster_after.json()]
@@ -145,21 +747,74 @@ def test_coach_code_link_unlink_keeps_empty_plan():
     )
     assert lost_write.status_code == 403
 
+    past_links = client.get("/api/coach/roster/history", cookies=coach_cookies)
+    assert past_links.status_code == 200
+    assert len(past_links.json()) == 1
+    relationship_id = past_links.json()[0]["relationshipId"]
+    assert past_links.json()[0]["archiveAvailable"] is True
+    coach_audit = client.get("/api/security/audit-events", cookies=coach_cookies).json()
+    coach_event_types = [event["event_type"] for event in coach_audit]
+    assert "ATHLETE_LINKED" in coach_event_types
+    assert "ATHLETE_UNLINKED" in coach_event_types
+    assert "PRIVATE_ATHLETE_EVENT" not in coach_event_types
+    snapshot = client.get(f"/api/coach/roster/history/{relationship_id}", cookies=coach_cookies)
+    assert snapshot.status_code == 200
+    snapshot_session_ids = _workout_ids(snapshot.json()["microcycles"])
+    assert session_id in snapshot_session_ids
+    assert post_unlink_session_id not in snapshot_session_ids
+
+    renamed = client.patch("/api/auth/profile", json={"displayName": "Updated Later"}, cookies=athlete1_cookies)
+    assert renamed.status_code == 200
+    assert renamed.json()["displayName"] == "Updated Later"
+    frozen_snapshot = client.get(f"/api/coach/roster/history/{relationship_id}", cookies=coach_cookies).json()
+    assert frozen_snapshot["athlete"]["displayName"] == "Athlete One"
+
+    # Relinking creates a new relationship; the former coach keeps only the old snapshot.
+    new_code = client.post("/api/auth/coach-code", cookies=outsider_cookies).json()["code"]
+    relink = client.post("/api/auth/link", json={"code": new_code}, cookies=athlete1_cookies)
+    assert relink.status_code == 200
+    new_roster = client.get("/api/coach/roster", cookies=outsider_cookies).json()
+    assert next(row for row in new_roster if row["id"] == athlete_id)["displayName"] == "Updated Later"
+    assert client.get(f"/api/microcycles?athlete_id={athlete_id}", cookies=coach_cookies).status_code == 403
+    assert client.get(f"/api/coach/roster/history/{relationship_id}", cookies=outsider_cookies).status_code == 404
+
     # Plan stays in athlete space after unlink
     athlete1_after = client.get("/api/microcycles", cookies=athlete1_cookies)
     assert athlete1_after.status_code == 200
     assert session_id in _workout_ids(athlete1_after.json())
+    assert post_unlink_session_id in _workout_ids(athlete1_after.json())
+
+
+def test_coach_can_unlink_and_get_read_only_snapshot():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    coach = _register_coach(client, f"coach-{suffix}@example.com")
+    athlete = register_verified(client,
+        json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    coach_cookies = dict(coach.cookies)
+    athlete_cookies = dict(athlete.cookies)
+    code = client.post("/api/auth/coach-code", cookies=coach_cookies).json()["code"]
+    assert client.post("/api/auth/link", json={"code": code}, cookies=athlete_cookies).status_code == 200
+    roster = client.get("/api/coach/roster", cookies=coach_cookies).json()
+    athlete_id = roster[0]["id"]
+
+    unlink = client.delete(f"/api/auth/link/{athlete_id}", cookies=coach_cookies)
+    assert unlink.status_code == 200
+    coach_audit = client.get("/api/security/audit-events", cookies=coach_cookies)
+    assert any(event["event_type"] == "COACH_UNLINKED_ATHLETE" for event in coach_audit.json())
+    assert client.get("/api/coach/roster", cookies=coach_cookies).json() == []
+    history = client.get("/api/coach/roster/history", cookies=coach_cookies).json()
+    assert len(history) == 1
+    assert history[0]["archiveAvailable"] is True
+    assert client.get(f"/api/coach/roster/history/{history[0]['relationshipId']}", cookies=coach_cookies).status_code == 200
 
 
 def test_coach_create_session_requires_linked_athlete():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
-    )
-    athlete = client.post(
-        "/api/auth/register",
+    coach = _register_coach(client, f"coach-{suffix}@example.com")
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     coach_cookies = dict(coach.cookies)
@@ -240,8 +895,7 @@ def test_coach_create_session_requires_linked_athlete():
 def test_session_labels_anytime_and_new_athlete_starts_empty():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -273,11 +927,59 @@ def test_session_labels_anytime_and_new_athlete_starts_empty():
     assert removed.status_code == 200
 
 
+def test_deleting_synced_session_preserves_event_and_rejects_future_writes():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    owner = register_verified(client,
+        json={"email": f"delete-owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    outsider = register_verified(client,
+        json={"email": f"delete-outsider-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
+    )
+    owner_cookies = dict(owner.cookies)
+    outsider_cookies = dict(outsider.cookies)
+    created = client.post(
+        "/api/sessions", json={"date": "2026-09-26", "title": "Synced session"}, cookies=owner_cookies,
+    )
+    assert created.status_code == 200
+    session_id = created.json()["id"]
+    payload = {
+        "schema_version": 1,
+        "client_device_id": f"delete-device-{suffix}",
+        "workout_id": session_id,
+        "last_updated_at": "2026-09-26T00:00:00Z",
+        "changes": [],
+    }
+    assert client.post(f"/api/workouts/{session_id}/sync", json=payload, cookies=owner_cookies).status_code == 200
+
+    db = SessionLocal()
+    try:
+        event_id = db.query(DomainEvent.id).filter(DomainEvent.workout_id == session_id).scalar()
+        assert event_id is not None
+    finally:
+        db.close()
+
+    assert client.delete(f"/api/sessions/{session_id}", cookies=outsider_cookies).status_code == 403
+    assert client.delete(f"/api/sessions/{session_id}", cookies=owner_cookies).status_code == 200
+    assert client.delete(f"/api/sessions/{session_id}", cookies=owner_cookies).status_code == 404
+    assert client.patch(f"/api/sessions/{session_id}", json={"title": "Resurrected"}, cookies=owner_cookies).status_code == 404
+    assert client.post(f"/api/workouts/{session_id}/sync", json=payload, cookies=owner_cookies).status_code == 404
+    tree = client.get("/api/microcycles", cookies=owner_cookies)
+    assert all(w["id"] != session_id for mc in tree.json() for w in mc["workouts"])
+
+    db = SessionLocal()
+    try:
+        workout = db.query(Workout).filter(Workout.id == session_id).one()
+        assert workout.deleted_at is not None
+        assert db.query(DomainEvent.id).filter(DomainEvent.id == event_id, DomainEvent.workout_id == session_id).scalar() == event_id
+    finally:
+        db.close()
+
+
 def test_copy_week_shifts_dates_and_increments_week_label():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -335,8 +1037,7 @@ def test_copy_week_shifts_dates_and_increments_week_label():
 def test_copy_week_preserve_week_label_keeps_source():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -393,8 +1094,7 @@ def test_copy_week_preserve_week_label_keeps_source():
 def test_copy_preserves_labeled_day_label_not_dest_date():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -432,8 +1132,7 @@ def test_copy_preserves_labeled_day_label_not_dest_date():
 def test_plan_sets_persist_typed_weight_and_empty_backoff():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"plan-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -477,8 +1176,7 @@ def test_plan_sets_persist_typed_weight_and_empty_backoff():
 def test_plan_sets_persist_drop_percent():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"drop-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -561,8 +1259,7 @@ def test_plan_sets_persist_drop_percent():
 def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -613,8 +1310,7 @@ def test_copy_lifts_clears_logs_copy_with_logs_keeps_them():
 def test_add_lift_to_empty_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -652,8 +1348,7 @@ def test_add_lift_to_empty_session():
     )
     assert bench.status_code == 200
 
-    other = client.post(
-        "/api/auth/register",
+    other = register_verified(client,
         json={"email": f"other-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     other_cookies = dict(other.cookies)
@@ -674,8 +1369,7 @@ def test_add_lift_to_empty_session():
 def test_remove_lift_from_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -724,8 +1418,7 @@ def test_remove_lift_from_session():
 def test_completed_session_stays_writable():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -762,8 +1455,7 @@ def test_completed_session_stays_writable():
 def test_completed_session_allows_set_writes():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -858,8 +1550,7 @@ def test_completed_session_allows_set_writes():
 def test_reorder_lifts_in_session():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -929,8 +1620,7 @@ def test_reorder_lifts_in_session():
 def test_name_lift_variation():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -965,12 +1655,8 @@ def test_name_lift_variation():
 def test_athlete_sees_coach_created_session_on_own_id_fetch():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    coach = client.post(
-        "/api/auth/register",
-        json={"email": f"coach-{suffix}@example.com", "password": "password123", "role": "COACH"},
-    )
-    athlete = client.post(
-        "/api/auth/register",
+    coach = _register_coach(client, f"coach-{suffix}@example.com")
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     coach_cookies = dict(coach.cookies)
@@ -998,11 +1684,27 @@ def test_athlete_sees_coach_created_session_on_own_id_fetch():
     assert session_id in _workout_ids(explicit.json())
 
 
+def test_sync_workout_requires_plan_access_and_matching_url():
+    client = TestClient(app)
+    suffix = uuid.uuid4().hex[:8]
+    owner = register_verified(client, json={"email": f"owner-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
+    stranger = register_verified(client, json={"email": f"stranger-{suffix}@example.com", "password": "password123", "role": "ATHLETE"})
+    session = client.post("/api/sessions", json={"date": "2026-09-12", "title": "Private"}, cookies=dict(owner.cookies)).json()
+    payload = {
+        "schema_version": 1,
+        "client_device_id": f"dev-{suffix}",
+        "workout_id": session["id"],
+        "last_updated_at": "2026-09-12T00:00:00Z",
+        "changes": [],
+    }
+    assert client.post(f"/api/workouts/{session['id']}/sync", json=payload, cookies=dict(stranger.cookies)).status_code == 403
+    assert client.post("/api/workouts/other-session/sync", json=payload, cookies=dict(owner.cookies)).status_code == 400
+
+
 def test_sync_mixed_workout_payload_rejects_foreign_entities():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)
@@ -1064,8 +1766,7 @@ def test_sync_mixed_workout_payload_rejects_foreign_entities():
 def test_auth_link_reset_is_not_a_plan_conflict():
     client = TestClient(app)
     suffix = uuid.uuid4().hex[:8]
-    athlete = client.post(
-        "/api/auth/register",
+    athlete = register_verified(client,
         json={"email": f"athlete-{suffix}@example.com", "password": "password123", "role": "ATHLETE"},
     )
     cookies = dict(athlete.cookies)

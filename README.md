@@ -1,71 +1,80 @@
-# Adaptive Lifting Periodization Dashboard
+# Adaptive Lifting
 
-Auto-regulatory periodization dashboard for powerlifting coaches and athletes.
+Adaptive Lifting is an auto-regulatory training planning and logging app for
+coaches and athletes. Training plans belong to athletes; a linked coach receives
+shared access through the coach-code relationship flow.
 
----
+## Start here
 
-## System Requirements & Run Instructions
+- [Repository history and branch policy](docs/repository-state.md) — current
+  continuation path and preserved source checkpoints.
+- [Production status](docs/PRODUCTION_STATUS.md) — authoritative dated
+  checkpoint for completed work, pending gates, and constraints.
+- [System architecture](architecture.md) — the selected active architecture,
+  domain model, math, security, offline sync, and runtime contracts.
+- [Design system](design.md) — UI patterns and interaction contracts.
+- [Development and verification](#development-and-verification).
+- [Production launch runbook](supabase/PRODUCTION_CUTOVER.md) — continue from
+  the deployed API; no database bootstrap or migration replay.
+- [Cloudflare deployment](docs/cloudflare-workers.md) — staging evidence and
+  the pending production Worker preparation/deployment procedure.
+- [Supabase backend and migrations](supabase/README.md) — runtime boundaries,
+  local checks, and migration history.
+- [Email verification and onboarding](docs/email-verification.md) — behavior
+  and security contract; [production email readiness](docs/production-email-readiness.md)
+  tracks the provider gate.
+- [Realtime](supabase/REALTIME_SPIKE.md) — implementation evidence;
+  [production Realtime E2E](supabase/bootstrap/PRODUCTION_REALTIME_E2E.md) is
+  still a separate pending gate.
+- [Backup and recovery](docs/production-recovery.md) — recovery requirements,
+  evidence, and unresolved implementation choices.
+- [Documentation index and policy](docs/README.md).
+- [Historical material](docs/README.md#historical-and-superseded-records) —
+  retained audits and experiments are evidence, not current deployment plans.
 
-This project requires a dual-process spin-up (Vite + FastAPI).
+## Selected runtime architecture
 
-### 1. Run the Frontend (Vite App)
-* **Framework**: React + Vite + Tailwind CSS v4
-* **Directory**: `/` (root directory)
-* **Command**: 
-  ```bash
-  npm run dev
-  ```
-* **Runs on**: [http://localhost:3000](http://localhost:3000)
+The application is a React/Vite progressive web app. Cloudflare Workers Static
+Assets is the selected frontend host, with a same-origin Worker proxy for
+`/api/*`. Supabase Edge Functions and PostgreSQL provide the application API,
+workers, and persistence. Supabase Realtime provides private live
+synchronization when its production release gate passes.
 
-### 2. Run the Backend (FastAPI App)
-* **Framework**: FastAPI + Python + SQLite (SQLAlchemy)
-* **Directory**: `/` (root directory)
-* **Command**:
-  ```bash
-  python -m uvicorn backend.main:app --port 8000 --host 127.0.0.1
-  ```
-* **Runs on**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+Application accounts use custom application JWTs and HttpOnly cookie sessions,
+backed by the application sessions table. Supabase Auth is not the application
+account system. Python/FastAPI under `backend/` is retained for compatibility,
+historical migration context, and mathematical parity tests; it is not an
+active application runtime. See [architecture.md](architecture.md) for the
+complete contract.
 
----
+## Development and verification
 
-## Tests
+Install dependencies with `npm ci`, copy `.env.example` to `.env`, and set the
+development API target before starting Vite:
 
-```bash
-pip install -r backend/requirements.txt
-pytest
+```powershell
+$env:API_EDGE_TARGET = "https://<project-ref>.supabase.co"
+npm run dev
 ```
 
-```bash
+The dev proxy forwards `/api/*` to the corresponding Supabase function path.
+It does not fall back to Python. Common checks:
+
+```text
 npm test
+npm run lint
+npm run build
 ```
 
-```bash
-npx playwright install chromium
-npm run test:e2e
-```
+Python tests are compatibility/parity checks. Supabase Edge tests and SQL
+migrations are under `supabase/`. Production changes require the approvals and
+release gates in [the production status](docs/PRODUCTION_STATUS.md) and
+[cutover runbook](supabase/PRODUCTION_CUTOVER.md).
 
-Playwright covers the login screen, same-week calendar drag, cross-week boundary lock, set logging (e1RM / INOL / tonnage), and offline mutation flush.
+## Documentation authority
 
----
-
-## Design
-
-This system uses a restrained dark visual schema. See [design.md](design.md) for full specifications.
-
----
-
-## Safety Mechanisms & Data Integrity
-
-> [!WARNING]  
-> **Startup:** On boot, leftover `obsidian_*` / `iron_box_*` LocalStorage keys are purged. Workout trees hydrate from IndexedDB snapshots, then the backend.
-
-> [!IMPORTANT]  
-> **Data Integrity**: All prescriptions are strictly columnar (`planned_weight`, `planned_reps`) and tracked against actual chronological dates (`YYYY-MM-DD`). See [architecture.md](architecture.md) for detailed boundaries.
-
----
-
-## Key Active Folders
-* **`src/components/CalendarView.tsx`**: The core periodization planning grid featuring week-long microcycle visual capsules and auto-regulated bounds.
-* **`src/components/mobile/TelegramSessionTerminal.tsx`**: High-performance mobile workout logging interface simulating the Telegram Mini App.
-* **`src/App.tsx`**: Root shell for view routing and chrome. Periodization data lives in `PeriodizationContext`.
-* **`backend/`**: FastAPI database models, sync services, calculation models, and integrations (Telegram Mini App, Google Sheets).
+See [docs/README.md](docs/README.md) for the source-of-truth map and maintenance
+policy. In brief: `architecture.md` records stable architecture and behavior;
+`docs/PRODUCTION_STATUS.md` records changing production facts; the cutover
+runbook records how to proceed safely. Older audits remain clearly labeled
+historical and must not override those current documents.

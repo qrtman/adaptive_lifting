@@ -1,17 +1,21 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useRef, type ComponentProps, type RefObject } from 'react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
 import { AppShell } from './components/AppShell';
 import { ExerciseCard } from './components/ExerciseCard';
+import { AccessoryLedger } from './components/AccessoryLedger';
 import { LoginView } from './components/LoginView';
 import { TelegramLinkPanel } from './components/TelegramLinkPanel';
 import { SheetsPublishPanel } from './components/SheetsPublishPanel';
 import { InsightsView } from './components/InsightsView';
 import { SecurityView } from './components/SecurityView';
+import { RosterView } from './components/RosterView';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { useAuth } from './contexts/AuthContext';
+import { useAccountAccess } from './contexts/AccessContext';
+import { shouldDisableCoachAction } from './services/accessUi';
 import { usePeriodization } from './contexts/PeriodizationContext';
 import { apiService } from './services/api';
 import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs';
@@ -21,9 +25,44 @@ import type { ThemePreference } from './theme/themePref';
 import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel } from './features/plan/sessionLabels';
+import { splitWorkoutExercises, type LiftMetaPatch } from './types';
+
+type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
+  value: string;
+  reorderContainerRef: RefObject<HTMLDivElement | null>;
+  canReorder?: boolean;
+};
+
+function SortableExerciseCard({ value, reorderContainerRef, canReorder = true, ...props }: SortableExerciseCardProps) {
+  const dragControls = useDragControls();
+  const [minimized, setMinimized] = useState(props.initialMinimized ?? true);
+
+  return (
+    <Reorder.Item
+      as="div"
+      value={value}
+      drag="y"
+      dragListener={false}
+      dragControls={dragControls}
+      dragConstraints={reorderContainerRef}
+      layout="position"
+      layoutDependency={minimized}
+      className="relative"
+    >
+      <ExerciseCard
+        {...props}
+        initialMinimized={minimized}
+        onMinimizedChange={setMinimized}
+        dragControls={canReorder ? dragControls : undefined}
+      />
+    </Reorder.Item>
+  );
+}
 
 export default function App() {
-  const { user, roleMode, setRoleMode } = useAuth();
+  const { user } = useAuth();
+  const { canProgram } = useAccountAccess();
+  const coachCanProgram = !shouldDisableCoachAction(String(user?.role || '').toUpperCase() === 'COACH', canProgram);
   const {
     activeWorkoutId,
     setActiveWorkoutId,
@@ -39,6 +78,7 @@ export default function App() {
   const [initialLocation] = useState(() => parseAppLocation());
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'session'>(() => {
+    if (initialLocation.mode === 'roster') return 'dashboard';
     const saved = getUiPref(UI_KEYS.appView);
     return saved === 'session' ? 'session' : 'dashboard';
   });
@@ -51,9 +91,31 @@ export default function App() {
   const [filter, setFilter] = useState<LiftFilterState>(() => parseLiftFilter(getUiPref(UI_KEYS.liftFilter)));
   const [editSessionOpen, setEditSessionOpen] = useState(false);
   const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
+  const [mainLiftOrder, setMainLiftOrder] = useState<string[]>([]);
+  const reorderContainerRef = useRef<HTMLDivElement>(null);
   const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
   const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
   const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
+  const workoutExercises = activeWorkout ? splitWorkoutExercises(activeWorkout.exercises) : null;
+
+  useEffect(() => {
+    const mainIds = workoutExercises?.main.map((exercise) => exercise.id) ?? [];
+    setMainLiftOrder((current) => {
+      const next = [
+      ...current.filter((id) => mainIds.includes(id)),
+      ...mainIds.filter((id) => !current.includes(id)),
+      ];
+      return next.length === current.length && next.every((id, index) => id === current[index])
+        ? current
+        : next;
+    });
+  }, [activeWorkout?.id, activeWorkout?.exercises]);
+
+  const orderedMainExercises = (workoutExercises?.main ?? []).slice().sort((a, b) => {
+    const aIndex = mainLiftOrder.indexOf(a.id);
+    const bIndex = mainLiftOrder.indexOf(b.id);
+    return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+  });
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -137,6 +199,20 @@ export default function App() {
     }, 100);
   };
 
+  const handleDeleteSession = async (workout: { id: string; title?: string }) => {
+    if (!window.confirm(`Delete ${workout.title || 'this session'}?`)) return;
+    try {
+      await apiService.deleteSession(workout.id);
+      await reloadMicrocycles(planAthleteId);
+      if (activeWorkoutId === workout.id) {
+        setActiveWorkoutId(null);
+        setCurrentView('dashboard');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete session');
+    }
+  };
+
   const handleRemoveLift = async (exerciseId: string) => {
     if (!activeWorkout) return;
     try {
@@ -148,23 +224,32 @@ export default function App() {
     }
   };
 
-  const handleUpdateLift = async (exerciseId: string, patch: { variation?: string; tier?: 'Comp' | 'Variation' | 'Accessory'; movementPattern?: string }) => {
+  const handleUpdateLift = async (exerciseId: string, patch: LiftMetaPatch) => {
     if (!activeWorkout) return;
     try {
       await apiService.updateSessionExercise(activeWorkout.id, exerciseId, patch);
       await reloadMicrocycles(planAthleteId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update lift');
+      throw err;
     }
   };
 
-  const handleMoveLift = async (exerciseId: string, move: 'up' | 'down') => {
-    if (!activeWorkout) return;
+  const handleReorderLifts = async (orderedMainIds: string[]) => {
+    if (!activeWorkout || !coachCanProgram) return;
+    setMainLiftOrder(orderedMainIds);
+    const mainIds = new Set(workoutExercises?.main.map((exercise) => exercise.id) ?? []);
+    let nextMainIndex = 0;
+    const fullOrder = activeWorkout.exercises.map((exercise) => {
+      if (!mainIds.has(exercise.id)) return exercise.id;
+      return orderedMainIds[nextMainIndex++];
+    });
     try {
-      await apiService.updateSessionExercise(activeWorkout.id, exerciseId, { move });
+      await apiService.updateSessionExercise(activeWorkout.id, orderedMainIds[0], { order: fullOrder });
       await reloadMicrocycles(planAthleteId);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to move lift');
+      setMainLiftOrder(workoutExercises?.main.map((exercise) => exercise.id) ?? []);
+      alert(err instanceof Error ? err.message : 'Failed to reorder lifts');
     }
   };
 
@@ -197,6 +282,7 @@ export default function App() {
                 {dashboardMode === 'calendar' ? (
                   <CalendarView 
                     onViewSession={handleViewSession}
+                    onDeleteSession={handleDeleteSession}
                     filter={filter}
                     onFilterChange={setFilter}
                     copyClipboard={copyClipboard}
@@ -206,12 +292,15 @@ export default function App() {
                 ) : dashboardMode === 'sessions' ? (
                   <SessionsView 
                     onViewSession={handleViewSession}
+                    onDeleteSession={handleDeleteSession}
                     filter={filter}
                     onFilterChange={setFilter}
                     onStartCopy={startCopy}
                   />
                 ) : dashboardMode === 'insights' ? (
                   <InsightsView />
+                ) : dashboardMode === 'roster' ? (
+                  <RosterView onNavigate={handleNavigate} />
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
                 ) : (
@@ -249,42 +338,29 @@ export default function App() {
                             {activeWorkout.title}
                           </p>
                           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
-                            <p data-testid="session-labels" className="text-xs text-[var(--cal-muted)] min-w-0">
+                            <p data-testid="session-labels" className="min-w-0 rounded-[var(--cal-radius-sm)] bg-[var(--cal-surface-2)] px-1.5 py-0.5 text-[12px] font-semibold text-[var(--cal-ink)]">
                               {[sessionDayLabel, sessionWeekLabel, sessionBlockLabel].filter(Boolean).join(' · ')}
                               {sessionDayLabel && !sessionWeekLabel && !sessionBlockLabel ? ' · ' : null}
                               {!sessionWeekLabel && !sessionBlockLabel ? 'No block/week' : null}
-                            </p>
-                            <p data-testid="workout-tonnage" className="text-[11px] text-[var(--cal-muted)] tnum shrink-0">
-                              {activeWorkout.tonnage} kg
                             </p>
                             <button
                               type="button"
                               data-testid="session-edit"
                               onClick={() => setEditSessionOpen(true)}
-                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+                              disabled={!coachCanProgram}
+                              title={!coachCanProgram ? 'Active coaching access is required to edit athlete programming.' : undefined}
+                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                             >
                               Edit
                             </button>
                           </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-auto">
-                      <button
-                        onClick={() => setRoleMode('coach')}
-                        className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'coach' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
-                        }`}
-                      >
-                        Coach
-                      </button>
-                      <button
-                        onClick={() => setRoleMode('athlete')}
-                        className={`h-7 px-2 text-[11px] ${
-                          roleMode === 'athlete' ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'
-                        }`}
-                      >
-                        Athlete
-                      </button>
+                    <div className="flex items-center gap-2 shrink-0 ml-auto">
+                      <p data-testid="workout-tonnage" className="flex w-36 shrink-0 items-baseline justify-end gap-1 text-right text-[11px] font-semibold text-[var(--cal-ink)]">
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Tonnage</span>
+                        <span className="tnum">{activeWorkout.tonnage.toLocaleString()} kg</span>
+                      </p>
                       <button
                         type="button"
                         data-testid="session-complete"
@@ -309,9 +385,20 @@ export default function App() {
                         No lifts yet. Add squat, bench, or deadlift.
                       </p>
                     )}
-                    {activeWorkout.exercises.map((ex, index) => (
-                      <ExerciseCard 
+                    <Reorder.Group
+                      as="div"
+                      axis="y"
+                      ref={reorderContainerRef}
+                      values={orderedMainExercises.map((exercise) => exercise.id)}
+                      onReorder={(next) => { if (coachCanProgram) void handleReorderLifts(next); }}
+                    >
+                    {orderedMainExercises.map((ex) => {
+                      return (
+                      <SortableExerciseCard
                         key={ex.id}
+                        value={ex.id}
+                        reorderContainerRef={reorderContainerRef}
+                        canReorder={coachCanProgram}
                         id={ex.id}
                         title={ex.title}
                         variation={ex.variation}
@@ -319,20 +406,30 @@ export default function App() {
                         tier={ex.tier}
                         liftCategory={ex.liftCategory}
                         movementPattern={ex.movementPattern}
+                        liftNote={ex.liftNote}
                         initialSets={ex.sets}
+                        canEditPlan={coachCanProgram}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
-                        onUpdateMeta={(patch) => handleUpdateLift(ex.id, patch)}
-                        onRemove={() => handleRemoveLift(ex.id)}
-                        onMoveUp={index > 0 ? () => handleMoveLift(ex.id, 'up') : undefined}
-                        onMoveDown={index < activeWorkout.exercises.length - 1 ? () => handleMoveLift(ex.id, 'down') : undefined}
-                        roleMode={roleMode}
+                        onUpdateMeta={coachCanProgram ? (patch) => handleUpdateLift(ex.id, patch) : undefined}
+                        onRemove={coachCanProgram ? () => handleRemoveLift(ex.id) : undefined}
                       />
-                    ))}
+                    );
+                    })}
+                    </Reorder.Group>
 
-                    <AddLiftBar
-                      sessionId={activeWorkout.id}
-                      onAdded={() => reloadMicrocycles(planAthleteId)}
+                    <AccessoryLedger
+                      exercises={workoutExercises?.accessories ?? []}
+                      onUpdateSets={updateExerciseSets}
+                      canEditPlan={coachCanProgram}
+                      onUpdateMeta={coachCanProgram ? handleUpdateLift : undefined}
+                      onRemove={coachCanProgram ? handleRemoveLift : undefined}
                     />
+
+                    {coachCanProgram ? (
+                      <AddLiftBar sessionId={activeWorkout.id} onAdded={() => reloadMicrocycles(planAthleteId)} />
+                    ) : (
+                      <p className="px-2 py-3 text-xs text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</p>
+                    )}
                   </div>
                   {editSessionOpen && (
                     <EditSessionDialog
@@ -344,6 +441,7 @@ export default function App() {
                       }}
                       onDeleted={async () => {
                         await reloadMicrocycles(planAthleteId);
+                        setActiveWorkoutId(null);
                         setEditSessionOpen(false);
                         setCurrentView('dashboard');
                       }}

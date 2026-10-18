@@ -1,6 +1,7 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function signIn(page: Page, email: string) {
   await page.goto('/');
@@ -12,7 +13,7 @@ async function signIn(page: Page, email: string) {
 
 async function registerAthlete(request: APIRequestContext, prefix: string) {
   const email = `${prefix}-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -21,7 +22,7 @@ async function registerAthlete(request: APIRequestContext, prefix: string) {
 
 test('unlabeled sessions have day copy only; no week or block rows', async ({ page, request }) => {
   const email = await registerAthlete(request, 'copy-open');
-  const open = await request.post('http://localhost:8000/api/sessions', {
+  const open = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-14', title: 'Open' },
   });
   expect(open.ok()).toBeTruthy();
@@ -30,6 +31,7 @@ test('unlabeled sessions have day copy only; no week or block rows', async ({ pa
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
   await expect(page.getByTestId(`sessions-card-${openId}`)).toBeVisible();
+  await page.getByTestId(`sessions-actions-${openId}`).click();
   await expect(page.getByTestId(`sessions-copy-to-${openId}`)).toBeVisible();
   await expect(page.locator('[data-testid^="sessions-week-row-"]')).toHaveCount(0);
   await expect(page.locator('[data-testid^="sessions-block-row-"]')).toHaveCount(0);
@@ -47,10 +49,10 @@ test('unlabeled sessions have day copy only; no week or block rows', async ({ pa
 
 test('copy selected keeps relative dates and source week labels', async ({ page, request }) => {
   const email = await registerAthlete(request, 'copy-day');
-  const squat = await request.post('http://localhost:8000/api/sessions', {
+  const squat = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
   });
-  const bench = await request.post('http://localhost:8000/api/sessions', {
+  const bench = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
   });
   expect(squat.ok()).toBeTruthy();
@@ -60,7 +62,9 @@ test('copy selected keeps relative dates and source week labels', async ({ page,
 
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
+  await page.getByTestId(`sessions-actions-${squatId}`).click();
   await page.getByTestId(`sessions-select-${squatId}`).check();
+  await page.getByTestId(`sessions-actions-${benchId}`).click();
   await page.getByTestId(`sessions-select-${benchId}`).check();
   await page.getByTestId('sessions-copy-selected').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('click where D1 lands');
@@ -74,10 +78,10 @@ test('copy selected keeps relative dates and source week labels', async ({ page,
 
 test('copy week lands D1 and increments the week label', async ({ page, request }) => {
   const email = await registerAthlete(request, 'copy-week');
-  const squat = await request.post('http://localhost:8000/api/sessions', {
+  const squat = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
   });
-  const bench = await request.post('http://localhost:8000/api/sessions', {
+  const bench = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
   });
   expect(squat.ok()).toBeTruthy();
@@ -86,6 +90,7 @@ test('copy week lands D1 and increments the week label', async ({ page, request 
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
   await expect(page.getByTestId('sessions-week-row-Block2::Week3')).toBeVisible();
+  await page.getByTestId('sessions-week-actions-Block2::Week3').click();
   await page.getByTestId('sessions-copy-week-Block2::Week3').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('Copy week');
   await expect(page.getByTestId('copy-to-banner')).toContainText('click where D1 lands');
@@ -97,13 +102,13 @@ test('copy week lands D1 and increments the week label', async ({ page, request 
 
 test('copy block keeps week labels and relative dates', async ({ page, request }) => {
   const email = await registerAthlete(request, 'copy-block');
-  const squat = await request.post('http://localhost:8000/api/sessions', {
+  const squat = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-15', title: 'Squat', blockLabel: 'Block2', weekLabel: 'Week3' },
   });
-  const bench = await request.post('http://localhost:8000/api/sessions', {
+  const bench = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-17', title: 'Bench', blockLabel: 'Block2', weekLabel: 'Week3' },
   });
-  const accessory = await request.post('http://localhost:8000/api/sessions', {
+  const accessory = await request.post(`${apiUrl}/api/sessions`, {
     data: { date: '2026-09-18', title: 'Accessories', blockLabel: 'Block2', weekLabel: 'Week4' },
   });
   expect(squat.ok()).toBeTruthy();
@@ -113,6 +118,7 @@ test('copy block keeps week labels and relative dates', async ({ page, request }
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
   await expect(page.getByTestId('sessions-block-row-Block2')).toBeVisible();
+  await page.getByTestId('sessions-block-actions-Block2').click();
   await page.getByTestId('sessions-copy-block-Block2').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('Copy block');
   await page.getByTestId('calendar-day-2026-09-01').click();
@@ -127,10 +133,10 @@ test('offline disables copy; coach without an athlete has no copy', async ({ pag
   const suffix = Date.now();
   const athleteEmail = `copy-off-${suffix}@example.com`;
   const coachEmail = `copy-coach-${suffix}@example.com`;
-  const athleteApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
-  const coachApi = await playwright.request.newContext({ baseURL: 'http://localhost:8000' });
+  const athleteApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
+  const coachApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
   try {
-    const athleteReg = await athleteApi.post('/api/auth/register', {
+    const athleteReg = await registerVerified(athleteApi, {
       data: { email: athleteEmail, password: 'password123', role: 'ATHLETE' },
     });
     expect(athleteReg.ok()).toBeTruthy();
@@ -140,6 +146,7 @@ test('offline disables copy; coach without an athlete has no copy', async ({ pag
 
     await signIn(page, athleteEmail);
     await page.getByRole('button', { name: 'Sessions' }).click();
+    await page.getByTestId('sessions-week-actions-Block2::Week3').click();
     await expect(page.getByTestId('sessions-copy-week-Block2::Week3')).toBeEnabled();
     await context.setOffline(true);
     await expect(page.getByTestId('copy-offline')).toBeVisible();
@@ -147,7 +154,7 @@ test('offline disables copy; coach without an athlete has no copy', async ({ pag
     await context.setOffline(false);
     await page.getByRole('button', { name: 'Sign out' }).click();
 
-    const coachReg = await coachApi.post('/api/auth/register', {
+    const coachReg = await registerVerified(coachApi, {
       data: { email: coachEmail, password: 'password123', role: 'COACH' },
     });
     expect(coachReg.ok()).toBeTruthy();

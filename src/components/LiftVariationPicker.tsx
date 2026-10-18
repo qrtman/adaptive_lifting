@@ -5,6 +5,7 @@ import {
   LiftCategory,
   ROM_OPTIONS,
   compileVariation,
+  defaultModifiers,
   formatTempo,
   parseModifiers,
   parseTempoParts,
@@ -98,7 +99,9 @@ export function LiftVariationPicker({
   locked?: boolean;
   onChange: (next: { variation: string; tier: 'Comp' | 'Variation' }) => void;
 }) {
-  const mods = parseModifiers(variation, liftCategory);
+  const mods = variation.trim() === title.trim()
+    ? { ...defaultModifiers(liftCategory), bar: '' }
+    : parseModifiers(variation, liftCategory);
   const bars = BAR_OPTIONS[liftCategory] ?? BAR_OPTIONS.Other;
   const gearOpts = GEAR_OPTIONS[liftCategory] ?? GEAR_OPTIONS.Other;
   const [eccentric, pause, concentric] = parseTempoParts(mods.tempo);

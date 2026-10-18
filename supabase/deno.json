@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@std/assert": "https://deno.land/std@0.224.0/assert/mod.ts",
+    "@db/postgres": "jsr:@db/postgres@0.19.5",
+    "jose": "npm:jose@6.1.0"
+  }
+}

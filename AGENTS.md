@@ -10,6 +10,8 @@ If this file conflicts with `architecture.md` or `design.md`, prefer the more sp
 
 ---
 
+- Active runtime: Supabase Edge Functions and PostgreSQL are the sole application backend; Cloudflare Workers Static Assets is the selected frontend host. Python under backend/ is retained for compatibility/parity tests only and is not an active runtime dependency.
+
 ## 1. Three-Layer Working Method
 
 Use this method for every task.

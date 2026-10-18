@@ -1,50 +1,139 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiService } from '../services/api';
+import { ApiRequestError, apiService } from '../services/api';
 
 const fieldClass =
   'w-full min-h-12 bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] py-3 pl-10 pr-3 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus:outline-none focus:border-[var(--cal-accent)] focus:ring-1 focus:ring-[var(--cal-accent)]';
 
 export const LoginView = () => {
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const googleButton = useRef<HTMLDivElement>(null);
   const { signIn } = useAuth();
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [resendMessage, setResendMessage] = useState('');
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = window.setTimeout(() => setCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
   const [error, setError] = useState<string | null>(null);
 
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await apiService.login(email, password);
-      signIn(data.user);
+      if (mode === 'signup') {
+        await apiService.register(email, password);
+        setPassword('');
+        setConfirmPassword('');
+        setPending(true);
+        setCooldown(60);
+      } else {
+        const data = await apiService.login(email, password);
+        await signIn(data.user);
+      }
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      if (err instanceof ApiRequestError && err.code === 'EMAIL_VERIFICATION_REQUIRED') setPending(true);
+      if (mode === 'signup' && err instanceof ApiRequestError && err.status === 503 &&
+          /email verification is temporarily unavailable/i.test(err.message)) {
+        setError('New account registration is not ready because verification email delivery is not configured. Please try again later.');
+      } else {
+        setError(err.message || (mode === 'signup' ? 'Registration failed' : 'Login failed'));
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (token: string) => {
     setLoading(true);
     setError(null);
     try {
-      const mockEmail = prompt('Enter mock Google email (e.g. coach):', 'coach');
-      if (!mockEmail) {
-        setLoading(false);
-        return;
-      }
-      const token = `mock_google_token_${mockEmail.split('@')[0]}`;
-      const data = await apiService.googleLogin(token, 'COACH');
-      signIn(data.user);
+      const data = await apiService.googleLogin(token);
+      await signIn(data.user);
     } catch (err: any) {
       setError(err.message || 'Google login failed');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!googleClientId || pending) return;
+    type GoogleIdentity = {
+      accounts: { id: {
+        initialize: (options: { client_id: string; callback: (result: { credential: string }) => void }) => void;
+        renderButton: (element: HTMLElement, options: { theme: string; size: string; width: number }) => void;
+      } };
+    };
+    const browser = window as Window & { google?: GoogleIdentity };
+    const renderButton = () => {
+      if (!browser.google || !googleButton.current) return;
+      browser.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: result => void handleGoogleLogin(result.credential),
+      });
+      googleButton.current.replaceChildren();
+      browser.google.accounts.id.renderButton(googleButton.current, { theme: 'outline', size: 'large', width: 320 });
+    };
+    if (browser.google) {
+      renderButton();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = renderButton;
+    script.onerror = () => setError('Google sign-in could not load');
+    document.head.appendChild(script);
+    return () => { script.onload = null; script.onerror = null; };
+  }, [googleClientId, pending]);
+
+  const handleDevelopmentLogin = async (role: 'COACH' | 'ATHLETE') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiService.developmentLogin(role);
+      await signIn(data.user);
+    } catch (err: any) {
+      setError(err.message || 'Development login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showDevelopmentLogin = Boolean((import.meta as any).env.DEV);
+
+  if (pending) return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
+      <div className="w-full max-w-md cal-nested-card p-6 flex flex-col gap-4" data-elevated="true">
+        <h1 className="text-xl font-semibold">Check your email</h1>
+        <p>Verify your email before signing in to Adaptive Lifting. If {email} is eligible, an email will arrive shortly. The link expires after 24 hours.</p>
+        <p className="text-sm text-[var(--cal-muted)]">Check your spam folder too.</p>
+        {error && <p role="alert">{error}</p>}
+        {resendMessage && <p role="status">{resendMessage}</p>}
+        <button type="button" disabled={loading || cooldown > 0} className="min-h-12 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-50" onClick={async () => {
+          setLoading(true); setError(null);
+          try { await apiService.resendVerification(email); setCooldown(60); setResendMessage('If eligible, a new verification email will arrive shortly.'); }
+          catch (err: any) { setError(err.message); }
+          finally { setLoading(false); }
+        }}>{cooldown ? `Resend in ${cooldown}s` : 'Resend verification email'}</button>
+        <button type="button" className="min-h-12" onClick={() => { setPending(false); setMode('signin'); setError(null); }}>Return to sign in</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
@@ -55,7 +144,12 @@ export const LoginView = () => {
       >
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-[var(--cal-ink)]">Adaptive Lifting</h1>
-          <p className="text-sm text-[var(--cal-muted)] mt-1">Sign in</p>
+          <p className="text-sm text-[var(--cal-muted)] mt-1">{mode === 'signin' ? 'Sign in' : 'Create account'}</p>
+        </div>
+
+        <div className="grid grid-cols-2 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] p-1" role="tablist" aria-label="Authentication mode">
+          <button type="button" role="tab" aria-selected={mode === 'signin'} onClick={() => { setMode('signin'); setError(null); }} className={`min-h-10 rounded-[var(--cal-radius-md)] text-sm ${mode === 'signin' ? 'bg-[var(--cal-surface-strong)] text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}>Sign in</button>
+          <button type="button" role="tab" aria-selected={mode === 'signup'} onClick={() => { setMode('signup'); setError(null); }} className={`min-h-10 rounded-[var(--cal-radius-md)] text-sm ${mode === 'signup' ? 'bg-[var(--cal-surface-strong)] text-[var(--cal-ink)]' : 'text-[var(--cal-muted)]'}`}>Create account</button>
         </div>
 
         {error && (
@@ -87,7 +181,7 @@ export const LoginView = () => {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cal-muted)]" size={16} />
               <input
                 type="password"
-                autoComplete="current-password"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 placeholder="Password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -97,23 +191,50 @@ export const LoginView = () => {
             </div>
           </label>
 
+          {mode === 'signup' && (
+            <label className="flex flex-col gap-1 text-xs text-[var(--cal-muted)]">
+              Confirm password
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cal-muted)]" size={16} />
+                <input type="password" autoComplete="new-password" placeholder="Confirm password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={fieldClass} required />
+              </div>
+            </label>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full min-h-12 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? (mode === 'signup' ? 'Creating account…' : 'Signing in…') : (mode === 'signup' ? 'Create account' : 'Sign in')}
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full min-h-12 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
-        >
-          Continue with Google
-        </button>
+        {googleClientId && <div ref={googleButton} aria-label="Continue with Google" />}
+
+        {showDevelopmentLogin && (
+          <div className="border-t border-[var(--cal-hairline)] pt-3">
+            <p className="mb-2 text-xs text-[var(--cal-muted)]">Local development</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleDevelopmentLogin('COACH')}
+                disabled={loading}
+                className="min-h-10 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-sm text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
+              >
+                Open as coach
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDevelopmentLogin('ATHLETE')}
+                disabled={loading}
+                className="min-h-10 border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] text-sm text-[var(--cal-ink)] rounded-[var(--cal-radius-md)] disabled:opacity-50"
+              >
+                Open as athlete
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

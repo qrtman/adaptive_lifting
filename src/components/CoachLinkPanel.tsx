@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Copy, Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { saasErrorMessage } from '../services/saasErrors';
 
 function accountRole(user: { role?: string } | null): 'COACH' | 'ATHLETE' | null {
   const role = String(user?.role || '').toUpperCase();
@@ -22,6 +24,7 @@ const FIELD =
 
 export const CoachLinkPanel: React.FC = () => {
   const { user } = useAuth();
+  const { canProgram, athleteLimitReached } = useAccountAccess();
   const role = accountRole(user);
 
   const [codeLoading, setCodeLoading] = useState(role === 'COACH');
@@ -77,7 +80,7 @@ export const CoachLinkPanel: React.FC = () => {
       setCodeActive(true);
       setCoachSuccess('Coach code ready. Share it with the athlete.');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to generate coach code';
+      const message = saasErrorMessage(err) || (err instanceof Error ? err.message : 'Failed to generate coach code');
       if (/only coaches/i.test(message) || /not authorized/i.test(message)) {
         setCoachDenied(true);
       }
@@ -108,7 +111,7 @@ export const CoachLinkPanel: React.FC = () => {
       setLinkSuccess(result.message || 'Linked to coach.');
       setCoachCodeInput('');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to link coach';
+      const message = saasErrorMessage(err) || (err instanceof Error ? err.message : 'Failed to link coach');
       if (/only athletes/i.test(message) || /not authorized/i.test(message)) {
         setLinkError('You do not have permission to link a coach.');
       } else {
@@ -150,6 +153,8 @@ export const CoachLinkPanel: React.FC = () => {
   }
 
   if (role === 'COACH') {
+    const coachingUnavailable = canProgram === false;
+    const atCapacity = athleteLimitReached;
     const panelState = coachDenied
       ? 'denied'
       : codeLoading
@@ -222,11 +227,14 @@ export const CoachLinkPanel: React.FC = () => {
               type="button"
               data-testid="coach-code-generate"
               onClick={() => void generateCoachCode()}
-              disabled={generatingCode}
+              disabled={generatingCode || coachingUnavailable || atCapacity}
+              title={coachingUnavailable ? 'Active coaching access is required to create invite codes.' : atCapacity ? 'Athlete limit reached.' : undefined}
               className={SECONDARY}
             >
               {generatingCode ? 'Generating…' : coachCode || codeActive ? 'Rotate code' : 'Generate code'}
             </button>
+            {coachingUnavailable && <p className={`${MUTED} mt-2`}>Active coaching access is required to create invite codes.</p>}
+            {!coachingUnavailable && atCapacity && <p className={`${MUTED} mt-2`}>Athlete limit reached. Existing coach codes may not add another athlete.</p>}
           </>
         )}
 

@@ -24,12 +24,14 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export function NewSessionDialog({
   date,
   athleteId,
+  initialBlockLabel,
   allowDateEdit = false,
   onClose,
   onCreated,
 }: {
   date: string;
   athleteId?: string | null;
+  initialBlockLabel?: string;
   allowDateEdit?: boolean;
   onClose: () => void;
   onCreated: (workout: { id: string; microcycleId?: string }) => void | Promise<void>;
@@ -49,7 +51,7 @@ export function NewSessionDialog({
   const [targetDate, setTargetDate] = useState(date);
   const [dayInput, setDayInput] = useState(() => displayDayField(getRecentDay(prefAthleteId)));
   const [title, setTitle] = useState(() => getRecentName(prefAthleteId));
-  const [blockLabel, setBlockLabel] = useState(() => getRecentBlock(prefAthleteId));
+  const [blockLabel, setBlockLabel] = useState(() => initialBlockLabel ?? getRecentBlock(prefAthleteId));
   const [weekLabel, setWeekLabel] = useState(() => getRecentWeek(prefAthleteId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

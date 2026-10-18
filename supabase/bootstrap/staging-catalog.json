@@ -1,0 +1,4414 @@
+{
+  "project_ref": "admyuepbbtstayaydjmo",
+  "inspected_at": "2026-10-09",
+  "mode": "read-only pg_catalog, no rows or secrets",
+  "catalog": {
+    "tables": [
+      {
+        "rls": false,
+        "name": "access_grants"
+      },
+      {
+        "rls": false,
+        "name": "accessories"
+      },
+      {
+        "rls": false,
+        "name": "audit_events"
+      },
+      {
+        "rls": false,
+        "name": "auth_security_events"
+      },
+      {
+        "rls": false,
+        "name": "auth_security_subjects"
+      },
+      {
+        "rls": false,
+        "name": "billing_checkout_reservations"
+      },
+      {
+        "rls": false,
+        "name": "billing_customers"
+      },
+      {
+        "rls": false,
+        "name": "client_devices"
+      },
+      {
+        "rls": false,
+        "name": "coaching_history_snapshots"
+      },
+      {
+        "rls": false,
+        "name": "coaching_relationships"
+      },
+      {
+        "rls": false,
+        "name": "day_notes"
+      },
+      {
+        "rls": false,
+        "name": "domain_events"
+      },
+      {
+        "rls": false,
+        "name": "email_verification_tokens"
+      },
+      {
+        "rls": false,
+        "name": "exercise_sets"
+      },
+      {
+        "rls": false,
+        "name": "exercises"
+      },
+      {
+        "rls": false,
+        "name": "insight_cards"
+      },
+      {
+        "rls": false,
+        "name": "integration_connections"
+      },
+      {
+        "rls": false,
+        "name": "integration_credentials"
+      },
+      {
+        "rls": false,
+        "name": "integration_outbox"
+      },
+      {
+        "rls": false,
+        "name": "invite_codes"
+      },
+      {
+        "rls": false,
+        "name": "mesocycles"
+      },
+      {
+        "rls": false,
+        "name": "microcycles"
+      },
+      {
+        "rls": false,
+        "name": "oauth_states"
+      },
+      {
+        "rls": false,
+        "name": "sessions"
+      },
+      {
+        "rls": false,
+        "name": "sheet_publications"
+      },
+      {
+        "rls": false,
+        "name": "subscriptions"
+      },
+      {
+        "rls": false,
+        "name": "sync_mutations"
+      },
+      {
+        "rls": true,
+        "name": "telegram_link_tokens"
+      },
+      {
+        "rls": false,
+        "name": "users"
+      },
+      {
+        "rls": false,
+        "name": "voucher_redemption_limits"
+      },
+      {
+        "rls": false,
+        "name": "vouchers"
+      },
+      {
+        "rls": false,
+        "name": "webhook_events"
+      },
+      {
+        "rls": false,
+        "name": "workout_locks"
+      },
+      {
+        "rls": false,
+        "name": "workouts"
+      },
+      {
+        "rls": false,
+        "name": "workspace_members"
+      },
+      {
+        "rls": false,
+        "name": "workspaces"
+      }
+    ],
+    "columns": [
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by_user_id",
+        "type": "character varying",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "plan_key",
+        "type": "character varying",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reason",
+        "type": "character varying",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp without time zone",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "character varying",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "starts_at",
+        "type": "timestamp without time zone",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "workspace_id",
+        "type": "character varying",
+        "table": "access_grants",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "executedRpe",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "lexo_rank",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "prescribedSets",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reps",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "targetReps",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "targetRpe",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "weight",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "workout_id",
+        "type": "character varying",
+        "table": "accessories",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "actor_user_id",
+        "type": "character varying",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "character varying",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "metadata_json",
+        "type": "character varying",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "resource_id",
+        "type": "character varying",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "resource_type",
+        "type": "character varying",
+        "table": "audit_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "auth_security_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "auth_security_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "subject_hash",
+        "type": "character varying(64)",
+        "table": "auth_security_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "subject_hash",
+        "type": "character varying(64)",
+        "table": "auth_security_subjects",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "auth_security_subjects",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "plan_key",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider_checkout_session_id",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "provider_checkout_url",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "request_id",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "workspace_id",
+        "type": "character varying",
+        "table": "billing_checkout_reservations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "billing_customers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "billing_customers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "billing_customers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider_customer_id",
+        "type": "character varying",
+        "table": "billing_customers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "billing_customers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "workspace_id",
+        "type": "character varying",
+        "table": "billing_customers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "device_label",
+        "type": "character varying",
+        "table": "client_devices",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "client_devices",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "last_seen_at",
+        "type": "timestamp without time zone",
+        "table": "client_devices",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp without time zone",
+        "table": "client_devices",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "client_devices",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "relationship_id",
+        "type": "integer",
+        "table": "coaching_history_snapshots",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "snapshot_at",
+        "type": "timestamp without time zone",
+        "table": "coaching_history_snapshots",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "snapshot_json",
+        "type": "character varying",
+        "table": "coaching_history_snapshots",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "athlete_id",
+        "type": "character varying",
+        "table": "coaching_relationships",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "coach_id",
+        "type": "character varying",
+        "table": "coaching_relationships",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "coaching_relationships",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "coaching_relationships",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "ended_at",
+        "type": "timestamp without time zone",
+        "table": "coaching_relationships",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "integer",
+        "table": "coaching_relationships",
+        "default": "nextval('coaching_relationships_id_seq'::regclass)",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "coaching_relationships",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "body",
+        "type": "character varying",
+        "table": "day_notes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "character varying",
+        "table": "day_notes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "day_notes",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "day_notes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "owner_id",
+        "type": "character varying",
+        "table": "day_notes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "day_notes",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "domain_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "character varying",
+        "table": "domain_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "domain_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "character varying",
+        "table": "domain_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "workout_id",
+        "type": "character varying",
+        "table": "domain_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "consumed_at",
+        "type": "timestamp without time zone",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "invalidated_at",
+        "type": "timestamp without time zone",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "is_resend",
+        "type": "boolean",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "token_hash",
+        "type": "character varying(64)",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "email_verification_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actual",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "dropPercent",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "executedRpe",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "exercise_id",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "hrv",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "intensity_type",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "isAuto",
+        "type": "boolean",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "isTop",
+        "type": "boolean",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "label",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "lexo_rank",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "plannedReps",
+        "type": "integer",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "plannedRpe",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "plannedWeight",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "readiness",
+        "type": "integer",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reps",
+        "type": "integer",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "scope",
+        "type": "character varying",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "velocity",
+        "type": "double precision",
+        "table": "exercise_sets",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "lexo_rank",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "lift_category",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "lift_note",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "movement_pattern",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "tags_raw",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "tier",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "title",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "top",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "variation",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "vol",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "workout_id",
+        "type": "character varying",
+        "table": "exercises",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "config_json",
+        "type": "character varying",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "layout_json",
+        "type": "character varying",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "character varying",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "owner_user_id",
+        "type": "character varying",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "insight_cards",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "external_account_id",
+        "type": "character varying",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp without time zone",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "scopes",
+        "type": "character varying",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "integration_connections",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "connection_id",
+        "type": "character varying",
+        "table": "integration_credentials",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "credential_type",
+        "type": "character varying",
+        "table": "integration_credentials",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "encrypted_payload",
+        "type": "character varying",
+        "table": "integration_credentials",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "integration_credentials",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "rotated_at",
+        "type": "timestamp without time zone",
+        "table": "integration_credentials",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "attempt_count",
+        "type": "integer",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "claim_token",
+        "type": "text",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "connection_id",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "encrypted_payload",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "result",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "retry_after",
+        "type": "timestamp without time zone",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "verification_token_id",
+        "type": "character varying",
+        "table": "integration_outbox",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "coach_id",
+        "type": "character varying",
+        "table": "invite_codes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "code_hash",
+        "type": "character varying",
+        "table": "invite_codes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "invite_codes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "invite_codes",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "used_at",
+        "type": "timestamp without time zone",
+        "table": "invite_codes",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "color",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "endDate",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "owner_id",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "startDate",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "mesocycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "focus",
+        "type": "character varying",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "mesocycle_id",
+        "type": "character varying",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "owner_id",
+        "type": "character varying",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "weekName",
+        "type": "character varying",
+        "table": "microcycles",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "return_to",
+        "type": "character varying",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "session_id",
+        "type": "character varying",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "state_hash",
+        "type": "character varying",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "oauth_states",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "sessions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "sessions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "jwt_id",
+        "type": "character varying",
+        "table": "sessions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp without time zone",
+        "table": "sessions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "sessions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "coach_id",
+        "type": "character varying",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "export_profile",
+        "type": "character varying",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "last_published_at",
+        "type": "timestamp without time zone",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "spreadsheet_id",
+        "type": "character varying",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "worksheet_name",
+        "type": "character varying",
+        "table": "sheet_publications",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "cancel_at_period_end",
+        "type": "boolean",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "canceled_at",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "current_period_end",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "current_period_start",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "ended_at",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "plan_key",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "provider_customer_id",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "provider_event_created_at",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "provider_event_id",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "provider_subscription_id",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "workspace_id",
+        "type": "character varying",
+        "table": "subscriptions",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "applied_at",
+        "type": "timestamp without time zone",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "client_device_id",
+        "type": "character varying",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "entity_id",
+        "type": "character varying",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "entity_type",
+        "type": "character varying",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "field_path",
+        "type": "character varying",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "mutation_id",
+        "type": "character varying",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "result",
+        "type": "character varying",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "sync_mutations",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "consumed_at",
+        "type": "timestamp without time zone",
+        "table": "telegram_link_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "telegram_link_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "telegram_link_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "token_hash",
+        "type": "text",
+        "table": "telegram_link_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "telegram_link_tokens",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "display_name",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "email",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "email_verification_legacy_exempt",
+        "type": "boolean",
+        "table": "users",
+        "default": "false",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "email_verification_required",
+        "type": "boolean",
+        "table": "users",
+        "default": "true",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "email_verified_at",
+        "type": "timestamp without time zone",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "google_sub",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "hashed_password",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "subscription_status",
+        "type": "character varying",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "users",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "hour_count",
+        "type": "integer",
+        "table": "voucher_redemption_limits",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "hour_started_at",
+        "type": "timestamp without time zone",
+        "table": "voucher_redemption_limits",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "minute_count",
+        "type": "integer",
+        "table": "voucher_redemption_limits",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "minute_started_at",
+        "type": "timestamp without time zone",
+        "table": "voucher_redemption_limits",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "subject_hash",
+        "type": "character varying",
+        "table": "voucher_redemption_limits",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "voucher_redemption_limits",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "assigned_user_id",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "code_hash",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "code_prefix",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by_user_id",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "duration_days",
+        "type": "integer",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "payment_reference",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "plan_key",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "redeemed_at",
+        "type": "timestamp without time zone",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "redeemed_by_user_id",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp without time zone",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "character varying",
+        "table": "vouchers",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "attempt_count",
+        "type": "integer",
+        "table": "webhook_events",
+        "default": "0",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "claim_token",
+        "type": "text",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "external_event_id",
+        "type": "character varying",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "lease_expires_at",
+        "type": "timestamp without time zone",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "processed_at",
+        "type": "timestamp without time zone",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "provider",
+        "type": "character varying",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "received_at",
+        "type": "timestamp without time zone",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "webhook_events",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "table": "workout_locks",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "holder_user_id",
+        "type": "character varying",
+        "table": "workout_locks",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "mode",
+        "type": "character varying",
+        "table": "workout_locks",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "table": "workout_locks",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "workout_id",
+        "type": "character varying",
+        "table": "workout_locks",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "athlete_bw",
+        "type": "double precision",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "block_label",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "color",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "dayLabel",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "delta",
+        "type": "double precision",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "microcycle_id",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "owner_id",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "title",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "tonnage",
+        "type": "double precision",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "week_label",
+        "type": "character varying",
+        "table": "workouts",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "workspace_members",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "workspace_members",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "character varying",
+        "table": "workspace_members",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "character varying",
+        "table": "workspace_members",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "workspace_id",
+        "type": "character varying",
+        "table": "workspace_members",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "table": "workspaces",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "character varying",
+        "table": "workspaces",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "character varying",
+        "table": "workspaces",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "owner_user_id",
+        "type": "character varying",
+        "table": "workspaces",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "table": "workspaces",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "indexes": [
+      {
+        "name": "access_grants_pkey",
+        "ready": true,
+        "table": "access_grants",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX access_grants_pkey ON public.access_grants USING btree (id)"
+      },
+      {
+        "name": "ix_access_grants_created_by_user_id",
+        "ready": true,
+        "table": "access_grants",
+        "valid": true,
+        "definition": "CREATE INDEX ix_access_grants_created_by_user_id ON public.access_grants USING btree (created_by_user_id)"
+      },
+      {
+        "name": "ix_access_grants_workspace_id",
+        "ready": true,
+        "table": "access_grants",
+        "valid": true,
+        "definition": "CREATE INDEX ix_access_grants_workspace_id ON public.access_grants USING btree (workspace_id)"
+      },
+      {
+        "name": "accessories_pkey",
+        "ready": true,
+        "table": "accessories",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX accessories_pkey ON public.accessories USING btree (id)"
+      },
+      {
+        "name": "ix_accessories_id",
+        "ready": true,
+        "table": "accessories",
+        "valid": true,
+        "definition": "CREATE INDEX ix_accessories_id ON public.accessories USING btree (id)"
+      },
+      {
+        "name": "audit_events_pkey",
+        "ready": true,
+        "table": "audit_events",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX audit_events_pkey ON public.audit_events USING btree (id)"
+      },
+      {
+        "name": "ix_audit_events_id",
+        "ready": true,
+        "table": "audit_events",
+        "valid": true,
+        "definition": "CREATE INDEX ix_audit_events_id ON public.audit_events USING btree (id)"
+      },
+      {
+        "name": "auth_security_events_pkey",
+        "ready": true,
+        "table": "auth_security_events",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX auth_security_events_pkey ON public.auth_security_events USING btree (id)"
+      },
+      {
+        "name": "ix_auth_security_event_subject_time",
+        "ready": true,
+        "table": "auth_security_events",
+        "valid": true,
+        "definition": "CREATE INDEX ix_auth_security_event_subject_time ON public.auth_security_events USING btree (subject_hash, created_at)"
+      },
+      {
+        "name": "auth_security_subjects_pkey",
+        "ready": true,
+        "table": "auth_security_subjects",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX auth_security_subjects_pkey ON public.auth_security_subjects USING btree (subject_hash)"
+      },
+      {
+        "name": "billing_checkout_reservations_pkey",
+        "ready": true,
+        "table": "billing_checkout_reservations",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX billing_checkout_reservations_pkey ON public.billing_checkout_reservations USING btree (id)"
+      },
+      {
+        "name": "ix_checkout_workspace_id",
+        "ready": true,
+        "table": "billing_checkout_reservations",
+        "valid": true,
+        "definition": "CREATE INDEX ix_checkout_workspace_id ON public.billing_checkout_reservations USING btree (workspace_id)"
+      },
+      {
+        "name": "uq_checkout_provider_request",
+        "ready": true,
+        "table": "billing_checkout_reservations",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_checkout_provider_request ON public.billing_checkout_reservations USING btree (provider, request_id)"
+      },
+      {
+        "name": "uq_checkout_workspace_provider",
+        "ready": true,
+        "table": "billing_checkout_reservations",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_checkout_workspace_provider ON public.billing_checkout_reservations USING btree (workspace_id, provider)"
+      },
+      {
+        "name": "billing_customers_pkey",
+        "ready": true,
+        "table": "billing_customers",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX billing_customers_pkey ON public.billing_customers USING btree (id)"
+      },
+      {
+        "name": "ix_billing_customers_provider_customer_id",
+        "ready": true,
+        "table": "billing_customers",
+        "valid": true,
+        "definition": "CREATE INDEX ix_billing_customers_provider_customer_id ON public.billing_customers USING btree (provider_customer_id)"
+      },
+      {
+        "name": "ix_billing_customers_workspace_id",
+        "ready": true,
+        "table": "billing_customers",
+        "valid": true,
+        "definition": "CREATE INDEX ix_billing_customers_workspace_id ON public.billing_customers USING btree (workspace_id)"
+      },
+      {
+        "name": "uq_billing_customers_provider_customer",
+        "ready": true,
+        "table": "billing_customers",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_billing_customers_provider_customer ON public.billing_customers USING btree (provider, provider_customer_id)"
+      },
+      {
+        "name": "uq_billing_customers_workspace_provider",
+        "ready": true,
+        "table": "billing_customers",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_billing_customers_workspace_provider ON public.billing_customers USING btree (workspace_id, provider)"
+      },
+      {
+        "name": "client_devices_pkey",
+        "ready": true,
+        "table": "client_devices",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX client_devices_pkey ON public.client_devices USING btree (id)"
+      },
+      {
+        "name": "ix_client_devices_id",
+        "ready": true,
+        "table": "client_devices",
+        "valid": true,
+        "definition": "CREATE INDEX ix_client_devices_id ON public.client_devices USING btree (id)"
+      },
+      {
+        "name": "coaching_history_snapshots_pkey",
+        "ready": true,
+        "table": "coaching_history_snapshots",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX coaching_history_snapshots_pkey ON public.coaching_history_snapshots USING btree (relationship_id)"
+      },
+      {
+        "name": "coaching_relationships_pkey",
+        "ready": true,
+        "table": "coaching_relationships",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX coaching_relationships_pkey ON public.coaching_relationships USING btree (id)"
+      },
+      {
+        "name": "uq_coaching_relationships_active_athlete",
+        "ready": true,
+        "table": "coaching_relationships",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_coaching_relationships_active_athlete ON public.coaching_relationships USING btree (athlete_id) WHERE (ended_at IS NULL)"
+      },
+      {
+        "name": "day_notes_pkey",
+        "ready": true,
+        "table": "day_notes",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX day_notes_pkey ON public.day_notes USING btree (id)"
+      },
+      {
+        "name": "ix_day_notes_id",
+        "ready": true,
+        "table": "day_notes",
+        "valid": true,
+        "definition": "CREATE INDEX ix_day_notes_id ON public.day_notes USING btree (id)"
+      },
+      {
+        "name": "ix_day_notes_owner_id",
+        "ready": true,
+        "table": "day_notes",
+        "valid": true,
+        "definition": "CREATE INDEX ix_day_notes_owner_id ON public.day_notes USING btree (owner_id)"
+      },
+      {
+        "name": "uq_day_notes_owner_date",
+        "ready": true,
+        "table": "day_notes",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_day_notes_owner_date ON public.day_notes USING btree (owner_id, date)"
+      },
+      {
+        "name": "domain_events_pkey",
+        "ready": true,
+        "table": "domain_events",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX domain_events_pkey ON public.domain_events USING btree (id)"
+      },
+      {
+        "name": "ix_domain_events_id",
+        "ready": true,
+        "table": "domain_events",
+        "valid": true,
+        "definition": "CREATE INDEX ix_domain_events_id ON public.domain_events USING btree (id)"
+      },
+      {
+        "name": "email_verification_tokens_pkey",
+        "ready": true,
+        "table": "email_verification_tokens",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX email_verification_tokens_pkey ON public.email_verification_tokens USING btree (id)"
+      },
+      {
+        "name": "email_verification_tokens_token_hash_key",
+        "ready": true,
+        "table": "email_verification_tokens",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX email_verification_tokens_token_hash_key ON public.email_verification_tokens USING btree (token_hash)"
+      },
+      {
+        "name": "ix_email_verification_tokens_expires_at",
+        "ready": true,
+        "table": "email_verification_tokens",
+        "valid": true,
+        "definition": "CREATE INDEX ix_email_verification_tokens_expires_at ON public.email_verification_tokens USING btree (expires_at)"
+      },
+      {
+        "name": "ix_email_verification_tokens_user_id",
+        "ready": true,
+        "table": "email_verification_tokens",
+        "valid": true,
+        "definition": "CREATE INDEX ix_email_verification_tokens_user_id ON public.email_verification_tokens USING btree (user_id)"
+      },
+      {
+        "name": "uq_email_token_active_user",
+        "ready": true,
+        "table": "email_verification_tokens",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_email_token_active_user ON public.email_verification_tokens USING btree (user_id) WHERE ((consumed_at IS NULL) AND (invalidated_at IS NULL))"
+      },
+      {
+        "name": "exercise_sets_pkey",
+        "ready": true,
+        "table": "exercise_sets",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX exercise_sets_pkey ON public.exercise_sets USING btree (id)"
+      },
+      {
+        "name": "ix_exercise_sets_id",
+        "ready": true,
+        "table": "exercise_sets",
+        "valid": true,
+        "definition": "CREATE INDEX ix_exercise_sets_id ON public.exercise_sets USING btree (id)"
+      },
+      {
+        "name": "exercises_pkey",
+        "ready": true,
+        "table": "exercises",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX exercises_pkey ON public.exercises USING btree (id)"
+      },
+      {
+        "name": "ix_exercises_id",
+        "ready": true,
+        "table": "exercises",
+        "valid": true,
+        "definition": "CREATE INDEX ix_exercises_id ON public.exercises USING btree (id)"
+      },
+      {
+        "name": "insight_cards_pkey",
+        "ready": true,
+        "table": "insight_cards",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX insight_cards_pkey ON public.insight_cards USING btree (id)"
+      },
+      {
+        "name": "ix_insight_cards_id",
+        "ready": true,
+        "table": "insight_cards",
+        "valid": true,
+        "definition": "CREATE INDEX ix_insight_cards_id ON public.insight_cards USING btree (id)"
+      },
+      {
+        "name": "ix_insight_cards_owner_user_id",
+        "ready": true,
+        "table": "insight_cards",
+        "valid": true,
+        "definition": "CREATE INDEX ix_insight_cards_owner_user_id ON public.insight_cards USING btree (owner_user_id)"
+      },
+      {
+        "name": "integration_connections_pkey",
+        "ready": true,
+        "table": "integration_connections",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX integration_connections_pkey ON public.integration_connections USING btree (id)"
+      },
+      {
+        "name": "ix_integration_connections_id",
+        "ready": true,
+        "table": "integration_connections",
+        "valid": true,
+        "definition": "CREATE INDEX ix_integration_connections_id ON public.integration_connections USING btree (id)"
+      },
+      {
+        "name": "uq_active_telegram_external_account",
+        "ready": true,
+        "table": "integration_connections",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_active_telegram_external_account ON public.integration_connections USING btree (provider, external_account_id) WHERE (((provider)::text = 'telegram'::text) AND ((status)::text = 'active'::text) AND (external_account_id IS NOT NULL) AND (deleted_at IS NULL))"
+      },
+      {
+        "name": "uq_integration_connection_user_provider",
+        "ready": true,
+        "table": "integration_connections",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_integration_connection_user_provider ON public.integration_connections USING btree (user_id, provider)"
+      },
+      {
+        "name": "integration_credentials_pkey",
+        "ready": true,
+        "table": "integration_credentials",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX integration_credentials_pkey ON public.integration_credentials USING btree (connection_id, credential_type)"
+      },
+      {
+        "name": "integration_outbox_pkey",
+        "ready": true,
+        "table": "integration_outbox",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX integration_outbox_pkey ON public.integration_outbox USING btree (id)"
+      },
+      {
+        "name": "ix_email_verification_outbox_due",
+        "ready": true,
+        "table": "integration_outbox",
+        "valid": true,
+        "definition": "CREATE INDEX ix_email_verification_outbox_due ON public.integration_outbox USING btree (status, retry_after, id) WHERE ((provider)::text = 'email-verification'::text)"
+      },
+      {
+        "name": "ix_integration_outbox_id",
+        "ready": true,
+        "table": "integration_outbox",
+        "valid": true,
+        "definition": "CREATE INDEX ix_integration_outbox_id ON public.integration_outbox USING btree (id)"
+      },
+      {
+        "name": "ix_integration_outbox_verification_token_id",
+        "ready": true,
+        "table": "integration_outbox",
+        "valid": true,
+        "definition": "CREATE INDEX ix_integration_outbox_verification_token_id ON public.integration_outbox USING btree (verification_token_id)"
+      },
+      {
+        "name": "invite_codes_pkey",
+        "ready": true,
+        "table": "invite_codes",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX invite_codes_pkey ON public.invite_codes USING btree (id)"
+      },
+      {
+        "name": "ix_invite_codes_id",
+        "ready": true,
+        "table": "invite_codes",
+        "valid": true,
+        "definition": "CREATE INDEX ix_invite_codes_id ON public.invite_codes USING btree (id)"
+      },
+      {
+        "name": "ix_mesocycles_id",
+        "ready": true,
+        "table": "mesocycles",
+        "valid": true,
+        "definition": "CREATE INDEX ix_mesocycles_id ON public.mesocycles USING btree (id)"
+      },
+      {
+        "name": "mesocycles_pkey",
+        "ready": true,
+        "table": "mesocycles",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX mesocycles_pkey ON public.mesocycles USING btree (id)"
+      },
+      {
+        "name": "ix_microcycles_id",
+        "ready": true,
+        "table": "microcycles",
+        "valid": true,
+        "definition": "CREATE INDEX ix_microcycles_id ON public.microcycles USING btree (id)"
+      },
+      {
+        "name": "microcycles_pkey",
+        "ready": true,
+        "table": "microcycles",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX microcycles_pkey ON public.microcycles USING btree (id)"
+      },
+      {
+        "name": "ix_oauth_states_expires_at",
+        "ready": true,
+        "table": "oauth_states",
+        "valid": true,
+        "definition": "CREATE INDEX ix_oauth_states_expires_at ON public.oauth_states USING btree (expires_at)"
+      },
+      {
+        "name": "ix_oauth_states_provider",
+        "ready": true,
+        "table": "oauth_states",
+        "valid": true,
+        "definition": "CREATE INDEX ix_oauth_states_provider ON public.oauth_states USING btree (provider)"
+      },
+      {
+        "name": "ix_oauth_states_user_id",
+        "ready": true,
+        "table": "oauth_states",
+        "valid": true,
+        "definition": "CREATE INDEX ix_oauth_states_user_id ON public.oauth_states USING btree (user_id)"
+      },
+      {
+        "name": "oauth_states_pkey",
+        "ready": true,
+        "table": "oauth_states",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX oauth_states_pkey ON public.oauth_states USING btree (state_hash)"
+      },
+      {
+        "name": "ix_sessions_id",
+        "ready": true,
+        "table": "sessions",
+        "valid": true,
+        "definition": "CREATE INDEX ix_sessions_id ON public.sessions USING btree (id)"
+      },
+      {
+        "name": "ix_sessions_jwt_id",
+        "ready": true,
+        "table": "sessions",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX ix_sessions_jwt_id ON public.sessions USING btree (jwt_id)"
+      },
+      {
+        "name": "sessions_pkey",
+        "ready": true,
+        "table": "sessions",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX sessions_pkey ON public.sessions USING btree (id)"
+      },
+      {
+        "name": "ix_sheet_publications_id",
+        "ready": true,
+        "table": "sheet_publications",
+        "valid": true,
+        "definition": "CREATE INDEX ix_sheet_publications_id ON public.sheet_publications USING btree (id)"
+      },
+      {
+        "name": "sheet_publications_pkey",
+        "ready": true,
+        "table": "sheet_publications",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX sheet_publications_pkey ON public.sheet_publications USING btree (id)"
+      },
+      {
+        "name": "ix_subscriptions_provider_customer_id",
+        "ready": true,
+        "table": "subscriptions",
+        "valid": true,
+        "definition": "CREATE INDEX ix_subscriptions_provider_customer_id ON public.subscriptions USING btree (provider_customer_id)"
+      },
+      {
+        "name": "ix_subscriptions_provider_event_created_at",
+        "ready": true,
+        "table": "subscriptions",
+        "valid": true,
+        "definition": "CREATE INDEX ix_subscriptions_provider_event_created_at ON public.subscriptions USING btree (provider_event_created_at)"
+      },
+      {
+        "name": "ix_subscriptions_status",
+        "ready": true,
+        "table": "subscriptions",
+        "valid": true,
+        "definition": "CREATE INDEX ix_subscriptions_status ON public.subscriptions USING btree (status)"
+      },
+      {
+        "name": "ix_subscriptions_workspace_id",
+        "ready": true,
+        "table": "subscriptions",
+        "valid": true,
+        "definition": "CREATE INDEX ix_subscriptions_workspace_id ON public.subscriptions USING btree (workspace_id)"
+      },
+      {
+        "name": "subscriptions_pkey",
+        "ready": true,
+        "table": "subscriptions",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX subscriptions_pkey ON public.subscriptions USING btree (id)"
+      },
+      {
+        "name": "uq_subscriptions_provider_subscription",
+        "ready": true,
+        "table": "subscriptions",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_subscriptions_provider_subscription ON public.subscriptions USING btree (provider, provider_subscription_id)"
+      },
+      {
+        "name": "ix_sync_mutations_mutation_id",
+        "ready": true,
+        "table": "sync_mutations",
+        "valid": true,
+        "definition": "CREATE INDEX ix_sync_mutations_mutation_id ON public.sync_mutations USING btree (mutation_id)"
+      },
+      {
+        "name": "sync_mutations_pkey",
+        "ready": true,
+        "table": "sync_mutations",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX sync_mutations_pkey ON public.sync_mutations USING btree (client_device_id, mutation_id)"
+      },
+      {
+        "name": "ix_telegram_link_tokens_user_pending",
+        "ready": true,
+        "table": "telegram_link_tokens",
+        "valid": true,
+        "definition": "CREATE INDEX ix_telegram_link_tokens_user_pending ON public.telegram_link_tokens USING btree (user_id, expires_at) WHERE (consumed_at IS NULL)"
+      },
+      {
+        "name": "telegram_link_tokens_pkey",
+        "ready": true,
+        "table": "telegram_link_tokens",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX telegram_link_tokens_pkey ON public.telegram_link_tokens USING btree (token_hash)"
+      },
+      {
+        "name": "ix_users_email",
+        "ready": true,
+        "table": "users",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX ix_users_email ON public.users USING btree (email)"
+      },
+      {
+        "name": "ix_users_id",
+        "ready": true,
+        "table": "users",
+        "valid": true,
+        "definition": "CREATE INDEX ix_users_id ON public.users USING btree (id)"
+      },
+      {
+        "name": "uq_users_google_sub",
+        "ready": true,
+        "table": "users",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_users_google_sub ON public.users USING btree (google_sub)"
+      },
+      {
+        "name": "users_pkey",
+        "ready": true,
+        "table": "users",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+      },
+      {
+        "name": "voucher_redemption_limits_pkey",
+        "ready": true,
+        "table": "voucher_redemption_limits",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX voucher_redemption_limits_pkey ON public.voucher_redemption_limits USING btree (subject_hash)"
+      },
+      {
+        "name": "ix_vouchers_assigned_user_id",
+        "ready": true,
+        "table": "vouchers",
+        "valid": true,
+        "definition": "CREATE INDEX ix_vouchers_assigned_user_id ON public.vouchers USING btree (assigned_user_id)"
+      },
+      {
+        "name": "ix_vouchers_code_prefix",
+        "ready": true,
+        "table": "vouchers",
+        "valid": true,
+        "definition": "CREATE INDEX ix_vouchers_code_prefix ON public.vouchers USING btree (code_prefix)"
+      },
+      {
+        "name": "vouchers_code_hash_key",
+        "ready": true,
+        "table": "vouchers",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX vouchers_code_hash_key ON public.vouchers USING btree (code_hash)"
+      },
+      {
+        "name": "vouchers_pkey",
+        "ready": true,
+        "table": "vouchers",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX vouchers_pkey ON public.vouchers USING btree (id)"
+      },
+      {
+        "name": "ix_webhook_events_id",
+        "ready": true,
+        "table": "webhook_events",
+        "valid": true,
+        "definition": "CREATE INDEX ix_webhook_events_id ON public.webhook_events USING btree (id)"
+      },
+      {
+        "name": "webhook_events_external_event_id_key",
+        "ready": true,
+        "table": "webhook_events",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX webhook_events_external_event_id_key ON public.webhook_events USING btree (external_event_id)"
+      },
+      {
+        "name": "webhook_events_pkey",
+        "ready": true,
+        "table": "webhook_events",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX webhook_events_pkey ON public.webhook_events USING btree (id)"
+      },
+      {
+        "name": "workout_locks_pkey",
+        "ready": true,
+        "table": "workout_locks",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX workout_locks_pkey ON public.workout_locks USING btree (workout_id)"
+      },
+      {
+        "name": "ix_workouts_id",
+        "ready": true,
+        "table": "workouts",
+        "valid": true,
+        "definition": "CREATE INDEX ix_workouts_id ON public.workouts USING btree (id)"
+      },
+      {
+        "name": "workouts_pkey",
+        "ready": true,
+        "table": "workouts",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX workouts_pkey ON public.workouts USING btree (id)"
+      },
+      {
+        "name": "ix_workspace_members_user_id",
+        "ready": true,
+        "table": "workspace_members",
+        "valid": true,
+        "definition": "CREATE INDEX ix_workspace_members_user_id ON public.workspace_members USING btree (user_id)"
+      },
+      {
+        "name": "ix_workspace_members_workspace_id",
+        "ready": true,
+        "table": "workspace_members",
+        "valid": true,
+        "definition": "CREATE INDEX ix_workspace_members_workspace_id ON public.workspace_members USING btree (workspace_id)"
+      },
+      {
+        "name": "uq_workspace_members_workspace_user",
+        "ready": true,
+        "table": "workspace_members",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_workspace_members_workspace_user ON public.workspace_members USING btree (workspace_id, user_id)"
+      },
+      {
+        "name": "workspace_members_pkey",
+        "ready": true,
+        "table": "workspace_members",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX workspace_members_pkey ON public.workspace_members USING btree (id)"
+      },
+      {
+        "name": "ix_workspaces_owner_user_id",
+        "ready": true,
+        "table": "workspaces",
+        "valid": true,
+        "definition": "CREATE INDEX ix_workspaces_owner_user_id ON public.workspaces USING btree (owner_user_id)"
+      },
+      {
+        "name": "uq_workspaces_owner_user_id",
+        "ready": true,
+        "table": "workspaces",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_workspaces_owner_user_id ON public.workspaces USING btree (owner_user_id)"
+      },
+      {
+        "name": "workspaces_pkey",
+        "ready": true,
+        "table": "workspaces",
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX workspaces_pkey ON public.workspaces USING btree (id)"
+      }
+    ],
+    "sequences": [
+      {
+        "name": "coaching_relationships_id_seq",
+        "cycle": false,
+        "data_type": "integer",
+        "max_value": 2147483647,
+        "min_value": 1,
+        "cache_size": 1,
+        "owned_table": "coaching_relationships",
+        "start_value": 1,
+        "increment_by": 1,
+        "owned_column": "id"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "access_grants_created_by_user_id_fkey",
+        "type": "f",
+        "table": "access_grants",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "access_grants_pkey",
+        "type": "p",
+        "table": "access_grants",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "access_grants_workspace_id_fkey",
+        "type": "f",
+        "table": "access_grants",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id)"
+      },
+      {
+        "name": "accessories_pkey",
+        "type": "p",
+        "table": "accessories",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "accessories_workout_id_fkey",
+        "type": "f",
+        "table": "accessories",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workout_id) REFERENCES workouts(id)"
+      },
+      {
+        "name": "audit_events_actor_user_id_fkey",
+        "type": "f",
+        "table": "audit_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "audit_events_pkey",
+        "type": "p",
+        "table": "audit_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "auth_security_events_pkey",
+        "type": "p",
+        "table": "auth_security_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "auth_security_events_subject_hash_fkey",
+        "type": "f",
+        "table": "auth_security_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (subject_hash) REFERENCES auth_security_subjects(subject_hash)"
+      },
+      {
+        "name": "auth_security_subjects_pkey",
+        "type": "p",
+        "table": "auth_security_subjects",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (subject_hash)"
+      },
+      {
+        "name": "billing_checkout_reservations_pkey",
+        "type": "p",
+        "table": "billing_checkout_reservations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "billing_checkout_reservations_workspace_id_fkey",
+        "type": "f",
+        "table": "billing_checkout_reservations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id)"
+      },
+      {
+        "name": "ck_checkout_status",
+        "type": "c",
+        "table": "billing_checkout_reservations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (status::text = ANY (ARRAY['CREATING'::character varying, 'OPEN'::character varying, 'COMPLETED'::character varying, 'EXPIRED'::character varying, 'CANCELED'::character varying, 'FAILED'::character varying]::text[]))"
+      },
+      {
+        "name": "uq_checkout_provider_request",
+        "type": "u",
+        "table": "billing_checkout_reservations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (provider, request_id)"
+      },
+      {
+        "name": "uq_checkout_workspace_provider",
+        "type": "u",
+        "table": "billing_checkout_reservations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (workspace_id, provider)"
+      },
+      {
+        "name": "billing_customers_pkey",
+        "type": "p",
+        "table": "billing_customers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "billing_customers_workspace_id_fkey",
+        "type": "f",
+        "table": "billing_customers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id)"
+      },
+      {
+        "name": "uq_billing_customers_provider_customer",
+        "type": "u",
+        "table": "billing_customers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (provider, provider_customer_id)"
+      },
+      {
+        "name": "uq_billing_customers_workspace_provider",
+        "type": "u",
+        "table": "billing_customers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (workspace_id, provider)"
+      },
+      {
+        "name": "client_devices_pkey",
+        "type": "p",
+        "table": "client_devices",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "client_devices_user_id_fkey",
+        "type": "f",
+        "table": "client_devices",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "coaching_history_snapshots_pkey",
+        "type": "p",
+        "table": "coaching_history_snapshots",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (relationship_id)"
+      },
+      {
+        "name": "coaching_history_snapshots_relationship_id_fkey",
+        "type": "f",
+        "table": "coaching_history_snapshots",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (relationship_id) REFERENCES coaching_relationships(id)"
+      },
+      {
+        "name": "coaching_relationships_athlete_id_fkey",
+        "type": "f",
+        "table": "coaching_relationships",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (athlete_id) REFERENCES users(id)"
+      },
+      {
+        "name": "coaching_relationships_coach_id_fkey",
+        "type": "f",
+        "table": "coaching_relationships",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (coach_id) REFERENCES users(id)"
+      },
+      {
+        "name": "coaching_relationships_pkey",
+        "type": "p",
+        "table": "coaching_relationships",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "day_notes_owner_id_fkey",
+        "type": "f",
+        "table": "day_notes",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (owner_id) REFERENCES users(id)"
+      },
+      {
+        "name": "day_notes_pkey",
+        "type": "p",
+        "table": "day_notes",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "uq_day_notes_owner_date",
+        "type": "u",
+        "table": "day_notes",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (owner_id, date)"
+      },
+      {
+        "name": "domain_events_pkey",
+        "type": "p",
+        "table": "domain_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "domain_events_workout_id_fkey",
+        "type": "f",
+        "table": "domain_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workout_id) REFERENCES workouts(id)"
+      },
+      {
+        "name": "ck_email_token_expiry",
+        "type": "c",
+        "table": "email_verification_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (expires_at > created_at)"
+      },
+      {
+        "name": "ck_email_token_hash_length",
+        "type": "c",
+        "table": "email_verification_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (length(token_hash::text) = 64)"
+      },
+      {
+        "name": "email_verification_tokens_pkey",
+        "type": "p",
+        "table": "email_verification_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "email_verification_tokens_token_hash_key",
+        "type": "u",
+        "table": "email_verification_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (token_hash)"
+      },
+      {
+        "name": "email_verification_tokens_user_id_fkey",
+        "type": "f",
+        "table": "email_verification_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "exercise_sets_exercise_id_fkey",
+        "type": "f",
+        "table": "exercise_sets",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+      },
+      {
+        "name": "exercise_sets_pkey",
+        "type": "p",
+        "table": "exercise_sets",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "exercises_pkey",
+        "type": "p",
+        "table": "exercises",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "exercises_workout_id_fkey",
+        "type": "f",
+        "table": "exercises",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workout_id) REFERENCES workouts(id)"
+      },
+      {
+        "name": "insight_cards_owner_user_id_fkey",
+        "type": "f",
+        "table": "insight_cards",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (owner_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "insight_cards_pkey",
+        "type": "p",
+        "table": "insight_cards",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "integration_connections_pkey",
+        "type": "p",
+        "table": "integration_connections",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "integration_connections_user_id_fkey",
+        "type": "f",
+        "table": "integration_connections",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "integration_credentials_connection_id_fkey",
+        "type": "f",
+        "table": "integration_credentials",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (connection_id) REFERENCES integration_connections(id)"
+      },
+      {
+        "name": "integration_credentials_pkey",
+        "type": "p",
+        "table": "integration_credentials",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (connection_id, credential_type)"
+      },
+      {
+        "name": "fk_outbox_verification_token",
+        "type": "f",
+        "table": "integration_outbox",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (verification_token_id) REFERENCES email_verification_tokens(id)"
+      },
+      {
+        "name": "integration_outbox_connection_id_fkey",
+        "type": "f",
+        "table": "integration_outbox",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (connection_id) REFERENCES integration_connections(id)"
+      },
+      {
+        "name": "integration_outbox_pkey",
+        "type": "p",
+        "table": "integration_outbox",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "invite_codes_coach_id_fkey",
+        "type": "f",
+        "table": "invite_codes",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (coach_id) REFERENCES users(id)"
+      },
+      {
+        "name": "invite_codes_pkey",
+        "type": "p",
+        "table": "invite_codes",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "mesocycles_owner_id_fkey",
+        "type": "f",
+        "table": "mesocycles",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (owner_id) REFERENCES users(id)"
+      },
+      {
+        "name": "mesocycles_pkey",
+        "type": "p",
+        "table": "mesocycles",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "microcycles_mesocycle_id_fkey",
+        "type": "f",
+        "table": "microcycles",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (mesocycle_id) REFERENCES mesocycles(id)"
+      },
+      {
+        "name": "microcycles_owner_id_fkey",
+        "type": "f",
+        "table": "microcycles",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (owner_id) REFERENCES users(id)"
+      },
+      {
+        "name": "microcycles_pkey",
+        "type": "p",
+        "table": "microcycles",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "oauth_states_pkey",
+        "type": "p",
+        "table": "oauth_states",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (state_hash)"
+      },
+      {
+        "name": "oauth_states_user_id_fkey",
+        "type": "f",
+        "table": "oauth_states",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+      },
+      {
+        "name": "sessions_pkey",
+        "type": "p",
+        "table": "sessions",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "sessions_user_id_fkey",
+        "type": "f",
+        "table": "sessions",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "sheet_publications_coach_id_fkey",
+        "type": "f",
+        "table": "sheet_publications",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (coach_id) REFERENCES users(id)"
+      },
+      {
+        "name": "sheet_publications_pkey",
+        "type": "p",
+        "table": "sheet_publications",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "ck_subscriptions_status",
+        "type": "c",
+        "table": "subscriptions",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (status::text = ANY (ARRAY['TRIALING'::character varying, 'ACTIVE'::character varying, 'PAST_DUE'::character varying, 'CANCELED'::character varying, 'EXPIRED'::character varying, 'INCOMPLETE'::character varying]::text[]))"
+      },
+      {
+        "name": "subscriptions_pkey",
+        "type": "p",
+        "table": "subscriptions",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "subscriptions_workspace_id_fkey",
+        "type": "f",
+        "table": "subscriptions",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id)"
+      },
+      {
+        "name": "uq_subscriptions_provider_subscription",
+        "type": "u",
+        "table": "subscriptions",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (provider, provider_subscription_id)"
+      },
+      {
+        "name": "sync_mutations_client_device_id_fkey",
+        "type": "f",
+        "table": "sync_mutations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (client_device_id) REFERENCES client_devices(id)"
+      },
+      {
+        "name": "sync_mutations_pkey",
+        "type": "p",
+        "table": "sync_mutations",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (client_device_id, mutation_id)"
+      },
+      {
+        "name": "telegram_link_tokens_pkey",
+        "type": "p",
+        "table": "telegram_link_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (token_hash)"
+      },
+      {
+        "name": "telegram_link_tokens_token_hash_check",
+        "type": "c",
+        "table": "telegram_link_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (token_hash ~ '^[0-9a-f]{64}$'::text)"
+      },
+      {
+        "name": "telegram_link_tokens_user_id_fkey",
+        "type": "f",
+        "table": "telegram_link_tokens",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+      },
+      {
+        "name": "users_pkey",
+        "type": "p",
+        "table": "users",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "ck_voucher_limit_counts",
+        "type": "c",
+        "table": "voucher_redemption_limits",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (minute_count >= 0 AND hour_count >= 0)"
+      },
+      {
+        "name": "voucher_redemption_limits_pkey",
+        "type": "p",
+        "table": "voucher_redemption_limits",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (subject_hash)"
+      },
+      {
+        "name": "ck_vouchers_duration_positive",
+        "type": "c",
+        "table": "vouchers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (duration_days > 0)"
+      },
+      {
+        "name": "vouchers_assigned_user_id_fkey",
+        "type": "f",
+        "table": "vouchers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (assigned_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "vouchers_code_hash_key",
+        "type": "u",
+        "table": "vouchers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (code_hash)"
+      },
+      {
+        "name": "vouchers_created_by_user_id_fkey",
+        "type": "f",
+        "table": "vouchers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "vouchers_pkey",
+        "type": "p",
+        "table": "vouchers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "vouchers_redeemed_by_user_id_fkey",
+        "type": "f",
+        "table": "vouchers",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (redeemed_by_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "webhook_events_external_event_id_key",
+        "type": "u",
+        "table": "webhook_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (external_event_id)"
+      },
+      {
+        "name": "webhook_events_pkey",
+        "type": "p",
+        "table": "webhook_events",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "workout_locks_holder_user_id_fkey",
+        "type": "f",
+        "table": "workout_locks",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (holder_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "workout_locks_pkey",
+        "type": "p",
+        "table": "workout_locks",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (workout_id)"
+      },
+      {
+        "name": "workout_locks_workout_id_fkey",
+        "type": "f",
+        "table": "workout_locks",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workout_id) REFERENCES workouts(id)"
+      },
+      {
+        "name": "workouts_microcycle_id_fkey",
+        "type": "f",
+        "table": "workouts",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (microcycle_id) REFERENCES microcycles(id)"
+      },
+      {
+        "name": "workouts_owner_id_fkey",
+        "type": "f",
+        "table": "workouts",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (owner_id) REFERENCES users(id)"
+      },
+      {
+        "name": "workouts_pkey",
+        "type": "p",
+        "table": "workouts",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "ck_workspace_members_role",
+        "type": "c",
+        "table": "workspace_members",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (role::text = ANY (ARRAY['OWNER'::character varying, 'COACH'::character varying, 'STAFF'::character varying]::text[]))"
+      },
+      {
+        "name": "uq_workspace_members_workspace_user",
+        "type": "u",
+        "table": "workspace_members",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (workspace_id, user_id)"
+      },
+      {
+        "name": "workspace_members_pkey",
+        "type": "p",
+        "table": "workspace_members",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "workspace_members_user_id_fkey",
+        "type": "f",
+        "table": "workspace_members",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "workspace_members_workspace_id_fkey",
+        "type": "f",
+        "table": "workspace_members",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id)"
+      },
+      {
+        "name": "uq_workspaces_owner_user_id",
+        "type": "u",
+        "table": "workspaces",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (owner_user_id)"
+      },
+      {
+        "name": "workspaces_owner_user_id_fkey",
+        "type": "f",
+        "table": "workspaces",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (owner_user_id) REFERENCES users(id)"
+      },
+      {
+        "name": "workspaces_pkey",
+        "type": "p",
+        "table": "workspaces",
+        "deferred": false,
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)"
+      }
+    ]
+  }
+}

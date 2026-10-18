@@ -1,0 +1,14 @@
+[
+  {
+    "mutation_id": "legacy-replay-set-001",
+    "client_device_id": "fixture-device-001",
+    "workout_id": "fixture-workout-active",
+    "entity_type": "ExerciseSet",
+    "entity_id": "fixture-set-active",
+    "field_path": "ALL",
+    "fields": { "actual": 92.5, "reps": 5, "executedRpe": 8 },
+    "updated_at": "2026-09-01T12:00:00.000Z",
+    "status": "IN_FLIGHT",
+    "retry_count": 1
+  }
+]

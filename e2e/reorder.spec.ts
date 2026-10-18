@@ -1,11 +1,12 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
 import { fillEditableCell } from './helpers';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 test('moves a lift up and keeps the order after reload', async ({ page, request }) => {
   const email = `reorder-${Date.now()}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -28,10 +29,11 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   const addNamedLift = async (category: string, exercise: string) => {
     await page.getByTestId('add-lift').click();
-    await page.getByTestId('add-lift-category').selectOption(category);
+    await page.getByTestId('movement-pattern-add-lift').selectOption(category);
     await page.getByTestId(`add-lift-result-${exercise}`).click();
     await page.getByTestId('add-lift-confirm').click();
     await expect(page.getByRole('heading', { name: exercise, exact: true })).toBeVisible();
+    if (exercise === 'Squat') await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
   };
   await addNamedLift('Knee Dominant', 'Squat');
   await expect(page.getByTestId('rx-weight').first()).toHaveText('—');
@@ -55,21 +57,30 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await addNamedLift('Hip Dominant', 'Deadlift');
 
   const liftHeadings = page.locator('.cal-nested-card h4');
-  await expect(liftHeadings).toHaveText(['Competition Squat', 'Competition Bench', 'Competition Deadlift']);
+  await expect(liftHeadings).toHaveText(['Squat', 'Bench', 'Deadlift']);
 
-  const moved = page.waitForResponse((res) =>
-    res.url().includes('/exercises/') && res.request().method() === 'PATCH'
-  );
-  await page.getByRole('heading', { name: 'Competition Bench', exact: true })
-    .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]')
-    .getByRole('button', { name: 'Up', exact: true })
-    .click();
-  expect((await moved).ok()).toBeTruthy();
-  await expect(liftHeadings).toHaveText(['Competition Bench', 'Competition Squat', 'Competition Deadlift']);
+  await page.getByRole('button', { name: 'Minimize Squat', exact: true }).click();
+  const benchHandle = page.getByRole('button', { name: 'Reorder Bench', exact: true });
+  const squatHandle = page.getByRole('button', { name: 'Reorder Squat', exact: true });
+  const source = await benchHandle.boundingBox();
+  const target = await squatHandle.boundingBox();
+  expect(source && target).toBeTruthy();
+  const [moved] = await Promise.all([
+    page.waitForResponse((res) => res.url().includes('/exercises/') && res.request().method() === 'PATCH'),
+    (async () => {
+      await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(target!.x + target!.width / 2, target!.y, { steps: 20 });
+      await page.mouse.up();
+    })(),
+  ]);
+  expect(moved.ok()).toBeTruthy();
+  await expect(liftHeadings).toHaveText(['Bench', 'Squat', 'Deadlift']);
 
   await page.reload();
-  await expect(page.locator('.cal-nested-card h4')).toHaveText(['Competition Bench', 'Competition Squat', 'Competition Deadlift']);
-  const squatRow = page.getByRole('heading', { name: 'Competition Squat', exact: true })
+  await expect(page.locator('.cal-nested-card h4')).toHaveText(['Bench', 'Squat', 'Deadlift']);
+  await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
+  const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
   await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('180');
   await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('—');
@@ -78,8 +89,9 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
   await expect(page.getByTestId('session-open')).toHaveCount(0);
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Up', exact: true }).first()).toBeEnabled();
-  const squatPlan = page.getByRole('heading', { name: 'Competition Squat', exact: true })
+  await expect(page.getByRole('button', { name: 'Reorder Squat', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
+  const squatPlan = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]')
     .getByTestId('rx-weight').first();
   await fillEditableCell(squatPlan, '182.5');

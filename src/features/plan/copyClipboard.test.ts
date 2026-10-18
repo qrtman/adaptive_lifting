@@ -63,10 +63,20 @@ describe('clipboard grains', () => {
     expect(clip.targetBlockLabel).toBe('Block2');
     const req = buildCopyWeekRequest(clip, '2026-09-22', false, 'ath-1');
     expect(req.dateOffsetDays).toBe(7);
+    expect(req.copyMode).toBe('plan');
     expect(req.preserveWeekLabel).toBe(true);
     expect(req.targetBlockLabel).toBe('Block2');
     expect(req).not.toHaveProperty('targetWeekLabel');
     expect(copyBannerText(clip)).toBe('Copy 2 sessions — click where D1 lands');
+  });
+
+  it('maps explicit modes and legacy booleans', () => {
+    const clip = buildDayClipboard([squat], '');
+    expect(buildCopyWeekRequest(clip, '2026-09-22', 'lifts').copyMode).toBe('lifts');
+    expect(buildCopyWeekRequest(clip, '2026-09-22', 'plan').copyMode).toBe('plan');
+    expect(buildCopyWeekRequest(clip, '2026-09-22', 'logs').copyMode).toBe('logs');
+    expect(buildCopyWeekRequest(clip, '2026-09-22', true).copyMode).toBe('logs');
+    expect(buildCopyWeekRequest(clip, '2026-09-22', false).copyMode).toBe('plan');
   });
 
   it('single day copy keeps the existing calendar banner copy', () => {

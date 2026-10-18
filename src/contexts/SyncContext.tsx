@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { countMutationsByStatus, getPendingMutations } from '../services/db';
-import { isInsightCardMutation, isLockSyncCode, processInsightCardSync, processSyncQueue } from '../services/sync_engine';
+import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { countMutationsByStatus, getPendingMutations, getConflictedMutations, resolveMutationKeepServer, exportConflictMutation, type SyncMutation } from '../services/db';
+import { processPendingQueues, processSyncQueue } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
 import { WorkoutLockBanner } from '../components/WorkoutLockBanner';
 import { SyncQueueOverlay } from '../components/SyncQueueOverlay';
@@ -29,68 +30,66 @@ const SyncContext = createContext<SyncState>({
 
 export const useSync = () => useContext(SyncContext);
 
-function isTrueConflict(item: { reason?: string }): boolean {
-  const reason = item?.reason;
-  if (!reason) return true;
-  if (isLockSyncCode(reason) || reason === '409_CONFLICT') return false;
-  return true;
-}
-
 export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
+  const { user } = useAuth();
+  const activeAccountId = useRef(user?.id);
+  activeAccountId.current = user?.id;
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [rejectedCount, setRejectedCount] = useState(0);
-  const [conflicts, setConflicts] = useState<any[]>([]);
+  const [countsAccountId, setCountsAccountId] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<SyncMutation[]>([]);
+  const [conflictsAccountId, setConflictsAccountId] = useState<string | null>(null);
   const [locks, setLocks] = useState<SyncLockNotice[]>([]);
+  const [locksAccountId, setLocksAccountId] = useState<string | null>(null);
 
-  const refreshCounts = async () => {
-    const pending = await getPendingMutations();
-    const rejected = await countMutationsByStatus('REJECTED');
+  const refreshCounts = async (accountId?: string) => {
+    const pending = await getPendingMutations(undefined, accountId);
+    const rejected = await countMutationsByStatus('REJECTED', accountId);
+    if (activeAccountId.current !== accountId) return;
     setPendingCount(pending.length);
     setRejectedCount(rejected);
+    setCountsAccountId(accountId || null);
+  };
+
+  const refreshConflicts = async (accountId?: string) => {
+    const next = await getConflictedMutations(accountId);
+    if (activeAccountId.current !== accountId) return;
+    setConflicts(next);
+    setConflictsAccountId(accountId || null);
   };
 
   useEffect(() => {
+    if (!user) {
+      setPendingCount(0); setRejectedCount(0); setCountsAccountId(null);
+      setConflicts([]); setConflictsAccountId(null); setLocks([]); setLocksAccountId(null);
+      return;
+    }
+    setLocks([]);
+    setLocksAccountId(user.id);
+    const flushPending = async () => {
+      try {
+        const nextConflicts = await processPendingQueues(user.id);
+        if (nextConflicts.length > 0) await refreshConflicts(user.id);
+        await refreshCounts(user.id);
+      } catch {
+        // Preserve the IndexedDB queue when storage or the network is unavailable.
+      }
+    };
     const handleOnline = () => {
       setIsOnline(true);
-      void (async () => {
-        try {
-          const pending = await getPendingMutations();
-          if (pending.some(isInsightCardMutation)) {
-            const cardConflicts = await processInsightCardSync();
-            if (cardConflicts && cardConflicts.length > 0) {
-              setConflicts((prev) => [...prev, ...cardConflicts.filter(isTrueConflict)]);
-            }
-          }
-          const workoutIds = [...new Set(
-            pending
-              .filter((m) => !isInsightCardMutation(m))
-              .map((m) => m.workout_id)
-              .filter(Boolean),
-          )] as string[];
-          for (const id of workoutIds) {
-            const nextConflicts = await processSyncQueue(id);
-            if (nextConflicts && nextConflicts.length > 0) {
-              setConflicts((prev) => [...prev, ...nextConflicts.filter(isTrueConflict)]);
-            }
-          }
-          await refreshCounts();
-        } catch {
-          // IndexedDB may not be ready
-        }
-      })();
+      void flushPending();
     };
     const handleOffline = () => setIsOnline(false);
     
     const handleConflicts = (e: any) => {
-      if (e.detail && Array.isArray(e.detail)) {
-        setConflicts(prev => [...prev, ...e.detail.filter(isTrueConflict)]);
-      }
+      if (e.detail && Array.isArray(e.detail)) void refreshConflicts(user.id).catch(() => undefined);
     };
 
     const handleLock = (e: any) => {
       const detail = e.detail as SyncLockNotice | undefined;
       if (!detail?.workout_id) return;
+      setLocksAccountId(user.id);
       setLocks((prev) => {
         if (prev.some((lock) => lock.workout_id === detail.workout_id)) return prev;
         return [...prev, {
@@ -106,14 +105,18 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     window.addEventListener('sync-conflicts', handleConflicts);
     window.addEventListener('sync-lock', handleLock);
 
-    void refreshCounts().catch(() => {
+    // The user may reauthenticate while the browser is already online; do not
+    // wait for a future `online` event before attempting retained mutations.
+    void flushPending();
+    void refreshConflicts(user.id).catch(() => undefined);
+    void refreshCounts(user.id).catch(() => {
       // IndexedDB may not be ready
     });
 
     // Poll for pending count
     const interval = window.setInterval(async () => {
       try {
-        await refreshCounts();
+        await refreshCounts(user.id);
       } catch (e) {
         // Ignore DB not ready yet
       }
@@ -126,33 +129,56 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       window.removeEventListener('sync-lock', handleLock);
       clearInterval(interval);
     };
-  }, []);
+  }, [user?.id]);
 
   const triggerSync = (workout_id: string) => {
-    processSyncQueue(workout_id).then(async (newConflicts) => {
-       if (newConflicts && newConflicts.length > 0) {
-         setConflicts(prev => [...prev, ...newConflicts.filter(isTrueConflict)]);
-       }
+    if (!user) return;
+    processSyncQueue(workout_id, user.id).then(async () => {
+       await refreshConflicts(user.id);
        try {
-         await refreshCounts();
+         await refreshCounts(user.id);
        } catch {
          // IndexedDB may not be ready
        }
     });
   };
 
-  const handleResolveConflict = (index: number, action: string) => {
-     // For now just dismiss it. Real app would re-submit or discard.
-     setConflicts(prev => prev.filter((_, i) => i !== index));
+  // Async IndexedDB reads from the previous account may resolve after an
+  // account switch. Tag each view with its owner so stale results stay hidden.
+  const visiblePendingCount = user && countsAccountId === user.id ? pendingCount : 0;
+  const visibleRejectedCount = user && countsAccountId === user.id ? rejectedCount : 0;
+  const visibleConflicts = user && conflictsAccountId === user.id ? conflicts : [];
+  const visibleLocks = user && locksAccountId === user.id ? locks : [];
+
+  const handleKeepServer = async (mutationId: string) => {
+    if (!window.confirm('Keep the current server values? Your unsynchronized edit will remain available for 28 days and can be exported first.')) return;
+    try {
+      await resolveMutationKeepServer(mutationId, user?.id);
+      await refreshConflicts(user?.id);
+    } catch {
+      // Keep the conflict visible until the local resolution is durably stored.
+    }
+  };
+
+  const handleExportConflict = async (mutationId: string) => {
+    const mutation = await exportConflictMutation(mutationId, user?.id);
+    if (!mutation) return;
+    const blob = new Blob([JSON.stringify(mutation, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `adaptive-lifting-conflict-${mutationId}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <SyncContext.Provider value={{ isOnline, pendingCount, rejectedCount, triggerSync, conflicts }}>
+    <SyncContext.Provider value={{ isOnline, pendingCount: visiblePendingCount, rejectedCount: visibleRejectedCount, triggerSync, conflicts: visibleConflicts }}>
       {children}
-      <SyncQueueOverlay collide={locks.length > 0 || conflicts.length > 0} />
-      {(locks.length > 0 || conflicts.length > 0) && (
+      {user && <SyncQueueOverlay collide={visibleLocks.length > 0 || visibleConflicts.length > 0} />}
+      {(visibleLocks.length > 0 || visibleConflicts.length > 0) && (
         <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm mx-auto">
-          {locks.map((lock) => (
+          {visibleLocks.map((lock) => (
             <div key={lock.workout_id} className="pointer-events-auto">
               <WorkoutLockBanner
                 message={lock.message}
@@ -160,14 +186,17 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
               />
             </div>
           ))}
-          {conflicts.map((c, i) => (
-             <div key={`conflict-${i}`} className="pointer-events-auto shadow-2xl">
-               <ConflictReviewCard 
-                  entityType={c.entity_type || 'Workout'}
-                  field={c.field_path || 'State'}
-                  serverValue={c.reason || 'Server change detected'}
-                  clientValue={'Local un-synced edit'}
-                  onResolve={(action) => handleResolveConflict(i, action)}
+          {visibleConflicts.map((c) => (
+             <div key={`conflict-${c.mutation_id}`} className="pointer-events-auto shadow-2xl">
+               <ConflictReviewCard
+                  mutationId={c.mutation_id}
+                  entityType={c.entity_type}
+                  entityId={c.entity_id}
+                  reason={c.conflict?.reason || 'server revision changed'}
+                  serverFields={c.conflict?.server_fields || {}}
+                  clientFields={c.fields}
+                  onKeepServer={() => void handleKeepServer(c.mutation_id)}
+                  onExport={() => void handleExportConflict(c.mutation_id)}
                />
              </div>
           ))}

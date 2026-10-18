@@ -5,14 +5,11 @@ describe('resolveDashboardMode', () => {
   it('keeps workspace modes', () => {
     expect(resolveDashboardMode('calendar')).toEqual({ mode: 'calendar', panel: null, redirectedFrom: null });
     expect(resolveDashboardMode('insights')).toEqual({ mode: 'insights', panel: null, redirectedFrom: null });
+    expect(resolveDashboardMode('roster')).toEqual({ mode: 'roster', panel: null, redirectedFrom: null });
   });
 
   it('redirects athletes and analytics aliases', () => {
-    expect(resolveDashboardMode('athletes')).toEqual({
-      mode: 'calendar',
-      panel: 'athlete-scope',
-      redirectedFrom: 'athletes',
-    });
+    expect(resolveDashboardMode('athletes')).toEqual({ mode: 'roster', panel: null, redirectedFrom: 'athletes' });
     expect(resolveDashboardMode('analytics')).toEqual({
       mode: 'insights',
       panel: null,
@@ -30,16 +27,24 @@ describe('parseAppLocation', () => {
     });
   });
 
-  it('preserves athlete and panel from hash query', () => {
+  it('opens Roster and preserves athlete from hash query', () => {
     expect(parseAppLocation('http://app.local/#/roster?athlete=ath-1')).toEqual({
-      mode: 'calendar',
+      mode: 'roster',
       athleteId: 'ath-1',
-      panel: 'athlete-scope',
+      panel: null,
     });
   });
 
   it('reads Telegram-style search view', () => {
     expect(parseAppLocation('http://app.local/?view=roster&tg_auth=true')).toEqual({
+      mode: 'roster',
+      athleteId: null,
+      panel: null,
+    });
+  });
+
+  it('keeps the explicit quick-scope panel on Calendar', () => {
+    expect(parseAppLocation('http://app.local/#/calendar?panel=athlete-scope')).toEqual({
       mode: 'calendar',
       athleteId: null,
       panel: 'athlete-scope',

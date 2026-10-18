@@ -75,13 +75,24 @@ describe('refreshSetAnchors', () => {
     expect(next[1].suggestedWeight).toBeLessThan(180);
   });
 
-  it('does not suggest kg from a fake baseline e1RM when nothing is logged', () => {
+  it('suggests later kg from a planned top-set e1RM without a log', () => {
     const next = refreshSetAnchors([
       { plannedWeight: 180, plannedReps: 5, plannedRpe: 8, baseline_e1rm: 400 },
       { plannedWeight: null, plannedReps: 5, plannedRpe: 8, intensity_type: 'RPE' },
     ]);
     expect(next[1].plannedWeight).toBeNull();
-    expect(next[1].suggestedWeight).toBeNull();
+    expect(next[1].suggestedWeight).toBeGreaterThan(0);
+    expect(next[0].baseline_e1rm).toBeLessThan(250);
+  });
+
+  it('uses an explicit top set when it is not the first row', () => {
+    const next = refreshSetAnchors([
+      { plannedWeight: 100, plannedReps: 5, plannedRpe: 8 },
+      { plannedWeight: 180, plannedReps: 5, plannedRpe: 8, isTop: true },
+      { plannedWeight: null, plannedReps: 5, plannedRpe: 8, intensity_type: 'RPE' },
+    ]);
+    expect(next[2].suggestedWeight).toBeGreaterThan(0);
+    expect(next[2].suggestedWeight).toBe(180);
   });
 
   it('suggests later kg after a log even when that row already has typed plan kg', () => {
@@ -383,13 +394,13 @@ describe('per-set % scales the use {n} offer, not Plan kg', () => {
     )[0].plannedWeight).toBe(200);
   });
 
-  it('does not auto-fill extra sets from stored dropPercent on refresh', () => {
+  it('does not auto-write a stored dropPercent suggestion into Plan kg on refresh', () => {
     const next = refreshSetAnchors([
       { plannedWeight: 200, plannedReps: 5, plannedRpe: 8 },
       { plannedWeight: null, plannedReps: 5, plannedRpe: 8, dropPercent: -10, isAuto: false },
     ]);
     expect(next[1].plannedWeight).toBeNull();
-    expect(next[1].suggestedWeight).toBeNull();
+    expect(next[1].suggestedWeight).toBe(180);
     expect(next[1].dropPercent).toBe(-10);
     expect(next[1].isAuto).toBe(false);
   });

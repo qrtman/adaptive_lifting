@@ -1,10 +1,16 @@
 import { expect, Page, Locator } from '@playwright/test';
+import { registerVerified } from './verified-fixture';
 
 export async function signInCoach(page: Page, prefs: Record<string, string> = {}) {
+  const login = await registerVerified(page.request, { data: {
+    email: `navigation-coach-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`,
+    password: 'password123', role: 'COACH',
+  } });
+  expect(login.ok()).toBeTruthy();
   await page.addInitScript((extra: Record<string, string>) => {
     localStorage.setItem('al_role_mode', 'coach');
     for (const [key, value] of Object.entries(extra)) {
-      localStorage.setItem(key, value);
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, value);
     }
   }, prefs);
 }

@@ -1,0 +1,61 @@
+{
+  "correction": "Remove exactly the terminal two bytes 0x5c 0x6e (literal backslash+n) from four reviewed Supabase SQL source files.",
+  "semantic_effect": "None. No executable SQL, comment, BOM, identifier, migration filename, timestamp, ordering or database state changed.",
+  "migration_version_ids_changed": false,
+  "remote_migration_history_changed": false,
+  "production_or_staging_connected": false,
+  "files": [
+    {
+      "file": "20261005161820_sessions_replace_exercise_sets_private_rpc.sql",
+      "migration_version": "20261005161820",
+      "original_sha256_raw": "0a72c63ee2711f368ba21a4662d3103630431fef4c969799b863c0a8f4729cc2",
+      "original_sha256_lf_normalized": "2b40d3f98a4e5a3ad6d45d928dafe030bd9a5570d4bd78a98bb8b1b1db6c381e",
+      "removed_bytes_hex": "5c6e",
+      "removed_bytes_ascii": "\\n",
+      "corrected_sha256_raw": "c408626df0b4bf3e5f745fc0cfe4dee76a5bb4086cdfb368345bd722e7037f8a",
+      "corrected_sha256_lf_normalized": "a77f67c66885ba9247b56e802ff72e8b5eadfce929dd341a6638f0d89e32abfd",
+      "executable_sql_changed": false,
+      "bom_present_before": false,
+      "final_newline_preserved": true
+    },
+    {
+      "file": "20261005162355_sessions_replace_exercise_sets_encoding_correction.sql",
+      "migration_version": "20261005162355",
+      "original_sha256_raw": "0a72c63ee2711f368ba21a4662d3103630431fef4c969799b863c0a8f4729cc2",
+      "original_sha256_lf_normalized": "2b40d3f98a4e5a3ad6d45d928dafe030bd9a5570d4bd78a98bb8b1b1db6c381e",
+      "removed_bytes_hex": "5c6e",
+      "removed_bytes_ascii": "\\n",
+      "corrected_sha256_raw": "c408626df0b4bf3e5f745fc0cfe4dee76a5bb4086cdfb368345bd722e7037f8a",
+      "corrected_sha256_lf_normalized": "a77f67c66885ba9247b56e802ff72e8b5eadfce929dd341a6638f0d89e32abfd",
+      "executable_sql_changed": false,
+      "bom_present_before": false,
+      "final_newline_preserved": true
+    },
+    {
+      "file": "20261005181600_account_security_auth_rpcs.sql",
+      "migration_version": "20261005181600",
+      "original_sha256_raw": "b76767cdcc335bd6d1ee8250e17271ea4f98c1eff688d895c163896d349c3f20",
+      "original_sha256_lf_normalized": "aa82841d47cea8f7a65426b46287332bd4e88986d39a4f70be5d63d2c50b86e5",
+      "removed_bytes_hex": "5c6e",
+      "removed_bytes_ascii": "\\n",
+      "corrected_sha256_raw": "9bf1cb7e1fbe87eebd94dce2cc8d7f6aa82e8e532b3d944f71204c17b8c825de",
+      "corrected_sha256_lf_normalized": "f93625a90d1bf8972ebf1f6283482f57559a1e1b925638bfca268c19409a3d33",
+      "executable_sql_changed": false,
+      "bom_present_before": true,
+      "final_newline_preserved": true
+    },
+    {
+      "file": "20261005181950_account_security_coach_rpcs.sql",
+      "migration_version": "20261005181950",
+      "original_sha256_raw": "0ab538998b130e5a2503e91c3a01866f6a5ccfe163863f6091476a0f54705961",
+      "original_sha256_lf_normalized": "1637f20f412dc24b181f5ea3b94325fedec8957fd52c260c7c37269ce1942688",
+      "removed_bytes_hex": "5c6e",
+      "removed_bytes_ascii": "\\n",
+      "corrected_sha256_raw": "70536cadb9c7c7e686f5a0124abdfa94e09d150ed6d889f4c56b17002d26c56b",
+      "corrected_sha256_lf_normalized": "a5ff965d75678dd630fab67e12a61c155d45efb001c6f6c25a8f25858ac006b6",
+      "executable_sql_changed": false,
+      "bom_present_before": true,
+      "final_newline_preserved": true
+    }
+  ]
+}

@@ -12,9 +12,9 @@ export type LiftModifiers = {
 export const DEFAULT_TEMPO = '1-0-1';
 
 export const BAR_OPTIONS: Record<LiftCategory, string[]> = {
-  Squat: ['Competition', 'High Bar', 'Low Bar', 'SSB', 'Front', 'Box', 'Hatfield'],
-  Bench: ['Competition', 'Close Grip', 'Wide Grip', 'Incline', 'Decline', 'Floor', 'Spoto'],
-  Deadlift: ['Competition', 'Conventional', 'Sumo', 'RDL', 'Block', 'Snatch Grip'],
+  Squat: ['High Bar', 'Low Bar', 'SSB', 'Front', 'Box', 'Hatfield'],
+  Bench: ['Close Grip', 'Wide Grip', 'Incline', 'Decline', 'Floor', 'Spoto'],
+  Deadlift: ['Conventional', 'Sumo', 'RDL', 'Block', 'Snatch Grip'],
   Other: ['Standard'],
 };
 
@@ -54,9 +54,8 @@ export function isDefaultTempo(tempo: string): boolean {
 }
 
 export function defaultModifiers(category: LiftCategory): LiftModifiers {
-  const bars = BAR_OPTIONS[category] ?? BAR_OPTIONS.Other;
   return {
-    bar: bars[0],
+    bar: '',
     tempo: DEFAULT_TEMPO,
     rom: 'Full',
     gear: [],
@@ -69,22 +68,25 @@ export function toggleGear(gear: GearMod[], item: GearMod): GearMod[] {
 
 export function compileVariation(title: string, mods: LiftModifiers): string {
   const bits: string[] = [];
+  const barMatchesWholeTitle = mods.bar && title.trim().toLowerCase() === mods.bar.toLowerCase();
+  const normalizedTitle = mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard'
+    && (barMatchesWholeTitle || title.toLowerCase().startsWith(`${mods.bar.toLowerCase()} `))
+    ? (barMatchesWholeTitle ? title : title.slice(mods.bar.length).trim())
+    : title;
   for (const item of mods.gear) bits.push(item);
   const romWord = ROM_WORD[mods.rom];
   if (romWord) bits.push(romWord);
-  if (mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard') {
+  if (mods.bar && mods.bar !== 'Competition' && mods.bar !== 'Standard' && !barMatchesWholeTitle) {
     bits.push(mods.bar);
-  } else if (bits.length === 0) {
-    bits.push('Competition');
   }
   const tempo = formatTempo(...parseTempoParts(mods.tempo));
   const note = tempo === DEFAULT_TEMPO ? '' : ` (${tempo})`;
-  return `${bits.join(' ')} ${title}${note}`.replace(/\s+/g, ' ').trim();
+  return `${bits.join(' ')} ${normalizedTitle}${note}`.replace(/\s+/g, ' ').trim();
 }
 
 export function variationTier(mods: LiftModifiers): 'Comp' | 'Variation' {
   const isComp =
-    (mods.bar === 'Competition' || mods.bar === 'Standard' || mods.bar === 'Conventional')
+    (mods.bar === 'Competition' || mods.bar === 'Standard' || mods.bar === 'Conventional' || mods.bar === '')
     && isDefaultTempo(mods.tempo)
     && mods.rom === 'Full'
     && mods.gear.length === 0;

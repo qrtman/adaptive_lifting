@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Trash2, Copy, Plus } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus } from 'lucide-react';
+import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
-import { PrescriptionEditor, MovementPatternSelect } from './PrescriptionEditor';
+import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
 import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { 
   calculateE1RM, 
   calculateINOL,
+  getRpePercentage,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
 import {
@@ -14,6 +16,7 @@ import {
   colOf,
   makeCellId,
   neighbor,
+  GRID_COL_COUNT,
   type CellMode,
   type MoveKind,
   type NeighborDir,
@@ -27,6 +30,8 @@ import {
 } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
 import type { MovementPattern } from '../services/exerciseCatalog';
+import { compileVariation, defaultModifiers, parseModifiers } from '../services/liftVariation';
+import { catalogExercise, LiftCatalogChoice } from './LiftCatalogChoice';
 
 function formatE1rmDeltaPct(planE1rm: number, logE1rm: number): string {
   if (!(planE1rm > 0) || !(logE1rm > 0)) return '—';
@@ -34,6 +39,59 @@ function formatE1rmDeltaPct(planE1rm: number, logE1rm: number): string {
   if (pct > 0) return `+${pct}%`;
   if (pct < 0) return `${pct}%`;
   return '0%';
+}
+
+type ExerciseSummarySet = {
+  scope?: string;
+  actual?: unknown;
+  reps?: unknown;
+  executedRpe?: unknown;
+  plannedReps?: unknown;
+  plannedRpe?: unknown;
+  target_value?: unknown;
+  intensity_type?: string;
+};
+
+export function summarizeExerciseCard(sets: ExerciseSummarySet[]): {
+  intensityPct: number | null;
+  nl: number;
+} {
+  const loggedSets = sets.filter((set) => set.scope !== 'plan' && trainingNumber(set.actual) != null);
+  const useLogged = loggedSets.length > 0;
+  const selectedSets = useLogged
+    ? loggedSets
+    : sets.filter((set) => set.scope !== 'log');
+
+  const intensityValues = selectedSets
+    .map((set) => {
+      if (useLogged) {
+        const weight = trainingOrZero(set.actual);
+        const reps = trainingIntOrZero(set.reps);
+        const rpe = trainingOrZero(set.executedRpe);
+        if (weight > 0 && reps > 0 && rpe > 0) {
+          const e1rm = calculateE1RM(weight, reps, rpe);
+          if (e1rm > 0) return (weight / e1rm) * 100;
+        }
+      }
+
+      const reps = trainingIntOrZero(useLogged ? set.reps ?? set.plannedReps : set.plannedReps);
+      const target = trainingOrZero(set.target_value ?? set.plannedRpe);
+      if (reps <= 0 || target <= 0) return null;
+      return set.intensity_type === 'PERCENT'
+        ? target
+        : getRpePercentage(reps, target) * 100;
+    })
+    .filter((value): value is number => value != null && value > 0);
+
+  return {
+    intensityPct: intensityValues.length > 0
+      ? Math.round(intensityValues.reduce((sum, value) => sum + value, 0) / intensityValues.length)
+      : null,
+    nl: selectedSets.reduce(
+      (sum, set) => sum + trainingIntOrZero(useLogged ? set.reps : set.plannedReps),
+      0,
+    ),
+  };
 }
 
 export const ExerciseCard = ({ 
@@ -44,14 +102,19 @@ export const ExerciseCard = ({
   tier,
   liftCategory = 'Other',
   movementPattern,
+  liftNote,
   initialSets,
   onUpdateSets,
   onUpdateMeta,
   onRemove,
   onMoveUp,
   onMoveDown,
+  onMinimizedChange,
+  dragControls,
   locked = false,
-  roleMode: _roleMode = 'coach'
+  canEditPlan = true,
+  roleMode: _roleMode = 'coach',
+  initialMinimized = true
 }: { 
   id: string,
   title: string, 
@@ -60,14 +123,19 @@ export const ExerciseCard = ({
   tier?: 'Comp' | 'Variation' | 'Accessory',
   liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other',
   movementPattern?: MovementPattern,
+  liftNote?: string | null,
   initialSets: any[],
   onUpdateSets: (sets: any[]) => void,
-  onUpdateMeta?: (patch: LiftMetaPatch) => void,
+  onUpdateMeta?: (patch: LiftMetaPatch) => void | Promise<void>,
   onRemove?: () => void | Promise<void>,
   onMoveUp?: () => void | Promise<void>,
   onMoveDown?: () => void | Promise<void>,
+  onMinimizedChange?: (minimized: boolean) => void,
+  dragControls?: DragControls,
   locked?: boolean,
+  canEditPlan?: boolean,
   roleMode?: 'coach' | 'athlete',
+  initialMinimized?: boolean,
   key?: string,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
@@ -106,6 +174,19 @@ export const ExerciseCard = ({
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
   const [removing, setRemoving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState(title);
+  const [editVariation, setEditVariation] = useState(variation);
+  const [editTier, setEditTier] = useState<'Comp' | 'Variation' | 'Accessory'>(tier ?? 'Accessory');
+  const [editLiftCategory, setEditLiftCategory] = useState(liftCategory);
+  const [editMovementPattern, setEditMovementPattern] = useState<MovementPattern>(movementPattern ?? 'Misc');
+  const [editCategory, setEditCategory] = useState<'User Defined' | ''>('');
+  const [editSearch, setEditSearch] = useState('');
+  const [editExerciseName, setEditExerciseName] = useState('');
+  const [editCustomName, setEditCustomName] = useState('');
+  const [noteDraft, setNoteDraft] = useState(liftNote ?? '');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteStatus, setNoteStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [minimized, setMinimized] = useState(initialMinimized);
   const [grid, setGrid] = useState<{
     row: number;
     col: number;
@@ -113,6 +194,38 @@ export const ExerciseCard = ({
     overwrite: boolean;
     seed?: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!editOpen) return;
+    const catalog = catalogExercise(title);
+    setEditTitle(title);
+    setEditVariation(variation);
+    setEditTier(tier ?? 'Accessory');
+    setEditLiftCategory(liftCategory);
+    setEditMovementPattern(movementPattern ?? 'Misc');
+    setEditCategory(catalog ? '' : 'User Defined');
+    setEditExerciseName(catalog?.name ?? '');
+    setEditCustomName(catalog ? '' : title);
+    setEditSearch('');
+  }, [editOpen, title, variation, tier, liftCategory, movementPattern]);
+
+  useEffect(() => {
+    setNoteDraft(liftNote ?? '');
+  }, [liftNote]);
+
+  const saveLiftNote = async () => {
+    if (!onUpdateMeta || locked || noteSaving) return;
+    setNoteSaving(true);
+    setNoteStatus('idle');
+    try {
+      await onUpdateMeta({ liftNote: noteDraft.trim() });
+      setNoteStatus('saved');
+    } catch {
+      setNoteStatus('error');
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!grid) return;
@@ -173,13 +286,14 @@ export const ExerciseCard = ({
     updateAndPropagate(sets.filter((_, i) => i !== index));
   };
 
-  const syncTarget = (index: number) => {
+  const syncTarget = (index: number, laneIndex: number) => {
     if (locked) return;
     const set = sets[index];
-    const kg = trainingNumber(set.plannedWeight);
-    updateSet(index, {
+    const logEntry = logRows[laneIndex];
+    const targetIndex = logEntry?.index ?? index;
+    updateSet(targetIndex, {
       scope: 'both',
-      actual: kg,
+      actual: trainingNumber(set.plannedWeight),
       reps: trainingInt(set.plannedReps),
       executedRpe: set.intensity_type === 'PERCENT' ? null : trainingNumber(set.plannedRpe),
       isAuto: false
@@ -187,9 +301,22 @@ export const ExerciseCard = ({
   };
 
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
+  const plannedCount = sets.filter((set) => set.scope !== 'log').length;
+  const loggedCount = sets.filter((set) => set.scope !== 'plan' && trainingNumber(set.actual) != null).length;
+  const { intensityPct, nl } = summarizeExerciseCard(sets);
 
   const addSet = (target: 'plan' | 'log') => {
-    const nextRow = sets.length;
+    const targetRows = target === 'plan' ? planRows : logRows;
+    const oppositeRows = target === 'plan' ? logRows : planRows;
+    const nextRow = targetRows.length;
+    const oppositeEntry = oppositeRows[nextRow];
+    if (oppositeEntry) {
+      updateSet(oppositeEntry.index, target === 'plan'
+        ? { scope: 'both', plannedWeight: null, plannedReps: null, plannedRpe: null, target_value: null, dropPercent: 0 }
+        : { scope: 'both', actual: null, reps: null, executedRpe: null });
+      setGrid({ row: nextRow, col: target === 'plan' ? (nextRow === 0 ? 1 : 0) : 4, mode: 'selected', overwrite: false });
+      return;
+    }
     updateAndPropagate([...sets, {
       id: `s-${Math.random().toString(36).slice(2, 12)}`,
       label: `Set ${sets.length + 1}`,
@@ -208,7 +335,7 @@ export const ExerciseCard = ({
     }]);
     setGrid({
       row: nextRow,
-      col: target === 'plan' ? 0 : 3,
+      col: target === 'plan' ? (nextRow === 0 ? 1 : 0) : 4,
       mode: 'selected',
       overwrite: false,
     });
@@ -222,7 +349,7 @@ export const ExerciseCard = ({
     mode: grid?.row === row && grid?.col === col ? grid.mode : 'selected',
     editOverwrite: grid?.overwrite ?? false,
     editSeed: grid?.seed,
-    tabStop: (grid == null && row === 0 && col === 0) || (grid?.row === row && grid?.col === col),
+    tabStop: (grid == null && row === 0 && col === 1) || (grid?.row === row && grid?.col === col),
     onSelect: (nextRow, nextCol) => {
       setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
     },
@@ -231,7 +358,17 @@ export const ExerciseCard = ({
     },
     onCommit: (nextRow, nextCol, _value, move, kind) => {
       if (move && kind) {
-        const next = neighbor(addressFrom(id, nextRow, nextCol), move, kind, sets.length);
+        if (kind === 'tab' && move === 'right') {
+          const next = nextTabCell(nextRow, nextCol);
+          if (!next) {
+            requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="add-plan-set-${id}"]`)?.focus());
+            setGrid(null);
+            return;
+          }
+          setGrid({ row: next.row, col: next.col, mode: 'selected', overwrite: false });
+          return;
+        }
+        const next = neighbor(addressFrom(id, nextRow, nextCol), move, kind, Math.max(planRows.length, logRows.length));
         setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
         return;
       }
@@ -241,7 +378,17 @@ export const ExerciseCard = ({
       setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
     },
     onMove: (nextRow, nextCol, direction: NeighborDir, kind: MoveKind) => {
-      const next = neighbor(addressFrom(id, nextRow, nextCol), direction, kind, sets.length);
+      if (kind === 'tab' && direction === 'right') {
+        const next = nextTabCell(nextRow, nextCol);
+        if (!next) {
+          requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="add-plan-set-${id}"]`)?.focus());
+          setGrid(null);
+          return;
+        }
+        setGrid({ row: next.row, col: next.col, mode: 'selected', overwrite: false });
+        return;
+      }
+      const next = neighbor(addressFrom(id, nextRow, nextCol), direction, kind, Math.max(planRows.length, logRows.length));
       setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
     },
   });
@@ -264,26 +411,86 @@ export const ExerciseCard = ({
   const logRows = sets
     .map((set, index) => ({ set, index }))
     .filter(({ set }) => set.scope !== 'plan');
-  const selectedPlanEntry = grid?.col === 0
-    ? planRows.find(({ index }) => index === grid.row)
+  const nextTabCell = (row: number, col: number): { row: number; col: number } | null => {
+    const cells: Array<{ row: number; col: number }> = [];
+    const rowCount = Math.max(planRows.length, logRows.length);
+    for (let nextRow = 0; nextRow < rowCount; nextRow += 1) {
+      if (planRows[nextRow]) {
+        const firstPlanCol = nextRow === 0 ? 1 : 0;
+        for (let nextCol = firstPlanCol; nextCol <= 3; nextCol += 1) cells.push({ row: nextRow, col: nextCol });
+      }
+      if (logRows[nextRow]) {
+        for (let nextCol = 4; nextCol < GRID_COL_COUNT; nextCol += 1) cells.push({ row: nextRow, col: nextCol });
+      }
+    }
+    const index = cells.findIndex((cell) => cell.row === row && cell.col === col);
+    return index >= 0 ? cells[index + 1] ?? null : null;
+  };
+
+  const selectedPlanEntry = grid?.col === 1
+    ? planRows[grid.row]
     : undefined;
   const selectedPlanOffer = selectedPlanEntry
     ? planKgOfferKg(selectedPlanEntry.set.suggestedWeight, selectedPlanEntry.set.plannedWeight)
     : null;
   const selectedPlanNumber = selectedPlanEntry
-    ? planRows.findIndex(({ index }) => index === selectedPlanEntry.index) + 1
+    ? grid!.row + 1
     : null;
 
   return (
     <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
       <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-center gap-2 min-w-0">
+          {dragControls ? (
+            <button
+              type="button"
+              data-testid={`reorder-lift-${id}`}
+              aria-label={`Reorder ${variation}`}
+              disabled={locked}
+              onPointerDown={(event) => dragControls.start(event)}
+              className="inline-flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-[3px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+              title="Drag to reorder lift"
+            >
+              <GripVertical size={15} strokeWidth={2} aria-hidden="true" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            data-testid={`toggle-lift-${id}`}
+            aria-expanded={!minimized}
+            aria-controls={`lift-grid-${id}`}
+            aria-label={`${minimized ? 'Expand' : 'Minimize'} ${variation}`}
+            onClick={() => {
+              setMinimized((value) => {
+                const next = !value;
+                onMinimizedChange?.(next);
+                return next;
+              });
+              setGrid(null);
+            }}
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+            title={minimized ? 'Expand lift' : 'Minimize lift'}
+          >
+            {minimized ? <ChevronRight size={14} strokeWidth={2} /> : <ChevronDown size={14} strokeWidth={2} />}
+          </button>
           <h4
-            className="text-lg leading-7 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
+            className="text-base leading-6 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
             data-testid={`exercise-title-${id}`}
           >
             {variation}
           </h4>
+          {minimized ? (
+            <div
+              id={`lift-grid-${id}`}
+              data-testid={`lift-minimized-${id}`}
+              aria-label="Lift summary"
+              className="flex min-w-0 items-center gap-2 truncate text-[11px] text-[var(--cal-muted)]"
+            >
+              <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
+              <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
+              <span className="truncate whitespace-nowrap">{movementPattern ?? liftCategory}</span>
+            </div>
+          ) : null}
           {onUpdateMeta ? (
             <button
               type="button"
@@ -297,6 +504,26 @@ export const ExerciseCard = ({
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1">
+            {intensityPct != null ? <>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Intensity</span>
+            <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-intensity-${id}`}>
+              {intensityPct != null ? `${intensityPct}%` : 'â€”'}
+            </span>
+            <span aria-hidden="true" className="ml-1 text-[var(--cal-muted-soft)]">·</span>
+            </> : null}
+            <span
+              className="text-xs tnum text-[var(--cal-muted)]"
+              data-testid={`lift-set-count-${id}`}
+              title={`${plannedCount} planned, ${loggedCount} logged`}
+            >
+              {plannedCount}/{loggedCount} sets
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">NL</span>
+            <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-nl-${id}`}>{nl}</span>
+          </div>
+          <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">e1RM</span>
             <span className="text-xs tnum text-[var(--cal-muted)]">
               {sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—'}
@@ -304,7 +531,7 @@ export const ExerciseCard = ({
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Vol</span>
-            <span className="text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
+            <span className="w-24 text-right text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
           </div>
           {onMoveUp && (
             <button
@@ -332,6 +559,8 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid={`remove-lift-${id}`}
+              aria-label="Remove exercise"
+              title="Remove exercise"
               disabled={locked || removing}
               onClick={() => {
                 if (locked || removing) return;
@@ -339,14 +568,50 @@ export const ExerciseCard = ({
                 setRemoving(true);
                 void Promise.resolve(onRemove()).finally(() => setRemoving(false));
               }}
-              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
+              className={`${actionButton} text-[0px]`}
             >
               {removing ? 'Removing…' : 'Remove'}
+              <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      {!minimized ? (
+      <div className="flex flex-col gap-2 px-2 pb-2 md:flex-row md:items-start">
+      {onUpdateMeta ? (
+        <section className="w-full shrink-0 md:w-44" data-testid={`lift-note-panel-${id}`}>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Note</span>
+            <textarea
+              data-testid={`lift-note-${id}`}
+              value={noteDraft}
+              disabled={locked || noteSaving}
+              onChange={(event) => {
+                setNoteDraft(event.target.value);
+                setNoteStatus('idle');
+              }}
+              placeholder="Add a note for this lift"
+              rows={5}
+              className="h-24 min-h-24 w-full resize-y rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-canvas)] px-2 py-1.5 text-xs leading-5 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-50"
+            />
+          </label>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className={`text-[10px] ${noteStatus === 'error' ? 'text-[var(--cal-error)]' : noteStatus === 'saved' ? 'text-[var(--cal-success)]' : 'text-[var(--cal-muted-soft)]'}`} role={noteStatus === 'error' ? 'alert' : undefined}>
+              {noteStatus === 'error' ? 'Save failed' : noteStatus === 'saved' ? 'Saved' : ' '}
+            </span>
+            <button
+              type="button"
+              data-testid={`save-lift-note-${id}`}
+              disabled={locked || noteSaving}
+              onClick={() => void saveLiftNote()}
+              className="h-6 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] px-1.5 text-[10px] font-medium text-[var(--cal-ink)] transition-colors hover:bg-[var(--cal-surface-strong)] disabled:opacity-40"
+            >
+              {noteSaving ? 'Saving…' : 'Save note'}
+            </button>
+          </div>
+        </section>
+      ) : null}
+      <div id={`lift-grid-${id}`} className="min-w-0 flex-1 overflow-x-auto">
       <table role="grid" aria-label="Plan and log sets" data-testid="set-grid" className="text-left border-collapse w-max max-w-full">
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
@@ -362,6 +627,7 @@ export const ExerciseCard = ({
                       type="button"
                       data-testid="plan-suggest"
                       onClick={() => updateSet(selectedPlanEntry.index, { plannedWeight: selectedPlanOffer, isAuto: false })}
+                      disabled={locked || !canEditPlan}
                       className="h-5 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-1.5 text-[10px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
                     >
                       Use
@@ -447,15 +713,13 @@ export const ExerciseCard = ({
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
-                        locked={locked}
+                        locked={locked || !canEditPlan}
                         onCommit={(pct) => commitDropPercent(planIndex, pct)}
-                        onTabToPlan={() => {
-                          setGrid({ row: planIndex, col: 0, mode: 'selected', overwrite: false });
-                        }}
+                        grid={bindGrid(laneIndex, 0)}
                       />
                     )}
                   </td>
-                    {hasPlan ? (!locked ? (
+                    {hasPlan ? (!locked && canEditPlan ? (
                       <PrescriptionEditor
                             reps={set.plannedReps}
                             intensityType={set.intensity_type || "RPE"}
@@ -463,9 +727,9 @@ export const ExerciseCard = ({
                             weight={set.plannedWeight}
                             rowIndex={planIndex}
                             liftId={id}
-                            kgGrid={bindGrid(planIndex, 0)}
-                            repsGrid={bindGrid(planIndex, 1)}
-                            rpeGrid={bindGrid(planIndex, 2)}
+                            kgGrid={bindGrid(laneIndex, 1)}
+                            repsGrid={bindGrid(laneIndex, 2)}
+                            rpeGrid={bindGrid(laneIndex, 3)}
                             tdClass={td}
                             onChange={(updates) => updateSet(planIndex, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
@@ -490,7 +754,7 @@ export const ExerciseCard = ({
                     {hasPlan ? (<>
                     <button
                       type="button"
-                      disabled={locked || !hasPlan}
+                      disabled={locked || !canEditPlan || !hasPlan}
                       onClick={() => duplicateSet(planIndex, 'plan')}
                       className={actionButton}
                       aria-label={`Copy plan set ${laneIndex + 1}`}
@@ -501,7 +765,7 @@ export const ExerciseCard = ({
                     </button>
                     <button
                       type="button"
-                      disabled={locked || !hasPlan}
+                      disabled={locked || !canEditPlan || !hasPlan}
                       onClick={() => deleteSet(planIndex, 'plan')}
                       className={actionButton}
                       aria-label={`Delete plan set ${laneIndex + 1}`}
@@ -516,8 +780,8 @@ export const ExerciseCard = ({
                     {hasPlan ? (
                     <button
                       type="button"
-                      disabled={locked}
-                      onClick={() => syncTarget(planIndex)}
+                      disabled={locked || !canEditPlan}
+                      onClick={() => syncTarget(planIndex, laneIndex)}
                       className="h-5 w-4 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
                     >
@@ -545,7 +809,7 @@ export const ExerciseCard = ({
                         suggestedValue={null}
                         step={2.5}
                         rowIndex={logIndex}
-                        grid={bindGrid(logIndex, 3)}
+                        grid={bindGrid(laneIndex, 4)}
                       />
                     )}
                   </td>
@@ -563,7 +827,7 @@ export const ExerciseCard = ({
                         isLogged={true}
                         step={1}
                         rowIndex={logIndex}
-                        grid={bindGrid(logIndex, 4)}
+                        grid={bindGrid(laneIndex, 5)}
                       />
                     )}
                   </td>
@@ -581,7 +845,7 @@ export const ExerciseCard = ({
                         isLogged={true}
                         step={0.5}
                         rowIndex={logIndex}
-                        grid={bindGrid(logIndex, 5)}
+                        grid={bindGrid(laneIndex, 6)}
                       />
                     )}
                   </td>
@@ -643,6 +907,7 @@ export const ExerciseCard = ({
                   aria-label="+ Plan set"
                   onClick={() => addSet('plan')}
                   title={`Add a blank plan set to ${title}`}
+                  disabled={!canEditPlan}
                   className={addSetButton}
                 >
                   <Plus size={12} strokeWidth={2} aria-hidden="true" />
@@ -669,41 +934,94 @@ export const ExerciseCard = ({
         ) : null}
       </table>
       </div>
+      </div>
+      ) : null}
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}
-          subtitle="Pattern, bar, tempo, ROM, and gear. The compiled name stays readonly."
+          subtitle="Name, pattern, bar, tempo, ROM, and gear."
           onClose={() => setEditOpen(false)}
           testId="edit-lift-dialog"
           footer={(
             <button
               type="button"
               data-testid="edit-lift-done"
-              onClick={() => setEditOpen(false)}
-              className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)]"
+              disabled={locked || (editCategory === 'User Defined' && !editCustomName.trim())}
+              onClick={() => {
+                const nextTitle = (editCategory === 'User Defined' ? editCustomName : editTitle).trim();
+                if (!locked && nextTitle) {
+                  const patch: LiftMetaPatch = {
+                    title: nextTitle,
+                    variation: editVariation || compileVariation(nextTitle, parseModifiers(variation, editLiftCategory)),
+                    tier: editTier,
+                    movementPattern: editMovementPattern,
+                    liftCategory: editLiftCategory,
+                  };
+                  onUpdateMeta(patch);
+                }
+                setEditOpen(false);
+              }}
+              className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
             >
               Done
             </button>
           )}
         >
           <div className="flex flex-col gap-2">
+            <NestedCard testId={`edit-lift-exercise-card-${id}`}>
+              <LiftCatalogChoice
+                testPrefix={`edit-lift-${id}`}
+                category={editCategory}
+                tier={editTier}
+                movementPattern={editMovementPattern}
+                search={editSearch}
+                exerciseName={editExerciseName}
+                customName={editCustomName}
+                onCategoryChange={(next) => {
+                  setEditCategory(next);
+                  setEditSearch('');
+                  setEditExerciseName('');
+                  if (next === 'User Defined') {
+                    setEditCustomName(editTitle);
+                    setEditMovementPattern(movementPattern ?? 'Misc');
+                  }
+                }}
+                onTierChange={setEditTier}
+                onMovementPatternChange={setEditMovementPattern}
+                onSearchChange={setEditSearch}
+                onExerciseChange={(item) => {
+                  setEditCategory('');
+                  setEditExerciseName(item.name);
+                  setEditTitle(item.name);
+                  setEditCustomName('');
+                  setEditLiftCategory(item.liftCategory);
+                  setEditTier(item.tier);
+                  setEditMovementPattern(item.movementPattern);
+                  setEditVariation(item.tier === 'Comp' ? compileVariation(item.name, defaultModifiers(item.liftCategory)) : item.name);
+                }}
+                onCustomNameChange={(next) => {
+                  setEditCustomName(next);
+                  setEditTitle(next);
+                  setEditLiftCategory('Other');
+                  setEditVariation(next.trim());
+                }}
+              />
+            </NestedCard>
             <NestedCard testId={`edit-lift-constructor-${id}`}>
               <LiftVariationPicker
-                title={title}
-                variation={variation}
-                liftCategory={liftCategory}
+                title={editCategory === 'User Defined' ? editCustomName || 'Accessory' : editTitle}
+                variation={editVariation}
+                liftCategory={editLiftCategory}
                 locked={locked}
-                onChange={(next) => onUpdateMeta(next)}
+                onChange={(next) => {
+                  setEditVariation(next.variation);
+                  setEditTier((current) => current === 'Accessory' ? 'Accessory' : next.tier);
+                }}
               />
             </NestedCard>
-            <NestedCard testId={`edit-lift-pattern-${id}`}>
-              <MovementPatternSelect
-                id={`edit-${id}`}
-                value={movementPattern}
-                locked={locked}
-                onChange={(next) => onUpdateMeta({ movementPattern: next })}
-              />
-            </NestedCard>
+            {editCategory === 'User Defined' && !editCustomName.trim() ? (
+              <p role="alert" data-testid="edit-lift-name-error" className="text-xs text-[var(--cal-error)]">Enter an exercise name before saving.</p>
+            ) : null}
           </div>
         </CenteredDialog>
       )}
@@ -719,23 +1037,13 @@ function DropPercentCell({
   value,
   locked,
   onCommit,
-  onTabToPlan,
+  grid,
 }: {
   value: number;
   locked: boolean;
   onCommit: (pct: number) => void;
-  onTabToPlan: () => void;
+  grid: SetGridBind;
 }) {
-  const [draft, setDraft] = useState(dropPercentDisplay(value));
-
-  useEffect(() => {
-    setDraft(dropPercentDisplay(value));
-  }, [value]);
-
-  const commitDraft = (raw: string) => {
-    onCommit(parseDropPercent(raw));
-  };
-
   if (locked) {
     return (
       <span
@@ -748,40 +1056,16 @@ function DropPercentCell({
   }
 
   return (
-    <span className="relative inline-flex h-6 w-10 -translate-y-px items-center">
-      <input
-        data-testid="set-drop-pct"
-        type="text"
-        inputMode="decimal"
-        tabIndex={-1}
-        value={draft}
-        placeholder=""
-        aria-label="Adjustment percent"
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => commitDraft(draft)}
-      onKeyDown={(event) => {
-        if (event.nativeEvent.isComposing || event.key === 'Process') return;
-        if (event.key === 'Tab') {
-          event.preventDefault();
-          commitDraft(draft);
-          onTabToPlan();
-          return;
-        }
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          commitDraft(draft);
-          event.currentTarget.blur();
-          return;
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          setDraft(dropPercentDisplay(value));
-          event.currentTarget.blur();
-        }
-      }}
-        className="h-6 w-10 px-0.5 pr-3 text-center text-[11px] tnum text-[var(--cal-ink)] bg-transparent border border-[var(--cal-hairline)] rounded-sm focus:outline-none focus:border-[var(--cal-accent)]"
-      />
-      {draft ? <span className="pointer-events-none absolute right-1 text-[10px] text-[var(--cal-muted)]">%</span> : null}
-    </span>
+    <EditablePerformanceCell
+      value={dropPercentDisplay(value)}
+      onChange={(raw) => onCommit(parseDropPercent(raw))}
+      placeholder=""
+      fieldKey="set-drop-pct"
+      label="Adjustment percent"
+      widthClass="w-10"
+      step={1}
+      suffix="%"
+      grid={grid}
+    />
   );
 }

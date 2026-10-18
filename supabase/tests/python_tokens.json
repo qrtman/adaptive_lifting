@@ -1,0 +1,7 @@
+{
+  "current_secret": "test-current-secret-only-not-production-123456",
+  "previous_secret": "test-previous-secret-only-not-production-654321",
+  "current_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImN1cnJlbnQiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiQVRITEVURSIsInNlc3Npb25faWQiOiJzZXNzaW9uLTEiLCJleHAiOjQwNzA5MDg4MDB9.6pzvQy5uiYpyZZoiMc1Ws7RX7Kk4ahjr6q_W7Qcj6uE",
+  "previous_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6InByZXZpb3VzIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiQVRITEVURSIsInNlc3Npb25faWQiOiJzZXNzaW9uLTEiLCJleHAiOjQwNzA5MDg4MDB9.L9Gqt6eG9vZsNBmluYQAiLIbFDDT4-3DPHmrmILZmgM",
+  "no_kid_previous_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiQVRITEVURSIsInNlc3Npb25faWQiOiJzZXNzaW9uLTEiLCJleHAiOjQwNzA5MDg4MDB9.BYWLRv1yMt6FMUK7DXwpEPNAiJ9MuYTisoJZYbzIqGY"
+}

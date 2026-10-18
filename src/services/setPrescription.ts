@@ -56,7 +56,7 @@ export function planKgOfferKg(
 
 /**
  * Typed plan kg stays until the athlete accepts `use {n}`.
- * After a log with executed e1RM > 0, later rows get a client-derived suggestedWeight
+ * From a valid top-set Plan or executed e1RM, later rows get a client-derived suggestedWeight
  * even when plannedWeight is already filled. `dropPercent` on later sets scales that
  * offer: roundToCompetitionPlates(suggestKg * (1 + pct/100)). Set 0 has no % (treat as 0).
  * Rows with LOG kg (actual) get none. Never auto-writes plannedWeight.
@@ -66,27 +66,22 @@ export function refreshSetAnchors<T extends Record<string, unknown>>(
 ): Array<T & { suggestedWeight: number | null }> {
   if (setArray.length === 0) return [];
 
-  let lastLoggedIndex = -1;
-  let lastLoggedE1RM = 0;
-  setArray.forEach((row, index) => {
-    const e1 = executedE1RM(row);
-    if (e1 > 0) {
-      lastLoggedIndex = index;
-      lastLoggedE1RM = e1;
-    }
-  });
-
-  const top = setArray[0];
-  const topWeight = trainingOrZero(top.actual ?? top.plannedWeight);
-  const topReps = trainingIntOrZero(top.reps ?? top.plannedReps);
-  const topRpe = trainingOrZero(top.executedRpe ?? top.plannedRpe ?? top.target_value);
-  const topE1RM = lastLoggedE1RM > 0 ? lastLoggedE1RM : calculateE1RM(topWeight, topReps, topRpe);
+  const topIndex = Math.max(0, setArray.findIndex((row) => row.isTop === true));
+  const top = setArray[topIndex];
+  const loggedTopE1RM = executedE1RM(top);
+  const topIntensity = String(top.intensity_type || top.intensityType || 'RPE');
+  const plannedTopE1RM = calculateE1RM(
+    trainingOrZero(top.plannedWeight),
+    trainingIntOrZero(top.plannedReps),
+    topIntensity === 'PERCENT' ? 0 : trainingOrZero(top.plannedRpe ?? top.target_value),
+  );
+  const topE1RM = loggedTopE1RM > 0 ? loggedTopE1RM : plannedTopE1RM;
 
   return setArray.map((row, index) => {
     const plannedWeight = trainingNumber(row.plannedWeight);
     const loggedKg = trainingNumber(row.actual);
-    const baseSuggest = lastLoggedE1RM > 0 && index > lastLoggedIndex && loggedKg == null
-      ? suggestKg(row, lastLoggedE1RM)
+    const baseSuggest = topE1RM > 0 && index > topIndex && loggedKg == null
+      ? suggestKg(row, topE1RM)
       : null;
     const pct = index === 0 ? 0 : parseDropPercent(row.dropPercent);
     const suggestedWeight = baseSuggest == null ? null : setDropResultKg(baseSuggest, pct);

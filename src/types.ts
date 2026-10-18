@@ -2,6 +2,7 @@ import type { MovementPattern } from './services/exerciseCatalog';
 
 export interface SetData {
   id: string;
+  revision?: number;
   label: string;
   scope?: 'both' | 'plan' | 'log';
   plannedWeight: number | null;
@@ -25,18 +26,23 @@ export interface SetData {
 }
 
 export type LiftMetaPatch = {
+  title?: string;
   variation?: string;
   tier?: 'Comp' | 'Variation' | 'Accessory';
+  liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
   movementPattern?: MovementPattern;
+  liftNote?: string;
 };
 
 export interface ExerciseData {
   id: string;
+  revision?: number;
   title: string;
   variation: string;
   tier?: 'Comp' | 'Variation' | 'Accessory';
   liftCategory?: 'Squat' | 'Bench' | 'Deadlift' | 'Other';
   movementPattern?: MovementPattern;
+  liftNote?: string | null;
   tags: string[];
   top: string;
   vol: string;
@@ -122,6 +128,7 @@ export interface DayNote {
 
 export interface WorkoutData {
   id: string;
+  revision?: number;
   date: string; // YYYY-MM-DD
   dayLabel: string; // slot "1"…"7" or custom; ISO date means unlabeled
   title: string;
@@ -151,27 +158,5 @@ export interface MesocycleData {
   color: string; // css classes or raw colors, e.g. "border-mac-blue text-mac-blue"
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-}
-
-export interface AICoachResponse {
-  cns_readiness: {
-    status: 'Functional Adaptation' | 'Neural Fatigue Suppression' | 'Detraining';
-    score: number; // 0-100 neural score
-    analysis: string; // Exactly two sentences explaining the ACWR ratio
-  };
-  movement_diagnostics: {
-    squat_fatigue: { status: 'Optimal' | 'Caution' | 'Danger'; inol: number; warning: string };
-    bench_fatigue: { status: 'Optimal' | 'Caution' | 'Danger'; inol: number; warning: string };
-    deadlift_fatigue: { status: 'Optimal' | 'Caution' | 'Danger'; inol: number; warning: string };
-  };
-  microcycle_prescription: {
-    loading_strategy: 'Maintain Baseline' | 'Escalate Tonnage (+10%)' | 'Load Drop Downsets (-5%)' | 'Deload Decompression (-20%)';
-    tactical_guidance: string; // Actionable RTS periodization guidelines
-    suggested_rpe_cap: number; // e.g. 8.0, 8.5, 9.0
-  };
-  attempt_feedback: {
-    opener_feasibility: 'Conservative' | 'Optimal' | 'High-Risk';
-    coaching_notes: string; // Analysis of attempt jumps
-  };
 }
 

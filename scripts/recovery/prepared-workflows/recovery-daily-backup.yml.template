@@ -1,0 +1,120 @@
+name: Daily production recovery backup (prepared)
+
+on:
+  schedule:
+    # 03:17 KST. GitHub evaluates scheduled workflows from the default branch.
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+# Backup uses GITHUB_TOKEN only for checkout. No API polling, artifacts or writes.
+permissions:
+  contents: read
+
+concurrency:
+  group: production-recovery-backup
+  cancel-in-progress: false
+
+jobs:
+  validation:
+    name: Secret-free recovery validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out this workflow ref without a persisted token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Run recovery unit checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --prefix scripts/recovery --ignore-scripts
+          node --test scripts/recovery/*.node-test.mjs
+      - name: Require the production CLI contract without invoking it
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const backup = await import('./scripts/recovery/production-backup.mjs');
+          if (typeof backup.runProductionBackupCli !== 'function') {
+            throw new Error('Production backup CLI contract is missing; fail closed.');
+          }
+          NODE
+
+  production-backup:
+    name: Protected production backup
+    needs: validation
+    if: >-
+      vars.RECOVERY_BACKUP_ENABLED == 'true' &&
+      ((github.event_name == 'schedule' &&
+        vars.RECOVERY_BACKUP_SCHEDULE_ENABLED == 'true') ||
+       (github.event_name == 'workflow_dispatch' &&
+        github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: production-recovery
+    steps:
+      - name: Check out the guarded default-branch commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Install pinned recovery dependencies
+        shell: bash
+        run: npm ci --prefix scripts/recovery --ignore-scripts
+      - name: Install checksum-pinned age and PostgreSQL 17 client; verify S3 CLI
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tool_dir="$(mktemp -d "$RUNNER_TEMP/al-recovery-tools-XXXXXX")"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz \
+            --output "$tool_dir/age.tar.gz"
+          printf '%s  %s\n' bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377 "$tool_dir/age.tar.gz" | sha256sum --check --strict
+          tar -xzf "$tool_dir/age.tar.gz" -C "$tool_dir" age/age
+          install -d -m 0755 "$tool_dir/bin"
+          install -m 0755 "$tool_dir/age/age" "$tool_dir/bin/age"
+          echo "$tool_dir/bin" >> "$GITHUB_PATH"
+          test "$("$tool_dir/bin/age" --version)" = 'v1.3.1'
+          sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          key_fingerprint="$(gpg --show-keys --with-colons /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$key_fingerprint" = 'B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8'
+          cat <<'APT' | sudo tee /etc/apt/sources.list.d/pgdg.sources >/dev/null
+          Types: deb
+          URIs: https://apt.postgresql.org/pub/repos/apt
+          Suites: noble-pgdg
+          Architectures: amd64
+          Components: main
+          Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          APT
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install --yes --no-install-recommends postgresql-client-17
+          pg_dump --version | grep -Eq '^pg_dump \(PostgreSQL\) 17(\.|$)'
+          aws --version | grep -Eq '^aws-cli/2\.37\.13([[:space:]]|$)'
+      - name: Capture, encrypt, upload and verify the production point
+        shell: bash
+        env:
+          RECOVERY_BACKUP_ENABLED: ${{ vars.RECOVERY_BACKUP_ENABLED }}
+          RECOVERY_DB_PASSWORD: ${{ secrets.RECOVERY_DB_PASSWORD }}
+          RECOVERY_DB_CA_PEM: ${{ secrets.RECOVERY_DB_CA_PEM }}
+          RECOVERY_AGE_RECIPIENT: ${{ vars.RECOVERY_AGE_RECIPIENT }}
+          RECOVERY_R2_ACCOUNT_ID: ${{ vars.RECOVERY_R2_ACCOUNT_ID }}
+          RECOVERY_R2_BUCKET: ${{ vars.RECOVERY_R2_BUCKET }}
+          RECOVERY_R2_PREFIX: ${{ vars.RECOVERY_R2_PREFIX }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.RECOVERY_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RECOVERY_R2_SECRET_ACCESS_KEY }}
+        run: node scripts/recovery/production-backup.mjs

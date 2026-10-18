@@ -1,10 +1,11 @@
+import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
 
-test.use({ baseURL: 'http://localhost:3000' });
+test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
 async function openAddLift(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
   const email = `add-lift-search-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
-  const register = await request.post('http://localhost:8000/api/auth/register', {
+  const register = await registerVerified(request, {
     data: { email, password: 'password123', role: 'ATHLETE' },
   });
   expect(register.ok()).toBeTruthy();
@@ -45,7 +46,8 @@ test('typing bench shows Bench variants; click and Confirm adds the lift', async
   await expect(page.locator('select[data-testid="add-lift-exercise"]')).toHaveCount(0);
   await page.getByTestId('add-lift-result-Bench').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Competition Bench', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bench', exact: true })).toBeVisible();
+  await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
 });
 
 test('zzzz shows no catalog matches and disables Confirm', async ({ page, request }) => {
@@ -53,13 +55,13 @@ test('zzzz shows no catalog matches and disables Confirm', async ({ page, reques
   await page.getByTestId('add-lift-search').fill('zzzz');
   await expect(page.getByTestId('add-lift-no-results')).toBeVisible();
   await expect(page.getByTestId('add-lift-no-results')).toContainText('No catalog matches.');
-  await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
+  await expect(page.getByTestId('add-lift-results')).toBeVisible();
   await expect(page.getByTestId('add-lift-confirm')).toBeDisabled();
 });
 
 test('Knee Dominant plus press is Leg Press not Bench', async ({ page, request }) => {
   await openAddLift(page, request);
-  await page.getByTestId('add-lift-category').selectOption('Knee Dominant');
+  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
   await page.getByTestId('add-lift-search').fill('press');
   await expect(page.getByTestId('add-lift-result-Leg Press')).toBeVisible();
   await expect(page.getByRole('option', { name: 'Leg Press', exact: true })).toBeVisible();
@@ -75,9 +77,7 @@ test('User Defined hides catalog results and ignores search', async ({ page, req
   await page.getByTestId('add-lift-category').selectOption('User Defined');
   await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
   await expect(page.getByTestId('add-lift-no-results')).toHaveCount(0);
-  await expect(page.getByTestId('add-lift-search')).toBeDisabled();
-  await expect(page.getByTestId('add-lift-search')).toHaveValue('bench');
-  await expect(page.getByText('Catalog search does not apply. Name this lift.')).toBeVisible();
+  await expect(page.getByTestId('add-lift-search')).toHaveCount(0);
   await expect(page.getByTestId('add-lift-custom-name')).toBeVisible();
 });
 

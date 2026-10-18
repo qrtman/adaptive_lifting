@@ -5,6 +5,8 @@
 > **Foundation:** Mike Tuchscherer's Reactive Training Systems (RTS) - Autoregulated Training  
 > **Companion Document:** `design.md` (Visual Design System & Style Guide)
 
+> **Selected active architecture:** React/Vite PWA → Cloudflare Workers Static Assets with a same-origin `/api/*` Worker proxy → Supabase Edge Functions → Supabase PostgreSQL. Supabase Realtime provides private live synchronization when its production gate is enabled. Application accounts use custom application JWTs and HttpOnly cookie sessions; Supabase Auth is not the application account system. The production `api` Edge Function is deployed and its initial health/security checks passed; public hostname cutover is pending. See [the authoritative production status](docs/PRODUCTION_STATUS.md). Python/FastAPI, SQLite, Caddy, and other historical runtime descriptions below are retained implementation history or compatibility references, not active application hosting requirements.
+
 ---
 
 ## Table of Contents
@@ -36,6 +38,18 @@ Adaptive Lifting is a powerlifting periodization dashboard that replaces rigid s
 
 The system's core differentiator is its **RTS Math Engine**, which delivers real-time e1RM projections, INOL fatigue tracking, and ACWR workload diagnostics directly within the training grid. This gives coaches objective, chronologically-sound metrics to autoregulate loading without requiring complex external spreadsheets.
 
+### Active architecture boundary
+
+The production architecture is the React/Vite PWA hosted by Cloudflare Workers
+Static Assets, a same-origin Worker proxy for `/api/*`, and Supabase Edge
+Functions plus PostgreSQL. Private PostgreSQL RPCs, Cron/pg_net, and supporting
+managed services are used where implemented. Supabase Realtime is the selected
+private synchronization service; its production signing configuration and
+end-to-end gate are still pending. Custom application JWTs and HttpOnly cookie
+sessions are authoritative for app accounts. Supabase Auth is not used for
+those accounts. Python/FastAPI and SQLite references in this document describe
+the retained compatibility/parity implementation, not production services.
+
 ---
 
 ## 2. Glossary of Domain Terminology
@@ -55,7 +69,7 @@ Understanding the RTS methodology is essential for working with this system. All
 | **Week label** | Optional grouping label on sessions (e.g. `Week3`). May be used alone or under a Block. Not a forced Mon–Sun calendar container. |
 | **Microcycle** | Soft week grouping used for UI aggregation when Week labels are present. Not a hard Mon–Sun container and not required before creating a session. |
 | **Session** | First-class dated workout (`YYYY-MM-DD`) with exercises and sets. May be unlabeled or carry Block/Week labels anytime. |
-| **Athlete plan space** | Canonical ownership boundary for all training data. Linked coaches share full write; unlink removes access only. |
+| **Athlete plan space** | Canonical ownership boundary for all training data. Linked coaches share full write; unlink ends live access and preserves only a frozen workout snapshot for the former coach. |
 | **Coach code** | Shareable code published by a coach; athletes enter it to grant access. Not the coach email. |
 | **Tier** | Exercise classification: **Comp** (competition lift), **Variation** (close derivative), **Accessory** (isolation/bodybuilding). |
 | **Lift Category** | Movement pattern classifier: Squat, Bench, Deadlift, or Other. Used for INOL grouping and export gating. |
@@ -115,17 +129,17 @@ graph TD
         Cache[("IndexedDB<br/>Hydration Window & Queues")]
     end
 
-    subgraph Server ["Backend (FastAPI)"]
+    subgraph Server ["Backend (Supabase Edge Functions)"]
         Router["API Routers<br/>Auth / CRUD / Analytics"]
-        SSE["SSE Broadcaster<br/>Live Telemetry"]
+        SSE["Supabase Realtime<br/>Private Broadcast"]
         Integrations["Integration Adapters<br/>Telegram / Google Sheets"]
         Service["Service Layer<br/>Business Logic"]
         Math["Math Engine<br/>e1RM / INOL / ACWR"]
-        Repo["Repository Layer<br/>SQLAlchemy ORM"]
+        Repo["Private PostgreSQL interfaces"]
     end
 
     subgraph Data ["Persistence"]
-        DB[("SQLite Database")]
+        DB[("Supabase PostgreSQL")]
     end
 
     subgraph External ["External Platforms"]
@@ -213,8 +227,9 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 
 | Entity | Key | Core Attributes | Relationships |
 | :--- | :--- | :--- | :--- |
-| **User** | `id` (UUID) | `email`, `role`, `subscription_status` | Owns athlete plan space when role is athlete; coaches publish InviteCodes and participate in CoachingRelationships |
-| **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | Athlete grants coach shared write on athlete plan space; `ended_at` unlinks without deleting plan data |
+| **User** | `id` (UUID) | `email`, optional `display_name`, `role`, `subscription_status` | Owns athlete plan space when role is athlete; coaches publish InviteCodes and participate in CoachingRelationships |
+| **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | One row per link period; at most one active relationship per athlete |
+| **CoachingHistorySnapshot** | `relationship_id` (Int) | `snapshot_at`, `snapshot_json` | Immutable read-only copy of workouts dated during the relationship, captured when it ends; excludes later activity and edits |
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
 | **Microcycle** | `id` (String) | `weekName`, `focus`, `status`, `owner_id`, optional `mesocycle_id` | Soft week aggregation for labeled sessions; owned by athlete; not required before first session |
 | **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
@@ -879,12 +894,21 @@ sequenceDiagram
 
 ## 9. Security, Compliance & Access Control
 
+### Email verification authorization policy
+
+New password registrations require email verification by default and return no session. Verification uses a 24-hour, hash-only, single-use token and explicit POST; users then sign in normally. Migration 0011 records historical password accounts as separately exempt, without claiming their emails were verified. Initial legacy enforcement is disabled. The eligibility policy applies to every backend session and protected API, including Telegram and coach linking. Google authentication uses verified ID-token claims and stable subjects, with explicit authenticated linking and no email-only merge.
+
+Verification email jobs extend IntegrationOutbox. Supabase Cron wakes the private email-verification Edge worker, which claims only `email-verification` jobs. Google Sheets publishing uses a separate Supabase Cron and private Edge worker that claims only `google-sheets` jobs; the Python outbox consumer is retired and does not claim jobs. Raw verification tokens are confined to encrypted temporary payloads under an independent Vault-held Fernet key; resend, verification, and delivery serialize through the same account lock. Database-backed IP and account limits apply across workers. See `docs/email-verification.md` and `docs/integrations-supabase.md` for configuration and deployment details.
+
+Browser profile preferences are presentation data, not authorization. Online restoration validates the server session. Secure offline reload uses an optional signed ES256 capability pinned to the frontend build's public key, scoped to authorized plans and valid at most 24 hours; reconnection revalidates. Existing snapshots and mutations are retained, and disconnected revocation takes effect by lease expiry. Configure the signing key pair before rollout to preserve authorized offline reloads.
+
+
 ### 9.1 Authentication & Threat Mitigation
 
 - **Mechanism:** JSON Web Tokens (JWT) with `HS256` signing
 - **Token Lifetime:** 7 days
 - **Storage:** `HttpOnly` cookies (mitigates XSS token theft)
-- **CSRF Protection:** CSRF tokens required on all mutating endpoints (`POST`, `PUT`, `DELETE`).
+- **CSRF Protection:** Production browser mutations require an explicitly allowed Origin (or Referer); cookie writes without either are rejected.
 - **Rate Limiting:** IP-based throttling on `/api/auth/login` to prevent brute-force credential stuffing.
 
 ### 9.2 Role-Based Access Control (RBAC) Matrix
@@ -900,19 +924,21 @@ sequenceDiagram
 
 Authorization is enforced before service execution and again at repository query boundaries:
 
-- Coach-scoped reads/writes must join through an active `CoachingRelationship` (`ended_at IS NULL`) and target the athlete plan `owner_id`.
+- Coach live-plan reads/writes must join through an active `CoachingRelationship` (`ended_at IS NULL`) and target the athlete plan `owner_id`.
 - Athlete-scoped reads/writes must use the authenticated athlete as `owner_id`.
-- Ended relationships lose all coach access immediately; athlete-owned rows remain.
+- Ended relationships immediately lose access to the live plan, sessions, notes, analytics, and new activity. The former coach may read only that relationship's unlink-time `CoachingHistorySnapshot`; snapshot routes never read current athlete-owned rows.
+- Offline snapshots may be read only for owner scopes in the verified, signed offline grant, for athletes and coaches. A coach's grant includes only athletes actively linked when `/api/auth/me` issued it. A later unlink prevents new online access and new grants; an already-issued offline grant can authorize its prior scope until its bounded expiry (at most 24 hours). An open client that processes unlink/access-denied clears that athlete's cached view. On reconnect, the client revalidates the active athlete before showing the live plan again.
+- A snapshot is captured in the unlink transaction and contains only sessions dated from that relationship's `created_at` through its `ended_at` date. Later edits, logs, and new sessions are not reflected.
 - Export endpoints must record an `AuditEvent` with filters, row count, and actor.
 - SSE subscriptions must validate access to the workout before opening the stream and again before replaying missed events.
 
 ### 9.3 Coach-Athlete Linking
 
-Athletes link to coaches via `CoachingRelationship`. An athlete may have at most one active coach.
+Athletes link to coaches via `CoachingRelationship`. An athlete may have at most one active coach. Ended relationship rows are retained; relinking creates a new row. A unique partial index on active `athlete_id` values enforces the single-active-coach rule.
 
 - **Coach code**: Coach generates a shareable code (`InviteCode`). Athletes enter that code — never coach email.
 - **Link**: `POST /api/auth/link` (or `/api/auth/link-athlete`) with the coach code creates the relationship and grants shared full write on the athlete plan space.
-- **Unlink**: Athlete (or coach) ends the relationship by setting `ended_at`. Plan data stays in athlete space; coach loses access.
+- **Unlink**: Athlete (or coach) ends the relationship by setting `ended_at`, writing an audit event, and capturing a read-only snapshot for the former coach. Plan data stays in athlete space. The snapshot includes sessions dated during the link period as of unlink time; all access to the live plan and later activity ends immediately.
 - Codes are stored as salted hashes. Prefer short-lived single-use codes; rotatable durable coach codes are allowed if hashed and revocable.
 
 ### 9.4 Biometric Ingestion & Privacy
@@ -920,7 +946,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 - **Hardware Integrations:** The architecture explicitly supports external ingestion pathways (Apple HealthKit / Google Fit API) for `hrv`, `readiness`, and `athlete_bw` to reduce friction.
 - **Consent Boundary:** Biometric ingestion is opt-in per athlete and can be disconnected without deleting the training log.
 - **Raw Data Policy:** The system stores daily normalized values only, not raw vendor payloads or minute-level biometric streams.
-- **Right to Erasure:** Athletes have a one-click "Delete Account" feature that cascades through `CoachingRelationship`, permanently dropping tombstones from the DB for GDPR/CCPA compliance.
+- **Right to Erasure:** Athletes have a one-click "Delete Account" feature that removes `CoachingRelationship` rows and their `CoachingHistorySnapshot` copies, permanently dropping tombstones from the DB for GDPR/CCPA compliance.
 - **Audit Pseudonymization:** Security audit rows are retained for abuse prevention but user-identifying fields are pseudonymized during account erasure.
 - **Data Minimization:** Only performance-correlated biometric data is stored. No granular location tracking or irrelevant PII is ingested.
 
@@ -929,14 +955,14 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 - **Logout:** Clears the auth cookie server-side and invalidates the current session identifier.
 - **Password Change:** Revokes all active sessions for the account and requires re-login on every device.
 - **Invite Codes:** Stored as salted hashes, expire after 15 minutes, and are single-use.
-- **Audit Events:** Login, logout, failed login, athlete link, athlete unlink, export, and account deletion events are written to an append-only audit log.
+- **Audit Events:** Login, logout, failed login, athlete link, athlete unlink, coach-initiated unlink, export, and account deletion events are written to an append-only audit log. Relationship events identify the relationship and participants but never include raw coach codes or workout contents.
 
 ### 9.6 Cookie, JWT, and CSRF Contract
 
 - **JWT Claims:** Tokens include `sub`, `role`, `session_id`, `jti`, `iat`, and `exp`. Authorization never trusts client-provided role values outside the signed token.
 - **Revocation Check:** Every authenticated request validates that `session_id` exists and is not revoked in the `Session` table.
 - **Cookie Attributes:** Auth cookies are `HttpOnly`, `Secure`, and `SameSite=Lax` in production.
-- **CSRF Token:** Mutating requests must include a CSRF token header that matches a non-HttpOnly CSRF cookie scoped to the same session.
+- **CSRF Enforcement:** Production mutations validate Origin/Referer against the explicit frontend allowlist. Non-browser clients use Bearer authentication without cookies.
 - **Secret Rotation:** JWT secrets are versioned with a `kid`; old keys remain valid only until their issued tokens expire.
 
 ---
@@ -949,19 +975,23 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Create account (coach or athlete) | Public |
 | `POST` | `/api/auth/login` | Authenticate, issue JWT | Public |
+| `PATCH` | `/api/auth/profile` | Update own optional athlete display name | Coach / Athlete (athlete name shown to linked coaches) |
 | `POST` | `/api/auth/logout` | Revoke current session and clear auth cookie | Coach / Athlete |
 | `GET` | `/api/auth/sessions` | List active device sessions | Coach / Athlete |
 | `DELETE` | `/api/auth/sessions/{id}` | Revoke a device session | Coach / Athlete |
 | `POST` | `/api/auth/coach-code` | Generate or rotate coach code | Coach |
 | `GET` | `/api/auth/coach-code` | Show current coach code metadata (not raw hash) | Coach |
 | `POST` | `/api/auth/link` | Athlete enters coach code to link | Athlete |
-| `DELETE` | `/api/auth/link` | Unlink coach; athlete plan remains | Athlete (or Coach) |
-| `GET` | `/api/coach/roster` | List linked athletes | Coach |
+| `DELETE` | `/api/auth/link` | Athlete unlinks; captures relationship snapshot; athlete plan remains | Athlete |
+| `DELETE` | `/api/auth/link/{athlete_id}` | Coach unlinks; captures relationship snapshot; athlete plan remains | Coach |
+| `GET` | `/api/coach/roster` | List active linked athletes with display name and email | Coach |
+| `GET` | `/api/coach/roster/history` | List ended relationships and snapshot availability | Coach (former links only) |
+| `GET` | `/api/coach/roster/history/{relationship_id}` | Read the immutable workout snapshot for one ended relationship | Coach who held that relationship |
 | `GET` | `/api/microcycles?athlete_id=` | Retrieve periodization tree for athlete plan space (empty array if none; never auto-seed) | Coach / Athlete |
 | `POST` | `/api/sessions` | Create session (date required; optional `block_label` / `week_label`) | Coach / Athlete |
 | `POST` | `/api/sessions/{id}/exercises` | Add a lift to a session (structured title/tier/liftCategory + one planned set) | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}/exercises/{exercise_id}` | Update lift name pieces (variation, tier) or `move` (`up`/`down`) | Coach / Athlete |
-| `PUT` | `/api/sessions/{id}/exercises/{exercise_id}/sets` | Replace planned/logged sets (typed kg; extra sets may have empty kg) | Coach / Athlete |
+| `PUT` | `/api/sessions/{id}/exercises/{exercise_id}/sets` | Replace the complete live set list (typed kg; empty list removes all live sets; metrics recalculate atomically) | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}/exercises/{exercise_id}` | Tombstone a lift | Coach / Athlete |
 | `PATCH` | `/api/sessions/{id}` | Update session including labels anytime (`blockLabel`/`weekLabel`; empty string clears); `COMPLETED` is a status label and does not freeze writes | Coach / Athlete |
 | `DELETE` | `/api/sessions/{id}` | Tombstone session | Coach / Athlete |
@@ -969,6 +999,8 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/sessions/copy-week` | Copy sessions by a day offset; `includeLogs` false copies lifts only, true copies lifts plus logged sets | Coach / Athlete |
 | `GET` | `/api/day-notes?athlete_id=` | List live calendar-date notes for an athlete plan (empty days included; not weekday-keyed) | Coach / Athlete |
 | `PUT` | `/api/day-notes` | Upsert a day note (`date` YYYY-MM-DD, `body`; empty body tombstones). Coach must pass `athleteId` | Coach / Athlete |
+| `GET` | `/api/export/csv` | Export live set rows; athlete exports own plan, coach exports active linked plans plus coach-owned plans | Coach / Athlete |
+| `GET` | `/api/export/json` | Download the canonical live microcycle tree; coach scope includes all actively linked athlete plans | Coach / Athlete |
 | `POST` | `/api/workouts/{id}/sync` | Push workout delta (`mutation_type: workout`, `math_version`, tombstones/LexoRank) | Coach / Athlete |
 | `GET` | `/api/workouts/{id}/live` | SSE stream for committed workout events | Coach |
 | `POST` | `/api/integrations/health` | Ingest HRV/bodyweight from mobile health APIs | Athlete |
@@ -1243,10 +1275,10 @@ Shared formula fixtures live in `tests/math_vectors.json` (`math_version` plus e
 | **Styling** | Tailwind CSS v4 | Utility-first, zero-runtime, matches the dark ink theme system |
 | **State Management** | React Context + Custom Hooks | Lightweight, no external deps, sufficient for single-user session state |
 | **Offline Storage** | IndexedDB | Durable structured storage for mutation queues and cached workout trees |
-| **Backend API** | FastAPI (Python 3.10+) | Async-native, auto-generated OpenAPI docs, Pydantic validation |
-| **ORM** | SQLAlchemy | Mature, flexible, excellent migration ecosystem |
-| **Database** | SQLite | Zero-config, single-file, appropriate for single-coach deployments |
-| **Auth** | PyJWT + bcrypt | Industry-standard JWT signing with secure password hashing |
+| **Backend API** | Supabase Edge Functions (TypeScript) | Sole active API runtime and route validation |
+| **ORM / reference implementation** | SQLAlchemy under backend/ | Compatibility and parity tests only; not active runtime |
+| **Database** | Supabase PostgreSQL | Persistent production storage with zero-config local development |
+| **Auth** | Custom application sessions and tokens | Implemented in Supabase Edge Functions; Supabase Auth is not adopted |
 | **Telegram Integration** | Telegram Mini App + Bot Webhooks | Low-friction Telegram-native surface for workout logging, summaries, and coach alerts |
 | **Google Sheets Integration** | Google OAuth + Sheets API | Coach-controlled spreadsheet publishing without making Sheets canonical |
 
@@ -1276,7 +1308,7 @@ adaptive_lifting/
 |       +-- ExerciseCard.tsx / PrescriptionEditor.tsx
 |       \-- ui/Tabs.tsx             # Single WAI-ARIA Tabs primitive
 |
-\-- backend/                        # FastAPI Server
+\-- backend/                        # Python compatibility and parity reference
     +-- main.py                     # App entrypoint, routers, middleware
     +-- database.py                 # SQLAlchemy engine, session factory, models
     +-- analytics_router.py         # Catalog, query, saved insight cards
@@ -1295,13 +1327,13 @@ Code layout is flat `src/components/*` (not `layout/` / `calendar/` / `sessions/
 
 The PWA has no react-router. Workspaces are hash routes written by `src/navigation.ts`:
 
-- `#/calendar`, `#/sessions`, `#/insights`, `#/integrations`, `#/security`
+- `#/calendar`, `#/sessions`, `#/insights`, `#/roster`, `#/integrations`, `#/security`
 - Optional query: `athlete=<id>`, `panel=athlete-scope`
-- Legacy `#/roster`, `#/athletes`, `?view=roster` redirect to calendar and open the sidebar athlete-plan selector
+- Legacy `#/athletes` and `?view=athletes` redirect to the Roster workspace; `?view=roster` opens it directly
 - Legacy `#/analytics` redirects to Insights
 - Telegram Mini App still enters at `/?tg_auth=true`; if `view=` is present it is resolved through the same redirect table
 
-Left sidebar is the single home for navigation and athlete plan scope. Athlete Roster is not a top-level tab. Coach code generate/link stays on Security. Sidebar collapsed state is `al_sidebar_collapsed` (UI pref only).
+The left sidebar owns workspace navigation and the coach's global athlete scope selector. Roster is a coach-only workspace with separate Active athletes and Past athletes views. Active links can be opened or ended from Roster; ended links open only their frozen snapshot. The selector remains the fast scope switch for active athletes on Calendar, Sessions, and Insights. Coach code generation and athlete code entry stay on Security. Sidebar collapsed state is `al_sidebar_collapsed` (UI pref only).
 
 Insights cards are saved per user (`InsightCard`) and executed against the currently scoped athlete plan space. Card *results* are not persisted; the client caches the last query payload in IndexedDB (`insight_result:{id}`) and marks it stale when served from cache or while offline.
 
@@ -1321,18 +1353,20 @@ Designed for coaches who need to import data into existing spreadsheet workflows
 
 - **Row Granularity:** One row per `ExerciseSet`
 - **Column Set:** `Date`, `Lift Category`, `Tier`, `Exercise Title`, `Planned Weight`, `Actual Weight`, `Reps`, `RPE`, `e1RM`, `INOL`, `Tonnage`
-- **Filtering:** Exports are gated by `lift_category` and `tier` to prevent naming drift in pivot tables
+- **Filtering:** `lift_category` and `tier` use exact matches; missing filters and `lift_category=All` include all values
 - **Date Ordering:** Rows are strictly ordered by `Workout.date` (chronological) for time-series analysis
+- **Canonical data:** Only live Microcycles, Workouts, Exercises, and ExerciseSets are included. Derived execution values reuse the `linear-decay-v3` e1RM and canonical INOL helpers. Spreadsheet formula-like text cells are prefixed safely; numeric cells remain numeric.
 
 ### 14.2 Hierarchical JSON Export
 
-For deep analysis or AI model ingestion, the full microcycle tree is exportable as nested JSON:
+For deep analysis and external auditing, the canonical live microcycle tree is exportable as nested JSON:
 
 ```
 Microcycle -> Workouts[] -> Exercises[] -> Sets[]
 ```
 
 Each node includes all computed analytics (e1RM, INOL, ACWR) alongside raw inputs.
+DayNotes are separate calendar documents and are not part of either training export. Successful CSV and JSON downloads create an `EXPORT_CSV` or `EXPORT_JSON` AuditEvent without including training contents in audit metadata.
 
 ### 14.3 Telegram Mini App Integration
 
@@ -1414,69 +1448,102 @@ Publishing uses `IntegrationOutbox` with retries and audit events. Failed provid
 ### 15.1 Development Environment
 
 - Frontend: `npm run dev` (Vite dev server with HMR)
-- Backend: `uvicorn backend.main:app --reload`
-- Database: SQLite file created automatically on first boot
+- API: Supabase Edge Functions, reached through the local API_EDGE_TARGET Vite proxy
+- Database: Supabase PostgreSQL; Python/SQLite references are test-only
 
 ### 15.2 Target Runtime Topology
 
-The initial production deployment target is a **single Dockerized Linux VPS/VM** with persistent disk, public HTTPS, and scheduled backups. This is the simplest runtime that supports SQLite, SSE, Telegram Mini App sessions, Telegram webhooks, Google OAuth callbacks, and background integration jobs without prematurely adopting multi-service infrastructure.
+The selected runtime is React/Vite on Cloudflare Workers Static Assets, with a
+thin same-origin `/api/*` Worker proxy to Supabase Edge Functions and
+PostgreSQL. Supabase Cron/pg_net and private Edge workers provide scheduled
+processing. Realtime is the selected private live-sync service, currently
+disabled in production pending its signing and end-to-end gate. Application
+identity uses custom JWTs and HttpOnly cookie sessions, not Supabase Auth. The
+production `api` Edge Function is deployed and its initial health/security
+checks passed. Production PostgreSQL is initialized with all 63 migrations;
+the Cloudflare Worker deployment and hostname route remain pending. The
+production host is `app.goatedmethod.me`; the fresh-start decision excludes
+legacy account and training-data import. See
+[`docs/PRODUCTION_STATUS.md`](docs/PRODUCTION_STATUS.md) for dated state.
 
 ```mermaid
 graph TD
-    DNS["DNS<br/>app.example.com"] --> Proxy["Caddy / Nginx<br/>TLS + Static PWA + Reverse Proxy"]
-    Proxy --> API["FastAPI App<br/>Uvicorn/Gunicorn"]
-    API --> DB[("SQLite WAL<br/>Persistent Volume")]
-    API --> Worker["Background Worker<br/>Outbox / Backups / Scheduled Sheets Publish"]
-    Worker --> DB
-    Worker --> Backup["Encrypted Backup Target<br/>Object Storage or Remote Disk"]
-    Telegram["Telegram Bot API / Mini App"] --> Proxy
-    Google["Google OAuth / Sheets API"] <--> Proxy
+    Browser["Browser / PWA"] --> Host["Cloudflare Workers Static Assets<br/>TLS + SPA fallback"]
+    Host -->|same-origin /api proxy| API["Supabase API Edge Function"]
+    API --> DB[("Supabase PostgreSQL<br/>private RPC interfaces")]
+    Cron["Supabase Cron / pg_net"] --> Workers["Private Edge workers"]
+    Workers --> DB
+    API --> Realtime["Supabase Realtime<br/>private Broadcast"]
+    Providers["Google / Telegram / Stripe / Resend"] <--> API
 ```
 
 | Component | Runtime | Responsibility |
 | :--- | :--- | :--- |
-| Reverse proxy | Caddy or Nginx container | TLS termination, gzip/brotli, static PWA serving, API reverse proxy, webhook endpoint exposure. |
-| Backend API | FastAPI container | Auth, sync, analytics, SSE, integrations, OpenAPI. |
-| Worker | Same image as backend, separate process | Integration outbox retries, scheduled Google Sheets publication, backup orchestration, cleanup jobs. |
-| Database | SQLite file on persistent volume | Canonical production data for single-coach/small-team deployments. |
-| Frontend | Static Vite build served by proxy | PWA shell, asset cache, IndexedDB offline client. |
-| Backups | Encrypted remote target | Nightly database snapshots and restore drill inputs. |
+| Frontend host | Cloudflare Workers Static Assets | Serve Vite assets directly with SPA/PWA support; run a Worker only for /api/* and forward those requests to Supabase Edge. |
+| API | Supabase Edge Functions | Custom app auth, training, sync, analytics, integrations, billing, exports, and provider webhooks. |
+| Workers | Supabase Cron/`pg_net` + private Edge Functions | Email verification and Google Sheets outbox processing. Python workers are not required. |
+| Database | Supabase PostgreSQL | Canonical application data through narrow private SQL interfaces. |
+| Realtime | Supabase Realtime | Private Broadcast authorization using short-lived app-issued ES256 grants. |
+| Backups | Decision pending | An independent encrypted production backup and isolated restore are required before real-user writes. Provider, storage location, tooling, cadence, and retention are not selected. Synthetic rehearsals are not production recovery evidence. |
 
 ### 15.3 Environment Strategy
 
 | Environment | Deployment | Purpose |
 | :--- | :--- | :--- |
-| Local | Developer machine | Fast iteration with Vite, Uvicorn, and local SQLite. |
-| Staging | Same Docker Compose topology as production | OAuth/webhook validation, migration testing, backup restore drills. |
-| Production | Single VPS/VM Docker Compose topology | Real users, persistent volume, HTTPS, encrypted backups. |
+| Local | Developer machine | Fast iteration with Vite; Python remains a compatibility/reference runtime only where explicitly needed. |
+| Staging | Supabase staging project plus deployed Cloudflare Workers Static Assets Worker | Edge/API, auth, provider, worker, migration, and browser-routing validation. |
+| Production | Initialized Supabase project `gadusaizqnshxqcckibq`; API deployed; Cloudflare Worker and route pending | Fresh launch with all 63 checked-in migrations already applied. Do not replay migrations. Worker deployment and hostname traffic cutover are separate approvals. |
 
-Staging and production must use different Telegram bots, Google OAuth clients, database files, JWT secrets, webhook secrets, and backup buckets/paths.
+Staging and production must use different Telegram bots, Google OAuth clients, PostgreSQL databases, JWT secrets, webhook secrets, and backup buckets/paths. Production starts without legacy accounts, sessions, training data, billing state, provider credentials, or queued jobs. The existing legacy database, backups, and Tunnel are retained separately and are not reset or imported.
 
 ### 15.4 Production Considerations
 
 | Concern | Strategy |
 | :--- | :--- |
-| **JWT Secrets** | Must be loaded from `JWT_SECRET_CURRENT` and optional `JWT_SECRET_PREVIOUS`, never hardcoded |
+| **JWT Secrets** | Fresh production uses a new `JWT_SECRET_CURRENT`; leave `JWT_SECRET_PREVIOUS` unset because no old sessions are carried forward. Never hardcode either key. |
 | **CORS Origins** | Restrict to specific frontend domain(s) |
-| **Database Migrations** | Transition from inline `ALTER TABLE` to Alembic for versioned schema evolution |
+| **Database Migrations** | Production is initialized and all 63 migrations are applied and validated. Never bootstrap or replay them. Any future schema change requires its own reviewed migration and authorization. |
 | **HTTPS** | Required for all production traffic (JWT in cookies mandates secure transport) |
-| **Backup** | SQLite file can be backed up via simple file copy on a cron schedule |
-| **Scaling** | SQLite is appropriate for single-coach deployments. Multi-tenant SaaS would require PostgreSQL migration |
+| **Backup** | An independent encrypted backup and isolated restore are required before real-user writes; method, cadence, retention, and key custody remain undecided |
+| **Session cookies** | Preserve `HttpOnly`, `Secure`, `SameSite=Lax`; the static host must proxy same-origin `/api` requests and pass `Set-Cookie` without rewriting security attributes |
+| **API routing** | Browser requests remain relative /api/*; Cloudflare maps requests to the Supabase Edge API and preserves method, query, body, Origin, Cookie, Authorization, and response headers |
+| **Realtime** | Permit secure WebSocket connections to the configured Supabase Realtime endpoint; do not route them to the API function |
+| **Browser storage** | Production uses a distinct `production-fresh-v1` IndexedDB/localStorage namespace. Legacy stores remain inert and old offline mutations or authorization grants are never imported. Account-scoped queue records are not replayed by another account. |
 
-### 15.5 Backup & Restore Contract
+### 15.5 Backup & Restore Requirement
 
-- **Backup Cadence:** Nightly encrypted database backup with at least 14 retained restore points.
-- **Restore Drill:** Restore must be tested against a staging environment before relying on the backup strategy in production.
-- **Export Safety:** CSV/JSON exports are generated from a read-only transaction to avoid mixing partially updated workout data.
-- **Disaster Recovery Target:** For single-coach deployments, target RPO <= 24 hours and RTO <= 4 hours.
+- An independent encrypted production PostgreSQL backup and a verified restore
+  into an isolated target are required before accepting real-user writes.
+- The method, provider, storage location, capture cadence, retention, and key
+  custody are undecided. Do not treat R2, GitHub Actions, VeraCrypt, local
+  Docker/PostgreSQL, or another experiment as selected without an explicit
+  decision.
+- Restore tests must use an isolated target with outbound side effects disabled
+  and verify schema, data, roles/grants, and recovery metadata. The shared
+  staging project and production database are not restore targets.
+- Ordinary CSV/JSON exports and schema checkpoints are not a restorable database
+  backup. Production capture and restore remain unverified; see
+  [`docs/production-recovery.md`](docs/production-recovery.md) and the status
+  page.
 
 ### 15.6 Runtime Configuration
+
+The active Supabase Edge environment checklist is
+[`supabase/production.env.example`](supabase/production.env.example). Edge
+secrets belong in the Supabase secret manager or the designated private Vault
+RPCs, never in browser build values or repository files. Keep onboarding,
+Realtime token issuance, and billing disabled until their release gates pass;
+Google sign-in remains unconfigured. The table below is historical Python
+compatibility-runtime configuration and is not an Edge Function deployment
+checklist.
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
 | `JWT_SECRET_CURRENT` | Yes | Current JWT signing key. |
 | `JWT_SECRET_PREVIOUS` | No | Previous key retained during rotation. |
-| `DATABASE_URL` | Yes | SQLite file path in initial deployments; PostgreSQL URL after SaaS migration. |
+| `APP_ENV` | Yes | `production` on deployed services. |
+| `APP_URL` | Yes | Public HTTPS origin for callbacks and Mini App links. |
+| `DATABASE_URL` | Yes | Persistent PostgreSQL URL in production; local SQLite is the development default. |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated production frontend origins. |
 | `COOKIE_SECURE` | Yes | Must be `true` outside local development. |
 | `SENTRY_DSN` | No | Client/server error reporting endpoint. |
@@ -1485,21 +1552,57 @@ Staging and production must use different Telegram bots, Google OAuth clients, d
 | `TELEGRAM_WEBHOOK_SECRET` | Telegram enabled | Secret used to verify Telegram webhook requests. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Sheets enabled | Google OAuth client identifier. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Sheets enabled | Google OAuth client secret. |
-| `INTEGRATION_ENCRYPTION_KEY` | Integrations enabled | Encrypts provider credentials at rest. |
+| `INTEGRATION_ENCRYPTION_KEY` | Yes | Stable secret that encrypts provider credentials at rest. |
+| `GOOGLE_CLIENT_ID` | Google login enabled | OAuth web client ID used to verify ID tokens. |
+| `VITE_GOOGLE_CLIENT_ID` | Google login enabled | Matching public client ID baked into the frontend build. |
 
-### 15.7 SQLite Operating Mode
+### 15.7 Retained SQLite Compatibility Mode
 
-- **WAL Mode:** Production SQLite runs with write-ahead logging enabled to improve reader/writer concurrency.
+SQLite describes local or legacy Python compatibility behavior only. It is not
+the production database and is not a prerequisite to run the active API.
+
+- **WAL Mode:** Local SQLite uses write-ahead logging to improve reader/writer concurrency.
 - **Busy Timeout:** Connections use a bounded busy timeout so temporary write contention retries before returning `503`.
 - **Foreign Keys:** `PRAGMA foreign_keys = ON` is mandatory for every connection.
 - **Migration Gate:** Application startup fails if database migrations are pending or partially applied.
-- **Upgrade Boundary:** Sustained write-lock contention, coach count above 50, or multi-tenant billing requirements trigger PostgreSQL migration planning.
+- **Upgrade Boundary:** Production uses PostgreSQL; SQLite remains for local development and supported legacy installations.
 
-### 15.8 Deployment Non-Goals
+### 15.8 Deployment Boundaries
 
-- **Static-only hosting:** Not sufficient because Telegram Mini App session verification, Telegram webhooks, Google OAuth callbacks, SSE, auth cookies, and sync require a backend.
-- **Pure serverless:** Deferred because SQLite persistent storage, long-lived SSE connections, and background outbox jobs are awkward in stateless function runtimes.
+- **Production status:** the Supabase API is deployed; Cloudflare Worker deployment and hostname cutover remain pending. See the dated status page and cutover runbook. Each production action requires separate exact-target approval.
+- **Cross-origin browser API calls:** Do not bypass the same-origin `/api` route. The current Secure, HttpOnly, `SameSite=Lax` cookie policy is not treated as compatible with arbitrary cross-site calls to the Supabase project host.
 - **Kubernetes:** Deferred until multi-tenant SaaS scale or multiple independently scalable services justify the operational overhead.
+
+### 15.9 Static Frontend Host Contract
+
+Cloudflare Workers Static Assets is selected and staging is deployed. A
+separate production configuration and approval are required. The production
+host/proxy must meet these requirements before release:
+
+- Serve the static Vite build over HTTPS and return the app shell for client
+  deep links such as `/verify-email` and hash-routed views.
+- Serve `/sw.js` and PWA assets from the expected root paths with correct
+  content types; do not rewrite static assets or the service worker to API.
+- Keep browser API calls same-origin and relative to `/api`. Rewrite
+  `/api/<path>?<query>` to
+  `https://<project-ref>.supabase.co/functions/v1/api/<path>?<query>`.
+- Preserve method, query, request body, `Origin`, `Cookie`, `Authorization`,
+  and content headers. Return upstream status/body and `Set-Cookie` headers
+  unchanged; do not cache authenticated API responses or modify cookie
+  `HttpOnly`, `Secure`, `SameSite=Lax`, or path attributes.
+- Forward the exact configured origin for server Origin/Referer validation.
+  CORS must stay allowlisted to actual app origins; it is not a substitute for
+  the same-origin cookie proxy and must not use a wildcard with credentials.
+- Permit the browser's authenticated secure WebSocket connection to the
+  configured Supabase Realtime service. The `/api` rewrite must not capture or
+  transform Realtime WebSocket traffic.
+
+The Caddy staging exercise in `supabase/STAGING_VALIDATION.md` is historical
+evidence for the host contract. Caddy is not selected or required; Cloudflare
+Workers Static Assets is the chosen frontend host. Production rejects SQLite
+URLs. Python connection-pool behavior elsewhere in this document belongs to
+the retained compatibility implementation, not the active Edge runtime.
+Sync field allowlists prohibit ownership, ID, parent and relationship reassignment.
 
 ---
 
@@ -1531,7 +1634,7 @@ Initial performance targets assume:
 | Sets per exercise | 1-8 |
 | Offline mutation burst | Up to 250 queued mutations per device |
 
-If any dimension is exceeded by more than 2x in production telemetry, the team must revisit pagination, query indexes, and the SQLite/PostgreSQL boundary.
+If any dimension is exceeded by more than 2x in production telemetry, the team must revisit pagination and query indexes.
 
 ---
 
@@ -1541,10 +1644,9 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | :--- | :--- | :--- |
 | **Next** | CSV/Excel Export | Implement the `/api/export/csv` endpoint with e1RM and INOL columns |
 | **Medium** | ACWR Time-Series Chart | Rolling 28-day workload ratio visualization with risk zone shading |
-| **Later** | SaaS Multi-Tenancy | PostgreSQL migration, Stripe billing, coach subscription tiers |
+| **Later** | SaaS Multi-Tenancy | Stripe billing, coach subscription tiers, tenant isolation |
 | **Later** | Program Template Marketplace | Coaches can sell pre-written periodization blocks |
 | **Later** | Google Sheets Import Review | Optional controlled import workflow with validation, preview, and explicit coach approval |
-| **Later** | AI Training Recommendations | Use exported JSON to feed ML models for auto-regulation suggestions |
 
 ---
 
@@ -1560,13 +1662,13 @@ If any dimension is exceeded by more than 2x in production telemetry, the team m
 | Drop leftover Obsidian / Iron Box LocalStorage workout keys | Accepted | Early placeholders stored workout trees in LocalStorage. Canonical offline store is IndexedDB only. |
 | Keep backend math canonical while duplicating formulas on frontend | Accepted | Athletes need instant feedback, but persisted analytics must be server-authoritative. |
 | Enforce microcycle boundary locks on client and server | Accepted for labeled week groups only | Unlabeled sessions move by date. Do not invent Mon–Sun week boxes. |
-| Start with SQLite for deployment simplicity | Accepted | The initial target is single-coach or small-team deployment; PostgreSQL migration is reserved for multi-tenant SaaS. |
+| Use PostgreSQL for production persistence | Accepted | Production hosts may have ephemeral application filesystems; SQLite remains available for local development. |
 | Use mutation IDs for offline sync idempotency | Accepted | Mobile reconnects and retries must not duplicate set logs or inflate workload metrics. |
 | Store lifecycle statuses as enums | Accepted | Analytics, filtering, and exports need stable machine values independent of UI copy. Mesocycle and microcycle stop at `COMPLETED`; workout uses `PLANNED`, `IN_PROGRESS`, `COMPLETED`, and `MISSED`. |
 | Use session-backed JWT revocation | Accepted | Logout, device revocation, and password changes require server-side session invalidation. |
 | Store canonical weights in kilograms | Accepted | Formula parity and export consistency require one storage unit regardless of display preference. |
 | Emit SSE from committed domain events | Accepted | Live telemetry must never show data that later rolls back. |
-| Enable SQLite WAL in production | Accepted | Read-heavy dashboard views need better concurrency while preserving deployment simplicity. |
+| Enable SQLite WAL locally | Accepted | Read-heavy dashboard views benefit from better SQLite concurrency during development. |
 | Treat accessory work as Exercise + ExerciseSet with `tier = Accessory` | Accepted | Isolation movements need the same per-set logging, numeric fields, INOL/tonnage, and sync path as competition lifts. |
 | Start Google Sheets as one-way publish | Accepted | Spreadsheet cells are weakly typed and should not become canonical training data without an explicit import review workflow. |
-| Deploy initial production on one Dockerized VPS/VM | Accepted | SQLite, SSE, Telegram Mini App sessions, webhooks, OAuth callbacks, background jobs, and persistent backups need a long-running host with durable disk. |
+| Supabase-native backend with provider-neutral static frontend host | Accepted | The frontend host serves the PWA and preserves the same-origin API/cookie contract; Edge Functions, Postgres, Cron, and Realtime own backend services. |

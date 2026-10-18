@@ -5,10 +5,11 @@ from typing import List, Optional
 import os
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from .database import (
     engine,
     get_db,
-    init_db,
     Mesocycle,
     Microcycle,
     Workout,
@@ -16,6 +17,8 @@ from .database import (
     ExerciseSet,
     User,
     CoachingRelationship,
+    CoachingHistorySnapshot,
+    AuditEvent,
     InviteCode,
     DayNote,
 )
@@ -24,11 +27,25 @@ from .runtime_config import (
     JWT_KID_PREVIOUS,
     apply_dotenv,
     cookie_secure_flag,
+    development_login_enabled,
     load_cors_allowed_origins,
     load_jwt_secrets,
+    validate_production_settings,
 )
+from .email_verification import (require_eligible_account, requires_verification, queue_verification,
+                                 consume_verification, resend_verification, GENERIC_MESSAGE)
+from .runtime_config import new_email_verification_enabled, legacy_email_verification_enabled, validate_email_settings
+from .dev_seed import DEMO_ATHLETE_EMAIL, DEMO_COACH_EMAIL, ensure_demo_accounts
+from .saas_access import (
+    build_account_access_state,
+    require_active_coach_access,
+    require_athlete_capacity,
+    require_programming_access,
+)
+from .billing.stripe_adapter import router as stripe_billing_router
 
 apply_dotenv()
+validate_production_settings()
 SECRET_KEY, JWT_SECRET_PREVIOUS = load_jwt_secrets()
 CORS_ALLOWED_ORIGINS = load_cors_allowed_origins()
 COOKIE_SECURE = cookie_secure_flag()
@@ -50,116 +67,56 @@ from .exercise_patterns import PATTERNS, pattern_for
 from .accessory_migration import coerce_float, coerce_int
 
 from sqlalchemy import text
-# Make sure SQLite tables exist on launch
-init_db()
-
-def migrate_db():
-    from .database import SessionLocal
-    db = SessionLocal()
-    try:
-        db.execute(text("ALTER TABLE microcycles ADD COLUMN owner_id VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN velocity FLOAT"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN readiness INTEGER"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN hrv FLOAT"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN athlete_bw FLOAT"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN tier VARCHAR DEFAULT 'Comp'"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN lift_category VARCHAR DEFAULT 'Squat'"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercises ADD COLUMN movement_pattern VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        from .exercise_patterns import pattern_for
-        rows = db.execute(text("SELECT id, title, lift_category, movement_pattern FROM exercises")).fetchall()
-        for row in rows:
-            if row[3]:
-                continue
-            db.execute(
-                text("UPDATE exercises SET movement_pattern = :pattern WHERE id = :id"),
-                {"pattern": pattern_for(row[1], row[2]), "id": row[0]},
-            )
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN block_label VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN week_label VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts ADD COLUMN owner_id VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN intensity_type VARCHAR"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE exercise_sets ADD COLUMN scope VARCHAR DEFAULT 'both'"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    try:
-        db.execute(text("ALTER TABLE workouts MODIFY microcycle_id VARCHAR NULL"))
-        db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
-
-    from .database import migrate_accessories_to_exercises, SessionLocal as MigrationSession
-    migrate_session = MigrationSession()
-    try:
-        migrate_accessories_to_exercises(migrate_session)
-    except Exception:
-        migrate_session.rollback()
-    finally:
-        migrate_session.close()
-
-migrate_db()
 
 app = FastAPI(title="Adaptive Lifting Backend", version="1.0.0")
 
+
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from starlette.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def safe_auth_validation(request, exc):
+    if request.url.path.startswith("/api/auth/"):
+        return JSONResponse({"detail": "Invalid authentication request"}, status_code=422)
+    return await request_validation_exception_handler(request, exc)
+
+
+@app.get("/api/health", include_in_schema=False)
+def health_check():
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    return {"status": "ok"}
+
 @app.on_event("startup")
 def on_startup():
-    from .integrations import start_background_worker
-    start_background_worker()
+    validate_email_settings()
+    # Fail closed when an operator has not applied the checked-in revisions.
+    # Startup verifies migration state only; it never applies schema changes.
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
 
+    alembic_config = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    expected_revision = ScriptDirectory.from_config(alembic_config).get_current_head()
+    with engine.connect() as connection:
+        current_revision = MigrationContext.configure(connection).get_current_revision()
+    if current_revision != expected_revision:
+        raise RuntimeError(
+            f"Database migration required (current={current_revision!r}, expected={expected_revision!r}); "
+            "run `alembic -c alembic.ini upgrade head` before starting the application."
+        )
+    # Pausing verification for future registrations cannot strand existing
+    # pending accounts by silently accepting missing recovery configuration.
+    if not (new_email_verification_enabled() or legacy_email_verification_enabled()):
+        from .database import SessionLocal
+        with SessionLocal() as db:
+            pending_accounts = db.query(User.id).filter(
+                User.email_verification_required.is_(True),
+                User.email_verification_legacy_exempt.is_(False),
+                User.email_verified_at.is_(None), User.google_sub.is_(None),
+                User.deleted_at.is_(None)).first() is not None
+        validate_email_settings(pending_accounts=pending_accounts)
 
 app.add_middleware(
     CORSMiddleware,
@@ -169,6 +126,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from .request_security import install_request_security
+install_request_security(app, CORS_ALLOWED_ORIGINS)
+
 # --- Security Setup ---
 import bcrypt
 from fastapi.security import OAuth2PasswordBearer
@@ -176,7 +136,10 @@ from fastapi.security import OAuth2PasswordBearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    try:
+        return len(plain_password.encode('utf-8')) <= 72 and bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except ValueError:
+        return False
 
 def get_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -195,6 +158,43 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
         headers={"kid": JWT_KID_CURRENT},
     )
     return encoded_jwt
+
+
+def start_session(response: Response, user: User) -> dict:
+    """Create the same signed, HttpOnly session used by every authentication path."""
+    from .database import Session as DBSession, SessionLocal
+
+    require_eligible_account(user)
+    session_id = str(uuid.uuid4())
+    db = SessionLocal()
+    try:
+        db.add(DBSession(
+            id=session_id,
+            user_id=user.id,
+            jwt_id=session_id,
+            expires_at=datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    access_token = create_access_token(
+        data={"sub": user.id, "role": user.role, "session_id": session_id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    response.set_cookie(
+        key="session_id",
+        value=access_token,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name},
+    }
 
 
 def decode_access_token(token: str):
@@ -239,41 +239,73 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
     try:
         payload = decode_access_token(token)
+        if not isinstance(payload, dict) or payload.get("exp") is None:
+            raise credentials_exception
         user_id: str = payload.get("sub")
-        if user_id is None:
+        session_id = payload.get("session_id")
+        if not isinstance(user_id, str) or not user_id or not isinstance(session_id, str) or not session_id:
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
-        
-    user = db.query(User).filter(User.id == user_id).first()
+
+    from .database import Session as DBSession
+    auth_session = db.query(DBSession).filter(DBSession.id == session_id).first()
+    if (
+        auth_session is None
+        or auth_session.user_id != user_id
+        or auth_session.jwt_id != session_id
+        or auth_session.revoked_at is not None
+        or auth_session.expires_at <= datetime.utcnow()
+    ):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
     if user is None:
         raise credentials_exception
+    require_eligible_account(user)
+    request.state.auth_session_id = session_id
     return user
 
-from .sse_broadcaster import router as sse_router
 from .integrations import router as integrations_router
 from .analytics_router import create_analytics_router
-app.include_router(sse_router)
 app.include_router(integrations_router)
 app.include_router(create_analytics_router(get_current_user))
+app.include_router(stripe_billing_router)
+from .billing.stripe_checkout import create_billing_router
+app.include_router(create_billing_router(get_current_user))
+from .billing.voucher_router import create_voucher_router
+app.include_router(create_voucher_router(get_current_user))
 
 # --- Pydantic Schemas for Requests ---
 
 class RegisterRequest(BaseModel):
     email: str
     password: str
-    role: str
+
+
+class UpdateProfileRequest(BaseModel):
+    displayName: Optional[str] = None
 
 class GoogleLoginRequest(BaseModel):
     token: str
-    role: Optional[str] = "ATHLETE"
+    # The application role is not asserted by the Google identity token.
+
+
+def verify_google_id_token(token: str, client_id: str) -> dict:
+    """Verify a Google ID token's signature and standard OIDC claims."""
+    from google.auth.transport.requests import Request as GoogleRequest
+    from google.oauth2 import id_token
+
+    return id_token.verify_oauth2_token(token, GoogleRequest(), audience=client_id)
 
 @app.post("/api/auth/login")
 def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    email = form_data.username.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email).first()
+    if not user or user.deleted_at is not None or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
+    require_eligible_account(user)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     session_id = str(uuid.uuid4())
     from .database import Session as DBSession
@@ -299,73 +331,145 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
         secure=COOKIE_SECURE
     )
     
-    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role, "displayName": user.display_name}}
+
+
+@app.post("/api/dev/login/{role}")
+def development_login(role: str, response: Response, db: Session = Depends(get_db)):
+    """Sign into a stable, linked demo account in explicitly enabled local environments."""
+    if not development_login_enabled():
+        raise HTTPException(status_code=404, detail="Development login is unavailable")
+
+    normalized_role = role.strip().upper()
+    if normalized_role not in {"COACH", "ATHLETE"}:
+        raise HTTPException(status_code=404, detail="Unknown development role")
+
+    ensure_demo_accounts(db, get_password_hash)
+    email = DEMO_COACH_EMAIL if normalized_role == "COACH" else DEMO_ATHLETE_EMAIL
+    user = db.query(User).filter(User.email == email).one()
+    return start_session(response, user)
 
 @app.post("/api/auth/google")
-def google_login(req: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
-    # Mocking Google Token Verification
-    # In production, use google.oauth2.id_token.verify_oauth2_token
-    if not req.token.startswith("mock_google_token_"):
-        raise HTTPException(status_code=400, detail="Invalid Google token")
-    
-    email = req.token.replace("mock_google_token_", "") + "@gmail.com"
-    user = db.query(User).filter(User.email == email).first()
-    
-    if not user:
-        # Auto-register
-        user = User(
-            id=str(uuid.uuid4()),
-            email=email,
-            hashed_password=get_password_hash(str(uuid.uuid4())), # random password
-            role=req.role
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    session_id = str(uuid.uuid4())
-    from .database import Session as DBSession
-    db_session = DBSession(
-        id=session_id,
-        user_id=user.id,
-        jwt_id=session_id,
-        expires_at=datetime.utcnow() + access_token_expires
-    )
-    db.add(db_session)
-    db.commit()
-    
-    access_token = create_access_token(
-        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
-    )
-    
-    response.set_cookie(
-        key="session_id",
-        value=access_token,
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        secure=COOKIE_SECURE
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "role": user.role}}
+def google_login(req: GoogleLoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google login is not configured (GOOGLE_CLIENT_ID is required)")
+
+    try:
+        claims = verify_google_id_token(req.token, client_id)
+    except Exception:
+        # Invalid signature, issuer, audience, expiry, malformed token, or
+        # provider certificate-fetch failure all fail closed as auth errors.
+        raise HTTPException(status_code=401, detail="Invalid Google ID token")
+
+    # verify_oauth2_token validates signature, issuer, audience, and expiry.
+    subject = claims.get("sub") if isinstance(claims, dict) else None
+    email = claims.get("email") if isinstance(claims, dict) else None
+    if (
+        not isinstance(subject, str) or not subject.strip()
+        or not isinstance(email, str) or not email.strip()
+        or claims.get("email_verified") is not True
+    ):
+        raise HTTPException(status_code=401, detail="Google account must have a verified email and subject")
+
+    subject = subject.strip()
+    email = email.strip().lower()
+    subject_user = db.query(User).filter(User.google_sub == subject).one_or_none()
+    if subject_user is not None:
+        if subject_user.deleted_at is not None:
+            raise HTTPException(status_code=403, detail="This account is unavailable")
+        user = subject_user
+    else:
+        # Link only to a non-deleted account matching Google's verified email.
+        matching_users = db.query(User).filter(func.lower(User.email) == email).all()
+        if len(matching_users) > 1:
+            raise HTTPException(status_code=409, detail="Multiple local accounts match this Google email")
+        user = matching_users[0] if matching_users else None
+        if user is not None:
+            if user.deleted_at is not None:
+                raise HTTPException(status_code=403, detail="This account is unavailable")
+            if user.google_sub is not None and user.google_sub != subject:
+                raise HTTPException(status_code=409, detail="Google identity is already linked to another account")
+            if requires_verification(user) and not user.email_verification_legacy_exempt:
+                from .email_verification import lock_user, cancel_pending_tokens
+                user = lock_user(db, user.id)
+                if not requires_verification(user) or user.google_sub is not None:
+                    raise HTTPException(status_code=409, detail="Account changed; sign in before linking Google")
+                cancel_pending_tokens(db, user.id, datetime.utcnow())
+                # Never give the Google owner the registrant's account, password,
+                # relationships or data. Keep the old identity as a tombstone.
+                user.email = f"retired-{user.id}@invalid.local"
+                user.deleted_at = datetime.utcnow()
+                db.flush()
+                user = User(id=str(uuid.uuid4()), email=email, google_sub=subject,
+                            hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+                            role="ATHLETE", email_verified_at=datetime.utcnow(),
+                            email_verification_required=False)
+                db.add(user)
+                try:
+                    db.commit()
+                    db.refresh(user)
+                except IntegrityError:
+                    db.rollback()
+                    raise HTTPException(status_code=409, detail="Google identity or email is already linked")
+                return start_session(response, user)
+            # Matching email alone must not merge authentication methods: a
+            # password account may have been registered by someone else first.
+            try:
+                authenticated_user = get_current_user(request, db)
+            except HTTPException:
+                raise HTTPException(status_code=409, detail="Sign in with your password before linking Google")
+            if authenticated_user.id != user.id:
+                raise HTTPException(status_code=409, detail="Sign in to the matching account before linking Google")
+            user.google_sub = subject
+            user.email_verified_at = datetime.utcnow()
+        else:
+            # App authorization roles are not taken from browser input.
+            user = User(
+                id=str(uuid.uuid4()),
+                email=email,
+                hashed_password=get_password_hash(str(uuid.uuid4())),
+                role="ATHLETE",
+                google_sub=subject,
+                email_verified_at=datetime.utcnow(),
+                email_verification_required=False,
+            )
+            db.add(user)
+
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Google identity or email is already linked")
+
+    return start_session(response, user)
 
 @app.post("/api/auth/logout")
 def logout(response: Response, request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("session_id")
+    if not token:
+        authorization = request.headers.get("Authorization", "")
+        if authorization.startswith("Bearer "):
+            token = authorization[len("Bearer "):].strip()
     if token:
         try:
             payload = decode_access_token(token)
             session_id = payload.get("session_id")
-            if session_id:
+            user_id = payload.get("sub")
+            if session_id and user_id:
                 from .database import Session as DBSession
-                sess = db.query(DBSession).filter(DBSession.id == session_id).first()
+                sess = db.query(DBSession).filter(
+                    DBSession.id == session_id,
+                    DBSession.user_id == user_id,
+                    DBSession.jwt_id == session_id,
+                ).first()
                 if sess:
                     sess.revoked_at = datetime.utcnow()
                     db.commit()
-        except Exception:
+        except (jwt.PyJWTError, AttributeError, TypeError):
             pass
-    response.delete_cookie(key="session_id")
+    response.delete_cookie(key="session_id", secure=COOKIE_SECURE, httponly=True, samesite="lax")
     return {"status": "success"}
 
 
@@ -498,6 +602,7 @@ def format_exercise(e: Exercise) -> dict:
         "tier": e.tier or "Comp",
         "liftCategory": e.lift_category or "Other",
         "movementPattern": e.movement_pattern or pattern_for(e.title, e.lift_category),
+        "liftNote": e.lift_note,
         "tags": e.tags,
         "top": e.top,
         "vol": e.vol,
@@ -508,6 +613,8 @@ def format_exercise(e: Exercise) -> dict:
 def format_microcycle(mc: Microcycle) -> dict:
     workouts_list = []
     for w in sorted(mc.workouts, key=lambda x: x.id):
+        if not is_live(w):
+            continue
         exercises_list = [
             format_exercise(e)
             for e in sorted(w.exercises, key=lambda x: (x.lexo_rank or "", x.id))
@@ -546,8 +653,58 @@ def active_coaching_query(db: Session):
     return db.query(CoachingRelationship).filter(CoachingRelationship.ended_at.is_(None))
 
 
+def relationship_audit_event(actor: User, rel: CoachingRelationship, event_type: str) -> AuditEvent:
+    import json
+    return AuditEvent(
+        id=str(uuid.uuid4()),
+        actor_user_id=actor.id,
+        event_type=event_type,
+        resource_type="CoachingRelationship",
+        resource_id=str(rel.id),
+        created_at=datetime.utcnow(),
+        metadata_json=json.dumps({"relationship_id": rel.id, "coach_id": rel.coach_id, "athlete_id": rel.athlete_id}),
+    )
+
+
+def create_coaching_history_snapshot(db: Session, rel: CoachingRelationship, ended_at: datetime) -> CoachingHistorySnapshot:
+    import json
+    athlete = db.query(User).filter(User.id == rel.athlete_id).first()
+    start_date = (rel.created_at or ended_at).date().isoformat()
+    end_date = ended_at.date().isoformat()
+    microcycles = db.query(Microcycle).filter(
+        Microcycle.owner_id == rel.athlete_id,
+        Microcycle.deleted_at.is_(None),
+    ).order_by(Microcycle.id).all()
+    archived_microcycles = []
+    for microcycle in microcycles:
+        formatted = format_microcycle(microcycle)
+        formatted["workouts"] = [
+            workout for workout in formatted["workouts"]
+            if start_date <= workout["date"] <= end_date
+        ]
+        if formatted["workouts"]:
+            archived_microcycles.append(formatted)
+    snapshot_payload = {
+        "relationshipId": rel.id,
+        "fromDate": start_date,
+        "throughDate": end_date,
+        "athlete": {
+            "id": rel.athlete_id,
+            "email": athlete.email if athlete else "",
+            "displayName": athlete.display_name if athlete else None,
+        },
+        "microcycles": archived_microcycles,
+    }
+    return CoachingHistorySnapshot(
+        relationship_id=rel.id,
+        snapshot_at=ended_at,
+        snapshot_json=json.dumps(snapshot_payload),
+    )
+
+
 def assert_plan_access(db: Session, current_user: User, athlete_id: str) -> str:
     """Return athlete_id if current_user may read/write that athlete plan space."""
+    require_eligible_account(current_user)
     if current_user.role == "ATHLETE":
         if athlete_id != current_user.id:
             raise HTTPException(status_code=403, detail="Athletes can only access their own plan")
@@ -622,57 +779,86 @@ def get_or_create_ungrouped_microcycle(db: Session, owner_id: str) -> Microcycle
 from .sync_service import SyncPayload, resolve_sync_payload
 
 @app.post("/api/auth/register")
-def register_user(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == req.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-        
-    user = User(
-        id=str(uuid.uuid4()),
-        email=req.email,
-        hashed_password=get_password_hash(req.password),
-        role=req.role
-    )
-    db.add(user)
+def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
+    email = req.email.strip().lower()
+    if len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        raise HTTPException(status_code=422, detail="Enter a valid email address")
+    if len(req.password) < 8 or len(req.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters and at most 72 UTF-8 bytes")
+    # Hash on both paths so duplicate registrations do not skip expensive work.
+    hashed_password = get_password_hash(req.password)
+    if db.query(User).filter(func.lower(User.email) == email).first():
+        return GENERIC_MESSAGE
+    required = new_email_verification_enabled()
+    user = User(id=str(uuid.uuid4()), email=email, hashed_password=hashed_password,
+                role="ATHLETE", email_verification_required=required,
+                email_verification_legacy_exempt=False)
+    try:
+        db.add(user)
+        db.flush()
+        if required:
+            queue_verification(db, user)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return GENERIC_MESSAGE
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/auth/verify-email")
+def verify_email(req: VerifyEmailRequest, db: Session = Depends(get_db)):
+    consume_verification(db, req.token)
+    return {"message": "Email verified. You can now sign in."}
+
+
+@app.post("/api/auth/resend-verification")
+def resend_email(req: ResendVerificationRequest, db: Session = Depends(get_db)):
+    resend_verification(db, req.email.strip().lower())
     db.commit()
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    session_id = str(uuid.uuid4())
-    from .database import Session as DBSession
-    db_session = DBSession(
-        id=session_id,
-        user_id=user.id,
-        jwt_id=session_id,
-        expires_at=datetime.utcnow() + access_token_expires
-    )
-    db.add(db_session)
+    return GENERIC_MESSAGE
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request, current_user: User = Depends(get_current_user)):
+    from .database import Session as DBSession, SessionLocal
+    with SessionLocal() as db:
+        session = db.get(DBSession, request.state.auth_session_id)
+        expires = session.expires_at.isoformat() + "Z"
+        from .offline_auth import issue_offline_grant
+        offline_grant = issue_offline_grant(db, current_user, session)
+        from .database import CoachingRelationship
+        scopes = [current_user.id] + ([r.athlete_id for r in db.query(CoachingRelationship).filter_by(coach_id=current_user.id, ended_at=None, deleted_at=None).all()] if current_user.role == "COACH" else [])
+    return {"user": {"id": current_user.id, "email": current_user.email, "role": current_user.role,
+                     "displayName": current_user.display_name}, "sessionExpiresAt": expires, "offlineGrant": offline_grant, "scopes": scopes}
+
+
+@app.patch("/api/auth/profile")
+def update_auth_profile(req: UpdateProfileRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    display_name = (req.displayName or "").strip()
+    if len(display_name) > 80:
+        raise HTTPException(status_code=422, detail="Display name must be 80 characters or fewer")
+    current_user.display_name = display_name or None
     db.commit()
-    
-    access_token = create_access_token(
-        data={"sub": user.id, "role": user.role, "session_id": session_id}, expires_delta=access_token_expires
-    )
-    
-    response.set_cookie(
-        key="session_id",
-        value=access_token,
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        secure=COOKIE_SECURE
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "role": user.role,
-        "email": user.email,
-        "id": user.id,
-        "user": {"id": user.id, "email": user.email, "role": user.role},
-    }
+    db.refresh(current_user)
+    return {"id": current_user.id, "email": current_user.email, "role": current_user.role, "displayName": current_user.display_name}
+
+
+@app.get("/api/account/access")
+def get_account_access(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return build_account_access_state(db, current_user)
 
 @app.post("/api/auth/coach-code")
 def create_coach_code(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "COACH":
         raise HTTPException(status_code=403, detail="Only coaches can create coach codes")
+    require_active_coach_access(db, current_user)
     # Rotate: expire previous unused codes for this coach
     for old in db.query(InviteCode).filter(InviteCode.coach_id == current_user.id, InviteCode.used_at.is_(None)).all():
         old.used_at = datetime.utcnow()
@@ -722,21 +908,26 @@ def link_athlete(req: LinkCodeRequest, db: Session = Depends(get_db), current_us
     if not coach:
         raise HTTPException(status_code=404, detail="Coach not found for this code")
 
+    require_eligible_account(coach)
     existing_link = active_coaching_query(db).filter(CoachingRelationship.athlete_id == current_user.id).first()
     if existing_link:
         raise HTTPException(status_code=400, detail="Athlete is already linked to a coach")
 
-    # One row per athlete (unique athlete_id): reactivate or retarget after unlink.
-    prior = db.query(CoachingRelationship).filter(
-        CoachingRelationship.athlete_id == current_user.id,
-    ).first()
-    if prior:
-        prior.coach_id = coach.id
-        prior.ended_at = None
-        link = prior
-    else:
-        link = CoachingRelationship(coach_id=coach.id, athlete_id=current_user.id)
-        db.add(link)
+    require_athlete_capacity(db, coach)
+
+    consumed_at = datetime.utcnow()
+    consumed = db.query(InviteCode).filter(
+        InviteCode.id == invite.id,
+        InviteCode.used_at.is_(None),
+        InviteCode.expires_at > consumed_at,
+    ).update({InviteCode.used_at: consumed_at}, synchronize_session=False)
+    if consumed != 1:
+        raise HTTPException(status_code=404, detail="Invalid or expired coach code")
+
+    link = CoachingRelationship(coach_id=coach.id, athlete_id=current_user.id, created_at=datetime.utcnow())
+    db.add(link)
+    db.flush()
+    db.add(relationship_audit_event(current_user, link, "ATHLETE_LINKED"))
     db.commit()
     return {"status": "success", "message": f"Successfully linked to coach {coach.email}"}
 
@@ -752,7 +943,10 @@ def unlink_coach(db: Session = Depends(get_db), current_user: User = Depends(get
         raise HTTPException(status_code=403, detail="Not authorized")
     if not rel:
         raise HTTPException(status_code=404, detail="No active coaching link")
-    rel.ended_at = datetime.utcnow()
+    ended_at = datetime.utcnow()
+    rel.ended_at = ended_at
+    db.add(create_coaching_history_snapshot(db, rel, ended_at))
+    db.add(relationship_audit_event(current_user, rel, "ATHLETE_UNLINKED"))
     db.commit()
     return {"status": "success", "message": "Unlinked. Athlete plan remains in athlete space."}
 
@@ -767,7 +961,10 @@ def unlink_athlete(athlete_id: str, db: Session = Depends(get_db), current_user:
     ).first()
     if not rel:
         raise HTTPException(status_code=404, detail="No active coaching link")
-    rel.ended_at = datetime.utcnow()
+    ended_at = datetime.utcnow()
+    rel.ended_at = ended_at
+    db.add(create_coaching_history_snapshot(db, rel, ended_at))
+    db.add(relationship_audit_event(current_user, rel, "COACH_UNLINKED_ATHLETE"))
     db.commit()
     return {"status": "success", "message": "Unlinked. Athlete plan remains in athlete space."}
 
@@ -786,9 +983,65 @@ def get_roster(db: Session = Depends(get_db), current_user: User = Depends(get_c
             athletes.append({
                 "id": athlete.id, 
                 "email": athlete.email,
+                "displayName": athlete.display_name,
                 "activeMicrocycles": len(microcycles)
             })
     return athletes
+
+
+@app.get("/api/coach/roster/history")
+def get_roster_history(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import json
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    relationships = db.query(CoachingRelationship).filter(
+        CoachingRelationship.coach_id == current_user.id,
+        CoachingRelationship.ended_at.is_not(None),
+    ).order_by(CoachingRelationship.ended_at.desc()).all()
+    history = []
+    for rel in relationships:
+        snapshot = db.query(CoachingHistorySnapshot).filter(
+            CoachingHistorySnapshot.relationship_id == rel.id
+        ).first()
+        payload = json.loads(snapshot.snapshot_json) if snapshot else None
+        athlete = payload.get("athlete", {}) if payload else {}
+        if not payload:
+            current_athlete = db.query(User).filter(User.id == rel.athlete_id).first()
+            athlete = {
+                "id": rel.athlete_id,
+                "email": current_athlete.email if current_athlete else "",
+                "displayName": current_athlete.display_name if current_athlete else None,
+            }
+        history.append({
+            "relationshipId": rel.id,
+            "athleteId": rel.athlete_id,
+            "email": athlete.get("email", ""),
+            "displayName": athlete.get("displayName"),
+            "linkedAt": rel.created_at.isoformat() if rel.created_at else None,
+            "endedAt": rel.ended_at.isoformat() if rel.ended_at else None,
+            "archiveAvailable": payload is not None,
+        })
+    return history
+
+
+@app.get("/api/coach/roster/history/{relationship_id}")
+def get_roster_history_snapshot(relationship_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import json
+    if current_user.role != "COACH":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    rel = db.query(CoachingRelationship).filter(
+        CoachingRelationship.id == relationship_id,
+        CoachingRelationship.coach_id == current_user.id,
+        CoachingRelationship.ended_at.is_not(None),
+    ).first()
+    if not rel:
+        raise HTTPException(status_code=404, detail="Past athlete history not found")
+    snapshot = db.query(CoachingHistorySnapshot).filter(
+        CoachingHistorySnapshot.relationship_id == rel.id
+    ).first()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="History snapshot is unavailable for this past link")
+    return json.loads(snapshot.snapshot_json)
 
 @app.post("/api/coach/push-program")
 def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -802,6 +1055,8 @@ def push_program(req: PushProgramRequest, db: Session = Depends(get_db), current
     
     if not rel or rel.ended_at is not None:
         raise HTTPException(status_code=403, detail="Not authorized to push to this athlete")
+
+    require_programming_access(db, current_user)
 
     # Plans stay athlete-owned and empty unless sessions are created explicitly.
     # Demo seed injection is intentionally removed.
@@ -838,7 +1093,8 @@ def get_microcycles(
 
 @app.post("/api/sets/log")
 def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    require_session_for_write(db, current_user, req.workoutId)
+    # Execution logging remains available; programming access gates plan edits.
+    require_session_for_write(db, current_user, req.workoutId, require_programming=False)
     s = db.query(ExerciseSet).filter(ExerciseSet.id == req.setId).first()
     if not s or not is_live(s):
         raise HTTPException(status_code=404, detail="Target set not found")
@@ -872,7 +1128,7 @@ def athlete_fatigue_summary(db: Session, current_user: User, athlete_id: Optiona
     target_id = athlete_id if athlete_id else current_user.id
     
     if current_user.role == "COACH":
-        rel = db.query(CoachingRelationship).filter(CoachingRelationship.coach_id == current_user.id, CoachingRelationship.athlete_id == target_id).first()
+        rel = active_coaching_query(db).filter(CoachingRelationship.coach_id == current_user.id, CoachingRelationship.athlete_id == target_id).first()
         if not rel:
             raise HTTPException(status_code=403, detail="Not authorized to view this athlete")
     elif current_user.role == "ATHLETE" and target_id != current_user.id:
@@ -985,7 +1241,7 @@ def export_csv(
     import io
     
     if current_user.role == "COACH":
-        relationships = db.query(CoachingRelationship).filter(
+        relationships = active_coaching_query(db).filter(
             CoachingRelationship.coach_id == current_user.id
         ).all()
         athlete_ids = [rel.athlete_id for rel in relationships]
@@ -1094,161 +1350,11 @@ def export_json(
         headers={"Content-Disposition": "attachment; filename=adaptive_lifting_export.json"}
     )
 
-@app.get("/api/analytics/ai-advisor")
-def get_ai_advisor(
-    athlete_id: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    import requests
-    import json
-    import re
-    
-    # 4.1 RBAC Enforcement
-    target_id = athlete_id if athlete_id else current_user.id
-    if current_user.role == "COACH":
-        rel = db.query(CoachingRelationship).filter(
-            CoachingRelationship.coach_id == current_user.id,
-            CoachingRelationship.athlete_id == target_id
-        ).first()
-        if not rel:
-            raise HTTPException(status_code=403, detail="Unauthorized coach request.")
-    elif current_user.role == "ATHLETE" and target_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Unauthorized athlete request.")
-
-    # 4.2 Secure Environment Key Validation
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="AI Autoregulation gateway temporarily unconfigured. Please define GEMINI_API_KEY on the server."
-        )
-
-    # 4.3 Pre-Aggregation Engine (Reducing Token Footprint)
-    mcs = db.query(Microcycle).filter(Microcycle.owner_id == target_id).all()
-    mc_ids = [mc.id for mc in mcs]
-    workouts = db.query(Workout).filter(Workout.microcycle_id.in_(mc_ids)).all()
-    
-    # Compile performance peaks and stats
-    squat_max = 0.0
-    bench_max = 0.0
-    deadlift_max = 0.0
-    latest_bw = 100.0
-    
-    # Gather trailing workout trends
-    scraped_trends = []
-    for w in sorted(workouts, key=lambda x: x.date)[-5:]: # Limit to last 5 workouts to minimize token footprint
-        workout_sets = []
-        for e in w.exercises:
-            for s in e.sets:
-                wt = coerce_float(s.actual) or 0.0
-                rp = coerce_int(s.reps) or 0
-                rpe = coerce_float(s.executedRpe) or 0.0
-                if wt > 0.0 and rp > 0:
-                    e1rm = calculate_e1rm(wt, rp, rpe)
-                    if e.lift_category == "Squat" and e1rm > squat_max: squat_max = e1rm
-                    if e.lift_category == "Bench" and e1rm > bench_max: bench_max = e1rm
-                    if e.lift_category == "Deadlift" and e1rm > deadlift_max: deadlift_max = e1rm
-                    workout_sets.append({
-                        "exercise": e.title,
-                        "weight": wt,
-                        "reps": rp,
-                        "rpe": rpe,
-                        "e1rm": round(e1rm, 1)
-                    })
-        scraped_trends.append({"date": w.date, "tonnage": w.tonnage, "logged": workout_sets})
-
-    # Pull precalculated ACWR & INOL splits from standard trends endpoint logic
-    trends_payload = athlete_fatigue_summary(db, current_user, target_id)
-    fatigue = trends_payload["fatigue_metrics"]
-    
-    scraped_payload = {
-        "athlete": {
-            "gender": "MALE",
-            "bodyweight": trends_payload["current_bw"],
-            "dots_score": trends_payload["dots_score"]
-        },
-        "fatigue_metrics": {
-            "weekly_inol_squat": fatigue["weekly_inol_squat"],
-            "weekly_inol_bench": fatigue["weekly_inol_bench"],
-            "weekly_inol_deadlift": fatigue["weekly_inol_deadlift"],
-            "acute_chronic_ratio": fatigue["acute_chronic_ratio"],
-            "average_relative_intensity_pct": fatigue["average_relative_intensity_pct"]
-        },
-        "recent_history": scraped_trends
-    }
-
-    # 4.4 Target System Prompt Construction
-    system_prompt = f"""
-You are an Elite Powerlifting Coach acting strictly under Mike Tuchscherer's Reactive Training Systems (RTS) autoregulation principles.
-Your task is to analyze the athlete's training metrics and rolling fatigue ratios, and output a highly personalized periodization diagnostic.
-
-You MUST respond strictly in raw JSON matching the following schema. Do NOT include markdown tags, explanation headers, or raw text wraps. Only output valid, parseable JSON.
-
-Athlete Profile:
-{json.dumps(scraped_payload)}
-
-Schema:
-{{
-  "cns_readiness": {{
-    "status": "Functional Adaptation" | "Neural Fatigue Suppression" | "Detraining",
-    "score": number (0-100),
-    "analysis": "Exactly two sentences explaining the acute chronic workload ratio."
-  }},
-  "movement_diagnostics": {{
-    "squat_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }},
-    "bench_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }},
-    "deadlift_fatigue": {{ "status": "Optimal" | "Caution" | "Danger", "inol": number, "warning": "string" }}
-  }},
-  "microcycle_prescription": {{
-    "loading_strategy": "Maintain Baseline" | "Escalate Tonnage (+10%)" | "Load Drop Downsets (-5%)" | "Deload Decompression (-20%)",
-    "tactical_guidance": "Actionable RTS periodization pacing adjustments",
-    "suggested_rpe_cap": number
-  }},
-  "attempt_feedback": {{
-    "opener_feasibility": "Conservative" | "Optimal" | "High-Risk",
-    "coaching_notes": "Expert analysis of opener relative to peak strength curves"
-  }}
-}}
-"""
-
-    # 4.5 Execute Model Gateway Query
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        res = requests.post(url, json={
-            "contents": [{"parts": [{"text": system_prompt}]}]
-        }, timeout=12)
-
-        if res.status_code != 200:
-            raise HTTPException(status_code=502, detail="Failed to communicate with Google model gateway.")
-            
-        raw_result = res.json()
-        raw_text = raw_result['candidates'][0]['content']['parts'][0]['text']
-        
-        # 4.6 Strict Sanitization
-        cleaned_text = raw_text.strip()
-        if cleaned_text.startswith("```"):
-            cleaned_text = re.sub(r"^```(json)?\n", "", cleaned_text)
-            cleaned_text = re.sub(r"\n```$", "", cleaned_text)
-        cleaned_text = cleaned_text.strip()
-        
-        # Validate JSON structure
-        parsed_data = json.loads(cleaned_text)
-        if "cns_readiness" not in parsed_data or "microcycle_prescription" not in parsed_data:
-            raise ValueError("Schema structure failed validation.")
-            
-        return parsed_data
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Neural processing exception: {str(e)}"
-        )
-
-
-
 @app.post("/api/workouts/{id}/sync")
 def sync_workout(id: str, payload: SyncPayload, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if payload.workout_id != id:
+        raise HTTPException(status_code=400, detail="Workout URL and payload do not match")
+    require_session_for_write(db, current_user, id)
     return resolve_sync_payload(db, payload, current_user.id)
 
 @app.get("/api/security/devices")
@@ -1304,36 +1410,28 @@ def revoke_session(id: str, db: Session = Depends(get_db), current_user: User = 
 
 @app.get("/api/security/audit-events")
 def get_audit_events(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    import json
-    from .database import AuditEvent, CoachingRelationship
+    from .database import AuditEvent
     if current_user.role == "COACH":
         relationships = db.query(CoachingRelationship).filter(
-            CoachingRelationship.coach_id == current_user.id,
-            CoachingRelationship.ended_at.is_(None)
+            CoachingRelationship.coach_id == current_user.id
         ).all()
-        athlete_ids = [r.athlete_id for r in relationships]
-        allowed_ids = athlete_ids + [current_user.id]
-        events = db.query(AuditEvent).filter(
-            (AuditEvent.actor_user_id.in_(allowed_ids)) | (AuditEvent.actor_user_id.is_(None))
-        ).order_by(AuditEvent.created_at.desc()).limit(100).all()
+        relationship_ids = [str(r.id) for r in relationships]
+        own_events = db.query(AuditEvent).filter(
+            AuditEvent.actor_user_id == current_user.id
+        ).all()
+        relationship_events = []
+        if relationship_ids:
+            relationship_events = db.query(AuditEvent).filter(
+                AuditEvent.resource_type == "CoachingRelationship",
+                AuditEvent.resource_id.in_(relationship_ids),
+                AuditEvent.event_type.in_(("ATHLETE_LINKED", "ATHLETE_UNLINKED", "COACH_UNLINKED_ATHLETE")),
+            ).all()
+        events_by_id = {event.id: event for event in (*own_events, *relationship_events)}
+        events = sorted(events_by_id.values(), key=lambda event: event.created_at or datetime.min, reverse=True)[:100]
     else:
         events = db.query(AuditEvent).filter(
             AuditEvent.actor_user_id == current_user.id
         ).order_by(AuditEvent.created_at.desc()).limit(100).all()
-        
-    if not events:
-        dummy_event = AuditEvent(
-            id=str(uuid.uuid4()),
-            actor_user_id=current_user.id,
-            event_type="SYNC_INIT",
-            resource_type="WorkoutTree",
-            resource_id="root",
-            created_at=datetime.utcnow() - timedelta(minutes=5),
-            metadata_json=json.dumps({"info": "Secured client session initialized", "client_ip": "127.0.0.1"})
-        )
-        db.add(dummy_event)
-        db.commit()
-        events = [dummy_event]
         
     return [{
         "id": e.id,
@@ -1380,7 +1478,8 @@ class CopyWeekRequest(BaseModel):
     dateOffsetDays: int = 7
     targetBlockLabel: Optional[str] = None
     targetWeekLabel: Optional[str] = None
-    includeLogs: bool = False
+    copyMode: Optional[str] = None
+    includeLogs: Optional[bool] = None
     preserveWeekLabel: bool = False
 
 
@@ -1403,17 +1502,21 @@ class AddExerciseRequest(BaseModel):
     tier: Optional[str] = "Comp"
     liftCategory: Optional[str] = "Other"
     movementPattern: Optional[str] = None
+    liftNote: Optional[str] = None
     plannedWeight: Optional[float] = None
-    plannedReps: Optional[int] = 5
-    plannedRpe: Optional[float] = 8.0
+    plannedReps: Optional[int] = None
+    plannedRpe: Optional[float] = None
 
 
 class UpdateExerciseRequest(BaseModel):
     variation: Optional[str] = None
     title: Optional[str] = None
     tier: Optional[str] = None
+    liftCategory: Optional[str] = None
     movementPattern: Optional[str] = None
+    liftNote: Optional[str] = None
     move: Optional[str] = None
+    order: Optional[List[str]] = None
 
 
 class PlannedSetWrite(BaseModel):
@@ -1448,7 +1551,7 @@ def reindex_exercises(ordered) -> None:
         exercise.lexo_rank = f"a{index}"
 
 
-def require_session_for_write(db: Session, current_user: User, session_id: str) -> Workout:
+def require_session_for_write(db: Session, current_user: User, session_id: str, require_programming: bool = True) -> Workout:
     workout = db.query(Workout).filter(Workout.id == session_id).first()
     if not workout:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -1456,6 +1559,10 @@ def require_session_for_write(db: Session, current_user: User, session_id: str) 
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    if require_programming:
+        require_programming_access(db, current_user)
+    if workout.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Session not found")
     return workout
 
 
@@ -1466,6 +1573,11 @@ def session_owner_id(db: Session, workout: Workout) -> Optional[str]:
         mc = db.query(Microcycle).filter(Microcycle.id == workout.microcycle_id).first()
         return mc.owner_id if mc else None
     return None
+
+
+# This router needs the plan authorization helpers above at import time.
+from .sse_broadcaster import router as sse_router
+app.include_router(sse_router)
 
 
 def shift_iso_date(iso: str, days: int) -> str:
@@ -1498,8 +1610,10 @@ def clone_session_prescription(
     new_date: str,
     block_label: Optional[str],
     week_label: Optional[str],
-    include_logs: bool = False,
+    copy_mode: str = "logs",
 ) -> Workout:
+    include_logs = copy_mode == "logs"
+    include_plan = copy_mode in ("plan", "logs")
     clone = Workout(
         id=f"w-{uuid.uuid4().hex[:10]}",
         date=new_date,
@@ -1507,9 +1621,9 @@ def clone_session_prescription(
         title=source.title,
         tonnage=source.tonnage if include_logs else 0.0,
         delta=0.0,
-        color="mac-blue",
+        color=source.color,
         status="PLANNED",
-        athlete_bw=None,
+        athlete_bw=source.athlete_bw,
         block_label=block_label,
         week_label=week_label,
         owner_id=source.owner_id,
@@ -1529,12 +1643,15 @@ def clone_session_prescription(
             lift_category=exercise.lift_category or "Other",
             movement_pattern=exercise.movement_pattern or pattern_for(exercise.title, exercise.lift_category),
             tags_raw=exercise.tags_raw or "",
-            top=exercise.top if include_logs else "—",
-            vol=exercise.vol if include_logs else "—",
+            lift_note=exercise.lift_note,
+            top=exercise.top if include_plan else "—",
+            vol=exercise.vol if include_plan else "—",
             workout_id=clone.id,
         )
         db.add(cloned_exercise)
         db.flush()
+        if copy_mode == "lifts":
+            continue
         for exercise_set in sorted(exercise.sets, key=lambda item: (item.lexo_rank or "", item.id)):
             if not is_live(exercise_set):
                 continue
@@ -1542,7 +1659,7 @@ def clone_session_prescription(
                 id=f"s-{uuid.uuid4().hex[:10]}",
                 lexo_rank=exercise_set.lexo_rank or "a0",
                 label=exercise_set.label,
-                scope=("both" if include_logs else "plan"),
+                scope=((getattr(exercise_set, "scope", None) or "both") if include_logs else "plan"),
                 plannedWeight=exercise_set.plannedWeight,
                 plannedReps=exercise_set.plannedReps,
                 plannedRpe=exercise_set.plannedRpe,
@@ -1553,7 +1670,7 @@ def clone_session_prescription(
                 reps=exercise_set.reps if include_logs else None,
                 executedRpe=exercise_set.executedRpe if include_logs else None,
                 isTop=exercise_set.isTop,
-                note=exercise_set.note,
+                note=exercise_set.note if include_logs else None,
                 velocity=exercise_set.velocity if include_logs else None,
                 readiness=exercise_set.readiness if include_logs else None,
                 hrv=exercise_set.hrv if include_logs else None,
@@ -1567,6 +1684,12 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
     if not req.sessionIds:
         raise HTTPException(status_code=400, detail="sessionIds required")
     # Offset may be negative or zero so a copy can land on a chosen calendar date.
+
+    copy_mode = req.copyMode
+    if copy_mode is None:
+        copy_mode = "logs" if req.includeLogs is True else "plan" if req.includeLogs is False else "logs"
+    if copy_mode not in {"lifts", "plan", "logs"}:
+        raise HTTPException(status_code=400, detail="copyMode must be lifts, plan, or logs")
 
     sources = []
     owner_id = None
@@ -1584,6 +1707,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
         sources.append(workout)
 
     assert_plan_access(db, current_user, owner_id)
+    require_programming_access(db, current_user)
 
     created = []
     for source in sources:
@@ -1600,7 +1724,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
             shift_iso_date(source.date, req.dateOffsetDays),
             target_block,
             target_week,
-            include_logs=req.includeLogs,
+            copy_mode=copy_mode,
         )
         created.append({
             "id": clone.id,
@@ -1618,6 +1742,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
 def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     athlete_id = resolve_athlete_id(current_user, req.athleteId)
     assert_plan_access(db, current_user, athlete_id)
+    require_programming_access(db, current_user)
     session_date = require_iso_date(req.date)
     block_label = optional_label(req.blockLabel)
     week_label = optional_label(req.weekLabel)
@@ -1758,7 +1883,7 @@ def add_session_exercise(
     movement_pattern = resolve_movement_pattern(title, lift_category, req.movementPattern)
 
     variation = (req.variation or "").strip() or (
-        "Accessory" if tier == "Accessory" else "Competition"
+        "Accessory" if tier == "Accessory" else title
     )
     tags = [lift_category] if lift_category != "Other" else ([tier] if tier == "Accessory" else [])
 
@@ -1771,6 +1896,7 @@ def add_session_exercise(
         tier=tier,
         lift_category=lift_category,
         movement_pattern=movement_pattern,
+        lift_note=(req.liftNote or "").strip() or None,
         tags_raw=",".join(tags),
         top="—",
         vol="—",
@@ -1779,8 +1905,8 @@ def add_session_exercise(
     db.add(exercise)
     db.flush()
 
-    planned_reps = req.plannedReps if req.plannedReps is not None else 5
-    planned_rpe = req.plannedRpe if req.plannedRpe is not None else 8.0
+    planned_reps = req.plannedReps
+    planned_rpe = req.plannedRpe
     db.add(ExerciseSet(
         id=f"s-{uuid.uuid4().hex[:10]}",
         lexo_rank="a0",
@@ -1868,10 +1994,16 @@ def update_session_exercise(
         if req.tier not in ALLOWED_TIERS:
             raise HTTPException(status_code=400, detail="Invalid tier")
         exercise.tier = req.tier
+    if req.liftCategory is not None:
+        if req.liftCategory not in ALLOWED_LIFT_CATEGORIES:
+            raise HTTPException(status_code=400, detail="Invalid liftCategory")
+        exercise.lift_category = req.liftCategory
     if req.movementPattern is not None:
         exercise.movement_pattern = resolve_movement_pattern(
             exercise.title, exercise.lift_category, req.movementPattern
         )
+    if req.liftNote is not None:
+        exercise.lift_note = req.liftNote.strip() or None
     if req.move is not None:
         direction = req.move.strip().lower()
         if direction not in ("up", "down"):
@@ -1884,6 +2016,14 @@ def update_session_exercise(
         if 0 <= swap_with < len(ordered):
             ordered[index], ordered[swap_with] = ordered[swap_with], ordered[index]
             reindex_exercises(ordered)
+    if req.order is not None:
+        ordered = live_exercises(workout)
+        current_ids = {item.id for item in ordered}
+        requested_ids = req.order
+        if len(requested_ids) != len(set(requested_ids)) or set(requested_ids) != current_ids:
+            raise HTTPException(status_code=400, detail="order must contain each live lift exactly once")
+        by_id = {item.id: item for item in ordered}
+        reindex_exercises([by_id[item_id] for item_id in requested_ids])
     db.commit()
     persisted = db.query(Exercise).filter(Exercise.id == exercise.id).first()
     return format_exercise(persisted)
@@ -1901,6 +2041,9 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
+    require_programming_access(db, current_user)
+    if workout.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if req.date is not None:
         workout.date = req.date
@@ -1949,7 +2092,10 @@ def delete_session(session_id: str, db: Session = Depends(get_db), current_user:
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
-    db.delete(workout)
+    require_programming_access(db, current_user)
+    if workout.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    workout.deleted_at = datetime.utcnow()
     db.commit()
     return {"status": "success"}
 
@@ -1970,6 +2116,7 @@ def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get
         if not owner_id:
             continue
         assert_plan_access(db, current_user, owner_id)
+        require_programming_access(db, current_user)
         if req.clearBlock:
             workout.block_label = None
         elif req.blockLabel is not None:
@@ -1981,4 +2128,3 @@ def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get
         updated.append(sid)
     db.commit()
     return {"status": "success", "updated": updated}
-

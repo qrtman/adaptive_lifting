@@ -1,5 +1,6 @@
+import { canReadOffline } from '../services/authAuthorization';
 import { useCallback, useEffect, useState } from 'react';
-import { apiService } from '../services/api';
+import { ApiRequestError, apiService } from '../services/api';
 import { getSnapshot, saveSnapshot } from '../services/db';
 import { queueInsightCardMutation } from '../services/sync_engine';
 import { usePeriodization } from '../contexts/PeriodizationContext';
@@ -8,6 +9,9 @@ import { ChartFor } from '../insights/charts';
 import { CardBuilder } from '../insights/CardBuilder';
 import type { AnalyticsCatalog, CardConfig, CachedResult, SavedCard } from '../insights/types';
 import { insightResultIsStale } from '../insights/types';
+import { useAuth } from '../contexts/AuthContext';
+import { useAccountAccess } from '../contexts/AccessContext';
+import { saasErrorMessage } from '../services/saasErrors';
 
 const blankConfig = (): CardConfig => ({
   metrics: ['tonnage'],
@@ -30,6 +34,10 @@ function resultKey(cardId: string) {
 }
 
 export function InsightsView() {
+  const { user } = useAuth();
+  const { canUseAnalytics } = useAccountAccess();
+  const isCoach = String(user?.role || '').toUpperCase() === 'COACH';
+  const analyticsBlocked = isCoach && canUseAnalytics === false;
   const { planAthleteId } = usePeriodization();
   const { isOnline } = useSync();
   const [cards, setCards] = useState<SavedCard[]>([]);
@@ -47,17 +55,19 @@ export function InsightsView() {
       const data = await apiService.fetchInsightCards();
       const sorted = [...data].sort((a, b) => a.layout.order - b.layout.order);
       setCards(sorted);
-      await saveSnapshot('insight_cards', sorted);
+      await saveSnapshot(`insight_cards:${user?.id}`, sorted);
     } catch (err) {
-      const cached = await getSnapshot('insight_cards');
+      if (err instanceof ApiRequestError || !canReadOffline(user?.id)) { setError('Sign in to view saved insights.'); return; }
+      const cached = await getSnapshot(`insight_cards:${user?.id}`);
       if (Array.isArray(cached)) setCards(cached);
       else setError(err instanceof Error ? err.message : 'Failed to load cards');
     }
-  }, []);
+  }, [user?.id]);
 
   const loadResult = useCallback(async (card: SavedCard) => {
-    const cacheId = resultKey(card.id);
+    const cacheId = `${resultKey(card.id)}:${planAthleteId || 'none'}`;
     const applyCache = async () => {
+      if (!canReadOffline(planAthleteId)) return;
       const cached = await getSnapshot(cacheId) as CachedResult | undefined;
       if (cached?.result) {
         setResults((prev) => ({ ...prev, [card.id]: cached }));
@@ -68,16 +78,23 @@ export function InsightsView() {
       await applyCache();
       return;
     }
+    if (analyticsBlocked) {
+      await applyCache();
+      return;
+    }
     try {
       const payload = await apiService.queryInsightCard(card.config, planAthleteId);
       const cached: CachedResult = { result: payload, fetchedAt: new Date().toISOString() };
       setResults((prev) => ({ ...prev, [card.id]: cached }));
       setStaleIds((prev) => ({ ...prev, [card.id]: false }));
       await saveSnapshot(cacheId, cached);
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiRequestError && [401, 403].includes(err.status)) { setError(err.message); return; }
+      const message = saasErrorMessage(err);
+      if (message) setError(message);
       await applyCache();
     }
-  }, [planAthleteId]);
+  }, [planAthleteId, analyticsBlocked]);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,11 +177,14 @@ export function InsightsView() {
             type="button"
             data-testid="insights-add-card"
             onClick={openNew}
+            disabled={analyticsBlocked}
+            title={analyticsBlocked ? 'This coaching plan does not include analytics.' : undefined}
             className="h-7 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-strong)] text-[var(--cal-ink)] text-[11px] font-medium hover:opacity-90 transition-opacity"
           >
             Add card
           </button>
         </div>
+        {analyticsBlocked && <p className="mb-2 px-1 text-xs text-[var(--cal-muted)]" role="note">This coaching plan does not include analytics. Previously saved results remain available.</p>}
         {loading && <p className="text-xs text-[var(--cal-muted)] px-[var(--cal-space-xxs)]">Loading…</p>}
         {error && <p className="text-xs text-[var(--cal-error)] px-[var(--cal-space-xxs)]">{error}</p>}
         {!loading && cards.length === 0 && (

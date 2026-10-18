@@ -60,4 +60,31 @@ describe('liftVariation', () => {
     expect(parsed.tempo).toBe('1-3-1');
     expect(parsed.gear).toEqual(['SlingShot']);
   });
+
+  it('does not add a competition prefix to standard custom names', () => {
+    expect(compileVariation('Hamstring Curls', {
+      bar: 'Standard',
+      tempo: '1-0-1',
+      rom: 'Full',
+      gear: [],
+    })).toBe('Hamstring Curls');
+  });
+
+  it('does not duplicate a catalog modifier in the exercise name', () => {
+    expect(compileVariation('Sumo Deadlift', {
+      bar: 'Sumo',
+      tempo: '1-0-1',
+      rom: 'Full',
+      gear: [],
+    })).toBe('Sumo Deadlift');
+  });
+
+  it('does not treat an exact RDL exercise name as an RDL bar prefix', () => {
+    expect(compileVariation('RDL', {
+      bar: 'RDL',
+      tempo: '1-0-1',
+      rom: 'Full',
+      gear: [],
+    })).toBe('RDL');
+  });
 });

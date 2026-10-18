@@ -1,0 +1,738 @@
+{
+  "bootstrap_sha256_lf": "1ee3fafed4c3017fccd5147c643c8bb74b84f3621fe17960e87f7c01ed64da0d",
+  "historical_62_migration_evidence": "verification-strict.json",
+  "image": "supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00",
+  "image_tag": "supabase/postgres:17.6.1.136",
+  "managed_dependencies": {
+    "Cron": "real extension; jobs disabled",
+    "Realtime": "SQL fixture only; no service",
+    "Vault": "real extension",
+    "pg_net": "real extension; network none"
+  },
+  "migrations": [
+    {
+      "file": "20261002090404_edge_catalog_reader.sql",
+      "sha256_lf": "c447b8d6510a91b1ce572d9cfbf45d18e356095e5fb2b0c01e0cc3e35d99576e",
+      "sha256_raw": "c447b8d6510a91b1ce572d9cfbf45d18e356095e5fb2b0c01e0cc3e35d99576e"
+    },
+    {
+      "file": "20261002092347_al_edge_catalog_runtime.sql",
+      "sha256_lf": "7b7cb4b7bbd8656775b553f98a6a7b61b23b5642d3895f6ee34fa570966462ae",
+      "sha256_raw": "7b7cb4b7bbd8656775b553f98a6a7b61b23b5642d3895f6ee34fa570966462ae"
+    },
+    {
+      "file": "20261002152646_realtime_private_broadcast_subscriber.sql",
+      "sha256_lf": "4f6231b93838cabec24602e892657af5677c4ecec2c99541feb4d933eb4ec362",
+      "sha256_raw": "4f6231b93838cabec24602e892657af5677c4ecec2c99541feb4d933eb4ec362"
+    },
+    {
+      "file": "20261002164804_analytics_query_read_interface.sql",
+      "sha256_lf": "b30b63aa147e7d0e73bf9b99a908e7a39cb1294cdc9fe7cdf5477e09ca7311a1",
+      "sha256_raw": "b30b63aa147e7d0e73bf9b99a908e7a39cb1294cdc9fe7cdf5477e09ca7311a1"
+    },
+    {
+      "file": "20261002173155_insight_card_crud_private_interface.sql",
+      "sha256_lf": "c09e2a5dfeb9a3767bb1e6f64a17bb9f983131f887efd4c86164a61de5bb51c9",
+      "sha256_raw": "c09e2a5dfeb9a3767bb1e6f64a17bb9f983131f887efd4c86164a61de5bb51c9"
+    },
+    {
+      "file": "20261002181420_insight_card_sync_private_rpc.sql",
+      "sha256_lf": "d5b389e866bacdc96cebe6b023cc7399910b445bd56d3465f357bc9bbc98ad09",
+      "sha256_raw": "d5b389e866bacdc96cebe6b023cc7399910b445bd56d3465f357bc9bbc98ad09"
+    },
+    {
+      "file": "20261002181756_sync_mutation_device_scoped_key.sql",
+      "sha256_lf": "b21db8a941024bb40f273bf592ae0a377dfc950bdf9fa902aee57df6706b2ad8",
+      "sha256_raw": "b21db8a941024bb40f273bf592ae0a377dfc950bdf9fa902aee57df6706b2ad8"
+    },
+    {
+      "file": "20261002182616_insight_card_sync_id_parity.sql",
+      "sha256_lf": "d761ea06dd8e5e3a44fbc4255f43c3826d4f7e3cbd4090a8acfa6b83b1c6c709",
+      "sha256_raw": "d761ea06dd8e5e3a44fbc4255f43c3826d4f7e3cbd4090a8acfa6b83b1c6c709"
+    },
+    {
+      "file": "20261002191614_workout_sync_private_rpc.sql",
+      "sha256_lf": "35153a2a3f7334f78b1e3a226880041b9fefb230edb06bd10741e30a3bd9828e",
+      "sha256_raw": "35153a2a3f7334f78b1e3a226880041b9fefb230edb06bd10741e30a3bd9828e"
+    },
+    {
+      "file": "20261002192833_workout_sync_top_repr_fix.sql",
+      "sha256_lf": "ceba46dfc4d61eb3f14fc89ed625052bcb009eedb7c72d564659ccccb0379ff9",
+      "sha256_raw": "ceba46dfc4d61eb3f14fc89ed625052bcb009eedb7c72d564659ccccb0379ff9"
+    },
+    {
+      "file": "20261002192943_workout_sync_route_binding.sql",
+      "sha256_lf": "f6edbd8cf66417d41fc99f29d0cf7a37eb980f1be2db4b99ad048a7faef48071",
+      "sha256_raw": "f6edbd8cf66417d41fc99f29d0cf7a37eb980f1be2db4b99ad048a7faef48071"
+    },
+    {
+      "file": "20261003104637_microcycles_read_interface.sql",
+      "sha256_lf": "6de4346b260a82665e084b889f87edf51815c8f34db21b534eb5e0bc42331265",
+      "sha256_raw": "6de4346b260a82665e084b889f87edf51815c8f34db21b534eb5e0bc42331265"
+    },
+    {
+      "file": "20261003110609_microcycles_workout_owner_guard.sql",
+      "sha256_lf": "a91b359f476d2636bda73930ff72bd6d154c19aa7d659ee3319c67645ba17297",
+      "sha256_raw": "eae7d3a63a502fe2e35f3fffddce69767bb5597615aa4bd32332f16f7dde8777"
+    },
+    {
+      "file": "20261003110904_microcycles_legacy_boolean_nulls.sql",
+      "sha256_lf": "87820698c6a18e62708e0e81c7305cb6e9decd83130d206afdb38b997ab8e59c",
+      "sha256_raw": "1009c8ee159cc281bdb464218dedee0b90f07040eacb9c53b36916805c47ada0"
+    },
+    {
+      "file": "20261003113739_sessions_create_private_rpc.sql",
+      "sha256_lf": "2f6b17cc33a6f804bd186bde75bd507bc05437465223fc0b3c2c0f4c37f42b68",
+      "sha256_raw": "2f6b17cc33a6f804bd186bde75bd507bc05437465223fc0b3c2c0f4c37f42b68"
+    },
+    {
+      "file": "20261003114718_sessions_create_strptime_compat.sql",
+      "sha256_lf": "0e30b497b1877b633012c53bb1b831b5ccfafa1f83ce4db73ba2a9ce6ec59159",
+      "sha256_raw": "0e30b497b1877b633012c53bb1b831b5ccfafa1f83ce4db73ba2a9ce6ec59159"
+    },
+    {
+      "file": "20261003114820_sessions_create_strptime_acceptance_fix.sql",
+      "sha256_lf": "80fff8392757f14209425b0c2487f1d8d8797804867067d83c0bf37cc49fb3bd",
+      "sha256_raw": "9d6cae1812a51b54e9a9416d65cd10fe27e06e7d8abf1379d002d9f4ceb91773"
+    },
+    {
+      "file": "20261003115405_sessions_create_microcycle_lock.sql",
+      "sha256_lf": "8fe254c2d3031d2741c3561063526d34b7953cc22716f1e79cd0465da193ce6d",
+      "sha256_raw": "af084da21930b202dcaa6f7e083557fddb1d8700fd569bd737c11f10f058b946"
+    },
+    {
+      "file": "20261003121444_sessions_update_private_rpc.sql",
+      "sha256_lf": "315b9af2def0d0b11de5be522a62fe0f3ddfcae5d3f1ab75f557e6b0553a00cb",
+      "sha256_raw": "315b9af2def0d0b11de5be522a62fe0f3ddfcae5d3f1ab75f557e6b0553a00cb"
+    },
+    {
+      "file": "20261003121623_sessions_update_authorization_order.sql",
+      "sha256_lf": "a7867d47580469bca3958de729591d063025062230fbfbbf552847a49b6ea5e4",
+      "sha256_raw": "a7867d47580469bca3958de729591d063025062230fbfbbf552847a49b6ea5e4"
+    },
+    {
+      "file": "20261004130440_sessions_delete_private_rpc.sql",
+      "sha256_lf": "c83e1ee1fe192685c381cd00b2cc86e10f06b209f1557c5a7633db894786d206",
+      "sha256_raw": "c83e1ee1fe192685c381cd00b2cc86e10f06b209f1557c5a7633db894786d206"
+    },
+    {
+      "file": "20261005124211_sessions_bulk_labels_private_rpc.sql",
+      "sha256_lf": "8160d8e5535e26efc85eb260ca6d763d407720fb2e7c98f54b121b1cadbc3a73",
+      "sha256_raw": "8160d8e5535e26efc85eb260ca6d763d407720fb2e7c98f54b121b1cadbc3a73"
+    },
+    {
+      "file": "20261005133233_sessions_copy_week_private_rpc.sql",
+      "sha256_lf": "22dddb9417d016e2a9563bf95f91fd5e49e006bc836591eb4eb455165dcf17d8",
+      "sha256_raw": "22dddb9417d016e2a9563bf95f91fd5e49e006bc836591eb4eb455165dcf17d8"
+    },
+    {
+      "file": "20261005140615_sessions_add_exercise_private_rpc.sql",
+      "sha256_lf": "3a810c17ae05dc9d75d44639e258cb1a0a6676421e10c0db72f53ffbdfdfb109",
+      "sha256_raw": "3a810c17ae05dc9d75d44639e258cb1a0a6676421e10c0db72f53ffbdfdfb109"
+    },
+    {
+      "file": "20261005141621_sessions_add_exercise_unicode_dash_fix.sql",
+      "sha256_lf": "3a810c17ae05dc9d75d44639e258cb1a0a6676421e10c0db72f53ffbdfdfb109",
+      "sha256_raw": "3a810c17ae05dc9d75d44639e258cb1a0a6676421e10c0db72f53ffbdfdfb109"
+    },
+    {
+      "file": "20261005144118_sessions_update_exercise_private_rpc.sql",
+      "sha256_lf": "5bce6c02ef716f22d0c5b08b97a566a2bd6a46d0d2d5d507240e6cc0af6d4189",
+      "sha256_raw": "5bce6c02ef716f22d0c5b08b97a566a2bd6a46d0d2d5d507240e6cc0af6d4189"
+    },
+    {
+      "file": "20261005145435_update_exercise_preserve_ranks_on_noop.sql",
+      "sha256_lf": "91359ac02174b6fd542f7acc32dcd6a1a8833491af9e24284e91975bbd420efe",
+      "sha256_raw": "91359ac02174b6fd542f7acc32dcd6a1a8833491af9e24284e91975bbd420efe"
+    },
+    {
+      "file": "20261005150855_sessions_delete_exercise_private_rpc.sql",
+      "sha256_lf": "b02bb34c695ca76686213e2ff83038249e715cd2f1bb0dd7872e45b16647d448",
+      "sha256_raw": "b02bb34c695ca76686213e2ff83038249e715cd2f1bb0dd7872e45b16647d448"
+    },
+    {
+      "file": "20261005161820_sessions_replace_exercise_sets_private_rpc.sql",
+      "sha256_lf": "a77f67c66885ba9247b56e802ff72e8b5eadfce929dd341a6638f0d89e32abfd",
+      "sha256_raw": "c408626df0b4bf3e5f745fc0cfe4dee76a5bb4086cdfb368345bd722e7037f8a"
+    },
+    {
+      "file": "20261005162355_sessions_replace_exercise_sets_encoding_correction.sql",
+      "sha256_lf": "a77f67c66885ba9247b56e802ff72e8b5eadfce929dd341a6638f0d89e32abfd",
+      "sha256_raw": "c408626df0b4bf3e5f745fc0cfe4dee76a5bb4086cdfb368345bd722e7037f8a"
+    },
+    {
+      "file": "20261005170153_sessions_replace_sets_preserve_log_state.sql",
+      "sha256_lf": "4bbfa247bf54ccaf7657c2ac66506ccad184ee9a35432a85a1a8758c27789e80",
+      "sha256_raw": "4bbfa247bf54ccaf7657c2ac66506ccad184ee9a35432a85a1a8758c27789e80"
+    },
+    {
+      "file": "20261005170449_sessions_replace_sets_preserve_log_state_values.sql",
+      "sha256_lf": "691060e3a3d352ceac35d07b0d47f77c85dd8b3ced5392d8ef02ba679d9506e0",
+      "sha256_raw": "691060e3a3d352ceac35d07b0d47f77c85dd8b3ced5392d8ef02ba679d9506e0"
+    },
+    {
+      "file": "20261005172452_sessions_log_set_private_rpc.sql",
+      "sha256_lf": "bdc9b72736468d4cf7050456a0131d4657ba73aeffd6c6a4f1fff61f8c896e84",
+      "sha256_raw": "bdc9b72736468d4cf7050456a0131d4657ba73aeffd6c6a4f1fff61f8c896e84"
+    },
+    {
+      "file": "20261005174414_session_exercise_delete_recalculate_metrics.sql",
+      "sha256_lf": "9ea9b29af385e225b35be8378ce37d26fa94bf3fe6d90025ca8fa39581b3dd4a",
+      "sha256_raw": "f9d6d0cd8196a015396e6c7a8ee07c0dec622b49bd3aad4ff45dca43a7473f4b"
+    },
+    {
+      "file": "20261005181600_account_security_auth_rpcs.sql",
+      "sha256_lf": "f93625a90d1bf8972ebf1f6283482f57559a1e1b925638bfca268c19409a3d33",
+      "sha256_raw": "9bf1cb7e1fbe87eebd94dce2cc8d7f6aa82e8e532b3d944f71204c17b8c825de"
+    },
+    {
+      "file": "20261005181950_account_security_coach_rpcs.sql",
+      "sha256_lf": "a5ff965d75678dd630fab67e12a61c155d45efb001c6f6c25a8f25858ac006b6",
+      "sha256_raw": "70536cadb9c7c7e686f5a0124abdfa94e09d150ed6d889f4c56b17002d26c56b"
+    },
+    {
+      "file": "20261005183040_account_security_parity_hardening.sql",
+      "sha256_lf": "888115d3b95e0a20e1a669c00a12f805fa14f2389bffc3c40cbb48a5296aa329",
+      "sha256_raw": "3914f2d6546b88aef296a6322b38e0b5e6657f4a3977985117cca0a916778a58"
+    },
+    {
+      "file": "20261005184700_account_security_history_jsonb_fix.sql",
+      "sha256_lf": "8dd1db4dee954c90d43de2c0a6edb943cf15c5e91e7ce0b803a11edf524fd421",
+      "sha256_raw": "8dd1db4dee954c90d43de2c0a6edb943cf15c5e91e7ce0b803a11edf524fd421"
+    },
+    {
+      "file": "20261005185000_account_security_audit_order_fix.sql",
+      "sha256_lf": "56c07ea4486695cb1c726c0e021d03542a1bc823857fe29730f93451c76d6c23",
+      "sha256_raw": "56c07ea4486695cb1c726c0e021d03542a1bc823857fe29730f93451c76d6c23"
+    },
+    {
+      "file": "20261005190600_account_security_link_lock_order_fix.sql",
+      "sha256_lf": "a2d99a59f925ecdf7cc55e5c5c3014afd4f963eb79796640b0fcc4b6c0c4c152",
+      "sha256_raw": "a2d99a59f925ecdf7cc55e5c5c3014afd4f963eb79796640b0fcc4b6c0c4c152"
+    },
+    {
+      "file": "20261006100000_realtime_linked_coach_access.sql",
+      "sha256_lf": "ffea76360482cea57378b3fb2552488b229c16fd31450135f91146ee1a0a9cd6",
+      "sha256_raw": "ffea76360482cea57378b3fb2552488b229c16fd31450135f91146ee1a0a9cd6"
+    },
+    {
+      "file": "20261006110000_offline_auth_vault_secret.sql",
+      "sha256_lf": "34b5067d8f679ee8cd8ee72647eec4acc4c1826f89da0aeaf64e7574036e4e70",
+      "sha256_raw": "34b5067d8f679ee8cd8ee72647eec4acc4c1826f89da0aeaf64e7574036e4e70"
+    },
+    {
+      "file": "20261006111000_temp_offline_auth_key_bootstrap.sql",
+      "sha256_lf": "5c54754a8f54554e385fbcdd8ab07d99deb5cb9595eef663bd47bc6e2589feee",
+      "sha256_raw": "5c54754a8f54554e385fbcdd8ab07d99deb5cb9595eef663bd47bc6e2589feee"
+    },
+    {
+      "file": "20261006111500_temp_offline_auth_key_bootstrap_fix.sql",
+      "sha256_lf": "04afc0445430dbb4de9001f4c884a11bf70e76f78b191bf7373e22816d75d3ca",
+      "sha256_raw": "04afc0445430dbb4de9001f4c884a11bf70e76f78b191bf7373e22816d75d3ca"
+    },
+    {
+      "file": "20261006112000_drop_temp_offline_auth_key_bootstrap.sql",
+      "sha256_lf": "45b701d23903e102369b542e257b4f866a18c03435c2c854bfbbd0ce13a4b43e",
+      "sha256_raw": "45b701d23903e102369b542e257b4f866a18c03435c2c854bfbbd0ce13a4b43e"
+    },
+    {
+      "file": "20261006150000_auth_onboarding_email_worker.sql",
+      "sha256_lf": "95311ee60bd4577e6ab9dbcf125c3a6c2887688a82ecae8743b0214cb4a865eb",
+      "sha256_raw": "95311ee60bd4577e6ab9dbcf125c3a6c2887688a82ecae8743b0214cb4a865eb"
+    },
+    {
+      "file": "20261006153607_day_notes_exports_domain.sql",
+      "sha256_lf": "8f3620a9a5e98226264b65dde0efd25b7e646643c713fcc7d72168fa72228112",
+      "sha256_raw": "8f3620a9a5e98226264b65dde0efd25b7e646643c713fcc7d72168fa72228112"
+    },
+    {
+      "file": "20261006160000_email_worker_clear_claim_on_retry.sql",
+      "sha256_lf": "8837e8b25c78f286d57023517924a5979c2d96260836a28d85e06a170449b7a9",
+      "sha256_raw": "8837e8b25c78f286d57023517924a5979c2d96260836a28d85e06a170449b7a9"
+    },
+    {
+      "file": "20261007120000_integrations_domain.sql",
+      "sha256_lf": "ab70e3caacf7b38ba6c273051420203fbd6fa03d3a150ed7de53a0a47baf7708",
+      "sha256_raw": "ab70e3caacf7b38ba6c273051420203fbd6fa03d3a150ed7de53a0a47baf7708"
+    },
+    {
+      "file": "20261007130000_integrations_privilege_status_hardening.sql",
+      "sha256_lf": "5289f0d148ad3fa7ee441222a381e15e3751bc8153ba12126d0b9787c04a487f",
+      "sha256_raw": "5289f0d148ad3fa7ee441222a381e15e3751bc8153ba12126d0b9787c04a487f"
+    },
+    {
+      "file": "20261007140000_telegram_link_lock_order.sql",
+      "sha256_lf": "9ab74d97aa56da78646bb0dc3a01451ddb75ad2f999edc37ca7434ed2aceda45",
+      "sha256_raw": "9ab74d97aa56da78646bb0dc3a01451ddb75ad2f999edc37ca7434ed2aceda45"
+    },
+    {
+      "file": "20261007150000_billing_domain.sql",
+      "sha256_lf": "b2eefe719b8083126a2acc519277523c675df0b5ee9dd1f44d40a92cc7a337e4",
+      "sha256_raw": "b2eefe719b8083126a2acc519277523c675df0b5ee9dd1f44d40a92cc7a337e4"
+    },
+    {
+      "file": "20261007151000_billing_vault_fail_closed.sql",
+      "sha256_lf": "badd4b7a6fd84332125582fcccef9e75cc9670bf91a0e2507639ea2c6d27a96c",
+      "sha256_raw": "badd4b7a6fd84332125582fcccef9e75cc9670bf91a0e2507639ea2c6d27a96c"
+    },
+    {
+      "file": "20261007152000_voucher_explicit_enablement.sql",
+      "sha256_lf": "2c18ec9b5b789c9e4dc9c3bee919a65759fb3a12e4b8279cc76072b0e100ea39",
+      "sha256_raw": "2c18ec9b5b789c9e4dc9c3bee919a65759fb3a12e4b8279cc76072b0e100ea39"
+    },
+    {
+      "file": "20261007153000_voucher_claim_rollback.sql",
+      "sha256_lf": "8660eba41c977c3e83cb25a1e87cb59ecc7671c791a3041784decd2214093399",
+      "sha256_raw": "8660eba41c977c3e83cb25a1e87cb59ecc7671c791a3041784decd2214093399"
+    },
+    {
+      "file": "20261009100000_voucher_secret_independence.sql",
+      "sha256_lf": "d68affff6a5b431df8b51b18b5bbd7aedbec0dc161c2fd1d2bce7e224ec3f16b",
+      "sha256_raw": "d68affff6a5b431df8b51b18b5bbd7aedbec0dc161c2fd1d2bce7e224ec3f16b"
+    },
+    {
+      "file": "20261009101000_billing_operator_voucher_by_id.sql",
+      "sha256_lf": "6bc24a01cb6fea6d6c68cbb0ad67f10aa0bb3432e958e604a8dfb170c27a3ed0",
+      "sha256_raw": "6bc24a01cb6fea6d6c68cbb0ad67f10aa0bb3432e958e604a8dfb170c27a3ed0"
+    },
+    {
+      "file": "20261009102000_billing_checkout_finalize_concurrency.sql",
+      "sha256_lf": "c17be36cb8f440233f938791bd3250335ffd4697bd214b6099badf33f4dc77f2",
+      "sha256_raw": "c17be36cb8f440233f938791bd3250335ffd4697bd214b6099badf33f4dc77f2"
+    },
+    {
+      "file": "20261009103000_stripe_webhook_shape_validation.sql",
+      "sha256_lf": "409ded5ab417e5c9a628fe883773cf43171c30bd8a0a882d301ce10881c2d27a",
+      "sha256_raw": "409ded5ab417e5c9a628fe883773cf43171c30bd8a0a882d301ce10881c2d27a"
+    },
+    {
+      "file": "20261009162235_operator_access_management.sql",
+      "sha256_lf": "93d5d532f568c7e20f3908fd9980d552328a8991da86e3ec815afffb1fc75ee7",
+      "sha256_raw": "93d5d532f568c7e20f3908fd9980d552328a8991da86e3ec815afffb1fc75ee7"
+    },
+    {
+      "file": "20261009170000_correct_runtime_text_encoding.sql",
+      "sha256_lf": "df2af4c847ef23500eac20d5d7e08ed1e2304b9851da117e0d2ddea87195844a",
+      "sha256_raw": "df2af4c847ef23500eac20d5d7e08ed1e2304b9851da117e0d2ddea87195844a"
+    },
+    {
+      "file": "20261009173000_operator_access_inspect_readonly_guard.sql",
+      "sha256_lf": "9867742cc2df13b9ed6792f51d3704d4831db1ac5ed71fba17d179eb39410e7c",
+      "sha256_raw": "9867742cc2df13b9ed6792f51d3704d4831db1ac5ed71fba17d179eb39410e7c"
+    },
+    {
+      "file": "20261010120000_workout_offline_conflict_revisions.sql",
+      "sha256_lf": "a3e3b2842d806d9792a7e89ab5592681ce3968d4688a4faa1301167be413681b",
+      "sha256_raw": "a3e3b2842d806d9792a7e89ab5592681ce3968d4688a4faa1301167be413681b"
+    }
+  ],
+  "replay_mode": "STRICT_UNMODIFIED_BYTES",
+  "reproducibility": "PASS",
+  "runs": [
+    {
+      "applied": [
+        "20261002090404_edge_catalog_reader.sql",
+        "20261002092347_al_edge_catalog_runtime.sql",
+        "20261002152646_realtime_private_broadcast_subscriber.sql",
+        "20261002164804_analytics_query_read_interface.sql",
+        "20261002173155_insight_card_crud_private_interface.sql",
+        "20261002181420_insight_card_sync_private_rpc.sql",
+        "20261002181756_sync_mutation_device_scoped_key.sql",
+        "20261002182616_insight_card_sync_id_parity.sql",
+        "20261002191614_workout_sync_private_rpc.sql",
+        "20261002192833_workout_sync_top_repr_fix.sql",
+        "20261002192943_workout_sync_route_binding.sql",
+        "20261003104637_microcycles_read_interface.sql",
+        "20261003110609_microcycles_workout_owner_guard.sql",
+        "20261003110904_microcycles_legacy_boolean_nulls.sql",
+        "20261003113739_sessions_create_private_rpc.sql",
+        "20261003114718_sessions_create_strptime_compat.sql",
+        "20261003114820_sessions_create_strptime_acceptance_fix.sql",
+        "20261003115405_sessions_create_microcycle_lock.sql",
+        "20261003121444_sessions_update_private_rpc.sql",
+        "20261003121623_sessions_update_authorization_order.sql",
+        "20261004130440_sessions_delete_private_rpc.sql",
+        "20261005124211_sessions_bulk_labels_private_rpc.sql",
+        "20261005133233_sessions_copy_week_private_rpc.sql",
+        "20261005140615_sessions_add_exercise_private_rpc.sql",
+        "20261005141621_sessions_add_exercise_unicode_dash_fix.sql",
+        "20261005144118_sessions_update_exercise_private_rpc.sql",
+        "20261005145435_update_exercise_preserve_ranks_on_noop.sql",
+        "20261005150855_sessions_delete_exercise_private_rpc.sql",
+        "20261005161820_sessions_replace_exercise_sets_private_rpc.sql",
+        "20261005162355_sessions_replace_exercise_sets_encoding_correction.sql",
+        "20261005170153_sessions_replace_sets_preserve_log_state.sql",
+        "20261005170449_sessions_replace_sets_preserve_log_state_values.sql",
+        "20261005172452_sessions_log_set_private_rpc.sql",
+        "20261005174414_session_exercise_delete_recalculate_metrics.sql",
+        "20261005181600_account_security_auth_rpcs.sql",
+        "20261005181950_account_security_coach_rpcs.sql",
+        "20261005183040_account_security_parity_hardening.sql",
+        "20261005184700_account_security_history_jsonb_fix.sql",
+        "20261005185000_account_security_audit_order_fix.sql",
+        "20261005190600_account_security_link_lock_order_fix.sql",
+        "20261006100000_realtime_linked_coach_access.sql",
+        "20261006110000_offline_auth_vault_secret.sql",
+        "20261006111000_temp_offline_auth_key_bootstrap.sql",
+        "20261006111500_temp_offline_auth_key_bootstrap_fix.sql",
+        "20261006112000_drop_temp_offline_auth_key_bootstrap.sql",
+        "20261006150000_auth_onboarding_email_worker.sql",
+        "20261006153607_day_notes_exports_domain.sql",
+        "20261006160000_email_worker_clear_claim_on_retry.sql",
+        "20261007120000_integrations_domain.sql",
+        "20261007130000_integrations_privilege_status_hardening.sql",
+        "20261007140000_telegram_link_lock_order.sql",
+        "20261007150000_billing_domain.sql",
+        "20261007151000_billing_vault_fail_closed.sql",
+        "20261007152000_voucher_explicit_enablement.sql",
+        "20261007153000_voucher_claim_rollback.sql",
+        "20261009100000_voucher_secret_independence.sql",
+        "20261009101000_billing_operator_voucher_by_id.sql",
+        "20261009102000_billing_checkout_finalize_concurrency.sql",
+        "20261009103000_stripe_webhook_shape_validation.sql",
+        "20261009162235_operator_access_management.sql",
+        "20261009170000_correct_runtime_text_encoding.sql",
+        "20261009173000_operator_access_inspect_readonly_guard.sql",
+        "20261010120000_workout_offline_conflict_revisions.sql"
+      ],
+      "baseline_schema": {
+        "counts": {
+          "columns": 289,
+          "constraints": 93,
+          "indexes": 93,
+          "sequences": 1,
+          "tables": 35
+        },
+        "sha256": "9b8c5db9dab0360a79c1c6b5f7925ddb26cf8b246c2d44a30bbcee9c38b2ee6d"
+      },
+      "baseline_validation": "PASS",
+      "blocking_file": null,
+      "container_removed": true,
+      "database": 1,
+      "extensions": [
+        {
+          "name": "pg_cron",
+          "version": "1.6.4"
+        },
+        {
+          "name": "pg_net",
+          "version": "0.20.3"
+        },
+        {
+          "name": "pgcrypto",
+          "version": "1.3"
+        },
+        {
+          "name": "plpgsql",
+          "version": "1.0"
+        },
+        {
+          "name": "supabase_vault",
+          "version": "0.3.1"
+        }
+      ],
+      "failed_migration_rollback": "PASS",
+      "final_schema": {
+        "counts": {
+          "columns": 302,
+          "constraints": 99,
+          "indexes": 98,
+          "sequences": 1,
+          "tables": 36
+        },
+        "sha256": "5db4358f19c43d659e5a3c08473bba50b4cdfd0f9f224a8b8926a3a0cfb9e40d"
+      },
+      "intentional_forward_schema_delta": {
+        "additions": [
+          "workouts.revision",
+          "exercises.revision",
+          "exercise_sets.revision"
+        ],
+        "migration": "20261010120000_workout_offline_conflict_revisions.sql",
+        "staging_updated": false
+      },
+      "nonempty_rejection": "PASS",
+      "original_62_migration_staging_parity": "PASS",
+      "pre_forward_schema": {
+        "counts": {
+          "columns": 299,
+          "constraints": 96,
+          "indexes": 98,
+          "sequences": 1,
+          "tables": 36
+        },
+        "sha256": "40c81423d1fc7cd4924cf19b0fa08b5796dddf0b00bf99e9d8404afa1e37a5c6"
+      },
+      "schema_tests": "PASS",
+      "server_version": "17.6",
+      "status": "PASS",
+      "structural_validation": "PASS"
+    },
+    {
+      "applied": [
+        "20261002090404_edge_catalog_reader.sql",
+        "20261002092347_al_edge_catalog_runtime.sql",
+        "20261002152646_realtime_private_broadcast_subscriber.sql",
+        "20261002164804_analytics_query_read_interface.sql",
+        "20261002173155_insight_card_crud_private_interface.sql",
+        "20261002181420_insight_card_sync_private_rpc.sql",
+        "20261002181756_sync_mutation_device_scoped_key.sql",
+        "20261002182616_insight_card_sync_id_parity.sql",
+        "20261002191614_workout_sync_private_rpc.sql",
+        "20261002192833_workout_sync_top_repr_fix.sql",
+        "20261002192943_workout_sync_route_binding.sql",
+        "20261003104637_microcycles_read_interface.sql",
+        "20261003110609_microcycles_workout_owner_guard.sql",
+        "20261003110904_microcycles_legacy_boolean_nulls.sql",
+        "20261003113739_sessions_create_private_rpc.sql",
+        "20261003114718_sessions_create_strptime_compat.sql",
+        "20261003114820_sessions_create_strptime_acceptance_fix.sql",
+        "20261003115405_sessions_create_microcycle_lock.sql",
+        "20261003121444_sessions_update_private_rpc.sql",
+        "20261003121623_sessions_update_authorization_order.sql",
+        "20261004130440_sessions_delete_private_rpc.sql",
+        "20261005124211_sessions_bulk_labels_private_rpc.sql",
+        "20261005133233_sessions_copy_week_private_rpc.sql",
+        "20261005140615_sessions_add_exercise_private_rpc.sql",
+        "20261005141621_sessions_add_exercise_unicode_dash_fix.sql",
+        "20261005144118_sessions_update_exercise_private_rpc.sql",
+        "20261005145435_update_exercise_preserve_ranks_on_noop.sql",
+        "20261005150855_sessions_delete_exercise_private_rpc.sql",
+        "20261005161820_sessions_replace_exercise_sets_private_rpc.sql",
+        "20261005162355_sessions_replace_exercise_sets_encoding_correction.sql",
+        "20261005170153_sessions_replace_sets_preserve_log_state.sql",
+        "20261005170449_sessions_replace_sets_preserve_log_state_values.sql",
+        "20261005172452_sessions_log_set_private_rpc.sql",
+        "20261005174414_session_exercise_delete_recalculate_metrics.sql",
+        "20261005181600_account_security_auth_rpcs.sql",
+        "20261005181950_account_security_coach_rpcs.sql",
+        "20261005183040_account_security_parity_hardening.sql",
+        "20261005184700_account_security_history_jsonb_fix.sql",
+        "20261005185000_account_security_audit_order_fix.sql",
+        "20261005190600_account_security_link_lock_order_fix.sql",
+        "20261006100000_realtime_linked_coach_access.sql",
+        "20261006110000_offline_auth_vault_secret.sql",
+        "20261006111000_temp_offline_auth_key_bootstrap.sql",
+        "20261006111500_temp_offline_auth_key_bootstrap_fix.sql",
+        "20261006112000_drop_temp_offline_auth_key_bootstrap.sql",
+        "20261006150000_auth_onboarding_email_worker.sql",
+        "20261006153607_day_notes_exports_domain.sql",
+        "20261006160000_email_worker_clear_claim_on_retry.sql",
+        "20261007120000_integrations_domain.sql",
+        "20261007130000_integrations_privilege_status_hardening.sql",
+        "20261007140000_telegram_link_lock_order.sql",
+        "20261007150000_billing_domain.sql",
+        "20261007151000_billing_vault_fail_closed.sql",
+        "20261007152000_voucher_explicit_enablement.sql",
+        "20261007153000_voucher_claim_rollback.sql",
+        "20261009100000_voucher_secret_independence.sql",
+        "20261009101000_billing_operator_voucher_by_id.sql",
+        "20261009102000_billing_checkout_finalize_concurrency.sql",
+        "20261009103000_stripe_webhook_shape_validation.sql",
+        "20261009162235_operator_access_management.sql",
+        "20261009170000_correct_runtime_text_encoding.sql",
+        "20261009173000_operator_access_inspect_readonly_guard.sql",
+        "20261010120000_workout_offline_conflict_revisions.sql"
+      ],
+      "baseline_schema": {
+        "counts": {
+          "columns": 289,
+          "constraints": 93,
+          "indexes": 93,
+          "sequences": 1,
+          "tables": 35
+        },
+        "sha256": "9b8c5db9dab0360a79c1c6b5f7925ddb26cf8b246c2d44a30bbcee9c38b2ee6d"
+      },
+      "baseline_validation": "PASS",
+      "blocking_file": null,
+      "container_removed": true,
+      "database": 2,
+      "extensions": [
+        {
+          "name": "pg_cron",
+          "version": "1.6.4"
+        },
+        {
+          "name": "pg_net",
+          "version": "0.20.3"
+        },
+        {
+          "name": "pgcrypto",
+          "version": "1.3"
+        },
+        {
+          "name": "plpgsql",
+          "version": "1.0"
+        },
+        {
+          "name": "supabase_vault",
+          "version": "0.3.1"
+        }
+      ],
+      "failed_migration_rollback": "PASS",
+      "final_schema": {
+        "counts": {
+          "columns": 302,
+          "constraints": 99,
+          "indexes": 98,
+          "sequences": 1,
+          "tables": 36
+        },
+        "sha256": "5db4358f19c43d659e5a3c08473bba50b4cdfd0f9f224a8b8926a3a0cfb9e40d"
+      },
+      "intentional_forward_schema_delta": {
+        "additions": [
+          "workouts.revision",
+          "exercises.revision",
+          "exercise_sets.revision"
+        ],
+        "migration": "20261010120000_workout_offline_conflict_revisions.sql",
+        "staging_updated": false
+      },
+      "nonempty_rejection": "PASS",
+      "original_62_migration_staging_parity": "PASS",
+      "pre_forward_schema": {
+        "counts": {
+          "columns": 299,
+          "constraints": 96,
+          "indexes": 98,
+          "sequences": 1,
+          "tables": 36
+        },
+        "sha256": "40c81423d1fc7cd4924cf19b0fa08b5796dddf0b00bf99e9d8404afa1e37a5c6"
+      },
+      "schema_tests": "PASS",
+      "server_version": "17.6",
+      "status": "PASS",
+      "structural_validation": "PASS"
+    }
+  ],
+  "source_commit": "c29afa006bf29f0d24e27eea547425e46c6dbf55",
+  "staging_comparison": {
+    "differences": [
+      {
+        "key": [
+          "exercise_sets",
+          "revision"
+        ],
+        "local": {
+          "default": "1",
+          "generated": "",
+          "identity": "",
+          "name": "revision",
+          "not_null": true,
+          "table": "exercise_sets",
+          "type": "bigint"
+        },
+        "section": "columns",
+        "staging": null
+      },
+      {
+        "key": [
+          "exercises",
+          "revision"
+        ],
+        "local": {
+          "default": "1",
+          "generated": "",
+          "identity": "",
+          "name": "revision",
+          "not_null": true,
+          "table": "exercises",
+          "type": "bigint"
+        },
+        "section": "columns",
+        "staging": null
+      },
+      {
+        "key": [
+          "workouts",
+          "revision"
+        ],
+        "local": {
+          "default": "1",
+          "generated": "",
+          "identity": "",
+          "name": "revision",
+          "not_null": true,
+          "table": "workouts",
+          "type": "bigint"
+        },
+        "section": "columns",
+        "staging": null
+      },
+      {
+        "key": [
+          "exercise_sets",
+          "exercise_sets_revision_check"
+        ],
+        "local": {
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (revision > 0)",
+          "name": "exercise_sets_revision_check",
+          "table": "exercise_sets",
+          "type": "c",
+          "validated": true
+        },
+        "section": "constraints",
+        "staging": null
+      },
+      {
+        "key": [
+          "exercises",
+          "exercises_revision_check"
+        ],
+        "local": {
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (revision > 0)",
+          "name": "exercises_revision_check",
+          "table": "exercises",
+          "type": "c",
+          "validated": true
+        },
+        "section": "constraints",
+        "staging": null
+      },
+      {
+        "key": [
+          "workouts",
+          "workouts_revision_check"
+        ],
+        "local": {
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (revision > 0)",
+          "name": "workouts_revision_check",
+          "table": "workouts",
+          "type": "c",
+          "validated": true
+        },
+        "section": "constraints",
+        "staging": null
+      }
+    ],
+    "forward_delta": "workouts.revision, exercises.revision, exercise_sets.revision plus positive-value checks",
+    "original_baseline": "PASS",
+    "source": "staging-catalog.json",
+    "staging_updated": false,
+    "status": "ORIGINAL_62_BASELINE_PASS_FORWARD_REVISION_DELTA_EXPECTED"
+  },
+  "status": "PASS",
+  "tooling_sources_sha256_lf": {
+    "README.md": "ea6b0fe64747ec52ff3cbcc7d3cf17b11de532ac08a64c0d617108d0f6c2dfcb",
+    "catalog.sql": "d3a0994c3b72a42f4c004a95dc3787dee7eb46a6bc1ff7b77a65e8abdd1317a8",
+    "generate.py": "8aabde3fbcbf59096bfeb75708cc5295532c8b91068363f20d3a264b002f8b7c",
+    "local-managed-fixture.sql": "b37094dd23cd8aeacd16d53b06dbbd8b64890e33cdcf33c6fd24e41807dddb3d",
+    "managed-prerequisites.sql": "b4aca7714e6bd828b50f69860aaf409d620317c22bbf61cab320d3e4e3d168c9",
+    "replay-repair.json": "1cebdb5b13089a53ea4e3f166b0da53e7628c2068b6b5671bc43fd42ec263128",
+    "replay.py": "fea7fe0bca2e16a6b346c301a0fe1e12c25a7b769856510f269d5a97c7f08706",
+    "sql-eof-correction-audit.json": "8676ffc22d35d015ae3656c47f792f3bce9daf625eda3982b09d08d0487f131e",
+    "staging-catalog.json": "3557e3dc31cf0d7a734f087e68dab6c7a3dd95843105d47a17b2da7e0af21b34",
+    "test_behavior.sql": "147bb151be40cf892a3f8e7495d96754986cc293b0b1385b9e2b6dfa980c7498",
+    "test_schema.py": "410ef6234fb00a0549f15dbed1d8edf69ed3df83895a47104230ccae098d9145"
+  },
+  "verified_at_utc": "2026-10-09T16:10:40Z"
+}

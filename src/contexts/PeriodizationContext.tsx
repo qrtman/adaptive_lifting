@@ -1,6 +1,7 @@
+import { canReadOffline } from '../services/authAuthorization';
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, ReactNode } from 'react';
-import { apiService } from '../services/api';
-import { saveSnapshot, getSnapshot, evictOldSyncedData, microcycleSnapshotKey } from '../services/db';
+import { ApiRequestError, apiService } from '../services/api';
+import { saveSnapshot, getSnapshot, clearSnapshot, evictOldSyncedData, microcycleSnapshotKey } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
@@ -66,6 +67,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   const reloadGen = useRef(0);
   const liveFetchedRef = useRef(false);
   const snapshotOwnerRef = useRef<string | null>(null);
+  const snapshotAccountRef = useRef<string | null>(null);
 
   const planAthleteId = useMemo(() => {
     const role = accountRole(user);
@@ -88,15 +90,36 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const owner = resolvePlanOwnerId(athleteId);
     const gen = ++reloadGen.current;
-    const data = await apiService.fetchMicrocycles(owner ?? undefined, { allowOffline: false });
+    let data: MicrocycleData[];
+    try {
+      data = await apiService.fetchMicrocycles(owner ?? undefined, { allowOffline: false });
+    } catch (error) {
+      if (accountRole(user) === 'COACH' && owner && error instanceof ApiRequestError && error.status === 403) {
+        snapshotOwnerRef.current = null;
+        snapshotAccountRef.current = null;
+        liveFetchedRef.current = false;
+        setMicrocycles([]);
+        if (activeAthleteId === owner) {
+          setActiveAthleteIdState(null);
+          removeUiPref(UI_KEYS.activeAthleteId);
+          setActiveWorkoutId(null);
+          setActiveMicrocycleId(null);
+        }
+      }
+      throw error;
+    }
     if (gen !== reloadGen.current) return;
     snapshotOwnerRef.current = owner ?? null;
+    snapshotAccountRef.current = user.id;
     liveFetchedRef.current = true;
     setMicrocycles(data);
     if (owner) {
       await saveSnapshot(microcycleSnapshotKey(owner), data);
+      if (gen !== reloadGen.current) {
+        await clearSnapshot(microcycleSnapshotKey(owner)).catch(() => undefined);
+      }
     }
-  }, [user, resolvePlanOwnerId]);
+  }, [user, resolvePlanOwnerId, activeAthleteId]);
 
   const setActiveAthleteId = useCallback((id: string | null) => {
     setActiveAthleteIdState(id);
@@ -106,6 +129,74 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       removeUiPref(UI_KEYS.activeAthleteId);
     }
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      reloadGen.current += 1;
+      snapshotAccountRef.current = null;
+      snapshotOwnerRef.current = null;
+      liveFetchedRef.current = false;
+      setMicrocycles([]);
+      setActiveAthleteIdState(null);
+      setActiveWorkoutId(null);
+      setActiveMicrocycleId(null);
+      return;
+    }
+    reloadGen.current += 1;
+    snapshotAccountRef.current = null;
+    snapshotOwnerRef.current = null;
+    liveFetchedRef.current = false;
+    setMicrocycles([]);
+    setActiveAthleteIdState(null);
+    setActiveWorkoutId(null);
+    setActiveMicrocycleId(null);
+    removeUiPref(UI_KEYS.activeAthleteId);
+    removeUiPref(UI_KEYS.activeWorkoutId);
+    removeUiPref(UI_KEYS.activeMicrocycleId);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (accountRole(user) !== 'COACH') return;
+
+    const clearRevokedAthlete = (athleteId: unknown) => {
+      if (typeof athleteId !== 'string' || !athleteId) return;
+      void clearSnapshot(microcycleSnapshotKey(athleteId)).catch((error) => {
+        console.warn('Failed to clear revoked athlete snapshot:', error);
+      });
+
+      if (activeAthleteId !== athleteId && planAthleteId !== athleteId) return;
+      reloadGen.current += 1;
+      snapshotOwnerRef.current = null;
+      liveFetchedRef.current = false;
+      setMicrocycles([]);
+      setActiveAthleteIdState(null);
+      removeUiPref(UI_KEYS.activeAthleteId);
+      setActiveWorkoutId(null);
+      setActiveMicrocycleId(null);
+      removeUiPref(UI_KEYS.activeWorkoutId);
+      removeUiPref(UI_KEYS.activeMicrocycleId);
+    };
+
+    const onCustomEvent = (event: Event) => {
+      clearRevokedAthlete((event as CustomEvent<{ athleteId?: unknown }>).detail?.athleteId);
+    };
+    window.addEventListener('coach-athlete-unlinked', onCustomEvent);
+
+    if (typeof BroadcastChannel === 'undefined') {
+      return () => window.removeEventListener('coach-athlete-unlinked', onCustomEvent);
+    }
+
+    const channel = new BroadcastChannel('adaptive-lifting-access');
+    const onBroadcast = (event: MessageEvent<{ type?: string; athleteId?: unknown }>) => {
+      if (event.data?.type === 'coach-athlete-unlinked') clearRevokedAthlete(event.data.athleteId);
+    };
+    channel.addEventListener('message', onBroadcast);
+    return () => {
+      window.removeEventListener('coach-athlete-unlinked', onCustomEvent);
+      channel.removeEventListener('message', onBroadcast);
+      channel.close();
+    };
+  }, [user, activeAthleteId, planAthleteId]);
 
   useEffect(() => {
     if (!user) {
@@ -122,9 +213,13 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       const owner = resolvePlanOwnerId();
       if (!owner) return;
       try {
-        const cached = await getSnapshot(microcycleSnapshotKey(owner));
+        const gen = reloadGen.current;
+        const cached = canReadOffline(owner) ? await getSnapshot(microcycleSnapshotKey(owner)) : null;
+        if (gen !== reloadGen.current) return;
         if (liveFetchedRef.current && snapshotOwnerRef.current === owner) return;
         if (cached && Array.isArray(cached) && cached.length > 0 && cached[0]?.workouts) {
+          snapshotAccountRef.current = user.id;
+          snapshotOwnerRef.current = owner;
           setMicrocycles(cached);
         }
       } catch (err) {
@@ -133,6 +228,22 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     };
     void hydrateAndEvict();
   }, [user, resolvePlanOwnerId]);
+
+  useEffect(() => {
+    if (!user || accountRole(user) !== 'COACH') return;
+    const revalidateOnReconnect = () => {
+      if (!navigator.onLine || !activeAthleteId) return;
+      reloadGen.current += 1;
+      liveFetchedRef.current = false;
+      snapshotOwnerRef.current = null;
+      setMicrocycles([]);
+      void reloadMicrocycles(activeAthleteId).catch((error) => {
+        console.warn('Could not revalidate the selected athlete after reconnecting:', error);
+      });
+    };
+    window.addEventListener('online', revalidateOnReconnect);
+    return () => window.removeEventListener('online', revalidateOnReconnect);
+  }, [user, activeAthleteId, reloadMicrocycles]);
 
   useEffect(() => {
     if (!user) return;
@@ -151,26 +262,38 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (!owner) return;
     if (!liveFetchedRef.current) return;
     if (snapshotOwnerRef.current !== owner) return;
+    const gen = reloadGen.current;
     saveSnapshot(microcycleSnapshotKey(owner), microcycles)
+      .then(() => {
+        if (gen !== reloadGen.current) return clearSnapshot(microcycleSnapshotKey(owner));
+        return undefined;
+      })
       .catch(err => console.error('Failed to write IndexedDB microcycles snapshot:', err));
   }, [microcycles, planAthleteId, user]);
 
   useEffect(() => {
     if (activeWorkoutId) setUiPref(UI_KEYS.activeWorkoutId, activeWorkoutId);
+    else removeUiPref(UI_KEYS.activeWorkoutId);
   }, [activeWorkoutId]);
 
   useEffect(() => {
     if (activeMicrocycleId) setUiPref(UI_KEYS.activeMicrocycleId, activeMicrocycleId);
   }, [activeMicrocycleId]);
 
-  const activeMicro = microcycles.find(m => m.id === activeMicrocycleId);
-  const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
+  useEffect(() => {
+    const restoreServerSnapshot = () => { void reloadMicrocycles(planAthleteId).catch(() => undefined); };
+    window.addEventListener('sync-server-state-restored', restoreServerSnapshot);
+    return () => window.removeEventListener('sync-server-state-restored', restoreServerSnapshot);
+  }, [reloadMicrocycles, planAthleteId]);
 
-  const saveTimers = useRef<Record<string, number>>({});
-  const pendingSetWrites = useRef<Record<string, Parameters<typeof apiService.replaceExerciseSets>[2]>>({});
+  const visibleMicrocycles = user && snapshotAccountRef.current === user.id ? microcycles : [];
+  const activeMicro = visibleMicrocycles.find(m => m.id === activeMicrocycleId);
+  const activeWorkout = activeMicro?.workouts.find(w => w.id === activeWorkoutId);
 
   const persistExerciseSets = useCallback((exerciseId: string, updatedSets: any[]) => {
     if (!activeWorkoutId) return;
+    const baselineExercise = microcycles.flatMap(mc => mc.workouts).find(w => w.id === activeWorkoutId)
+      ?.exercises.find(ex => ex.id === exerciseId);
     const payload = updatedSets.map((row, index) => ({
       id: row.id,
       label: row.label || `Set ${index + 1}`,
@@ -186,19 +309,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       reps: row.reps ?? null,
       executedRpe: row.executedRpe ?? null,
     }));
-    pendingSetWrites.current[exerciseId] = payload;
-    void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload });
-    window.clearTimeout(saveTimers.current[exerciseId]);
-    saveTimers.current[exerciseId] = window.setTimeout(() => {
-      const next = pendingSetWrites.current[exerciseId];
-      delete pendingSetWrites.current[exerciseId];
-      delete saveTimers.current[exerciseId];
-      if (!next) return;
-      void apiService.replaceExerciseSets(activeWorkoutId, exerciseId, next).catch((err) => {
-        console.error('Failed to save sets', err);
-      });
-    }, 400);
-  }, [activeWorkoutId]);
+    void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload }, {
+      revision: baselineExercise?.revision,
+      fields: { sets: baselineExercise?.sets ?? [] },
+      snapshot_key: planAthleteId ? `microcycles:${planAthleteId}` : undefined,
+    });
+  }, [activeWorkoutId, microcycles, planAthleteId]);
 
   const updateExerciseSets = (exerciseId: string, updatedSets: any[]) => {
     if (!activeMicrocycleId || !activeWorkoutId) return;
@@ -253,18 +369,6 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (!activeWorkoutId) return;
 
     const workoutId = activeWorkoutId;
-    Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer as number));
-    saveTimers.current = {};
-    const pending = pendingSetWrites.current;
-    pendingSetWrites.current = {};
-    await Promise.all(
-      Object.keys(pending).map((exerciseId) =>
-        apiService.replaceExerciseSets(workoutId, exerciseId, pending[exerciseId]).catch((err) => {
-          console.error('Failed to save sets', err);
-        })
-      )
-    );
-
     await apiService.updateSession(workoutId, { status });
     await reloadMicrocycles(planAthleteId);
   };
@@ -272,7 +376,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
   return (
     <PeriodizationContext.Provider
       value={{
-        microcycles,
+        microcycles: visibleMicrocycles,
         setMicrocycles,
         mesocycles,
         activeAthleteId,

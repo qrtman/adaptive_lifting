@@ -1,16 +1,64 @@
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, ForeignKey, DateTime, UniqueConstraint, CheckConstraint, Index, event, text, true, false
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 from .accessory_migration import expand_legacy_accessory_sets
+from .runtime_config import apply_dotenv, is_production_like
 
+apply_dotenv()
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.sqlite")
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    if is_production_like():
+        raise RuntimeError("DATABASE_URL is required in production; use persistent PostgreSQL or a durable database volume")
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+if is_production_like() and not DATABASE_URL.startswith("postgresql+psycopg://"):
+    raise RuntimeError("Production DATABASE_URL must use persistent PostgreSQL (postgresql+psycopg://)")
 
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    engine = create_engine(DATABASE_URL)
+def create_database_engine(database_url):
+    if not database_url.startswith("sqlite"):
+        return create_engine(database_url, pool_pre_ping=True)
+
+    database_engine = create_engine(
+        database_url,
+        connect_args={"check_same_thread": False, "timeout": 5},
+    )
+
+    # Connection-local settings must be applied whenever the pool creates a
+    # DBAPI connection. WAL persists for a database file, so initialize it once
+    # per pool instead of changing journal mode while connections are active.
+    @event.listens_for(database_engine, "connect")
+    def configure_sqlite_connection(connection, _record):
+        cursor = connection.cursor()
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA busy_timeout=5000")
+        finally:
+            cursor.close()
+
+    sqlite_database = database_engine.url.database
+    is_memory_database = (
+        sqlite_database in (None, "", ":memory:")
+        or sqlite_database.startswith("file::memory:")
+        or database_engine.url.query.get("mode") == "memory"
+    )
+    if not is_memory_database:
+        @event.listens_for(database_engine, "first_connect")
+        def enable_sqlite_wal(connection, _record):
+            cursor = connection.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+            finally:
+                cursor.close()
+
+    return database_engine
+
+
+engine = create_database_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -24,15 +72,229 @@ class User(Base, TimestampMixin):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="ATHLETE") # 'COACH' or 'ATHLETE'
+    # Legacy compatibility only; future SaaS authorization uses workspace grants.
     subscription_status = Column(String, nullable=True, default="active")
+    display_name = Column(String, nullable=True)
+    # Stable Google OpenID subject. Nullable for password-only accounts.
+    google_sub = Column(String, nullable=True)
+    email_verified_at = Column(DateTime, nullable=True)
+    email_verification_required = Column(Boolean, nullable=False, default=True, server_default=true())
+    email_verification_legacy_exempt = Column(Boolean, nullable=False, default=False, server_default=false())
+
+
+Index("uq_users_google_sub", User.google_sub, unique=True)
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    consumed_at = Column(DateTime, nullable=True)
+    invalidated_at = Column(DateTime, nullable=True)
+    is_resend = Column(Boolean, nullable=False, default=False)
+    __table_args__ = (
+        CheckConstraint("length(token_hash) = 64", name="ck_email_token_hash_length"),
+        CheckConstraint("expires_at > created_at", name="ck_email_token_expiry"),
+        Index("uq_email_token_active_user", "user_id", unique=True,
+              sqlite_where=text("consumed_at IS NULL AND invalidated_at IS NULL"),
+              postgresql_where=text("consumed_at IS NULL AND invalidated_at IS NULL")),
+    )
+
+
+class AuthSecuritySubject(Base):
+    __tablename__ = "auth_security_subjects"
+    subject_hash = Column(String(64), primary_key=True)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class AuthSecurityEvent(Base):
+    __tablename__ = "auth_security_events"
+    id = Column(String, primary_key=True)
+    subject_hash = Column(String(64), ForeignKey("auth_security_subjects.subject_hash"), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    __table_args__ = (Index("ix_auth_security_event_subject_time", "subject_hash", "created_at"),)
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("owner_user_id", name="uq_workspaces_owner_user_id"),
+        Index("ix_workspaces_owner_user_id", "owner_user_id"),
+    )
+
+
+class WorkspaceMember(Base):
+    __tablename__ = "workspace_members"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_members_workspace_user"),
+        CheckConstraint("role IN ('OWNER', 'COACH', 'STAFF')", name="ck_workspace_members_role"),
+        Index("ix_workspace_members_workspace_id", "workspace_id"),
+        Index("ix_workspace_members_user_id", "user_id"),
+    )
+
+
+class AccessGrant(Base):
+    __tablename__ = "access_grants"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    plan_key = Column(String, nullable=False)
+    source = Column(String, nullable=False)
+    starts_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    reason = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        Index("ix_access_grants_workspace_id", "workspace_id"),
+        Index("ix_access_grants_created_by_user_id", "created_by_user_id"),
+    )
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    provider_customer_id = Column(String, nullable=True)
+    provider_subscription_id = Column(String, nullable=False)
+    plan_key = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    canceled_at = Column(DateTime, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+    provider_event_created_at = Column(DateTime, nullable=True)
+    provider_event_id = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_subscription_id", name="uq_subscriptions_provider_subscription"),
+        CheckConstraint(
+            "status IN ('TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'EXPIRED', 'INCOMPLETE')",
+            name="ck_subscriptions_status",
+        ),
+        Index("ix_subscriptions_workspace_id", "workspace_id"),
+        Index("ix_subscriptions_provider_customer_id", "provider_customer_id"),
+        Index("ix_subscriptions_status", "status"),
+        Index("ix_subscriptions_provider_event_created_at", "provider_event_created_at"),
+    )
+
+
+class BillingCustomer(Base):
+    """Trusted provider customer-to-workspace association."""
+    __tablename__ = "billing_customers"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    provider_customer_id = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_customer_id", name="uq_billing_customers_provider_customer"),
+        UniqueConstraint("workspace_id", "provider", name="uq_billing_customers_workspace_provider"),
+        Index("ix_billing_customers_workspace_id", "workspace_id"),
+        Index("ix_billing_customers_provider_customer_id", "provider_customer_id"),
+    )
+
+
+class BillingCheckoutReservation(Base):
+    """The current Checkout slot for one workspace and provider."""
+    __tablename__ = "billing_checkout_reservations"
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    request_id = Column(String, nullable=False)
+    plan_key = Column(String, nullable=False)
+    provider_checkout_session_id = Column(String, nullable=True)
+    provider_checkout_url = Column(String, nullable=True)
+    status = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "provider", name="uq_checkout_workspace_provider"),
+        UniqueConstraint("provider", "request_id", name="uq_checkout_provider_request"),
+        CheckConstraint("status IN ('CREATING', 'OPEN', 'COMPLETED', 'EXPIRED', 'CANCELED', 'FAILED')", name="ck_checkout_status"),
+        Index("ix_checkout_workspace_id", "workspace_id"),
+    )
+
+
+class Voucher(Base):
+    """Account-bound prepaid access code; plaintext is never persisted."""
+    __tablename__ = "vouchers"
+    id = Column(String, primary_key=True)
+    code_hash = Column(String, nullable=False, unique=True)
+    code_prefix = Column(String, nullable=True)
+    plan_key = Column(String, nullable=False)
+    duration_days = Column(Integer, nullable=False)
+    source = Column(String, nullable=False)
+    assigned_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    payment_reference = Column(String, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    redeemed_at = Column(DateTime, nullable=True)
+    redeemed_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    notes = Column(String, nullable=True)
+    __table_args__ = (
+        CheckConstraint("duration_days > 0", name="ck_vouchers_duration_positive"),
+        Index("ix_vouchers_assigned_user_id", "assigned_user_id"),
+        Index("ix_vouchers_code_prefix", "code_prefix"),
+    )
+
+
+class VoucherRedemptionLimit(Base):
+    """Shared rolling fixed-window counters for voucher redemption attempts."""
+    __tablename__ = "voucher_redemption_limits"
+    subject_hash = Column(String, primary_key=True)
+    minute_started_at = Column(DateTime, nullable=False)
+    minute_count = Column(Integer, nullable=False)
+    hour_started_at = Column(DateTime, nullable=False)
+    hour_count = Column(Integer, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        CheckConstraint("minute_count >= 0 AND hour_count >= 0", name="ck_voucher_limit_counts"),
+    )
 
 class CoachingRelationship(Base, TimestampMixin):
     __tablename__ = "coaching_relationships"
     id = Column(Integer, primary_key=True, autoincrement=True)
     coach_id = Column(String, ForeignKey("users.id"), nullable=False)
-    athlete_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True)
+    athlete_id = Column(String, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
+
+
+Index(
+    "uq_coaching_relationships_active_athlete",
+    CoachingRelationship.athlete_id,
+    unique=True,
+    sqlite_where=CoachingRelationship.ended_at.is_(None),
+    postgresql_where=CoachingRelationship.ended_at.is_(None),
+)
+
+
+class CoachingHistorySnapshot(Base):
+    __tablename__ = "coaching_history_snapshots"
+    relationship_id = Column(Integer, ForeignKey("coaching_relationships.id"), primary_key=True)
+    snapshot_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    snapshot_json = Column(String, nullable=False)
 
 class Mesocycle(Base, TimestampMixin):
     __tablename__ = "mesocycles"
@@ -85,6 +347,7 @@ class Exercise(Base, TimestampMixin):
     tier = Column(String, default="Comp") # "Comp", "Variation", "Accessory"
     lift_category = Column(String, default="Squat") # "Squat", "Bench", "Deadlift", "Other"
     movement_pattern = Column(String, nullable=True)  # catalog pattern; see exercise_patterns.PATTERNS
+    lift_note = Column(String, nullable=True)
     tags_raw = Column(String, default="")  # Comma-separated list of tags
     top = Column(String, default="—")
     vol = Column(String, default="—")
@@ -163,8 +426,11 @@ class Session(Base):
 
 class SyncMutation(Base):
     __tablename__ = "sync_mutations"
+    # Mutation IDs are scoped to their effective browser device. This matches
+    # the offline queue key and permits independent users/devices to reuse an
+    # otherwise identical client-generated mutation ID.
     mutation_id = Column(String, primary_key=True, index=True)
-    client_device_id = Column(String, ForeignKey("client_devices.id"), nullable=False)
+    client_device_id = Column(String, ForeignKey("client_devices.id"), primary_key=True, nullable=False)
     entity_type = Column(String, nullable=False)
     entity_id = Column(String, nullable=False)
     field_path = Column(String, nullable=False)
@@ -217,6 +483,16 @@ class IntegrationConnection(Base, TimestampMixin):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     revoked_at = Column(DateTime, nullable=True)
 
+class OAuthState(Base):
+    """Short-lived, one-time OAuth correlation state (only its hash is stored)."""
+    __tablename__ = "oauth_states"
+    state_hash = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    return_to = Column(String, nullable=True)
+
 class IntegrationCredential(Base):
     __tablename__ = "integration_credentials"
     connection_id = Column(String, ForeignKey("integration_connections.id"), primary_key=True)
@@ -229,6 +505,8 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
     id = Column(String, primary_key=True, index=True)
     provider = Column(String, nullable=False)
+    # Globally unique provider event IDs are stronger than a provider+ID key;
+    # this also protects Stripe deliveries with a database-enforced identity.
     external_event_id = Column(String, nullable=False, unique=True)
     received_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
@@ -238,11 +516,14 @@ class IntegrationOutbox(Base):
     __tablename__ = "integration_outbox"
     id = Column(String, primary_key=True, index=True)
     provider = Column(String, nullable=False)
-    connection_id = Column(String, ForeignKey("integration_connections.id"), nullable=False)
+    connection_id = Column(String, ForeignKey("integration_connections.id"), nullable=True)
     payload_json = Column(String, nullable=False)
     status = Column(String, nullable=False)
     retry_after = Column(DateTime, nullable=True)
     attempt_count = Column(Integer, default=0)
+    result = Column(String, nullable=True)
+    encrypted_payload = Column(String, nullable=True)
+    verification_token_id = Column(String, ForeignKey("email_verification_tokens.id"), nullable=True, index=True)
 
 class DayNote(Base, TimestampMixin):
     """Athlete-plan note keyed by calendar date, not weekday and not a workout."""
@@ -275,7 +556,7 @@ class SheetPublication(Base, TimestampMixin):
     last_published_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False)
 
-def migrate_accessories_to_exercises(db):
+def migrate_accessories_to_exercises(db, commit=True):
     now = datetime.datetime.utcnow()
     rows = db.query(Accessory).filter(Accessory.deleted_at.is_(None)).all()
     for acc in rows:
@@ -318,11 +599,14 @@ def migrate_accessories_to_exercises(db):
                     exercise_id=exercise.id,
                 ))
         acc.deleted_at = now
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
 
-# Create tables
 def init_db():
+    """Test-only schema fixture helper; never call from application startup."""
     Base.metadata.create_all(bind=engine)
 
 def get_db():

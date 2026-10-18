@@ -6,7 +6,7 @@ export type GridMove = 'left' | 'right' | 'up' | 'down' | 'rowStart' | 'rowEnd';
 export type NeighborDir = GridMove;
 
 export type Axis = 'plan' | 'log';
-export type Field = 'kg' | 'reps' | 'rpe';
+export type Field = 'adjust' | 'kg' | 'reps' | 'rpe';
 export type MoveKind = 'arrow' | 'tab' | 'enter';
 
 export type Address = { liftId: string; row: number; axis: Axis; field: Field };
@@ -40,9 +40,10 @@ export type CellKeyEffect =
   | { type: 'paste'; preventDefault: true }
   | { type: 'noop'; preventDefault: true };
 
-export const GRID_COL_COUNT = 6;
+export const GRID_COL_COUNT = 7;
 
 export const COLS: ReadonlyArray<{ axis: Axis; field: Field }> = [
+  { axis: 'plan', field: 'adjust' },
   { axis: 'plan', field: 'kg' },
   { axis: 'plan', field: 'reps' },
   { axis: 'plan', field: 'rpe' },
@@ -109,13 +110,13 @@ export function parseCellId(cellId: string): (Address & { col: number }) | null 
   const col = COLS.findIndex((entry) => entry.axis === axis && entry.field === field);
   if (!liftId || !Number.isInteger(row) || row < 0 || col < 0) return null;
   if (axis !== 'plan' && axis !== 'log') return null;
-  if (field !== 'kg' && field !== 'reps' && field !== 'rpe') return null;
+  if (field !== 'adjust' && field !== 'kg' && field !== 'reps' && field !== 'rpe') return null;
   return { liftId, row, axis, field, col };
 }
 
 /**
  * Total: always returns an address. Never null. Never creates a set. Never leaves the lift.
- * Tab wraps within the 6-col table; arrows and Enter clamp at the edge.
+ * Tab wraps within the 7-col table; arrows and Enter clamp at the edge.
  */
 export function neighbor(
   address: Address,

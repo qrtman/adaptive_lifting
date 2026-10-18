@@ -4,6 +4,11 @@ import {
   ChevronDown, ChevronUp, RefreshCw, FileJson, CheckCircle2
 } from 'lucide-react';
 import { CoachLinkPanel } from './CoachLinkPanel';
+import { AthleteProfilePanel } from './AthleteProfilePanel';
+import { CoachAccessStatus } from './CoachAccessStatus';
+import { CoachBillingPanel } from './CoachBillingPanel';
+import { API_BASE_URL } from '../services/apiBase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ClientDevice {
   id: string;
@@ -29,6 +34,7 @@ interface AuditEvent {
 }
 
 export const SecurityView: React.FC = () => {
+  const { user } = useAuth();
   const [devices, setDevices] = useState<ClientDevice[]>([]);
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
@@ -43,19 +49,19 @@ export const SecurityView: React.FC = () => {
     setErrorMsg(null);
     try {
       // 1. Fetch devices
-      const resDev = await fetch('http://localhost:8000/api/security/devices', { credentials: 'include' });
+      const resDev = await fetch(`${API_BASE_URL}/api/security/devices`, { credentials: 'include' });
       if (!resDev.ok) throw new Error("Failed to load client devices");
       const devData = await resDev.json();
       setDevices(devData);
 
       // 2. Fetch sessions
-      const resSess = await fetch('http://localhost:8000/api/security/sessions', { credentials: 'include' });
+      const resSess = await fetch(`${API_BASE_URL}/api/security/sessions`, { credentials: 'include' });
       if (!resSess.ok) throw new Error("Failed to load active login sessions");
       const sessData = await resSess.json();
       setSessions(sessData);
 
       // 3. Fetch audit events
-      const resAudit = await fetch('http://localhost:8000/api/security/audit-events', { credentials: 'include' });
+      const resAudit = await fetch(`${API_BASE_URL}/api/security/audit-events`, { credentials: 'include' });
       if (resAudit.status === 401) {
         // Session invalid, redirect
         window.dispatchEvent(new CustomEvent('auth-session-revoked'));
@@ -78,7 +84,7 @@ export const SecurityView: React.FC = () => {
     }
     setRevokingId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/security/devices/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/security/devices/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -101,7 +107,7 @@ export const SecurityView: React.FC = () => {
     }
     setRevokingId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/security/sessions/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/security/sessions/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -159,6 +165,18 @@ export const SecurityView: React.FC = () => {
       </div>
 
       <CoachLinkPanel />
+      <CoachAccessStatus />
+      <CoachBillingPanel />
+      <AthleteProfilePanel />
+
+      {String(user?.role || '').toUpperCase() === 'ATHLETE' && (
+        <section className="mb-6 cal-nested-card">
+          <h2 className="text-sm font-medium text-[var(--cal-ink)]">Request coach access</h2>
+          <p className="mt-1 text-xs text-[var(--cal-muted)]">
+            Coach accounts can manage athlete rosters and training plans. Coach access requires manual approval. Contact the application owner to request access.
+          </p>
+        </section>
+      )}
 
       {successAlert && (
         <div className="mb-4 bg-[color-mix(in_srgb,var(--cal-success)_10%,transparent)] border border-[color-mix(in_srgb,var(--cal-success)_20%,transparent)] p-3 rounded-[var(--cal-radius-lg)] flex items-center gap-3">
