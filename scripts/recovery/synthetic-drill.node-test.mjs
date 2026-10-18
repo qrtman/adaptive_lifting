@@ -160,10 +160,10 @@ test('command plan streams custom dump through age and restores in one transacti
 
 test('catalog probe prepares the shared parameterized query and rejects injected identifiers', () => {
   const sql = catalogProbeSql();
-  assert.match(sql, /^PREPARE recovery_catalog\(text,text\) AS SELECT/);
+  assert.match(sql, /^PREPARE recovery_catalog\(text,text\) AS\s+SELECT/);
   assert.match(sql, /pg_get_constraintdef/);
   assert.match(sql, /pg_policy/);
-  assert.match(sql, /recovery_catalog\('synthetic_recovery','workouts'\)/);
+  assert.match(sql, /EXECUTE recovery_catalog\('synthetic_recovery','workouts'\)/);
   assert.throws(() => catalogProbeSql('synthetic_recovery; DROP SCHEMA public', 'workouts'), /Unsafe synthetic catalog target/);
 });
 

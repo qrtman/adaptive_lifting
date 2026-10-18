@@ -302,8 +302,9 @@ export function catalogProbeSql(schema = 'synthetic_recovery', table = 'workouts
   if (!/^[a-z_][a-z0-9_]*$/.test(schema) || !/^[a-z_][a-z0-9_]*$/.test(table)) {
     throw new Error('Unsafe synthetic catalog target.');
   }
-  return `PREPARE recovery_catalog(text,text) AS ${RELATION_CATALOG_SQL};
-    SELECT row_to_json(catalog)::text FROM recovery_catalog('${schema}','${table}') AS catalog;`;
+  return `PREPARE recovery_catalog(text,text) AS
+      SELECT row_to_json(catalog)::text FROM (${RELATION_CATALOG_SQL}) AS catalog;
+    EXECUTE recovery_catalog('${schema}','${table}');`;
 }
 
 async function verifyOriginalArchiveHash(artifact, keyPath, expectedHash, expectedBytes) {
