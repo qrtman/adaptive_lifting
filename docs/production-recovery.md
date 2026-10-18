@@ -217,9 +217,9 @@ isolated single-transaction restore, source/restored fixture comparisons, and
 container/temp-file cleanup before PASS. The encrypted synthetic artifact was 9,144
 bytes. The run used no production credentials, R2, production data, or schedules.
 The branch-scoped synthetic workflow is active. Latest hosted checkpoint: commit
-[`26959f1`](https://github.com/qrtman/adaptive_lifting/commit/26959f1b6cfc6486ad95aaf3590b0547b6e28ae2),
-run [39109548319](https://github.com/qrtman/adaptive_lifting/actions/runs/39109548319),
-completed PASS on 2026-10-18. It passed all 60 recovery unit/security tests and the
+[`5e46f5d`](https://github.com/qrtman/adaptive_lifting/commit/5e46f5dac64cb1abe0c014bc37879ed853fed871),
+run [39109793852](https://github.com/qrtman/adaptive_lifting/actions/runs/39109793852),
+completed PASS on 2026-10-18. It passed all 66 recovery unit/security tests and the
 digest-pinned synthetic PostgreSQL restore with authenticated age encryption,
 corruption rejection, row and relation-catalog reconciliation, cron/network
 isolation, and the new independent post-run check for leftover test containers or
