@@ -1,0 +1,81 @@
+name: Verify production recovery database connection
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: recovery-db-connectivity
+  cancel-in-progress: false
+
+jobs:
+  connection:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    environment: production-recovery
+    steps:
+      - name: Verify password, certificate and read-only session
+        shell: python
+        env:
+          RECOVERY_DB_PASSWORD: ${{ secrets.RECOVERY_DB_PASSWORD }}
+          RECOVERY_DB_CA_PEM: ${{ secrets.RECOVERY_DB_CA_PEM }}
+        run: |
+          import os, pathlib, shutil, subprocess, tempfile
+
+          def fail(message):
+              raise SystemExit(message)
+
+          password = os.environ.get('RECOVERY_DB_PASSWORD', '')
+          ca = os.environ.get('RECOVERY_DB_CA_PEM', '')
+          if not password or not ca:
+              fail('FAIL: required database secret is missing.')
+          psql = shutil.which('psql')
+          if not psql:
+              fail('FAIL: runner PostgreSQL client is unavailable.')
+          if not pathlib.Path('/dev/shm').is_dir():
+              fail('FAIL: tmpfs is unavailable.')
+          os.umask(0o077)
+          with tempfile.TemporaryDirectory(prefix='recovery-connect-', dir='/dev/shm') as directory:
+              certificate = pathlib.Path(directory) / 'root.crt'
+              certificate.write_text(ca, encoding='utf-8')
+              env = {name: os.environ[name] for name in ('PATH', 'LANG') if name in os.environ}
+              env.update({
+                  'HOME': directory,
+                  'PGHOST': 'aws-0-ap-northeast-2.pooler.supabase.com',
+                  'PGPORT': '5432',
+                  'PGUSER': 'postgres.gadusaizqnshxqcckibq',
+                  'PGDATABASE': 'postgres',
+                  'PGPASSWORD': password,
+                  'PGSSLMODE': 'verify-full',
+                  'PGSSLROOTCERT': str(certificate),
+                  'PGCONNECT_TIMEOUT': '15',
+                  'PGAPPNAME': 'owner-recovery-connectivity-check',
+                  'PGOPTIONS': '-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=2000',
+              })
+              sql = """
+              BEGIN READ ONLY;
+              SELECT current_user = 'postgres'
+                AND current_database() = 'postgres'
+                AND current_setting('transaction_read_only') = 'on'
+                AND current_setting('server_version_num')::int / 10000 = 17
+                AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl);
+              ROLLBACK;
+              """
+              try:
+                  result = subprocess.run(
+                      [psql, '-X', '--no-password', '-qAt', '-v', 'ON_ERROR_STOP=1'],
+                      input=sql, text=True, capture_output=True, env=env, timeout=35,
+                  )
+              except subprocess.TimeoutExpired:
+                  fail('FAIL: database connection test timed out.')
+              if result.returncode:
+                  error = result.stderr.lower()
+                  category = ('authentication rejected' if 'password authentication failed' in error
+                              else 'certificate validation failed' if 'certificate' in error
+                              else 'connection or query rejected')
+                  fail('FAIL: ' + category + '. Diagnostic details withheld to protect credentials.')
+              if result.stdout.strip() != 't':
+                  fail('FAIL: database identity, read-only, version or TLS assertion failed.')
+          print('PASS: password authentication, verify-full TLS, PostgreSQL 17, expected database role, read-only transaction and tmpfs cleanup.')
