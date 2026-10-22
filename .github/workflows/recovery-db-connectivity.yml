@@ -22,7 +22,7 @@ jobs:
           RECOVERY_DB_PASSWORD: ${{ secrets.RECOVERY_DB_PASSWORD }}
           RECOVERY_DB_CA_PEM: ${{ secrets.RECOVERY_DB_CA_PEM }}
         run: |
-          import os, pathlib, shutil, subprocess, tempfile
+          import json, os, pathlib, shutil, subprocess, tempfile
 
           def fail(message):
               raise SystemExit(message)
@@ -42,6 +42,8 @@ jobs:
               certificate.write_text(ca, encoding='utf-8')
               env = {name: os.environ[name] for name in ('PATH', 'LANG') if name in os.environ}
               env.update({
+                  'LANG': 'C',
+                  'LC_ALL': 'C',
                   'HOME': directory,
                   'PGHOST': 'aws-0-ap-northeast-2.pooler.supabase.com',
                   'PGPORT': '5432',
@@ -54,13 +56,14 @@ jobs:
                   'PGAPPNAME': 'owner-recovery-connectivity-check',
                   'PGOPTIONS': '-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=2000',
               })
-              sql = """
+              sql = r"""
+              \conninfo
               BEGIN READ ONLY;
-              SELECT current_user = 'postgres'
-                AND current_database() = 'postgres'
-                AND current_setting('transaction_read_only') = 'on'
-                AND current_setting('server_version_num')::int / 10000 = 17
-                AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl);
+              SELECT json_build_object(
+                'expected_role', current_user = 'postgres',
+                'expected_database', current_database() = 'postgres',
+                'read_only', current_setting('transaction_read_only') = 'on',
+                'postgresql_17', current_setting('server_version_num')::int / 10000 = 17);
               ROLLBACK;
               """
               try:
@@ -76,6 +79,13 @@ jobs:
                               else 'certificate validation failed' if 'certificate' in error
                               else 'connection or query rejected')
                   fail('FAIL: ' + category + '. Diagnostic details withheld to protect credentials.')
-              if result.stdout.strip() != 't':
-                  fail('FAIL: database identity, read-only, version or TLS assertion failed.')
+              lines = result.stdout.splitlines()
+              checks = [json.loads(line) for line in lines if line.startswith('{')]
+              if len(checks) != 1 or set(checks[0]) != {'expected_role', 'expected_database', 'read_only', 'postgresql_17'}:
+                  fail('FAIL: connection check response is incomplete.')
+              checks = checks[0]
+              checks['client_tls'] = any('SSL connection (protocol: TLSv' in line for line in lines)
+              print('Connection assertions: ' + json.dumps(checks, sort_keys=True))
+              if not all(value is True for value in checks.values()):
+                  fail('FAIL: database identity, read-only, version or client TLS assertion failed.')
           print('PASS: password authentication, verify-full TLS, PostgreSQL 17, expected database role, read-only transaction and tmpfs cleanup.')
