@@ -1,5 +1,24 @@
 # Production status
 
+## Request admission verification — 2026-10-28
+
+The maintenance admission patch in [draft PR #47](https://github.com/qrtman/adaptive_lifting/pull/47)
+now passes [native PostgreSQL protocol checks](https://github.com/qrtman/adaptive_lifting/actions/runs/40541430859)
+and [repository CI](https://github.com/qrtman/adaptive_lifting/actions/runs/40541440938)
+at code commit `016a239af26e9760976efc9df19b366705264fe3`: 27 Node checks,
+66 shared Edge tests, three entrypoint typechecks, and 17 PostgreSQL assertions.
+The bundled real Deno driver rejects post-termination writes/reconnect and admits
+a fresh request; independent container and executable cleanup passed.
+
+This resolves the native fixture implementation failure. Production remains
+unchanged and capture is disabled. Guarded deployment/version retirement,
+Data API closure, provider/admin drain verification, production CLI integration,
+Vault/application dependencies, sequence reconciliation and two complete
+isolated restores remain unfinished. Dashboard computer access was denied by
+the tool; no setting was changed. See the [detailed evidence](recovery-request-gate-2026-10-27.md).
+The historical checkpoints below do not supersede this update.
+
+
 ## Recovery database connection verified — 2026-10-22
 
 The owner-approved [hosted connection test](https://github.com/qrtman/adaptive_lifting/actions/runs/39770197340)
