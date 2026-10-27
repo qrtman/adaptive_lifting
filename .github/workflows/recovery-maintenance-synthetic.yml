@@ -25,7 +25,7 @@ jobs:
       github.ref == 'refs/heads/test/recovery-request-gate-2026-10-27' ||
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -45,6 +45,15 @@ jobs:
         run: |
           npx --yes deno@2.5.4 check --config supabase/deno.json supabase/functions/api/index.ts supabase/functions/email-verification-worker/index.ts supabase/functions/google-sheets-worker/index.ts
           npx --yes deno@2.5.4 test --allow-env --allow-read --config supabase/deno.json supabase/functions/_shared/
+      - name: Compile the isolated native driver fixture
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          native_dir="$(mktemp -d "${RUNNER_TEMP}/al-native-fixture-XXXXXXXX")"
+          echo "MAINTENANCE_NATIVE_FIXTURE_DIR=${native_dir}" >> "$GITHUB_ENV"
+          npx --yes deno@2.5.4 compile --frozen --no-prompt --config supabase/deno.json --allow-read=/tmp --allow-write=/tmp --output "${native_dir}/gate-fixture" supabase/functions/_shared/recovery/maintenance.integration.ts
+          chmod 755 "${native_dir}/gate-fixture"
       - name: Exercise competing synthetic sessions and backend loss
         timeout-minutes: 5
         run: node scripts/recovery/maintenance-fault-drill.mjs
@@ -56,3 +65,16 @@ jobs:
           set -euo pipefail
           containers="$(docker ps -aq --filter label=adaptive-lifting.maintenance-fault=true)"
           test -z "$containers"
+      - name: Remove the owned native fixture executable
+        if: always()
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${MAINTENANCE_NATIVE_FIXTURE_DIR:-}" ]; then
+            test "$(dirname -- "$MAINTENANCE_NATIVE_FIXTURE_DIR")" = "$RUNNER_TEMP"
+            [[ "$(basename -- "$MAINTENANCE_NATIVE_FIXTURE_DIR")" =~ ^al-native-fixture-[A-Za-z0-9]{8}$ ]]
+            test -d "$MAINTENANCE_NATIVE_FIXTURE_DIR" && test ! -L "$MAINTENANCE_NATIVE_FIXTURE_DIR"
+            rm -f -- "$MAINTENANCE_NATIVE_FIXTURE_DIR/gate-fixture"
+            rmdir -- "$MAINTENANCE_NATIVE_FIXTURE_DIR"
+          fi
