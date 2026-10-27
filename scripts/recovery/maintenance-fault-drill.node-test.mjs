@@ -59,7 +59,7 @@ test('cleanup rejects a foreign run label without deleting its container', async
 test('failed independent cleanup remains a failure with no production approval', async () => {
   await assert.rejects(runMaintenanceFaultDrill({ env, platform: 'linux', id,
     run: async () => { throw new Error(diagnostic); } }), error => {
-    assert.deepEqual(error.evidence, { status: 'failed', cleanup: 'FAIL', captureAllowed: false });
+    assert.deepEqual(error.evidence, { status: 'failed', failedStage: 'container-create', cleanup: 'FAIL', captureAllowed: false });
     assert.doesNotMatch(error.message, new RegExp(diagnostic)); return true;
   });
 });
