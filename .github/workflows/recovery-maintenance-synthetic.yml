@@ -1,11 +1,15 @@
-name: Isolated recovery maintenance negative controls
+name: Isolated recovery maintenance protocol checks
 
 on:
   push:
-    branches: [test/recovery-maintenance-2026-10-27]
+    branches: [test/recovery-request-gate-2026-10-27]
     paths:
       - '.github/workflows/recovery-maintenance-synthetic.yml'
       - 'scripts/recovery/maintenance-*'
+      - 'scripts/recovery/exclusive-maintenance*'
+      - 'supabase/functions/_shared/recovery/**'
+      - 'supabase/functions/_shared/db/mod.ts'
+      - 'supabase/functions/*/index.ts'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +22,7 @@ concurrency:
 jobs:
   negative-controls:
     if: >-
-      github.ref == 'refs/heads/test/recovery-maintenance-2026-10-27' ||
+      github.ref == 'refs/heads/test/recovery-request-gate-2026-10-27' ||
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -32,10 +36,15 @@ jobs:
           node-version: '22.16.0'
       - name: Verify secret-free probe and fault lifecycle checks
         timeout-minutes: 2
-        run: node --test scripts/recovery/maintenance-readiness.node-test.mjs scripts/recovery/maintenance-fault-drill.node-test.mjs
+        run: node --test scripts/recovery/maintenance-readiness.node-test.mjs scripts/recovery/maintenance-fault-drill.node-test.mjs scripts/recovery/exclusive-maintenance.node-test.mjs
       - name: Pull the reviewed PostgreSQL 17 image
         timeout-minutes: 6
         run: docker pull supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+      - name: Check Edge entrypoints and request/provider admission contracts
+        timeout-minutes: 4
+        run: |
+          npx --yes deno@2.5.4 check --config supabase/deno.json supabase/functions/api/index.ts supabase/functions/email-verification-worker/index.ts supabase/functions/google-sheets-worker/index.ts
+          npx --yes deno@2.5.4 test --allow-env --allow-read --config supabase/deno.json supabase/functions/_shared/
       - name: Exercise competing synthetic sessions and backend loss
         timeout-minutes: 5
         run: node scripts/recovery/maintenance-fault-drill.mjs
@@ -47,4 +56,3 @@ jobs:
           set -euo pipefail
           containers="$(docker ps -aq --filter label=adaptive-lifting.maintenance-fault=true)"
           test -z "$containers"
-
