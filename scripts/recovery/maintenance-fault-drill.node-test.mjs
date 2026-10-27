@@ -19,7 +19,7 @@ test('native runtime selects only unambiguous immutable image loader and librari
   assert.equal(command.includes('--allow-net'), false);
   for (const paths of [[gcc], [libc], [libc, gcc, '/tmp/libgcc_s.so.1'],
     [libc, gcc, `${gcc}/../../tmp`], [libc, gcc, `${gcc}/../../tmp/libgcc_s.so.1`],
-    [libc, gcc, libc.replace('glibc-2.42', 'glibc-2.41')]]) {
+    [libc, gcc, libc.replace('a'.repeat(32), 'c'.repeat(32))]]) {
     assert.throws(() => nativeFixtureRuntime(paths));
   }
 });
@@ -36,6 +36,9 @@ test('native runtime uses the active loader and one numeric GCC family or defaul
   const profile = nativeFixtureRuntime(paths, { activeLoader: loader, profileGcc: old[0], profileCpp: old[1] });
   assert.match(profile[2], /gcc-9\.5\.0/); assert.doesNotMatch(profile[2], /gcc-15\.2\.0/);
   assert.throws(() => nativeFixtureRuntime(paths, { activeLoader: loader, profileGcc: old[0], profileCpp: current[1] }));
+  const automatic = nativeFixtureRuntime(paths);
+  assert.equal(automatic[0], loader);
+  assert.equal(nativeFixtureRuntime([loader.replace('glibc-2.42', 'glibc-2.9'), loader, ...current])[0], loader);
 });
 
 test('native fixture diagnostics expose only hardcoded classes, never native content', () => {
@@ -152,3 +155,4 @@ test('a process that closes stdout without its query marker cannot produce a suc
   try { await assert.rejects(session.query('SELECT 1;')); }
   finally { await session.close(); stdin.destroy(); stderr.destroy(); }
 });
+
