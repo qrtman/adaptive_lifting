@@ -13,21 +13,57 @@ import { IMAGE, assertHostedRunnerEnvironment, dockerRunArgs, assertIsolatedInsp
 
 const fail = () => new Error('Synthetic maintenance fault drill failed; diagnostics suppressed.');
 export function nativeFixtureFailureCategory(stderr) {
-  if (/GLIBC_|error while loading shared libraries|cannot execute|no such file or directory/i.test(stderr)) return 'runtime-dependency';
+  if (/GLIBC(?:XX)?_|CXXABI_|error while loading shared libraries|cannot execute|no such file or directory/i.test(stderr)) return 'runtime-dependency';
   if (/NotCapable|Requires .+ access|PermissionDenied|permission denied/i.test(stderr)) return 'runtime-permission';
   if (/warning|notice/i.test(stderr)) return 'runtime-warning';
   return 'runtime-failure';
 }
-export function nativeFixtureRuntime(paths) {
+export function nativeFixtureRuntime(paths, { activeLoader, profileGcc, profileCpp } = {}) {
   const storeLibrary = /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/[^/]+$/;
   if (!Array.isArray(paths) || paths.length > 16 || paths.some(path => typeof path !== 'string' || !storeLibrary.test(path))) throw fail();
   const unique = [...new Set(paths)];
   const loaders = unique.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path));
   const gcc = unique.filter(path => /\/libgcc_s\.so\.1$/.test(path));
   const cpp = unique.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path));
-  if (loaders.length !== 1 || gcc.length !== 1 || cpp.length > 1 || unique.length !== loaders.length + gcc.length + cpp.length) throw fail();
-  const directories = [...new Set(unique.map(path => posix.dirname(path)))].sort();
-  return [loaders[0], '--library-path', directories.join(':'), '/tmp/recovery-maintenance-runtime',
+  if (!loaders.length || !gcc.length || unique.length !== loaders.length + gcc.length + cpp.length) throw fail();
+  const loader = activeLoader ?? (loaders.length === 1 ? loaders[0] : undefined);
+  if (!loader || !loaders.includes(loader) || (profileGcc && !gcc.includes(profileGcc)) ||
+      (profileCpp && !cpp.includes(profileCpp))) throw fail();
+  const family = path => {
+    const parts = /\/nix\/store\/[a-z0-9]{32}-gcc-(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9.+_-]+)?\/lib\//.exec(path);
+    if (!parts || parts.slice(1).some(value => Number(value) > 9999)) throw fail();
+    return parts.slice(1).map(Number);
+  };
+  const sameFamily = (a, b) => family(a).join('.') === family(b).join('.');
+  for (const path of [...gcc, ...cpp]) family(path);
+  let selectedGcc; let selectedCpp;
+  if (profileGcc || profileCpp) {
+    if (profileGcc && profileCpp && !sameFamily(profileGcc, profileCpp)) throw fail();
+    const anchor = profileGcc ?? profileCpp;
+    const matchingGcc = gcc.filter(path => sameFamily(path, anchor));
+    const matchingCpp = cpp.filter(path => sameFamily(path, anchor));
+    selectedGcc = profileGcc ?? matchingGcc.find(path => posix.dirname(path) === posix.dirname(anchor)) ??
+      (matchingGcc.length === 1 ? matchingGcc[0] : undefined);
+    selectedCpp = profileCpp ?? matchingCpp.find(path => selectedGcc && posix.dirname(path) === posix.dirname(selectedGcc)) ??
+      (matchingCpp.length === 1 ? matchingCpp[0] : undefined);
+  } else {
+    const versions = [...new Set(gcc.map(path => family(path).join('.')))];
+    versions.sort((a, b) => {
+      const av = a.split('.').map(Number); const bv = b.split('.').map(Number);
+      return bv[0] - av[0] || bv[1] - av[1] || bv[2] - av[2];
+    });
+    const highest = versions[0];
+    const matchingGcc = gcc.filter(path => family(path).join('.') === highest);
+    const matchingCpp = cpp.filter(path => family(path).join('.') === highest);
+    const pairs = matchingCpp.flatMap(c => matchingGcc.filter(g => posix.dirname(g) === posix.dirname(c)).map(g => [g, c]));
+    if (pairs.length === 1) [selectedGcc, selectedCpp] = pairs[0];
+    else if (matchingGcc.length === 1 && matchingCpp.length <= 1) {
+      selectedGcc = matchingGcc[0]; selectedCpp = matchingCpp[0];
+    }
+  }
+  if (!selectedGcc || (cpp.length && !selectedCpp)) throw fail();
+  const directories = [...new Set([loader, selectedGcc, ...(selectedCpp ? [selectedCpp] : [])].map(path => posix.dirname(path)))].sort();
+  return [loader, '--library-path', directories.join(':'), '/tmp/recovery-maintenance-runtime',
     'run', '--no-prompt', '--no-config', '--no-remote', '--no-npm',
     '--allow-read=/tmp', '--allow-write=/tmp', '/tmp/recovery-maintenance-fixture.js'];
 }
@@ -334,8 +370,20 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       loaders: canonical.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path)).length,
       gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
       cpp: canonical.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path)).length };
-    stage = 'native-driver-runtime-inventory';
-    const runtime = nativeFixtureRuntime(canonical);
+    stage = 'native-driver-active-runtime';
+    const active = [...new Set((await invoke(['exec', name, 'bash', '-c',
+      'while IFS= read -r row; do case "$row" in */lib/ld-linux-x86-64.so.2|*/lib/ld-*.so) printf "%s\\n" "${row##* }";; esac; done </proc/self/maps'])).split('\n'))];
+    if (active.length !== 1 || !canonical.includes(active[0])) throw fail();
+    const profile = (await invoke(['exec', name, 'bash', '-c',
+      'for candidate in /nix/var/nix/profiles/default/lib/libgcc_s.so.1 /nix/var/nix/profiles/default/lib/libstdc++.so.6; do if [[ -e "$candidate" ]]; then printf "%s\\n" "$candidate"; fi; done'])).split('\n').filter(Boolean);
+    let profileGcc; let profileCpp;
+    for (const path of profile) {
+      if (!['/nix/var/nix/profiles/default/lib/libgcc_s.so.1', '/nix/var/nix/profiles/default/lib/libstdc++.so.6'].includes(path)) throw fail();
+      const target = await invoke(['exec', name, 'readlink', '-f', path]);
+      if (path.endsWith('libgcc_s.so.1')) profileGcc = target; else profileCpp = target;
+    }
+    stage = 'native-driver-runtime-selection';
+    const runtime = nativeFixtureRuntime(canonical, { activeLoader: active[0], profileGcc, profileCpp });
     stage = 'native-driver-gate';
     let native;
     try { native = JSON.parse(await executeNativeFixture({ name, runtime, env: cleanEnv, signal: controller.signal, start })); }
