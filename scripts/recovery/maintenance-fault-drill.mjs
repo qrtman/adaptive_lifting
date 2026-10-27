@@ -4,12 +4,30 @@ import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { posix } from 'node:path';
+import { lstat, realpath } from 'node:fs/promises';
 import { runCommand, startCommand } from './process-runner.mjs';
 import { MAINTENANCE_KEY, withExclusiveMaintenance } from './exclusive-maintenance.mjs';
 import { IMAGE, assertHostedRunnerEnvironment, dockerRunArgs, assertIsolatedInspect,
   assertCleanupOwnedInspect } from './synthetic-drill.mjs';
 
 const fail = () => new Error('Synthetic maintenance fault drill failed; diagnostics suppressed.');
+export async function validateNativeFixtureBinary({ env, stat = lstat, canonicalPath = realpath,
+  uid = process.getuid?.() } = {}) {
+  const base = env?.RUNNER_TEMP;
+  const directory = env?.MAINTENANCE_NATIVE_FIXTURE_DIR;
+  if (typeof base !== 'string' || !posix.isAbsolute(base) || posix.normalize(base) !== base ||
+      typeof directory !== 'string' || posix.dirname(directory) !== base ||
+      !/^al-native-fixture-[A-Za-z0-9]{8}$/.test(posix.basename(directory)) ||
+      !Number.isSafeInteger(uid) || uid < 1 || await canonicalPath(directory) !== directory) throw fail();
+  const folder = await stat(directory);
+  const path = posix.join(directory, 'gate-fixture');
+  const binary = await stat(path);
+  if (!folder.isDirectory() || folder.isSymbolicLink() || folder.uid !== uid || (folder.mode & 0o777) !== 0o700 ||
+      !binary.isFile() || binary.isSymbolicLink() || binary.uid !== uid || (binary.mode & 0o777) !== 0o755 ||
+      !Number.isSafeInteger(binary.size) || binary.size < 1 || binary.size > 300 * 1024 * 1024) throw fail();
+  return path;
+}
 const FIXTURE = `
 CREATE SCHEMA maintenance_fixture;
 CREATE TABLE maintenance_fixture.rows (id integer PRIMARY KEY);
@@ -235,6 +253,25 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't' ||
         await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
     await request.close(); sessions.delete(request);
+    stage = 'native-driver-copy';
+    assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
+    const nativeBinary = await validateNativeFixtureBinary({ env });
+    await invoke(['cp', nativeBinary, `${name}:/tmp/recovery-maintenance-native`]);
+    stage = 'native-driver-gate';
+    const native = JSON.parse(await invoke(['exec', name, '/tmp/recovery-maintenance-native']));
+    const nativeChecks = ['sharedSessionAcrossHelpers', 'sharedSessionAcrossProviderGap',
+      'exclusiveRejectsBeforeCallback', 'terminatedSessionRejectsWrites', 'driverReconnectDisabled',
+      'freshRequestReadmitted', 'cleanup'];
+    if (native.format !== 'adaptive-native-maintenance-fixture-v1' || native.status !== 'verified' ||
+        Object.keys(native).sort().join(',') !== ['format', 'status', 'checks', 'fixtureTransport', 'productionTls', 'captureAllowed'].sort().join(',') ||
+        native.fixtureTransport !== 'unix-socket' || native.productionTls !== 'NOT TESTED' || native.captureAllowed !== false ||
+        Object.keys(native.checks ?? {}).sort().join(',') !== [...nativeChecks].sort().join(',') ||
+        nativeChecks.some(key => native.checks[key] !== true)) {
+      if (['connect', 'request-shared', 'exclusive-denial', 'terminated-backend', 'fresh-request'].includes(native.failedStage)) {
+        stage = `native-driver-${native.failedStage}`;
+      }
+      throw fail();
+    }
     stage = 'final-isolation';
     assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
     result = { format: 'adaptive-maintenance-fault-drill-v1', status: 'synthetic-negative-controls-verified',
@@ -243,7 +280,8 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
         newLoginRefused: true, connectionLossReleasesTableLock: true, committedPauseSurvivesConnectionLoss: true,
         syntheticIndependentSettingRestore: true, sharedRequestDelaysExclusive: true,
         sharedLeaseSurvivesProviderGap: true, exclusiveRejectsNewAdmission: true,
-        exclusiveGuardRunsAgainstPostgres: true, ownerLossResumesAdmission: true }, productionWriterFreeze: 'NOT TESTED',
+        exclusiveGuardRunsAgainstPostgres: true, ownerLossResumesAdmission: true,
+        nativeDenoRequestGate: true, nativeDriverReconnectDisabled: true }, productionWriterFreeze: 'NOT TESTED',
       fixtureTransport: 'unix-socket', productionTls: 'NOT TESTED',
       durableEncryptedCleanup: 'NOT TESTED', hostedPoolerAdmission: 'NOT TESTED', captureAllowed: false };
   } catch { failed = true; }
