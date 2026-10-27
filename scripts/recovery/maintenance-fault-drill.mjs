@@ -373,7 +373,12 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     stage = 'native-driver-active-runtime';
     const active = [...new Set((await invoke(['exec', name, 'bash', '-c',
       'while IFS= read -r row; do case "$row" in */lib/ld-linux-x86-64.so.2|*/lib/ld-*.so) printf "%s\\n" "${row##* }";; esac; done </proc/self/maps'])).split('\n'))];
-    if (active.length !== 1 || !canonical.includes(active[0])) throw fail();
+    nativeRuntimeCounts = { ...nativeRuntimeCounts, activeLoaders: Math.min(active.filter(Boolean).length, 17) };
+    if (active.length !== 1 || !/^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(active[0])) throw fail();
+    const activeLoader = await invoke(['exec', name, 'readlink', '-f', active[0]]);
+    nativeRuntimeCounts = { ...nativeRuntimeCounts, activeLoaderInInventory: canonical.includes(activeLoader) };
+    if (!canonical.includes(activeLoader)) throw fail();
+    stage = 'native-driver-profile-runtime';
     const profile = (await invoke(['exec', name, 'bash', '-c',
       'for candidate in /nix/var/nix/profiles/default/lib/libgcc_s.so.1 /nix/var/nix/profiles/default/lib/libstdc++.so.6; do if [[ -e "$candidate" ]]; then printf "%s\\n" "$candidate"; fi; done'])).split('\n').filter(Boolean);
     let profileGcc; let profileCpp;
@@ -383,7 +388,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       if (path.endsWith('libgcc_s.so.1')) profileGcc = target; else profileCpp = target;
     }
     stage = 'native-driver-runtime-selection';
-    const runtime = nativeFixtureRuntime(canonical, { activeLoader: active[0], profileGcc, profileCpp });
+    const runtime = nativeFixtureRuntime(canonical, { activeLoader, profileGcc, profileCpp });
     stage = 'native-driver-gate';
     let native;
     try { native = JSON.parse(await executeNativeFixture({ name, runtime, env: cleanEnv, signal: controller.signal, start })); }
@@ -448,3 +453,4 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stderr.write('Synthetic maintenance fault drill failed; diagnostics suppressed.\n'); process.exitCode = 1;
   }
 }
+
