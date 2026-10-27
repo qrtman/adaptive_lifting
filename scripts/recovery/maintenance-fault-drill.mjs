@@ -320,12 +320,16 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     // immutable installed runtime; never install libraries or change isolation.
     stage = 'native-driver-runtime-discovery';
     const libraries = (await invoke(['exec', name, 'bash', '-c',
-      'shopt -s nullglob; printf "%s\\n" /nix/store/*/lib/ld-linux-x86-64.so.2 /nix/store/*/lib/libgcc_s.so.1 /nix/store/*/lib/libstdc++.so.6'])).split('\n');
+      'shopt -s nullglob; for candidate in /nix/store/*/lib/ld-linux-x86-64.so.2 /nix/store/*/lib/libgcc_s.so.1 /nix/store/*/lib/libstdc++.so.6; do if [[ -e "$candidate" ]]; then printf "%s\\n" "$candidate"; fi; done'])).split('\n');
     nativeRuntimeCounts = { candidates: Math.min(libraries.length, 17) };
     if (libraries.length < 2 || libraries.length > 16 || libraries.some(path =>
       !/^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/(?:ld-linux-x86-64\.so\.2|libgcc_s\.so\.1|libstdc\+\+\.so\.6)$/.test(path))) throw fail();
     stage = 'native-driver-runtime-canonicalization';
-    const canonical = [...new Set((await invoke(['exec', name, 'readlink', '-e', ...libraries])).split('\n'))];
+    // One operand and -f work with both BusyBox and GNU readlink. Broken image
+    // symlinks were excluded by the existence check above.
+    const resolved = [];
+    for (const path of libraries) resolved.push(await invoke(['exec', name, 'readlink', '-f', path]));
+    const canonical = [...new Set(resolved)];
     nativeRuntimeCounts = { ...nativeRuntimeCounts, unique: Math.min(canonical.length, 17),
       loaders: canonical.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path)).length,
       gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
