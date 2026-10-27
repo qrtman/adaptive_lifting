@@ -1,0 +1,50 @@
+name: Isolated recovery maintenance negative controls
+
+on:
+  push:
+    branches: [test/recovery-maintenance-2026-10-27]
+    paths:
+      - '.github/workflows/recovery-maintenance-synthetic.yml'
+      - 'scripts/recovery/maintenance-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-maintenance-fault-drill
+  cancel-in-progress: false
+
+jobs:
+  negative-controls:
+    if: >-
+      github.ref == 'refs/heads/test/recovery-maintenance-2026-10-27' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Verify secret-free probe and fault lifecycle checks
+        timeout-minutes: 2
+        run: node --test scripts/recovery/maintenance-readiness.node-test.mjs scripts/recovery/maintenance-fault-drill.node-test.mjs
+      - name: Pull the reviewed PostgreSQL 17 image
+        timeout-minutes: 6
+        run: docker pull supabase/postgres@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+      - name: Exercise competing synthetic sessions and backend loss
+        timeout-minutes: 5
+        run: node scripts/recovery/maintenance-fault-drill.mjs
+      - name: Independently check owned-container cleanup
+        if: always()
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          containers="$(docker ps -aq --filter label=adaptive-lifting.maintenance-fault=true)"
+          test -z "$containers"
+
