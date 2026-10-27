@@ -1,13 +1,77 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { runMaintenanceFaultDrill, openMaintenanceFaultSession } from './maintenance-fault-drill.mjs';
+import { runMaintenanceFaultDrill, openMaintenanceFaultSession, validateNativeFixtureFiles, nativeFixtureFailureCategory, nativeFixtureRuntime } from './maintenance-fault-drill.mjs';
 
 const env = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted', PATH: '/usr/bin:/bin' };
 const id = '11111111-1111-4111-8111-111111111111';
 const name = `al-synthetic-recovery-${id}-source`;
 const diagnostic = 'SYNTHETIC_PRIVATE_NATIVE_DIAGNOSTIC';
 const result = stdout => ({ code: 0, signal: null, stderr: '', stdout });
+
+test('native runtime selects only unambiguous immutable image loader and libraries', () => {
+  const libc = `/nix/store/${'a'.repeat(32)}-glibc-2.42/lib/ld-linux-x86-64.so.2`;
+  const gcc = `/nix/store/${'b'.repeat(32)}-gcc-15.2.0-lib/lib/libgcc_s.so.1`;
+  const cpp = `/nix/store/${'b'.repeat(32)}-gcc-15.2.0-lib/lib/libstdc++.so.6.0.34`;
+  const command = nativeFixtureRuntime([libc, gcc, cpp, gcc]);
+  assert.equal(command[0], libc); assert.equal(command[1], '--library-path');
+  assert.equal(command.at(-1), '/tmp/recovery-maintenance-fixture.js');
+  assert.equal(command.includes('--allow-net'), false);
+  for (const paths of [[gcc], [libc], [libc, gcc, '/tmp/libgcc_s.so.1'],
+    [libc, gcc, `${gcc}/../../tmp`], [libc, gcc, `${gcc}/../../tmp/libgcc_s.so.1`],
+    [libc, gcc, libc.replace('a'.repeat(32), 'c'.repeat(32))]]) {
+    assert.throws(() => nativeFixtureRuntime(paths));
+  }
+});
+
+test('native runtime uses the active loader and one numeric GCC family or default-profile pair', () => {
+  const loader = `/nix/store/${'a'.repeat(32)}-glibc-2.42/lib/ld-linux-x86-64.so.2`;
+  const other = loader.replace('glibc-2.42', 'glibc-2.40');
+  const family = version => [`/nix/store/${'b'.repeat(32)}-gcc-${version}-lib/lib/libgcc_s.so.1`,
+    `/nix/store/${'b'.repeat(32)}-gcc-${version}-lib/lib/libstdc++.so.6.0.34`];
+  const old = family('9.5.0'); const current = family('15.2.0');
+  const paths = [loader, other, ...old, ...current];
+  const selected = nativeFixtureRuntime(paths, { activeLoader: loader });
+  assert.equal(selected[0], loader); assert.match(selected[2], /gcc-15\.2\.0/); assert.doesNotMatch(selected[2], /gcc-9\.5\.0/);
+  const profile = nativeFixtureRuntime(paths, { activeLoader: loader, profileGcc: old[0], profileCpp: old[1] });
+  assert.match(profile[2], /gcc-9\.5\.0/); assert.doesNotMatch(profile[2], /gcc-15\.2\.0/);
+  assert.throws(() => nativeFixtureRuntime(paths, { activeLoader: loader, profileGcc: old[0], profileCpp: current[1] }));
+  const automatic = nativeFixtureRuntime(paths);
+  assert.equal(automatic[0], loader);
+  assert.equal(nativeFixtureRuntime([loader.replace('glibc-2.42', 'glibc-2.9'), loader, ...current])[0], loader);
+  const revision = loader.replace('glibc-2.42', 'glibc-2.40-218');
+  const bootstrap = current[0].replace('-gcc-', '-xgcc-').replace('-lib/lib/', '-libgcc/lib/');
+  const installed = nativeFixtureRuntime([revision, revision.replace('-218/', '-66/'), ...current, bootstrap]);
+  assert.equal(installed[0], revision);
+  assert.doesNotMatch(installed[2], /xgcc/);
+});
+
+test('native fixture diagnostics expose only hardcoded classes, never native content', () => {
+  for (const [stderr, expected] of [['GLIBC_2.38 not found', 'runtime-dependency'],
+    ['NotCapable: Requires env access', 'runtime-permission'], ['WARNING: synthetic', 'runtime-warning'],
+    [diagnostic, 'runtime-failure']]) assert.equal(nativeFixtureFailureCategory(stderr), expected);
+});
+
+test('native fixture execution accepts only its owned private regular executable in runner temp', async () => {
+  const nativeEnv = { RUNNER_TEMP: '/runner/temp', MAINTENANCE_NATIVE_FIXTURE_DIR: '/runner/temp/al-native-fixture-Ab12Cd34' };
+  const metadata = { uid: 1001, mode: 0o700, size: 123, isFile: () => true,
+    isDirectory: () => true, isSymbolicLink: () => false };
+  const settings = { env: nativeEnv, stat: async path => ({ ...metadata,
+    mode: path.endsWith('/gate-fixture') ? 0o755 : path.endsWith('.js') ? 0o600 : 0o700 }), canonicalPath: async path => path, uid: 1001 };
+  assert.deepEqual(await validateNativeFixtureFiles(settings), {
+    binaryPath: '/runner/temp/al-native-fixture-Ab12Cd34/gate-fixture',
+    scriptPath: '/runner/temp/al-native-fixture-Ab12Cd34/gate-fixture.js',
+  });
+  for (const changed of [
+    { env: { ...nativeEnv, MAINTENANCE_NATIVE_FIXTURE_DIR: '/foreign/al-native-fixture-Ab12Cd34' } },
+    { env: { ...nativeEnv, MAINTENANCE_NATIVE_FIXTURE_DIR: '/runner/temp/../temp/al-native-fixture-Ab12Cd34' } },
+    { canonicalPath: async () => '/foreign' },
+    { stat: async () => ({ ...metadata, isSymbolicLink: () => true }) },
+    { stat: async () => ({ ...metadata, uid: 1002 }) },
+    { stat: async () => ({ ...metadata, mode: 0o777 }) },
+    { stat: async () => ({ ...metadata, size: 301 * 1024 * 1024 }) },
+  ]) await assert.rejects(validateNativeFixtureFiles({ ...settings, ...changed }));
+});
 
 test('fault drill rejects local execution and inherited production credentials before invoking tools', async () => {
   for (const changed of [{ env: {} }, { platform: 'win32' },

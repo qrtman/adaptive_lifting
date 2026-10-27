@@ -1,14 +1,121 @@
-// Synthetic negative-control drill, not a production freeze implementation.
+// Isolated protocol and negative-control drill, not production freeze evidence.
 // Uses only an isolated, digest-pinned PostgreSQL 17 container and synthetic data.
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { posix } from 'node:path';
+import { lstat, realpath, readFile } from 'node:fs/promises';
 import { runCommand, startCommand } from './process-runner.mjs';
+import { MAINTENANCE_KEY, withExclusiveMaintenance } from './exclusive-maintenance.mjs';
 import { IMAGE, assertHostedRunnerEnvironment, dockerRunArgs, assertIsolatedInspect,
   assertCleanupOwnedInspect } from './synthetic-drill.mjs';
 
 const fail = () => new Error('Synthetic maintenance fault drill failed; diagnostics suppressed.');
+export function nativeFixtureFailureCategory(stderr) {
+  if (/GLIBC(?:XX)?_|CXXABI_|error while loading shared libraries|cannot execute|no such file or directory/i.test(stderr)) return 'runtime-dependency';
+  if (/NotCapable|Requires .+ access|PermissionDenied|permission denied/i.test(stderr)) return 'runtime-permission';
+  if (/warning|notice/i.test(stderr)) return 'runtime-warning';
+  return 'runtime-failure';
+}
+export function nativeFixtureRuntime(paths, { activeLoader, profileGcc, profileCpp } = {}) {
+  const storeLibrary = /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/[^/]+$/;
+  if (!Array.isArray(paths) || paths.length > 16 || paths.some(path => typeof path !== 'string' || !storeLibrary.test(path))) throw fail();
+  const unique = [...new Set(paths)];
+  const loaders = unique.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path));
+  // Nix retains bootstrap xgcc outputs alongside the final GCC runtime.
+  const bootstrap = unique.filter(path => /-xgcc-\d+\.\d+\.\d+-libgcc\/lib\/libgcc_s\.so\.1$/.test(path));
+  const gcc = unique.filter(path => /\/libgcc_s\.so\.1$/.test(path) && !bootstrap.includes(path));
+  const cpp = unique.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path));
+  if (!loaders.length || !gcc.length || unique.length !== loaders.length + gcc.length + cpp.length + bootstrap.length) throw fail();
+  const orderedLoaders = loaders.map(path => {
+    const version = /-glibc-(\d+)\.(\d+)(?:-(\d+))?\/lib\//.exec(path);
+    if (!version || version.slice(1).some(value => value !== undefined && Number(value) > 9999)) throw fail();
+    return { path, major: Number(version[1]), minor: Number(version[2]), revision: Number(version[3] ?? 0) };
+  }).sort((a, b) => b.major - a.major || b.minor - a.minor || b.revision - a.revision);
+  const newest = orderedLoaders.filter(item => item.major === orderedLoaders[0]?.major && item.minor === orderedLoaders[0]?.minor && item.revision === orderedLoaders[0]?.revision);
+  const loader = activeLoader ?? (newest.length === 1 ? newest[0].path : undefined);
+  if (!loader || !loaders.includes(loader) || (profileGcc && !gcc.includes(profileGcc)) ||
+      (profileCpp && !cpp.includes(profileCpp))) throw fail();
+  const family = path => {
+    const parts = /\/nix\/store\/[a-z0-9]{32}-gcc-(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9.+_-]+)?\/lib\//.exec(path);
+    if (!parts || parts.slice(1).some(value => Number(value) > 9999)) throw fail();
+    return parts.slice(1).map(Number);
+  };
+  const sameFamily = (a, b) => family(a).join('.') === family(b).join('.');
+  for (const path of [...gcc, ...cpp]) family(path);
+  let selectedGcc; let selectedCpp;
+  if (profileGcc || profileCpp) {
+    if (profileGcc && profileCpp && !sameFamily(profileGcc, profileCpp)) throw fail();
+    const anchor = profileGcc ?? profileCpp;
+    const matchingGcc = gcc.filter(path => sameFamily(path, anchor));
+    const matchingCpp = cpp.filter(path => sameFamily(path, anchor));
+    selectedGcc = profileGcc ?? matchingGcc.find(path => posix.dirname(path) === posix.dirname(anchor)) ??
+      (matchingGcc.length === 1 ? matchingGcc[0] : undefined);
+    selectedCpp = profileCpp ?? matchingCpp.find(path => selectedGcc && posix.dirname(path) === posix.dirname(selectedGcc)) ??
+      (matchingCpp.length === 1 ? matchingCpp[0] : undefined);
+  } else {
+    const versions = [...new Set(gcc.map(path => family(path).join('.')))];
+    versions.sort((a, b) => {
+      const av = a.split('.').map(Number); const bv = b.split('.').map(Number);
+      return bv[0] - av[0] || bv[1] - av[1] || bv[2] - av[2];
+    });
+    const highest = versions[0];
+    const matchingGcc = gcc.filter(path => family(path).join('.') === highest);
+    const matchingCpp = cpp.filter(path => family(path).join('.') === highest);
+    const pairs = matchingCpp.flatMap(c => matchingGcc.filter(g => posix.dirname(g) === posix.dirname(c)).map(g => [g, c]));
+    if (pairs.length === 1) [selectedGcc, selectedCpp] = pairs[0];
+    else if (matchingGcc.length === 1 && matchingCpp.length <= 1) {
+      selectedGcc = matchingGcc[0]; selectedCpp = matchingCpp[0];
+    }
+  }
+  if (!selectedGcc || (cpp.length && !selectedCpp)) throw fail();
+  const directories = [...new Set([loader, selectedGcc, ...(selectedCpp ? [selectedCpp] : [])].map(path => posix.dirname(path)))].sort();
+  return [loader, '--library-path', directories.join(':'), '/tmp/recovery-maintenance-runtime',
+    'run', '--no-prompt', '--no-config', '--no-remote', '--no-npm',
+    '--allow-read=/tmp', '--allow-write=/tmp', '/tmp/recovery-maintenance-fixture.js'];
+}
+async function executeNativeFixture({ name, runtime, env, signal, start }) {
+  const handle = start('docker', ['exec', '-e', 'DENO_DIR=/tmp/maintenance-deno-cache',
+    '-e', 'DENO_NO_UPDATE_CHECK=1', name, ...runtime],
+    { env, signal, timeoutMs: 30_000 });
+  const output = []; const diagnostics = []; let bytes = 0; let overflow = false;
+  for (const [stream, chunks] of [[handle.child?.stdout, output], [handle.child?.stderr, diagnostics]]) {
+    stream?.on('data', chunk => {
+      bytes += chunk.length;
+      if (bytes > 32_768) { overflow = true; void handle.abort().catch(() => {}); }
+      else chunks.push(Buffer.from(chunk));
+    });
+  }
+  handle.child?.stdin?.end();
+  let failed = false;
+  try { await handle.closed; } catch { failed = true; }
+  const stderr = Buffer.concat(diagnostics).toString('utf8');
+  if (failed || stderr || overflow) throw Object.assign(fail(), {
+    nativeCategory: overflow ? 'runtime-output-limit' : nativeFixtureFailureCategory(stderr),
+  });
+  return Buffer.concat(output).toString('utf8').trim();
+}
+export async function validateNativeFixtureFiles({ env, stat = lstat, canonicalPath = realpath,
+  uid = process.getuid?.() } = {}) {
+  const base = env?.RUNNER_TEMP;
+  const directory = env?.MAINTENANCE_NATIVE_FIXTURE_DIR;
+  if (typeof base !== 'string' || !posix.isAbsolute(base) || posix.normalize(base) !== base ||
+      typeof directory !== 'string' || posix.dirname(directory) !== base ||
+      !/^al-native-fixture-[A-Za-z0-9]{8}$/.test(posix.basename(directory)) ||
+      !Number.isSafeInteger(uid) || uid < 1 || await canonicalPath(directory) !== directory) throw fail();
+  const folder = await stat(directory);
+  const path = posix.join(directory, 'gate-fixture');
+  const binary = await stat(path);
+  const scriptPath = posix.join(directory, 'gate-fixture.js');
+  const script = await stat(scriptPath);
+  if (!folder.isDirectory() || folder.isSymbolicLink() || folder.uid !== uid || (folder.mode & 0o777) !== 0o700 ||
+      !binary.isFile() || binary.isSymbolicLink() || binary.uid !== uid || (binary.mode & 0o777) !== 0o755 ||
+      !Number.isSafeInteger(binary.size) || binary.size < 1 || binary.size > 300 * 1024 * 1024) throw fail();
+  if (!script.isFile() || script.isSymbolicLink() || script.uid !== uid || (script.mode & 0o777) !== 0o600 ||
+      !Number.isSafeInteger(script.size) || script.size < 1 || script.size > 8 * 1024 * 1024) throw fail();
+  return { binaryPath: path, scriptPath };
+}
 const FIXTURE = `
 CREATE SCHEMA maintenance_fixture;
 CREATE TABLE maintenance_fixture.rows (id integer PRIMARY KEY);
@@ -104,6 +211,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
   const sessions = new Set();
   const cleanupController = new AbortController();
   let creationAttempted = false; let failed = false; let cleanupFailed = false; let result;
+  let nativeRuntimeCounts;
   let stage = 'container-create';
   const invoke = async (args, input, cleanup = false) => {
     const value = await run('docker', args, { env: cleanEnv, input, timeoutMs: 20_000,
@@ -186,13 +294,138 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
         await sql("SELECT NOT rolcanlogin FROM pg_roles WHERE rolname='maintenance_fixture_disabled';") !== 't') throw fail();
     if (await sql('SELECT 1;', 'maintenance_fixture_writer') !== '1') throw fail();
     stage = 'writer-process-exit'; await writer.close(); sessions.delete(writer);
+
+    const key = MAINTENANCE_KEY.join(',');
+    stage = 'shared-request-acquire';
+    const request = session('maintenance_fixture_writer');
+    if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't') throw fail();
+    const control = session('postgres');
+    stage = 'shared-request-delays-exclusive';
+    if (await control.query(`SELECT pg_try_advisory_lock(${key});`) !== 'f') throw fail();
+    // Provider work occurs between SQL helpers while the request session stays
+    // alive. This proves that gap only, not provider drain after session loss.
+    if (await request.query('SELECT 1;') !== '1' ||
+        await control.query(`SELECT pg_try_advisory_lock(${key});`) !== 'f') throw fail();
+    if (await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
+    stage = 'exclusive-protocol';
+    // Unix-socket fixture adapter only. identity.tls=true satisfies the helper's
+    // injected-client contract; it is explicitly NOT source TLS evidence.
+    const fixtureClient = {
+      identity: { database: 'postgres', version: '170011', tls: true },
+      async query(statement, parameters = []) {
+        const text = statement.replace(/\$(\d+)/g, (_match, index) => {
+          const value = parameters[Number(index) - 1];
+          if (!Number.isSafeInteger(value)) throw fail();
+          return String(value);
+        });
+        if (text.startsWith('SET ')) { await control.query(`${text};`); return { rows: [] }; }
+        return { rows: [JSON.parse(await control.query(`SELECT row_to_json(q) FROM (${text}) q;`))] };
+      },
+      async close() { await control.close(); sessions.delete(control); },
+    };
+    await withExclusiveMaintenance({ client: fixtureClient, capture: async ({ assertOwnership }) => {
+      if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 'f') throw fail();
+      await assertOwnership();
+    } });
+    if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't' ||
+        await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
+    stage = 'exclusive-owner-loss';
+    const owner = session('postgres');
+    const ownerPid = await owner.query(`SELECT pg_backend_pid() WHERE pg_try_advisory_lock(${key});`);
+    if (!/^\d+$/.test(ownerPid) ||
+        await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 'f' ||
+        await sql(`SELECT pg_terminate_backend(${ownerPid});`) !== 't') throw fail();
+    let ownerLost = false;
+    try { await owner.query('SELECT 1;'); } catch { ownerLost = true; }
+    if (!ownerLost) throw fail();
+    await owner.close({ terminated: true }); sessions.delete(owner);
+    if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't' ||
+        await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
+    await request.close(); sessions.delete(request);
+    stage = 'native-driver-file-validation';
+    assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
+    const nativeFiles = await validateNativeFixtureFiles({ env });
+    // Docker's archive-copy path cannot reliably target this read-only-rootfs
+    // fixture's tmpfs. Write through the existing unprivileged container user.
+    for (const item of [
+      { path: nativeFiles.binaryPath, target: '/tmp/recovery-maintenance-runtime', limit: 300 * 1024 * 1024, mode: '755' },
+      { path: nativeFiles.scriptPath, target: '/tmp/recovery-maintenance-fixture.js', limit: 8 * 1024 * 1024, mode: '600' },
+    ]) {
+      const nativeBytes = await readFile(item.path);
+      if (!nativeBytes.length || nativeBytes.length > item.limit) throw fail();
+      stage = 'native-driver-transfer';
+      await invoke(['exec', '-i', name, 'dd', `of=${item.target}`, 'bs=1M', 'iflag=fullblock', 'status=none'], nativeBytes);
+      stage = 'native-driver-transfer-verification';
+      const nativeHash = createHash('sha256').update(nativeBytes).digest('hex');
+      if (await invoke(['exec', name, 'sha256sum', item.target]) !== `${nativeHash}  ${item.target}`) throw fail();
+      await invoke(['exec', name, 'chmod', item.mode, item.target]);
+    }
+    // The pinned image uses Nix. Reuse its
+    // immutable installed runtime; never install libraries or change isolation.
+    stage = 'native-driver-runtime-discovery';
+    const libraries = (await invoke(['exec', name, 'bash', '-c',
+      'shopt -s nullglob; for candidate in /nix/store/*/lib/ld-linux-x86-64.so.2 /nix/store/*/lib/libgcc_s.so.1 /nix/store/*/lib/libstdc++.so.6; do if [[ -e "$candidate" ]]; then printf "%s\\n" "$candidate"; fi; done'])).split('\n');
+    nativeRuntimeCounts = { candidates: Math.min(libraries.length, 17) };
+    if (libraries.length < 2 || libraries.length > 16 || libraries.some(path =>
+      !/^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/(?:ld-linux-x86-64\.so\.2|libgcc_s\.so\.1|libstdc\+\+\.so\.6)$/.test(path))) throw fail();
+    stage = 'native-driver-runtime-canonicalization';
+    // One operand and -f work with both BusyBox and GNU readlink. Broken image
+    // symlinks were excluded by the existence check above.
+    const resolved = [];
+    for (const path of libraries) resolved.push(await invoke(['exec', name, 'readlink', '-f', path]));
+    const canonical = [...new Set(resolved)];
+    nativeRuntimeCounts = { ...nativeRuntimeCounts, unique: Math.min(canonical.length, 17),
+      loaders: canonical.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path)).length,
+      gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
+      cpp: canonical.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path)).length };
+    // Public package metadata only, never process diagnostics or data paths.
+    if (canonical.every(path => /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]{1,100}\/lib\/[A-Za-z0-9.+_-]{1,64}$/.test(path))) {
+      nativeRuntimeCounts.packages = canonical.map(path => path.split('/')[3].slice(33) + '/' + posix.basename(path));
+    }
+    // Bash may be static or use another loader. The fixture needs an installed
+    // glibc candidate, not Bash's ABI. Actual Deno execution must prove it works.
+    stage = 'native-driver-profile-runtime';
+    const profile = (await invoke(['exec', name, 'bash', '-c',
+      'for candidate in /nix/var/nix/profiles/default/lib/libgcc_s.so.1 /nix/var/nix/profiles/default/lib/libstdc++.so.6; do if [[ -e "$candidate" ]]; then printf "%s\\n" "$candidate"; fi; done'])).split('\n').filter(Boolean);
+    let profileGcc; let profileCpp;
+    for (const path of profile) {
+      if (!['/nix/var/nix/profiles/default/lib/libgcc_s.so.1', '/nix/var/nix/profiles/default/lib/libstdc++.so.6'].includes(path)) throw fail();
+      const target = await invoke(['exec', name, 'readlink', '-f', path]);
+      if (path.endsWith('libgcc_s.so.1')) profileGcc = target; else profileCpp = target;
+    }
+    stage = 'native-driver-runtime-selection';
+    const runtime = nativeFixtureRuntime(canonical, { profileGcc, profileCpp });
+    stage = 'native-driver-gate';
+    let native;
+    try { native = JSON.parse(await executeNativeFixture({ name, runtime, env: cleanEnv, signal: controller.signal, start })); }
+    catch (error) {
+      stage = `native-driver-${error.nativeCategory ?? 'invalid-output'}`;
+      throw fail();
+    }
+    const nativeChecks = ['sharedSessionAcrossHelpers', 'sharedSessionAcrossProviderGap',
+      'exclusiveRejectsBeforeCallback', 'terminatedSessionRejectsWrites', 'driverReconnectDisabled',
+      'freshRequestReadmitted', 'cleanup'];
+    if (native.format !== 'adaptive-native-maintenance-fixture-v1' || native.status !== 'verified' ||
+        Object.keys(native).sort().join(',') !== ['format', 'status', 'checks', 'fixtureTransport', 'productionTls', 'captureAllowed'].sort().join(',') ||
+        native.fixtureTransport !== 'unix-socket' || native.productionTls !== 'NOT TESTED' || native.captureAllowed !== false ||
+        Object.keys(native.checks ?? {}).sort().join(',') !== [...nativeChecks].sort().join(',') ||
+        nativeChecks.some(key => native.checks[key] !== true)) {
+      if (['connect', 'request-shared', 'exclusive-denial', 'terminated-backend', 'fresh-request'].includes(native.failedStage)) {
+        stage = `native-driver-${native.failedStage}`;
+      }
+      throw fail();
+    }
     stage = 'final-isolation';
     assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
     result = { format: 'adaptive-maintenance-fault-drill-v1', status: 'synthetic-negative-controls-verified',
       checks: { tableWritesBlocked: true, readersProceed: true, sequenceAdvancesUnderTableLock: true,
         sequenceSetvalUnderTableLock: true, sequenceCacheObserved: true, existingLoginSurvivesNoLogin: true,
         newLoginRefused: true, connectionLossReleasesTableLock: true, committedPauseSurvivesConnectionLoss: true,
-        syntheticIndependentSettingRestore: true }, productionWriterFreeze: 'NOT TESTED',
+        syntheticIndependentSettingRestore: true, sharedRequestDelaysExclusive: true,
+        sharedLeaseSurvivesProviderGap: true, exclusiveRejectsNewAdmission: true,
+        exclusiveGuardRunsAgainstPostgres: true, ownerLossResumesAdmission: true,
+        nativeDenoRequestGate: true, nativeDriverReconnectDisabled: true }, productionWriterFreeze: 'NOT TESTED',
+      fixtureTransport: 'unix-socket', productionTls: 'NOT TESTED',
       durableEncryptedCleanup: 'NOT TESTED', hostedPoolerAdmission: 'NOT TESTED', captureAllowed: false };
   } catch { failed = true; }
   finally {
@@ -214,7 +447,8 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     if (cleanupController.signal.aborted) { failed = true; cleanupFailed = true; }
   }
   if (failed || !result || controller.signal.aborted) throw Object.assign(fail(), {
-    evidence: { status: 'failed', failedStage: stage, cleanup: cleanupFailed ? 'FAIL' : 'PASS', captureAllowed: false } });
+    evidence: { status: 'failed', failedStage: stage, cleanup: cleanupFailed ? 'FAIL' : 'PASS', captureAllowed: false,
+      ...(nativeRuntimeCounts ? { nativeRuntimeCounts } : {}) } });
   return { ...result, cleanup: 'PASS' };
 }
 
