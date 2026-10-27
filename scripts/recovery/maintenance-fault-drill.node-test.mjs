@@ -1,13 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { runMaintenanceFaultDrill, openMaintenanceFaultSession } from './maintenance-fault-drill.mjs';
+import { runMaintenanceFaultDrill, openMaintenanceFaultSession, validateNativeFixtureBinary } from './maintenance-fault-drill.mjs';
 
 const env = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted', PATH: '/usr/bin:/bin' };
 const id = '11111111-1111-4111-8111-111111111111';
 const name = `al-synthetic-recovery-${id}-source`;
 const diagnostic = 'SYNTHETIC_PRIVATE_NATIVE_DIAGNOSTIC';
 const result = stdout => ({ code: 0, signal: null, stderr: '', stdout });
+
+test('native fixture execution accepts only its owned private regular executable in runner temp', async () => {
+  const nativeEnv = { RUNNER_TEMP: '/runner/temp', MAINTENANCE_NATIVE_FIXTURE_DIR: '/runner/temp/al-native-fixture-Ab12Cd34' };
+  const metadata = { uid: 1001, mode: 0o700, size: 123, isFile: () => true,
+    isDirectory: () => true, isSymbolicLink: () => false };
+  const settings = { env: nativeEnv, stat: async path => ({ ...metadata,
+    mode: path.endsWith('/gate-fixture') ? 0o755 : 0o700 }), canonicalPath: async path => path, uid: 1001 };
+  assert.equal(await validateNativeFixtureBinary(settings), '/runner/temp/al-native-fixture-Ab12Cd34/gate-fixture');
+  for (const changed of [
+    { env: { ...nativeEnv, MAINTENANCE_NATIVE_FIXTURE_DIR: '/foreign/al-native-fixture-Ab12Cd34' } },
+    { env: { ...nativeEnv, MAINTENANCE_NATIVE_FIXTURE_DIR: '/runner/temp/../temp/al-native-fixture-Ab12Cd34' } },
+    { canonicalPath: async () => '/foreign' },
+    { stat: async () => ({ ...metadata, isSymbolicLink: () => true }) },
+    { stat: async () => ({ ...metadata, uid: 1002 }) },
+    { stat: async () => ({ ...metadata, mode: 0o777 }) },
+    { stat: async () => ({ ...metadata, size: 301 * 1024 * 1024 }) },
+  ]) await assert.rejects(validateNativeFixtureBinary({ ...settings, ...changed }));
+});
 
 test('fault drill rejects local execution and inherited production credentials before invoking tools', async () => {
   for (const changed of [{ env: {} }, { platform: 'win32' },
@@ -96,4 +114,3 @@ test('a process that closes stdout without its query marker cannot produce a suc
   try { await assert.rejects(session.query('SELECT 1;')); }
   finally { await session.close(); stdin.destroy(); stderr.destroy(); }
 });
-
