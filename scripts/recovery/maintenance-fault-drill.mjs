@@ -167,6 +167,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
   const sessions = new Set();
   const cleanupController = new AbortController();
   let creationAttempted = false; let failed = false; let cleanupFailed = false; let result;
+  let nativeRuntimeCounts;
   let stage = 'container-create';
   const invoke = async (args, input, cleanup = false) => {
     const value = await run('docker', args, { env: cleanEnv, input, timeoutMs: 20_000,
@@ -317,13 +318,20 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     }
     // The pinned image uses Nix, with no standard /lib64 ELF loader. Reuse its
     // immutable installed runtime; never install libraries or change isolation.
-    stage = 'native-driver-runtime-inventory';
-    const libraries = (await invoke(['exec', name, 'find', '/nix/store', '-mindepth', '3', '-maxdepth', '3',
-      '-path', '*/lib/*', '(', '-name', 'ld-linux-x86-64.so.2', '-o', '-name', 'libgcc_s.so.1',
-      '-o', '-name', 'libstdc++.so.6', ')', '-print'])).split('\n');
+    stage = 'native-driver-runtime-discovery';
+    const libraries = (await invoke(['exec', name, 'bash', '-c',
+      'shopt -s nullglob; printf "%s\\n" /nix/store/*/lib/ld-linux-x86-64.so.2 /nix/store/*/lib/libgcc_s.so.1 /nix/store/*/lib/libstdc++.so.6'])).split('\n');
+    nativeRuntimeCounts = { candidates: Math.min(libraries.length, 17) };
     if (libraries.length < 2 || libraries.length > 16 || libraries.some(path =>
       !/^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/(?:ld-linux-x86-64\.so\.2|libgcc_s\.so\.1|libstdc\+\+\.so\.6)$/.test(path))) throw fail();
-    const runtime = nativeFixtureRuntime((await invoke(['exec', name, 'readlink', '-e', ...libraries])).split('\n'));
+    stage = 'native-driver-runtime-canonicalization';
+    const canonical = [...new Set((await invoke(['exec', name, 'readlink', '-e', ...libraries])).split('\n'))];
+    nativeRuntimeCounts = { ...nativeRuntimeCounts, unique: Math.min(canonical.length, 17),
+      loaders: canonical.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path)).length,
+      gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
+      cpp: canonical.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path)).length };
+    stage = 'native-driver-runtime-inventory';
+    const runtime = nativeFixtureRuntime(canonical);
     stage = 'native-driver-gate';
     let native;
     try { native = JSON.parse(await executeNativeFixture({ name, runtime, env: cleanEnv, signal: controller.signal, start })); }
@@ -376,7 +384,8 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     if (cleanupController.signal.aborted) { failed = true; cleanupFailed = true; }
   }
   if (failed || !result || controller.signal.aborted) throw Object.assign(fail(), {
-    evidence: { status: 'failed', failedStage: stage, cleanup: cleanupFailed ? 'FAIL' : 'PASS', captureAllowed: false } });
+    evidence: { status: 'failed', failedStage: stage, cleanup: cleanupFailed ? 'FAIL' : 'PASS', captureAllowed: false,
+      ...(nativeRuntimeCounts ? { nativeRuntimeCounts } : {}) } });
   return { ...result, cleanup: 'PASS' };
 }
 
