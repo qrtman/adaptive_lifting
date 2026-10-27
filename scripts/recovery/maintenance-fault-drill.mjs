@@ -18,8 +18,22 @@ export function nativeFixtureFailureCategory(stderr) {
   if (/warning|notice/i.test(stderr)) return 'runtime-warning';
   return 'runtime-failure';
 }
-async function executeNativeFixture({ name, env, signal, start }) {
-  const handle = start('docker', ['exec', name, '/tmp/recovery-maintenance-native'],
+export function nativeFixtureRuntime(paths) {
+  const storeLibrary = /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/[^/]+$/;
+  if (!Array.isArray(paths) || paths.length > 16 || paths.some(path => typeof path !== 'string' || !storeLibrary.test(path))) throw fail();
+  const unique = [...new Set(paths)];
+  const loaders = unique.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path));
+  const gcc = unique.filter(path => /\/libgcc_s\.so\.1$/.test(path));
+  const cpp = unique.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path));
+  if (loaders.length !== 1 || gcc.length !== 1 || cpp.length > 1 || unique.length !== loaders.length + gcc.length + cpp.length) throw fail();
+  const directories = [...new Set(unique.map(path => posix.dirname(path)))].sort();
+  return [loaders[0], '--library-path', directories.join(':'), '/tmp/recovery-maintenance-runtime',
+    'run', '--no-prompt', '--no-config', '--no-remote', '--no-npm',
+    '--allow-read=/tmp', '--allow-write=/tmp', '/tmp/recovery-maintenance-fixture.js'];
+}
+async function executeNativeFixture({ name, runtime, env, signal, start }) {
+  const handle = start('docker', ['exec', '-e', 'DENO_DIR=/tmp/maintenance-deno-cache',
+    '-e', 'DENO_NO_UPDATE_CHECK=1', name, ...runtime],
     { env, signal, timeoutMs: 30_000 });
   const output = []; const diagnostics = []; let bytes = 0; let overflow = false;
   for (const [stream, chunks] of [[handle.child?.stdout, output], [handle.child?.stderr, diagnostics]]) {
@@ -38,7 +52,7 @@ async function executeNativeFixture({ name, env, signal, start }) {
   });
   return Buffer.concat(output).toString('utf8').trim();
 }
-export async function validateNativeFixtureBinary({ env, stat = lstat, canonicalPath = realpath,
+export async function validateNativeFixtureFiles({ env, stat = lstat, canonicalPath = realpath,
   uid = process.getuid?.() } = {}) {
   const base = env?.RUNNER_TEMP;
   const directory = env?.MAINTENANCE_NATIVE_FIXTURE_DIR;
@@ -49,10 +63,14 @@ export async function validateNativeFixtureBinary({ env, stat = lstat, canonical
   const folder = await stat(directory);
   const path = posix.join(directory, 'gate-fixture');
   const binary = await stat(path);
+  const scriptPath = posix.join(directory, 'gate-fixture.js');
+  const script = await stat(scriptPath);
   if (!folder.isDirectory() || folder.isSymbolicLink() || folder.uid !== uid || (folder.mode & 0o777) !== 0o700 ||
       !binary.isFile() || binary.isSymbolicLink() || binary.uid !== uid || (binary.mode & 0o777) !== 0o755 ||
       !Number.isSafeInteger(binary.size) || binary.size < 1 || binary.size > 300 * 1024 * 1024) throw fail();
-  return path;
+  if (!script.isFile() || script.isSymbolicLink() || script.uid !== uid || (script.mode & 0o777) !== 0o600 ||
+      !Number.isSafeInteger(script.size) || script.size < 1 || script.size > 8 * 1024 * 1024) throw fail();
+  return { binaryPath: path, scriptPath };
 }
 const FIXTURE = `
 CREATE SCHEMA maintenance_fixture;
@@ -281,22 +299,34 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     await request.close(); sessions.delete(request);
     stage = 'native-driver-file-validation';
     assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
-    const nativeBinary = await validateNativeFixtureBinary({ env });
-    const nativeBytes = await readFile(nativeBinary);
-    if (!nativeBytes.length || nativeBytes.length > 300 * 1024 * 1024) throw fail();
+    const nativeFiles = await validateNativeFixtureFiles({ env });
     // Docker's archive-copy path cannot reliably target this read-only-rootfs
     // fixture's tmpfs. Write through the existing unprivileged container user.
-    stage = 'native-driver-transfer';
-    await invoke(['exec', '-i', name, 'dd', 'of=/tmp/recovery-maintenance-native',
-      'bs=1M', 'iflag=fullblock', 'status=none'], nativeBytes);
-    stage = 'native-driver-transfer-verification';
-    const nativeHash = createHash('sha256').update(nativeBytes).digest('hex');
-    if (await invoke(['exec', name, 'sha256sum', '/tmp/recovery-maintenance-native']) !==
-        `${nativeHash}  /tmp/recovery-maintenance-native`) throw fail();
-    await invoke(['exec', name, 'chmod', '755', '/tmp/recovery-maintenance-native']);
+    for (const item of [
+      { path: nativeFiles.binaryPath, target: '/tmp/recovery-maintenance-runtime', limit: 300 * 1024 * 1024, mode: '755' },
+      { path: nativeFiles.scriptPath, target: '/tmp/recovery-maintenance-fixture.js', limit: 8 * 1024 * 1024, mode: '600' },
+    ]) {
+      const nativeBytes = await readFile(item.path);
+      if (!nativeBytes.length || nativeBytes.length > item.limit) throw fail();
+      stage = 'native-driver-transfer';
+      await invoke(['exec', '-i', name, 'dd', `of=${item.target}`, 'bs=1M', 'iflag=fullblock', 'status=none'], nativeBytes);
+      stage = 'native-driver-transfer-verification';
+      const nativeHash = createHash('sha256').update(nativeBytes).digest('hex');
+      if (await invoke(['exec', name, 'sha256sum', item.target]) !== `${nativeHash}  ${item.target}`) throw fail();
+      await invoke(['exec', name, 'chmod', item.mode, item.target]);
+    }
+    // The pinned image uses Nix, with no standard /lib64 ELF loader. Reuse its
+    // immutable installed runtime; never install libraries or change isolation.
+    stage = 'native-driver-runtime-inventory';
+    const libraries = (await invoke(['exec', name, 'find', '/nix/store', '-mindepth', '3', '-maxdepth', '3',
+      '-path', '*/lib/*', '(', '-name', 'ld-linux-x86-64.so.2', '-o', '-name', 'libgcc_s.so.1',
+      '-o', '-name', 'libstdc++.so.6', ')', '-print'])).split('\n');
+    if (libraries.length < 2 || libraries.length > 16 || libraries.some(path =>
+      !/^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/(?:ld-linux-x86-64\.so\.2|libgcc_s\.so\.1|libstdc\+\+\.so\.6)$/.test(path))) throw fail();
+    const runtime = nativeFixtureRuntime((await invoke(['exec', name, 'readlink', '-e', ...libraries])).split('\n'));
     stage = 'native-driver-gate';
     let native;
-    try { native = JSON.parse(await executeNativeFixture({ name, env: cleanEnv, signal: controller.signal, start })); }
+    try { native = JSON.parse(await executeNativeFixture({ name, runtime, env: cleanEnv, signal: controller.signal, start })); }
     catch (error) {
       stage = `native-driver-${error.nativeCategory ?? 'invalid-output'}`;
       throw fail();
