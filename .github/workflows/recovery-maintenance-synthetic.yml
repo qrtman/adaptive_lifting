@@ -45,15 +45,17 @@ jobs:
         run: |
           npx --yes deno@2.5.4 check --config supabase/deno.json supabase/functions/api/index.ts supabase/functions/email-verification-worker/index.ts supabase/functions/google-sheets-worker/index.ts
           npx --yes deno@2.5.4 test --allow-env --allow-read --config supabase/deno.json supabase/functions/_shared/
-      - name: Compile the isolated native driver fixture
+      - name: Bundle the isolated native driver fixture
         timeout-minutes: 4
         shell: bash
         run: |
           set -euo pipefail
           native_dir="$(mktemp -d "${RUNNER_TEMP}/al-native-fixture-XXXXXXXX")"
           echo "MAINTENANCE_NATIVE_FIXTURE_DIR=${native_dir}" >> "$GITHUB_ENV"
-          npx --yes deno@2.5.4 compile --frozen --no-prompt --config supabase/deno.json --allow-read=/tmp --allow-write=/tmp --output "${native_dir}/gate-fixture" supabase/functions/_shared/recovery/maintenance.integration.ts
+          npx --yes deno@2.5.4 bundle --frozen --config supabase/deno.json --output "${native_dir}/gate-fixture.js" supabase/functions/_shared/recovery/maintenance.integration.ts
+          npx --yes deno@2.5.4 eval 'await Deno.copyFile(Deno.execPath(), Deno.args[0]);' "${native_dir}/gate-fixture"
           chmod 755 "${native_dir}/gate-fixture"
+          chmod 600 "${native_dir}/gate-fixture.js"
       - name: Exercise competing synthetic sessions and backend loss
         timeout-minutes: 5
         run: node scripts/recovery/maintenance-fault-drill.mjs
@@ -76,5 +78,6 @@ jobs:
             [[ "$(basename -- "$MAINTENANCE_NATIVE_FIXTURE_DIR")" =~ ^al-native-fixture-[A-Za-z0-9]{8}$ ]]
             test -d "$MAINTENANCE_NATIVE_FIXTURE_DIR" && test ! -L "$MAINTENANCE_NATIVE_FIXTURE_DIR"
             rm -f -- "$MAINTENANCE_NATIVE_FIXTURE_DIR/gate-fixture"
+            rm -f -- "$MAINTENANCE_NATIVE_FIXTURE_DIR/gate-fixture.js"
             rmdir -- "$MAINTENANCE_NATIVE_FIXTURE_DIR"
           fi
