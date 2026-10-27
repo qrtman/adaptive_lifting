@@ -26,7 +26,13 @@ export function nativeFixtureRuntime(paths, { activeLoader, profileGcc, profileC
   const gcc = unique.filter(path => /\/libgcc_s\.so\.1$/.test(path));
   const cpp = unique.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path));
   if (!loaders.length || !gcc.length || unique.length !== loaders.length + gcc.length + cpp.length) throw fail();
-  const loader = activeLoader ?? (loaders.length === 1 ? loaders[0] : undefined);
+  const orderedLoaders = loaders.map(path => {
+    const version = /-glibc-(\d+)\.(\d+)(?:[.-][A-Za-z0-9.+_-]+)?\/lib\//.exec(path);
+    if (!version || version.slice(1).some(value => Number(value) > 9999)) throw fail();
+    return { path, major: Number(version[1]), minor: Number(version[2]) };
+  }).sort((a, b) => b.major - a.major || b.minor - a.minor);
+  const newest = orderedLoaders.filter(item => item.major === orderedLoaders[0]?.major && item.minor === orderedLoaders[0]?.minor);
+  const loader = activeLoader ?? (newest.length === 1 ? newest[0].path : undefined);
   if (!loader || !loaders.includes(loader) || (profileGcc && !gcc.includes(profileGcc)) ||
       (profileCpp && !cpp.includes(profileCpp))) throw fail();
   const family = path => {
@@ -370,14 +376,8 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       loaders: canonical.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path)).length,
       gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
       cpp: canonical.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path)).length };
-    stage = 'native-driver-active-runtime';
-    const active = [...new Set((await invoke(['exec', name, 'bash', '-c',
-      'while IFS= read -r row; do case "$row" in */lib/ld-linux-x86-64.so.2|*/lib/ld-*.so) printf "%s\\n" "${row##* }";; esac; done </proc/self/maps'])).split('\n'))];
-    nativeRuntimeCounts = { ...nativeRuntimeCounts, activeLoaders: Math.min(active.filter(Boolean).length, 17) };
-    if (active.length !== 1 || !/^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]+\/lib\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(active[0])) throw fail();
-    const activeLoader = await invoke(['exec', name, 'readlink', '-f', active[0]]);
-    nativeRuntimeCounts = { ...nativeRuntimeCounts, activeLoaderInInventory: canonical.includes(activeLoader) };
-    if (!canonical.includes(activeLoader)) throw fail();
+    // Bash may be static or use another loader. The fixture needs an installed
+    // glibc candidate, not Bash's ABI. Actual Deno execution must prove it works.
     stage = 'native-driver-profile-runtime';
     const profile = (await invoke(['exec', name, 'bash', '-c',
       'for candidate in /nix/var/nix/profiles/default/lib/libgcc_s.so.1 /nix/var/nix/profiles/default/lib/libstdc++.so.6; do if [[ -e "$candidate" ]]; then printf "%s\\n" "$candidate"; fi; done'])).split('\n').filter(Boolean);
@@ -388,7 +388,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       if (path.endsWith('libgcc_s.so.1')) profileGcc = target; else profileCpp = target;
     }
     stage = 'native-driver-runtime-selection';
-    const runtime = nativeFixtureRuntime(canonical, { activeLoader, profileGcc, profileCpp });
+    const runtime = nativeFixtureRuntime(canonical, { profileGcc, profileCpp });
     stage = 'native-driver-gate';
     let native;
     try { native = JSON.parse(await executeNativeFixture({ name, runtime, env: cleanEnv, signal: controller.signal, start })); }
