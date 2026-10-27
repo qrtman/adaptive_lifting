@@ -107,6 +107,15 @@ traffic change has been performed by this patch.
 
 ## Review accounting
 
+Final independent verification reproduced 27/27 maintenance Node checks and
+confirmed exact hosted checkout/result and both cleanup steps for run
+40541430859. Repository CI ran against the tested merge with main: lint/build,
+433 application tests (one skipped) and 243 recovery Node tests PASS. The
+verifier found no blocker or major in the final glibc-revision/bootstrap-runtime
+selection or native gate evidence. These checks do not establish production
+readiness. The routing validator still reports the personal Lead-default
+mismatch; no settings or model escalation were used to address this task.
+
 Lead implementation; independent verifier maintenance_feasibility, tier 5,
 requested gpt-6.1-sol/high, no escalation. Reviewer reproduced unbounded
 request acquire/close and exclusive capture hangs. Bounded cleanup/cancellation
