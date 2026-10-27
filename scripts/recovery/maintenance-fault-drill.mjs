@@ -23,15 +23,17 @@ export function nativeFixtureRuntime(paths, { activeLoader, profileGcc, profileC
   if (!Array.isArray(paths) || paths.length > 16 || paths.some(path => typeof path !== 'string' || !storeLibrary.test(path))) throw fail();
   const unique = [...new Set(paths)];
   const loaders = unique.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path));
-  const gcc = unique.filter(path => /\/libgcc_s\.so\.1$/.test(path));
+  // Nix retains bootstrap xgcc outputs alongside the final GCC runtime.
+  const bootstrap = unique.filter(path => /-xgcc-\d+\.\d+\.\d+-libgcc\/lib\/libgcc_s\.so\.1$/.test(path));
+  const gcc = unique.filter(path => /\/libgcc_s\.so\.1$/.test(path) && !bootstrap.includes(path));
   const cpp = unique.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path));
-  if (!loaders.length || !gcc.length || unique.length !== loaders.length + gcc.length + cpp.length) throw fail();
+  if (!loaders.length || !gcc.length || unique.length !== loaders.length + gcc.length + cpp.length + bootstrap.length) throw fail();
   const orderedLoaders = loaders.map(path => {
-    const version = /-glibc-(\d+)\.(\d+)(?:[.-][A-Za-z0-9.+_-]+)?\/lib\//.exec(path);
-    if (!version || version.slice(1).some(value => Number(value) > 9999)) throw fail();
-    return { path, major: Number(version[1]), minor: Number(version[2]) };
-  }).sort((a, b) => b.major - a.major || b.minor - a.minor);
-  const newest = orderedLoaders.filter(item => item.major === orderedLoaders[0]?.major && item.minor === orderedLoaders[0]?.minor);
+    const version = /-glibc-(\d+)\.(\d+)(?:-(\d+))?\/lib\//.exec(path);
+    if (!version || version.slice(1).some(value => value !== undefined && Number(value) > 9999)) throw fail();
+    return { path, major: Number(version[1]), minor: Number(version[2]), revision: Number(version[3] ?? 0) };
+  }).sort((a, b) => b.major - a.major || b.minor - a.minor || b.revision - a.revision);
+  const newest = orderedLoaders.filter(item => item.major === orderedLoaders[0]?.major && item.minor === orderedLoaders[0]?.minor && item.revision === orderedLoaders[0]?.revision);
   const loader = activeLoader ?? (newest.length === 1 ? newest[0].path : undefined);
   if (!loader || !loaders.includes(loader) || (profileGcc && !gcc.includes(profileGcc)) ||
       (profileCpp && !cpp.includes(profileCpp))) throw fail();
@@ -358,7 +360,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       if (await invoke(['exec', name, 'sha256sum', item.target]) !== `${nativeHash}  ${item.target}`) throw fail();
       await invoke(['exec', name, 'chmod', item.mode, item.target]);
     }
-    // The pinned image uses Nix, with no standard /lib64 ELF loader. Reuse its
+    // The pinned image uses Nix. Reuse its
     // immutable installed runtime; never install libraries or change isolation.
     stage = 'native-driver-runtime-discovery';
     const libraries = (await invoke(['exec', name, 'bash', '-c',
@@ -377,7 +379,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
       cpp: canonical.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path)).length };
     // Public package metadata only, never process diagnostics or data paths.
-    if (canonical.every(path => /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]{1,100}\/lib\/[^/]{1,64}$/.test(path))) {
+    if (canonical.every(path => /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]{1,100}\/lib\/[A-Za-z0-9.+_-]{1,64}$/.test(path))) {
       nativeRuntimeCounts.packages = canonical.map(path => path.split('/')[3].slice(33) + '/' + posix.basename(path));
     }
     // Bash may be static or use another loader. The fixture needs an installed
