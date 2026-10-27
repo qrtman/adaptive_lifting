@@ -244,6 +244,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
         syntheticIndependentSettingRestore: true, sharedRequestDelaysExclusive: true,
         sharedLeaseSurvivesProviderGap: true, exclusiveRejectsNewAdmission: true,
         exclusiveGuardRunsAgainstPostgres: true, ownerLossResumesAdmission: true }, productionWriterFreeze: 'NOT TESTED',
+      fixtureTransport: 'unix-socket', productionTls: 'NOT TESTED',
       durableEncryptedCleanup: 'NOT TESTED', hostedPoolerAdmission: 'NOT TESTED', captureAllowed: false };
   } catch { failed = true; }
   finally {
