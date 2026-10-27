@@ -1,4 +1,4 @@
-// Compiled on the hosted runner, then executed only inside the network-denied
+// Bundled on the hosted runner, then executed only inside the network-denied
 // synthetic PostgreSQL container. Unix socket transport is not TLS evidence.
 import { Client, Pool } from "@db/postgres";
 import { MAINTENANCE_KEY, createMaintenanceHandler, withRequestMaintenanceGate,
