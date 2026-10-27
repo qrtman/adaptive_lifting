@@ -104,6 +104,7 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
   const sessions = new Set();
   const cleanupController = new AbortController();
   let creationAttempted = false; let failed = false; let cleanupFailed = false; let result;
+  let stage = 'container-create';
   const invoke = async (args, input, cleanup = false) => {
     const value = await run('docker', args, { env: cleanEnv, input, timeoutMs: 20_000,
       maxBufferBytes: 32_768, signal: cleanup ? cleanupController.signal : controller.signal });
@@ -121,46 +122,71 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     args.splice(2, 0, '--label', 'adaptive-lifting.maintenance-fault=true');
     creationAttempted = true; // Include create-success/response-loss in cleanup.
     await invoke(args);
+    stage = 'container-isolation';
     const inspect = JSON.parse(await invoke(['inspect', name]));
     assertIsolatedInspect(inspect, name);
+    stage = 'database-readiness';
     let ready = false;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try { await invoke(['exec', name, 'pg_isready', '-h', '/tmp']); ready = true; break; }
       catch { if (controller.signal.aborted) throw fail(); await new Promise(resolve => setTimeout(resolve, 500)); }
     }
     if (!ready) throw fail();
+    stage = 'database-version';
     if (!/^17\d{4}$/.test(await sql("SELECT current_setting('server_version_num');"))) throw fail();
-    await sql(FIXTURE);
+    stage = 'fixture-setup'; await sql(FIXTURE);
 
+    stage = 'table-lock-session';
     const holder = session('postgres');
     const holderPid = await holder.query('BEGIN; LOCK TABLE maintenance_fixture.rows IN SHARE MODE; SELECT pg_backend_pid();');
     if (!/^\d+$/.test(holderPid)) throw fail();
+    stage = 'table-write-blocking';
     if (await sql("SET lock_timeout='300ms'; SELECT maintenance_fixture.write_is_blocked();") !== 't') throw fail();
+    stage = 'table-read';
     if (await sql('SELECT count(*) FROM maintenance_fixture.rows;') !== '1') throw fail();
+    stage = 'sequence-nextval-under-lock';
     if (await sql("SELECT nextval('maintenance_fixture.ids');") !== '1') throw fail();
+    stage = 'sequence-cache';
     if (await sql('SELECT last_value FROM maintenance_fixture.ids;') !== '5') throw fail();
+    stage = 'sequence-setval-under-lock';
     if (await sql("SELECT setval('maintenance_fixture.ids',10,true);") !== '10') throw fail();
 
+    stage = 'existing-writer-connect';
     const writer = session('maintenance_fixture_writer');
     if (await writer.query('SELECT current_user;') !== 'maintenance_fixture_writer') throw fail();
-    await sql('ALTER ROLE maintenance_fixture_writer NOLOGIN;');
+    stage = 'pause-login'; await sql('ALTER ROLE maintenance_fixture_writer NOLOGIN;');
+    stage = 'existing-writer-nextval-after-nologin';
     if (await writer.query("SELECT nextval('maintenance_fixture.ids');") !== '11') throw fail();
+    stage = 'new-login-refusal';
     await assertNewLoginRefused({ name, env: cleanEnv, signal: controller.signal, start });
+    stage = 'existing-writer-still-live';
     if (await writer.query('SELECT 1;') !== '1') throw fail();
 
     // Kill the lock-owning backend without its ROLLBACK/finally. Table locks
     // disappear, but a separately committed NOLOGIN survives that connection.
+    stage = 'terminate-lock-backend';
     if (await sql(`SELECT pg_terminate_backend(${holderPid});`) !== 't') throw fail();
+    // Force noninteractive psql to observe the dead backend rather than ending
+    // stdin at idle, which can exit zero without consuming the server's FATAL.
+    stage = 'observe-lock-backend-loss';
+    let deadBackendRejected = false;
+    try { await holder.query('SELECT 1;'); } catch { deadBackendRejected = true; }
+    if (!deadBackendRejected) throw fail();
+    stage = 'confirm-lock-owner-process-exit';
     await holder.close({ terminated: true }); sessions.delete(holder);
+    stage = 'table-write-after-owner-loss';
     if (await sql("SET lock_timeout='300ms'; SELECT NOT maintenance_fixture.write_is_blocked();") !== 't') throw fail();
+    stage = 'committed-pause-retained';
     if (await sql("SELECT NOT rolcanlogin FROM pg_roles WHERE rolname='maintenance_fixture_writer';") !== 't') throw fail();
     // Synthetic independent cleanup, executed by a different backend. This is
     // deliberately not evidence for an encrypted durable production journal.
+    stage = 'synthetic-independent-setting-restore';
     await sql('ALTER ROLE maintenance_fixture_writer LOGIN;');
     if (await sql("SELECT rolcanlogin FROM pg_roles WHERE rolname='maintenance_fixture_writer';") !== 't' ||
         await sql("SELECT NOT rolcanlogin FROM pg_roles WHERE rolname='maintenance_fixture_disabled';") !== 't') throw fail();
     if (await sql('SELECT 1;', 'maintenance_fixture_writer') !== '1') throw fail();
-    await writer.close(); sessions.delete(writer);
+    stage = 'writer-process-exit'; await writer.close(); sessions.delete(writer);
+    stage = 'final-isolation';
     assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
     result = { format: 'adaptive-maintenance-fault-drill-v1', status: 'synthetic-negative-controls-verified',
       checks: { tableWritesBlocked: true, readersProceed: true, sequenceAdvancesUnderTableLock: true,
@@ -188,12 +214,15 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     if (cleanupController.signal.aborted) { failed = true; cleanupFailed = true; }
   }
   if (failed || !result || controller.signal.aborted) throw Object.assign(fail(), {
-    evidence: { status: 'failed', cleanup: cleanupFailed ? 'FAIL' : 'PASS', captureAllowed: false } });
+    evidence: { status: 'failed', failedStage: stage, cleanup: cleanupFailed ? 'FAIL' : 'PASS', captureAllowed: false } });
   return { ...result, cleanup: 'PASS' };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { process.stdout.write(JSON.stringify(await runMaintenanceFaultDrill()) + '\n'); }
-  catch { process.stderr.write('Synthetic maintenance fault drill failed; diagnostics suppressed.\n'); process.exitCode = 1; }
+  catch (error) {
+    if (error?.evidence) process.stdout.write(JSON.stringify(error.evidence) + '\n');
+    process.stderr.write('Synthetic maintenance fault drill failed; diagnostics suppressed.\n'); process.exitCode = 1;
+  }
 }
 
