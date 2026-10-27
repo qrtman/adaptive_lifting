@@ -376,6 +376,10 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
       loaders: canonical.filter(path => /\/(?:ld-linux-x86-64\.so\.2|ld-[0-9.]+\.so)$/.test(path)).length,
       gcc: canonical.filter(path => /\/libgcc_s\.so\.1$/.test(path)).length,
       cpp: canonical.filter(path => /\/libstdc\+\+\.so\.6(?:\.[0-9]+)*$/.test(path)).length };
+    // Public package metadata only, never process diagnostics or data paths.
+    if (canonical.every(path => /^\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9.+_-]{1,100}\/lib\/[^/]{1,64}$/.test(path))) {
+      nativeRuntimeCounts.packages = canonical.map(path => path.split('/')[3].slice(33) + '/' + posix.basename(path));
+    }
     // Bash may be static or use another loader. The fixture needs an installed
     // glibc candidate, not Bash's ABI. Actual Deno execution must prove it works.
     stage = 'native-driver-profile-runtime';
