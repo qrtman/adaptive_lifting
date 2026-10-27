@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { runMaintenanceFaultDrill, openMaintenanceFaultSession, validateNativeFixtureBinary } from './maintenance-fault-drill.mjs';
+import { runMaintenanceFaultDrill, openMaintenanceFaultSession, validateNativeFixtureBinary, nativeFixtureFailureCategory } from './maintenance-fault-drill.mjs';
 
 const env = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted', PATH: '/usr/bin:/bin' };
 const id = '11111111-1111-4111-8111-111111111111';
 const name = `al-synthetic-recovery-${id}-source`;
 const diagnostic = 'SYNTHETIC_PRIVATE_NATIVE_DIAGNOSTIC';
 const result = stdout => ({ code: 0, signal: null, stderr: '', stdout });
+
+test('native fixture diagnostics expose only hardcoded classes, never native content', () => {
+  for (const [stderr, expected] of [['GLIBC_2.38 not found', 'runtime-dependency'],
+    ['NotCapable: Requires env access', 'runtime-permission'], ['WARNING: synthetic', 'runtime-warning'],
+    [diagnostic, 'runtime-failure']]) assert.equal(nativeFixtureFailureCategory(stderr), expected);
+});
 
 test('native fixture execution accepts only its owned private regular executable in runner temp', async () => {
   const nativeEnv = { RUNNER_TEMP: '/runner/temp', MAINTENANCE_NATIVE_FIXTURE_DIR: '/runner/temp/al-native-fixture-Ab12Cd34' };
