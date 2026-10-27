@@ -12,6 +12,32 @@ import { IMAGE, assertHostedRunnerEnvironment, dockerRunArgs, assertIsolatedInsp
   assertCleanupOwnedInspect } from './synthetic-drill.mjs';
 
 const fail = () => new Error('Synthetic maintenance fault drill failed; diagnostics suppressed.');
+export function nativeFixtureFailureCategory(stderr) {
+  if (/GLIBC_|error while loading shared libraries|cannot execute|no such file or directory/i.test(stderr)) return 'runtime-dependency';
+  if (/NotCapable|Requires .+ access|PermissionDenied|permission denied/i.test(stderr)) return 'runtime-permission';
+  if (/warning|notice/i.test(stderr)) return 'runtime-warning';
+  return 'runtime-failure';
+}
+async function executeNativeFixture({ name, env, signal, start }) {
+  const handle = start('docker', ['exec', name, '/tmp/recovery-maintenance-native'],
+    { env, signal, timeoutMs: 30_000 });
+  const output = []; const diagnostics = []; let bytes = 0; let overflow = false;
+  for (const [stream, chunks] of [[handle.child?.stdout, output], [handle.child?.stderr, diagnostics]]) {
+    stream?.on('data', chunk => {
+      bytes += chunk.length;
+      if (bytes > 32_768) { overflow = true; void handle.abort().catch(() => {}); }
+      else chunks.push(Buffer.from(chunk));
+    });
+  }
+  handle.child?.stdin?.end();
+  let failed = false;
+  try { await handle.closed; } catch { failed = true; }
+  const stderr = Buffer.concat(diagnostics).toString('utf8');
+  if (failed || stderr || overflow) throw Object.assign(fail(), {
+    nativeCategory: overflow ? 'runtime-output-limit' : nativeFixtureFailureCategory(stderr),
+  });
+  return Buffer.concat(output).toString('utf8').trim();
+}
 export async function validateNativeFixtureBinary({ env, stat = lstat, canonicalPath = realpath,
   uid = process.getuid?.() } = {}) {
   const base = env?.RUNNER_TEMP;
@@ -269,7 +295,12 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
         `${nativeHash}  /tmp/recovery-maintenance-native`) throw fail();
     await invoke(['exec', name, 'chmod', '755', '/tmp/recovery-maintenance-native']);
     stage = 'native-driver-gate';
-    const native = JSON.parse(await invoke(['exec', name, '/tmp/recovery-maintenance-native']));
+    let native;
+    try { native = JSON.parse(await executeNativeFixture({ name, env: cleanEnv, signal: controller.signal, start })); }
+    catch (error) {
+      stage = `native-driver-${error.nativeCategory ?? 'invalid-output'}`;
+      throw fail();
+    }
     const nativeChecks = ['sharedSessionAcrossHelpers', 'sharedSessionAcrossProviderGap',
       'exclusiveRejectsBeforeCallback', 'terminatedSessionRejectsWrites', 'driverReconnectDisabled',
       'freshRequestReadmitted', 'cleanup'];
