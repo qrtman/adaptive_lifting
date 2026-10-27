@@ -3,7 +3,7 @@
 Task: remove the missing application maintenance implementation without changing
 production schemas, roles, grants, sequences or committed Cron settings.
 
-Source of truth: architecture sections 9, 11.5 and 15.3â€“15.6; design section 0
+Source of truth: architecture sections 9, 11.5 and 15.3–15.6; design section 0
 (no product UI changes). The existing Supabase-only backend, custom auth, RBAC,
 audit, idempotency and no-demo-data contracts remain authoritative.
 
@@ -36,12 +36,39 @@ audit, idempotency and no-demo-data contracts remain authoritative.
 
 ## Verification
 
-Local targeted checks: 10 Deno request-gate checks and 23 Node maintenance checks
-PASS. All three Edge entrypoints typecheck. The broader shared Edge suite was
-65/65 before the additional slow-provider regression test; final/hosted results
-are recorded below when available.
+Continuation verified 2026-10-28 (Asia/Seoul), commit
+`016a239af26e9760976efc9df19b366705264fe3`:
 
-Hosted workflow [40505904096](https://github.com/qrtman/adaptive_lifting/actions/runs/40505904096), code commit `80a879f46451f63fd671f9f9d8965f9ceaed3287`, PASSED on 2026-10-27. It ran 23 maintenance Node checks, all three Edge entrypoint checks, 66/66 shared Edge tests, the PostgreSQL 17 shared/exclusive contention and owner-loss drill, and independent container cleanup. The report records `fixtureTransport: unix-socket`, `productionTls: NOT TESTED`, `hostedPoolerAdmission: NOT TESTED` and `captureAllowed: false`. A following telemetry-only commit adds explicit fixture transport labels; no behavior changed.
+- [Hosted protocol run 40541430859](https://github.com/qrtman/adaptive_lifting/actions/runs/40541430859)
+  PASS: 27 Node checks, 66 shared Edge tests, all three entrypoint typechecks,
+  and 17 PostgreSQL protocol/negative-control assertions. This includes the
+  real bundled Deno driver and request gate: stable session across SQL helpers
+  and a provider gap, rejection before the callback under exclusive ownership,
+  rejected writes and disabled native reconnect after backend termination,
+  absence of those attempted writes, and fresh request admission.
+- [Repository CI 40541440938](https://github.com/qrtman/adaptive_lifting/actions/runs/40541440938)
+  PASS. Independent owned-container absence and executable cleanup PASS.
+- The fixture remains unprivileged, network-denied, without ports or host
+  mounts, with a read-only root filesystem and synthetic data only. Its
+  transport is a Unix socket; production TLS and hosted pooler admission are
+  NOT TESTED. `captureAllowed` remains false.
+
+Native startup diagnosis required failed hosted attempts, all with independent
+cleanup PASS. Archive-copy, missing runtime dependency, canonicalization and
+selection failures did not count as gate proof. Runs 40539657033 and
+40540323815 exposed a missing Bash loader mapping; 40540774498 and 40541082797
+exposed two glibc patch revisions and Nix bootstrap xgcc outputs. The final
+selector compares glibc revisions numerically and uses final GCC libraries.
+It chooses a compatibility candidate from immutable installed image paths;
+it does not attest Bash's active runtime. Actual successful native execution
+above is the acceptance evidence. No permission or isolation relaxation was
+needed. Regression assertions cover numeric revisions and bootstrap exclusion.
+
+Previously run local baseline: 374/374 recovery tests (including 23 maintenance checks), 66/66
+shared Edge tests (including 10 request-gate checks), and 432/432 application
+tests PASS (one existing application test skipped). All three Edge entrypoints
+typecheck; npm run lint PASS after extending the compile-only driver bridge to
+represent the verified connection configuration and session lifecycle.
 
 The standalone hosted workflow has no production environment, production
 credentials, R2 access or artifact upload. It runs pinned Node/Deno tooling,
@@ -61,7 +88,14 @@ See Supabase's [official Data API guidance](https://supabase.com/docs/guides/api
 Database session loss can release a shared lock while an already-sent provider
 request continues. Absence of shared locks alone therefore cannot prove provider
 drain. The first rehearsal needs an explicit provider-disabled invocation-drain
-policy and ambiguous outbox reconciliation. Never label this patch a global
+policy and ambiguous outbox reconciliation. Hold exclusive ownership while
+draining old invocations for the maximum hosted worker lifetime plus a margin
+(use the 400-second bound plus margin, not the 150-second request idle timeout).
+Then verify zero processing or uncertain provider/outbox/checkout work through
+protected counts and preserve disabled launch gates. Reconcile ambiguous jobs
+before the first rehearsal. Supabase documents these separate limits in its
+[Edge Functions limits](https://supabase.com/docs/guides/functions/limits).
+Never label this patch a global
 provider fence. Cron dispatch queues are not paused by this protocol.
 
 The existing production CLI is deliberately not wired to this helper until its
@@ -80,3 +114,4 @@ tests now pass. Review also caught premature provider release from a request
 timer; the timer was removed and a regression test added. Actual model usage
 and billed cost are unavailable. The owner's relaxed Lead-low preference is
 not a recovery blocker; no personal configuration was changed.
+
