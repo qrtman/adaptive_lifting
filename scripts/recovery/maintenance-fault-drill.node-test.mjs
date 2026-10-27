@@ -11,8 +11,8 @@ const result = stdout => ({ code: 0, signal: null, stderr: '', stdout });
 
 test('native runtime selects only unambiguous immutable image loader and libraries', () => {
   const libc = `/nix/store/${'a'.repeat(32)}-glibc-2.42/lib/ld-linux-x86-64.so.2`;
-  const gcc = `/nix/store/${'b'.repeat(32)}-gcc-15-lib/lib/libgcc_s.so.1`;
-  const cpp = `/nix/store/${'b'.repeat(32)}-gcc-15-lib/lib/libstdc++.so.6.0.34`;
+  const gcc = `/nix/store/${'b'.repeat(32)}-gcc-15.2.0-lib/lib/libgcc_s.so.1`;
+  const cpp = `/nix/store/${'b'.repeat(32)}-gcc-15.2.0-lib/lib/libstdc++.so.6.0.34`;
   const command = nativeFixtureRuntime([libc, gcc, cpp, gcc]);
   assert.equal(command[0], libc); assert.equal(command[1], '--library-path');
   assert.equal(command.at(-1), '/tmp/recovery-maintenance-fixture.js');
@@ -22,6 +22,20 @@ test('native runtime selects only unambiguous immutable image loader and librari
     [libc, gcc, libc.replace('glibc-2.42', 'glibc-2.41')]]) {
     assert.throws(() => nativeFixtureRuntime(paths));
   }
+});
+
+test('native runtime uses the active loader and one numeric GCC family or default-profile pair', () => {
+  const loader = `/nix/store/${'a'.repeat(32)}-glibc-2.42/lib/ld-linux-x86-64.so.2`;
+  const other = loader.replace('glibc-2.42', 'glibc-2.40');
+  const family = version => [`/nix/store/${'b'.repeat(32)}-gcc-${version}-lib/lib/libgcc_s.so.1`,
+    `/nix/store/${'b'.repeat(32)}-gcc-${version}-lib/lib/libstdc++.so.6.0.34`];
+  const old = family('9.5.0'); const current = family('15.2.0');
+  const paths = [loader, other, ...old, ...current];
+  const selected = nativeFixtureRuntime(paths, { activeLoader: loader });
+  assert.equal(selected[0], loader); assert.match(selected[2], /gcc-15\.2\.0/); assert.doesNotMatch(selected[2], /gcc-9\.5\.0/);
+  const profile = nativeFixtureRuntime(paths, { activeLoader: loader, profileGcc: old[0], profileCpp: old[1] });
+  assert.match(profile[2], /gcc-9\.5\.0/); assert.doesNotMatch(profile[2], /gcc-15\.2\.0/);
+  assert.throws(() => nativeFixtureRuntime(paths, { activeLoader: loader, profileGcc: old[0], profileCpp: current[1] }));
 });
 
 test('native fixture diagnostics expose only hardcoded classes, never native content', () => {
