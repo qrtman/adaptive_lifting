@@ -1,5 +1,19 @@
 # Production status
 
+## Recovery database connection verified — 2026-10-22
+
+The owner-approved [hosted connection test](https://github.com/qrtman/adaptive_lifting/actions/runs/39770197340)
+passed using the protected `production-recovery` database password and CA.
+Password authentication, certificate/hostname verification (`verify-full`), client
+TLS, expected database and role, PostgreSQL 17, a read-only transaction and normal
+temporary-file cleanup all passed. The check read no application rows and issued
+no database writes. See [the evidence and limits](recovery-db-connectivity-2026-10-22.md).
+
+This verifies source connectivity only. Encrypted production capture, fresh-job
+retrieval, isolated restore, dependency recovery and measured RPO/RTO remain
+**NOT TESTED**; the owner-only recovery rehearsal has not passed. This check did
+not activate capture, scheduling or retention and did not change the deployed API.
+
 **Authoritative continuation checkpoint — 2026-10-17**
 
 **Continuation branch:** `main` after the repository consolidation PR is merged.

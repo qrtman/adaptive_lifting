@@ -1,5 +1,18 @@
 # Production backup and recovery
 
+## Verified source connectivity — 2026-10-22
+
+The protected, manual-only [database connection check](recovery-db-connectivity-2026-10-22.md)
+passed in [run 39770197340](https://github.com/qrtman/adaptive_lifting/actions/runs/39770197340).
+It authenticated with the saved database password, verified the CA and hostname,
+confirmed client TLS and the expected PostgreSQL 17 database/role, and completed
+a read-only transaction with normal tmpfs cleanup. No application rows, Vault
+payloads or encryption roots were read. No capture or restore was performed.
+
+The connection credential prerequisite is verified. Full production recovery,
+RPO ≤24 hours and database RTO ≤4 hours remain unproven. The historical synthetic
+records below are separate from this narrowly scoped production connection test.
+
 **Engineering record; not production recovery evidence or activation approval.**
 As of the authoritative [production status](PRODUCTION_STATUS.md), independent
 encrypted production backup and isolated restore remain **BLOCKED / NOT TESTED**.
