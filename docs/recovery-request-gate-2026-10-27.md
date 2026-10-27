@@ -41,6 +41,8 @@ PASS. All three Edge entrypoints typecheck. The broader shared Edge suite was
 65/65 before the additional slow-provider regression test; final/hosted results
 are recorded below when available.
 
+Hosted workflow [40505904096](https://github.com/qrtman/adaptive_lifting/actions/runs/40505904096), code commit `80a879f46451f63fd671f9f9d8965f9ceaed3287`, PASSED on 2026-10-27. It ran 23 maintenance Node checks, all three Edge entrypoint checks, 66/66 shared Edge tests, the PostgreSQL 17 shared/exclusive contention and owner-loss drill, and independent container cleanup. The report records `fixtureTransport: unix-socket`, `productionTls: NOT TESTED`, `hostedPoolerAdmission: NOT TESTED` and `captureAllowed: false`. A following telemetry-only commit adds explicit fixture transport labels; no behavior changed.
+
 The standalone hosted workflow has no production environment, production
 credentials, R2 access or artifact upload. It runs pinned Node/Deno tooling,
 the shared Edge suite, the isolated PostgreSQL drill and independent owned
