@@ -1,10 +1,11 @@
-// Synthetic negative-control drill, not a production freeze implementation.
+// Isolated protocol and negative-control drill, not production freeze evidence.
 // Uses only an isolated, digest-pinned PostgreSQL 17 container and synthetic data.
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { runCommand, startCommand } from './process-runner.mjs';
+import { MAINTENANCE_KEY, withExclusiveMaintenance } from './exclusive-maintenance.mjs';
 import { IMAGE, assertHostedRunnerEnvironment, dockerRunArgs, assertIsolatedInspect,
   assertCleanupOwnedInspect } from './synthetic-drill.mjs';
 
@@ -186,13 +187,63 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
         await sql("SELECT NOT rolcanlogin FROM pg_roles WHERE rolname='maintenance_fixture_disabled';") !== 't') throw fail();
     if (await sql('SELECT 1;', 'maintenance_fixture_writer') !== '1') throw fail();
     stage = 'writer-process-exit'; await writer.close(); sessions.delete(writer);
+
+    const key = MAINTENANCE_KEY.join(',');
+    stage = 'shared-request-acquire';
+    const request = session('maintenance_fixture_writer');
+    if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't') throw fail();
+    const control = session('postgres');
+    stage = 'shared-request-delays-exclusive';
+    if (await control.query(`SELECT pg_try_advisory_lock(${key});`) !== 'f') throw fail();
+    // Provider work occurs between SQL helpers while the request session stays
+    // alive. This proves that gap only, not provider drain after session loss.
+    if (await request.query('SELECT 1;') !== '1' ||
+        await control.query(`SELECT pg_try_advisory_lock(${key});`) !== 'f') throw fail();
+    if (await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
+    stage = 'exclusive-protocol';
+    // Unix-socket fixture adapter only. identity.tls=true satisfies the helper's
+    // injected-client contract; it is explicitly NOT source TLS evidence.
+    const fixtureClient = {
+      identity: { database: 'postgres', version: '170011', tls: true },
+      async query(statement, parameters = []) {
+        const text = statement.replace(/\$(\d+)/g, (_match, index) => {
+          const value = parameters[Number(index) - 1];
+          if (!Number.isSafeInteger(value)) throw fail();
+          return String(value);
+        });
+        if (text.startsWith('SET ')) { await control.query(`${text};`); return { rows: [] }; }
+        return { rows: [JSON.parse(await control.query(`SELECT row_to_json(q) FROM (${text}) q;`))] };
+      },
+      async close() { await control.close(); sessions.delete(control); },
+    };
+    await withExclusiveMaintenance({ client: fixtureClient, capture: async ({ assertOwnership }) => {
+      if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 'f') throw fail();
+      await assertOwnership();
+    } });
+    if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't' ||
+        await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
+    stage = 'exclusive-owner-loss';
+    const owner = session('postgres');
+    const ownerPid = await owner.query(`SELECT pg_backend_pid() WHERE pg_try_advisory_lock(${key});`);
+    if (!/^\d+$/.test(ownerPid) ||
+        await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 'f' ||
+        await sql(`SELECT pg_terminate_backend(${ownerPid});`) !== 't') throw fail();
+    let ownerLost = false;
+    try { await owner.query('SELECT 1;'); } catch { ownerLost = true; }
+    if (!ownerLost) throw fail();
+    await owner.close({ terminated: true }); sessions.delete(owner);
+    if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't' ||
+        await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
+    await request.close(); sessions.delete(request);
     stage = 'final-isolation';
     assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
     result = { format: 'adaptive-maintenance-fault-drill-v1', status: 'synthetic-negative-controls-verified',
       checks: { tableWritesBlocked: true, readersProceed: true, sequenceAdvancesUnderTableLock: true,
         sequenceSetvalUnderTableLock: true, sequenceCacheObserved: true, existingLoginSurvivesNoLogin: true,
         newLoginRefused: true, connectionLossReleasesTableLock: true, committedPauseSurvivesConnectionLoss: true,
-        syntheticIndependentSettingRestore: true }, productionWriterFreeze: 'NOT TESTED',
+        syntheticIndependentSettingRestore: true, sharedRequestDelaysExclusive: true,
+        sharedLeaseSurvivesProviderGap: true, exclusiveRejectsNewAdmission: true,
+        exclusiveGuardRunsAgainstPostgres: true, ownerLossResumesAdmission: true }, productionWriterFreeze: 'NOT TESTED',
       durableEncryptedCleanup: 'NOT TESTED', hostedPoolerAdmission: 'NOT TESTED', captureAllowed: false };
   } catch { failed = true; }
   finally {
@@ -225,4 +276,3 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stderr.write('Synthetic maintenance fault drill failed; diagnostics suppressed.\n'); process.exitCode = 1;
   }
 }
-
