@@ -1,11 +1,11 @@
 // Isolated protocol and negative-control drill, not production freeze evidence.
 // Uses only an isolated, digest-pinned PostgreSQL 17 container and synthetic data.
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { posix } from 'node:path';
-import { lstat, realpath } from 'node:fs/promises';
+import { lstat, realpath, readFile } from 'node:fs/promises';
 import { runCommand, startCommand } from './process-runner.mjs';
 import { MAINTENANCE_KEY, withExclusiveMaintenance } from './exclusive-maintenance.mjs';
 import { IMAGE, assertHostedRunnerEnvironment, dockerRunArgs, assertIsolatedInspect,
@@ -253,10 +253,21 @@ export async function runMaintenanceFaultDrill({ env = process.env, platform = p
     if (await request.query(`SELECT pg_try_advisory_lock_shared(${key});`) !== 't' ||
         await request.query(`SELECT pg_advisory_unlock_shared(${key});`) !== 't') throw fail();
     await request.close(); sessions.delete(request);
-    stage = 'native-driver-copy';
+    stage = 'native-driver-file-validation';
     assertIsolatedInspect(JSON.parse(await invoke(['inspect', name])), name);
     const nativeBinary = await validateNativeFixtureBinary({ env });
-    await invoke(['cp', nativeBinary, `${name}:/tmp/recovery-maintenance-native`]);
+    const nativeBytes = await readFile(nativeBinary);
+    if (!nativeBytes.length || nativeBytes.length > 300 * 1024 * 1024) throw fail();
+    // Docker's archive-copy path cannot reliably target this read-only-rootfs
+    // fixture's tmpfs. Write through the existing unprivileged container user.
+    stage = 'native-driver-transfer';
+    await invoke(['exec', '-i', name, 'dd', 'of=/tmp/recovery-maintenance-native',
+      'bs=1M', 'iflag=fullblock', 'status=none'], nativeBytes);
+    stage = 'native-driver-transfer-verification';
+    const nativeHash = createHash('sha256').update(nativeBytes).digest('hex');
+    if (await invoke(['exec', name, 'sha256sum', '/tmp/recovery-maintenance-native']) !==
+        `${nativeHash}  /tmp/recovery-maintenance-native`) throw fail();
+    await invoke(['exec', name, 'chmod', '755', '/tmp/recovery-maintenance-native']);
     stage = 'native-driver-gate';
     const native = JSON.parse(await invoke(['exec', name, '/tmp/recovery-maintenance-native']));
     const nativeChecks = ['sharedSessionAcrossHelpers', 'sharedSessionAcrossProviderGap',
