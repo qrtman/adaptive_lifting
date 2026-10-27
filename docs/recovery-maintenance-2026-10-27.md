@@ -86,8 +86,13 @@ credentials; no current secret-value or enablement-flag verification is claimed.
 
 The source/CLI/snapshot corrections remain local alongside the pre-existing
 recovery changes. The separate remote test branch contains only the new
-maintenance modules/tests and synthetic workflow; it does not replace or publish
+maintenance modules/tests, synthetic workflow and this checkpoint; it does not replace or publish
 the rest of the local recovery work.
+
+The focused [draft PR #46](https://github.com/qrtman/adaptive_lifting/pull/46)
+targets `main`. It contains six additive files and remains unmerged. Its last
+tested code commit is the corrected hosted commit below; later additions are
+checkpoint documentation only.
 
 ## Verification and independent review
 
@@ -142,7 +147,7 @@ production or add sequence DDL under this unchanged-schema choice.
 The reviewed release inventory/prerequisite package, Vault ciphertext/original-
 root/application-dependency recovery, full-path hosted capture/retrieval, two
 independent restore targets and measured RPO/RTO also remain incomplete. No
-production mutation, backup, root retrieval, key provisioning, storage write,
+production mutation, backup, root retrieval, key provisioning, R2 storage write,
 enablement change, daily scheduling, retention, DNS change, public cutover or
 launch was performed. Owner-only rehearsal and full P0 remain unpassed.
 
