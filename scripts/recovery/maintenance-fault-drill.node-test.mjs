@@ -39,6 +39,11 @@ test('native runtime uses the active loader and one numeric GCC family or defaul
   const automatic = nativeFixtureRuntime(paths);
   assert.equal(automatic[0], loader);
   assert.equal(nativeFixtureRuntime([loader.replace('glibc-2.42', 'glibc-2.9'), loader, ...current])[0], loader);
+  const revision = loader.replace('glibc-2.42', 'glibc-2.40-218');
+  const bootstrap = current[0].replace('-gcc-', '-xgcc-').replace('-lib/lib/', '-libgcc/lib/');
+  const installed = nativeFixtureRuntime([revision, revision.replace('-218/', '-66/'), ...current, bootstrap]);
+  assert.equal(installed[0], revision);
+  assert.doesNotMatch(installed[2], /xgcc/);
 });
 
 test('native fixture diagnostics expose only hardcoded classes, never native content', () => {
