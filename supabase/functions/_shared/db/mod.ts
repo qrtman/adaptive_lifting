@@ -1,5 +1,6 @@
 import { Pool } from "@db/postgres";
 import type { AppUser, AuthRepository, AuthSession } from "../types/mod.ts";
+import type { MaintenanceDatabase } from "../recovery/maintenance.ts";
 
 export interface SqlClient {
   queryObject<T>(query: string, params?: unknown[]): Promise<{ rows: T[] }>;
@@ -10,7 +11,7 @@ export interface Database {
   connect(): Promise<SqlClient>;
 }
 
-export function databaseFromUrl(url: string): Database {
+export function databaseFromUrl(url: string): MaintenanceDatabase {
   // A single connection per warm isolate bounds Edge Function concurrency.
   // Enforce TLS for remote hosts; the local Supabase CLI database is the
   // only plain-text exception. Never expose this credential to browsers.
@@ -23,6 +24,8 @@ export function databaseFromUrl(url: string): Database {
       database: decodeURIComponent(parsed.pathname.slice(1)),
       user: decodeURIComponent(parsed.username),
       password: decodeURIComponent(parsed.password),
+      // Session advisory guards cannot survive a transparent reconnect.
+      connection: { attempts: 0 },
       tls: { enabled: !local, enforce: !local },
     },
     1,
