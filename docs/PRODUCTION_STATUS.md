@@ -1,5 +1,38 @@
 # Production status
 
+## Hostname cutover — 2026-11-08 (CURRENT)
+
+**CONFIRMED:** Owner-authorized deploy of Worker `adaptive-lifting-production`
+(account `05a07c48f5e8e3afb784e11931502508`) with the exact route
+`app.goatedmethod.me/*` (zone `goatedmethod.me`), using the cutover config with
+project ref `gadusaizqnshxqcckibq`. Active version
+`462d5577-fd31-4136-b133-2edd192c1a57`. Built with `npm run build:production`;
+`validate:production:local` and a Wrangler dry-run passed first; type check and
+432 tests passed (one billing test is locale-dependent, see below). No DNS record
+was changed: the existing proxied `app` record is overridden by the Worker route.
+
+Pre-cutover readback: `app.goatedmethod.me` returned Cloudflare 530/1033 because
+Tunnel `adaptive-lifting-prod` (`744f508c-41d1-44f1-bc89-de5dd6abd914`, status
+down) pointed at a retired local origin (`127.0.0.1:8088`) and served only this
+hostname. The Worker had no routes or custom domains.
+
+Post-deploy smoke checks (unauthenticated, no accounts created):
+`/` 200 (app); `/api/health` 200 `{"status":"ok"}`; `POST /api/auth/register`
+503 (registration still disabled); `/api/auth/me` 401. The deploy reported
+Preview URLs disabled by default, replacing the earlier "Version URLs enabled
+behind Access" state; not separately re-verified.
+
+Still **PENDING / NOT TESTED:** production email sender and enabling
+registration; private Realtime; browser end-to-end on the live origin
+(cookie/CSRF/session); backup/restore (free Supabase tier, no managed backups);
+retiring the dead Tunnel and its DNS record (cleanup only); security/monitoring
+checks. Public launch is not authorized. Known test note: `CoachBillingPanel`
+asserts `$29.00` and fails when `LC_ALL` is a non-US locale such as `en_AU`
+(component is correct; test should pin `en-US`).
+
+Sections below are dated history. Where they say the hostname cutover is
+pending or the Worker has no public address, this section supersedes them.
+
 ## Request admission verification — 2026-10-28
 
 The maintenance admission patch in [draft PR #47](https://github.com/qrtman/adaptive_lifting/pull/47)
@@ -171,7 +204,7 @@ disabled and recheck Worker custom domains and the `goatedmethod.me` route
 list. Do not delete the reusable preview policy if another application uses
 it. Recheck DNS and Tunnel state separately; neither is part of this test
 endpoint's teardown.
-- **PENDING:** Recheck and perform the existing hostname Worker-route cutover
+- **DONE 2026-11-08 (see top section):** Hostname Worker-route cutover. Original text: Recheck and perform the existing hostname Worker-route cutover
   only after separate authorization. Preserve current DNS and Cloudflare
   Tunnel routing until then.
 - **PENDING:** Verify a production email sender and worker dispatch, then run
