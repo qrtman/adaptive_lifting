@@ -102,15 +102,24 @@ and edits the same exercise, the offline flush returns 409 `SYNC_CONFLICT_REVIEW
 the new revision from the sync response and relies on the later
 `sync-server-state-restored` refresh (`src/services/sync_engine.ts`). Waiting 4 s
 before going offline made it pass. The repo's e2e tests mock the sync call, so
-they do not cover this. **Fix prepared, NOT DEPLOYED (2026-11-08):** `sync_engine.ts`
+they do not cover this. **Fix DEPLOYED and verified (2026-11-08):** Owner-approved redeploy of Worker
+`adaptive-lifting-production` (version `c2e6e292-7f2b-48d5-b2c8-53b1ffce0bd8`,
+route `app.goatedmethod.me/*`, built from commits `39018a2` and `ca9aa65`; `/` and
+`/api/health` return 200). With no settle delay the offline-edit smoke test passed
+3 of 3 runs: after reconnect the sync responses were 409, 409, 200, no
+conflict reached the user, the queue emptied and values persisted. Note that two
+automatic re-bases were needed (cap is 3); if a flow ever needs more, the user would
+see a conflict card, so watch for it. Test data was deleted afterwards. Also: a
+`CLOUDFLARE_API_TOKEN` (DNS-only) left in the project `.env` made Wrangler fail
+with "Authentication error 10000" because Wrangler auto-loads `.env`; it was
+removed. Keep deploy credentials out of `.env`.
+Original analysis and fix description follow. `sync_engine.ts`
 now re-bases an edit and retries once the server reports `STALE_REVISION` but the
 server's values for every field the edit changes still equal the values it was
 based on (a self-conflict); real differences still go to conflict review, with a
 cap of 3 re-bases per edit (new `rebase_count` on stored mutations). Seven new
 tests cover it, including a flow test built on the captured production 409 body
-(typecheck clean, 439 tests pass, production build passes). Production still
-runs the previous Worker build until a redeploy is approved and re-verified with
-the smoke test at 0 s settle. NOT TESTED: service-worker/PWA behaviour, mobile layout,
+(typecheck clean, 439 tests pass, production build passes). NOT TESTED: service-worker/PWA behaviour, mobile layout,
 a second user/coach link, multi-device conflict. Test data (6 `E2E smoke`
 sessions) was created and then deleted; the account has no sessions. Other
 notes: the Worker passes through a Supabase `__cf_bm` Set-Cookie with
