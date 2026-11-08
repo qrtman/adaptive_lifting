@@ -10,6 +10,7 @@ import {
   mutationsForWorkout,
   parseSyncErrorCode,
   parseSyncErrorMessage,
+  planSyncBatch,
 } from './sync_engine';
 
 function insightMut(entity_id: string, workout_id?: string): SyncMutation {
@@ -461,5 +462,53 @@ describe('self-inflicted STALE_REVISION conflicts', () => {
     );
     expect(conflicts).toHaveLength(1);
     expect(row.status).toBe('CONFLICTED');
+  });
+});
+
+describe('planSyncBatch: never send two overlapping edits of one entity together', () => {
+  const mut = (id: string, updated: string, fields: Record<string, any>, over: Partial<SyncMutation> = {}): SyncMutation => ({
+    mutation_id: id, client_device_id: 'dev-1', workout_id: 'w-a', entity_type: 'Exercise', entity_id: 'e-1',
+    field_path: 'ALL', fields, base_revision: 4, updated_at: updated, status: 'PENDING', retry_count: 0, ...over,
+  });
+  const ids = (list: SyncMutation[]) => list.map((m) => m.mutation_id);
+
+  // Production 2026-11-09 "Squatish": an add-set edit was re-based (or stayed in flight)
+  // while the next edit of the same lift was queued; both went out → OVERLAPPING_BATCH_PATCH.
+  it('keeps only the newest whole-lift edit and drops the older one it already contains', () => {
+    const older = mut('mut-zzz', '2026-11-08T15:00:00.000Z', { sets: [{ id: 's1', plannedWeight: 160 }] }, { status: 'IN_FLIGHT' });
+    const newer = mut('mut-aaa', '2026-11-08T15:00:03.000Z', { sets: [{ id: 's1' }, { id: 's2' }, { id: 's3' }] });
+    const plan = planSyncBatch([newer, older]); // IndexedDB order is by random id, not time
+    expect(ids(plan.send)).toEqual(['mut-aaa']);
+    expect(ids(plan.superseded)).toEqual(['mut-zzz']);
+    expect(plan.deferred).toEqual([]);
+  });
+
+  it('sends the older of two partially overlapping field patches first and holds the newer', () => {
+    const older = mut('m1', '2026-11-08T15:00:00.000Z', { actual: 100, reps: 5 }, { entity_type: 'ExerciseSet', entity_id: 's1' });
+    const newer = mut('m2', '2026-11-08T15:00:02.000Z', { actual: 102.5 }, { entity_type: 'ExerciseSet', entity_id: 's1' });
+    const plan = planSyncBatch([newer, older]);
+    // m1 has `reps`, which m2 does not carry, so m1 cannot be dropped; m2 waits one run.
+    expect(ids(plan.send)).toEqual(['m1']);
+    expect(ids(plan.deferred)).toEqual(['m2']);
+    expect(plan.superseded).toEqual([]);
+  });
+
+  it('leaves unrelated entities and disjoint fields in the same batch, oldest first', () => {
+    const a = mut('a', '2026-11-08T15:00:02.000Z', { sets: [] }, { entity_id: 'e-2' });
+    const b = mut('b', '2026-11-08T15:00:01.000Z', { title: 'Heavy' }, { entity_type: 'Workout', entity_id: 'w-a' });
+    const c = mut('c', '2026-11-08T15:00:03.000Z', { status: 'COMPLETED' }, { entity_type: 'Workout', entity_id: 'w-a' });
+    const plan = planSyncBatch([a, c, b]);
+    expect(ids(plan.send)).toEqual(['b', 'a', 'c']);
+    expect(plan.superseded).toEqual([]);
+    expect(plan.deferred).toEqual([]);
+  });
+
+  it('drops nothing when two edits of a lift carry the same time (order unknown)', () => {
+    const a = mut('mut-b', '2026-11-08T15:00:00.000Z', { sets: [{ id: 's1' }] });
+    const b = mut('mut-a', '2026-11-08T15:00:00.000Z', { sets: [{ id: 's1' }, { id: 's2' }] });
+    const plan = planSyncBatch([a, b]);
+    expect(plan.superseded).toEqual([]);
+    expect(plan.send).toHaveLength(1);
+    expect(plan.deferred).toHaveLength(1);
   });
 });

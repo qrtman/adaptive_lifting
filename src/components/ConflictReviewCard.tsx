@@ -40,7 +40,7 @@ function reasonCopy(reason: string, thing: string): string {
     case 'TOMBSTONE_CONFLICT': return `This ${thing} was deleted on the server. ${kept}`;
     case 'STALE_REVISION': return `This ${thing} changed on the server after you started editing. ${kept} Review what changed below, then keep the server version or use your edit.`;
     case 'BASELINE_REQUIRED': return `This edit was made before this device had the latest copy of the ${thing}, so it could not be checked safely. ${kept} Review the server version below.`;
-    case 'OVERLAPPING_BATCH_PATCH': return `Two queued edits from this device touch the same ${thing} fields, so they could not be applied together. ${kept} Review below.`;
+    case 'OVERLAPPING_BATCH_PATCH': return `Two edits from this device to the same ${thing} were sent together, so the later one was held back. ${kept} Use your edit to apply it, or keep the server version.`;
     default: return `The server version of this ${thing} changed before your edit could sync. ${kept} Review below.`;
   }
 }
@@ -155,7 +155,7 @@ export const ConflictReviewCard: React.FC<ConflictReviewCardProps> = ({
             <button onClick={onKeepServer} aria-label={`Keep server version for ${targetLine(target, entityType, entityId, thing)}`} className="flex items-center justify-center gap-1.5 flex-1 basis-[7.5rem] py-2 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] text-xs font-medium rounded-[var(--cal-radius-md)]">
               <Check size={14} /> Keep server version
             </button>
-            {onUseMine && reason === 'STALE_REVISION' ? (
+            {onUseMine && (reason === 'STALE_REVISION' || reason === 'OVERLAPPING_BATCH_PATCH') ? (
               <button onClick={onUseMine} data-testid="conflict-use-mine" aria-label={`Use my edit for ${targetLine(target, entityType, entityId, thing)}`} className="flex items-center justify-center gap-1.5 flex-1 basis-[7.5rem] py-2 border border-[var(--cal-border)] text-[var(--cal-ink)] text-xs font-medium rounded-[var(--cal-radius-md)]">
                 <Upload size={14} /> Use my edit
               </button>

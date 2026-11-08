@@ -1,5 +1,5 @@
 import { clearAuthorization } from './authAuthorization';
-import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus, updateMutationConflict } from './db';
+import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus, updateMutationConflict, deleteSupersededMutation } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
 import { API_BASE_URL } from './apiBase';
@@ -19,6 +19,16 @@ export const LEGACY_INSIGHT_CARD_WORKOUT_ID = 'insight-cards';
 
 export function isInsightCardMutation(m: Pick<SyncMutation, 'entity_type' | 'workout_id'>): boolean {
   return m.entity_type === 'InsightCard' || m.workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID;
+}
+
+let lastStamp = 0;
+/**
+ * Strictly increasing edit time for this tab: two edits in the same millisecond still
+ * order correctly, which planSyncBatch relies on to tell which edit is newer.
+ */
+function nextEditStamp(): string {
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return new Date(lastStamp).toISOString();
 }
 
 function generateMutationId() {
@@ -108,7 +118,7 @@ export async function queueMutation(
     prior.base_revision ??= baseline.revision;
     prior.base_fields ??= baseline.fields;
     prior.snapshot_key ??= baseline.snapshot_key;
-    prior.updated_at = new Date().toISOString();
+    prior.updated_at = nextEditStamp();
     await saveMutation(prior);
     scheduleSync(workout_id, accountId);
     return;
@@ -125,7 +135,7 @@ export async function queueMutation(
     base_revision: baseline.revision,
     base_fields: baseline.fields,
     snapshot_key: baseline.snapshot_key,
-    updated_at: new Date().toISOString(),
+    updated_at: nextEditStamp(),
     status: 'PENDING',
     retry_count: 0
   };
@@ -358,6 +368,59 @@ export async function processInsightCardSync(accountId?: string): Promise<any[]>
   return postSync(`${BACKEND_URL}/api/insight-cards/sync`, payload, pending);
 }
 
+const scopeOf = (m: SyncMutation) => `${m.entity_type}:${m.entity_id}`;
+const fieldKeys = (m: SyncMutation) => Object.keys(m.fields || {});
+
+/**
+ * The server rejects a batch in which two changes to one entity touch the same field
+ * (OVERLAPPING_BATCH_PATCH). That happens when an edit is queued while an earlier edit of
+ * the same lift is in flight or being re-based. Per entity, oldest first:
+ * - an older edit whose fields are all carried by the newest edit is superseded (dropped):
+ *   the newest one holds the final values and was based on the older one's result;
+ * - of the rest, edits that overlap one already in this batch wait for the next sync.
+ * Order is by `updated_at`, since mutation ids are random and IndexedDB returns key order.
+ */
+export function planSyncBatch(pending: SyncMutation[]): {
+  send: SyncMutation[]; superseded: SyncMutation[]; deferred: SyncMutation[];
+} {
+  const groups = new Map<string, SyncMutation[]>();
+  for (const m of pending) {
+    const list = groups.get(scopeOf(m)) ?? [];
+    list.push(m);
+    groups.set(scopeOf(m), list);
+  }
+  const superseded = new Set<SyncMutation>();
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => String(a.updated_at).localeCompare(String(b.updated_at)));
+    const newest = list[list.length - 1];
+    const newestKeys = new Set(fieldKeys(newest));
+    for (const older of list.slice(0, -1)) {
+      // Only a strictly older edit is dropped; on a tie the order is unknown, so keep both
+      // (the overlap rule below then sends one and holds the other).
+      if (String(older.updated_at) < String(newest.updated_at)
+        && fieldKeys(older).every((key) => newestKeys.has(key))) superseded.add(older);
+    }
+  }
+  const ordered = [...pending]
+    .filter((m) => !superseded.has(m))
+    .sort((a, b) => String(a.updated_at).localeCompare(String(b.updated_at)));
+  const seen = new Map<string, Set<string>>();
+  const send: SyncMutation[] = [];
+  const deferred: SyncMutation[] = [];
+  for (const m of ordered) {
+    const keys = seen.get(scopeOf(m)) ?? new Set<string>();
+    if (fieldKeys(m).some((key) => keys.has(key))) {
+      deferred.push(m);
+      continue;
+    }
+    for (const key of fieldKeys(m)) keys.add(key);
+    seen.set(scopeOf(m), keys);
+    send.push(m);
+  }
+  return { send, superseded: [...superseded], deferred };
+}
+
 export async function processSyncQueue(workout_id: string, accountId?: string): Promise<any[]> {
   if (workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
     return processInsightCardSync(accountId);
@@ -365,7 +428,8 @@ export async function processSyncQueue(workout_id: string, accountId?: string): 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
 
   const pendingAll = await getPendingMutations(undefined, accountId);
-  const pending = mutationsForWorkout(pendingAll, workout_id);
+  const { send: pending, superseded, deferred } = planSyncBatch(mutationsForWorkout(pendingAll, workout_id));
+  for (const m of superseded) await deleteSupersededMutation(m.mutation_id, m.updated_at);
   if (pending.length === 0) return [];
 
   const payload = {
@@ -386,7 +450,10 @@ export async function processSyncQueue(workout_id: string, accountId?: string): 
     }))
   };
 
-  return postSync(`${BACKEND_URL}/api/workouts/${workout_id}/sync`, payload, pending, workout_id);
+  const conflicts = await postSync(`${BACKEND_URL}/api/workouts/${workout_id}/sync`, payload, pending, workout_id);
+  // Edits held back to avoid an overlapping batch go out on the next run.
+  if (deferred.length > 0 && typeof window !== 'undefined') scheduleSync(workout_id, accountId);
+  return conflicts;
 }
 
 /** Flush preserved queues after online recovery or an authenticated sign-in. */
