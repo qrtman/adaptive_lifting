@@ -220,6 +220,31 @@ export async function countMutationsByStatus(status: SyncMutation['status'], acc
   });
 }
 
+/**
+ * Drop a queued edit whose every field is carried by a newer queued edit of the same
+ * entity. Only an unchanged PENDING/IN_FLIGHT row is removed; conflicted, resolved or
+ * since-updated rows stay.
+ */
+export async function deleteSupersededMutation(mutation_id: string, expectedUpdatedAt: string): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+    const req = store.get(mutation_id);
+    req.onsuccess = () => {
+      const row = req.result as SyncMutation | undefined;
+      // A newer edit may have been merged into this row after the batch was planned;
+      // then it is no longer superseded and must stay.
+      if (row && (row.status === 'PENDING' || row.status === 'IN_FLIGHT') && row.updated_at === expectedUpdatedAt) {
+        store.delete(mutation_id);
+      }
+    };
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function updateMutationStatus(mutation_id: string, status: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -366,12 +391,16 @@ export async function resolveMutationKeepServer(mutationId: string, accountId?: 
 }
 
 /**
- * The user chose their edit over the server version of a STALE_REVISION conflict:
+ * The user chose their edit over the server version of a STALE_REVISION (or
+ * OVERLAPPING_BATCH_PATCH) conflict:
  * re-base the edit on the revision and values the server reported and queue it again.
  * The edit is still guarded by that revision, so a further change by someone else
  * produces a new conflict instead of being overwritten silently.
  * Resolves with the re-queued edit, or null when it was not eligible.
  */
+/** Conflicts where re-sending the edit on top of the reported server state is meaningful. */
+export const USE_MINE_REASONS = new Set(['STALE_REVISION', 'OVERLAPPING_BATCH_PATCH']);
+
 export async function resolveMutationUseMine(mutationId: string, accountId?: string): Promise<SyncMutation | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -382,7 +411,7 @@ export async function resolveMutationUseMine(mutationId: string, accountId?: str
     req.onsuccess = () => {
       const mutation = req.result as SyncMutation | undefined;
       const conflict = mutation?.conflict;
-      if (!mutation || mutation.status !== 'CONFLICTED' || conflict?.reason !== 'STALE_REVISION' ||
+      if (!mutation || mutation.status !== 'CONFLICTED' || !USE_MINE_REASONS.has(conflict?.reason) ||
           !Number.isSafeInteger(conflict.server_revision) || !conflict.server_fields ||
           !mutationVisibleToAccount(mutation, accountId, IS_FRESH_PRODUCTION_CLIENT)) return;
       mutation.base_revision = conflict.server_revision;
