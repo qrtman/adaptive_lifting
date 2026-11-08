@@ -1,6 +1,7 @@
 import React from 'react';
-import { AlertCircle, Check, Download } from 'lucide-react';
+import { AlertCircle, Check, Download, Upload } from 'lucide-react';
 import type { ConflictTarget } from '../services/conflictTarget';
+import { setListsMatch } from '../services/setSyncShape';
 
 interface ConflictReviewCardProps {
   mutationId: string;
@@ -12,6 +13,8 @@ interface ConflictReviewCardProps {
   clientFields: Record<string, unknown>;
   onKeepServer: () => void;
   onExport: () => void;
+  /** Re-send this edit on top of the server version, replacing what the server has. */
+  onUseMine?: () => void;
 }
 
 // Server conflict payloads use camelCase training fields (al_exercise_sets_snapshot)
@@ -35,7 +38,7 @@ function reasonCopy(reason: string, thing: string): string {
   const kept = 'Your edit is still saved on this device and has not been applied.';
   switch (reason) {
     case 'TOMBSTONE_CONFLICT': return `This ${thing} was deleted on the server. ${kept}`;
-    case 'STALE_REVISION': return `This ${thing} was changed elsewhere (by your coach, your athlete or another device) after you started editing. ${kept} Review what changed below.`;
+    case 'STALE_REVISION': return `This ${thing} changed on the server after you started editing. ${kept} Review what changed below, then keep the server version or use your edit.`;
     case 'BASELINE_REQUIRED': return `This edit was made before this device had the latest copy of the ${thing}, so it could not be checked safely. ${kept} Review the server version below.`;
     case 'OVERLAPPING_BATCH_PATCH': return `Two queued edits from this device touch the same ${thing} fields, so they could not be applied together. ${kept} Review below.`;
     default: return `The server version of this ${thing} changed before your edit could sync. ${kept} Review below.`;
@@ -89,9 +92,14 @@ export function describeSet(set: SetLike, index: number): string {
     if (e !== null) out += ` @ RPE ${e}`;
     return out;
   };
-  const plan = part(set.plannedWeight, set.plannedReps, set.plannedRpe);
+  const scope = set.scope === 'plan' || set.scope === 'log' ? set.scope : 'both';
+  const plan = part(set.plannedWeight, set.plannedReps, set.plannedRpe ?? set.target_value);
   const log = part(set.actual, set.reps, set.executedRpe);
-  const pieces = [plan ? `Plan ${plan}` : 'Plan not set', ...(log ? [`Log ${log.replace(' kg', '')}`] : [])];
+  const pieces: string[] = [];
+  // A log-only row has no plan to report, and a plan-only row has no log.
+  if (scope !== 'log') pieces.push(plan ? `Plan ${plan}` : 'Plan not set');
+  if (scope !== 'plan' && log) pieces.push(`Log ${log.replace(' kg', '')}`);
+  if (scope === 'log' && !log) pieces.push('Log not set');
   return `Set ${index + 1}: ${pieces.join(' · ')}`;
 }
 
@@ -102,16 +110,18 @@ function lines(key: string, value: unknown): string[] {
   return [display(value)];
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const same = (key: string, a: unknown, b: unknown) => (key === 'sets' && Array.isArray(a) && Array.isArray(b)
+  ? setListsMatch(a, b)
+  : JSON.stringify(a ?? null) === JSON.stringify(b ?? null));
 
 export const ConflictReviewCard: React.FC<ConflictReviewCardProps> = ({
-  mutationId, entityType, entityId, reason, serverFields = {}, clientFields, target, onKeepServer, onExport,
+  mutationId, entityType, entityId, reason, serverFields = {}, clientFields, target, onKeepServer, onExport, onUseMine,
 }) => {
   const thing = ENTITY_LABELS[entityType] || 'item';
   // Show only fields the queued edit touched (falling back to server fields),
   // without bookkeeping columns or values that already match.
   const source = Object.keys(clientFields).length ? Object.keys(clientFields) : Object.keys(serverFields);
-  const keys = source.filter(key => !HIDDEN_FIELDS.has(key) && !same(serverFields[key], clientFields[key]));
+  const keys = source.filter(key => !HIDDEN_FIELDS.has(key) && !same(key, serverFields[key], clientFields[key]));
   return (
     <section className="bg-[color-mix(in_srgb,var(--cal-error)_10%,var(--cal-surface-elevated))] border border-[color-mix(in_srgb,var(--cal-error)_30%,transparent)] rounded-[var(--cal-radius-lg)] p-4 mb-4" aria-label={`Sync conflict: ${targetLine(target, entityType, entityId, thing)}`}>
       <div className="flex items-start gap-3">
@@ -141,11 +151,16 @@ export const ConflictReviewCard: React.FC<ConflictReviewCardProps> = ({
               </div>
             ))}
           </div>
-          <div className="flex gap-2">
-            <button onClick={onKeepServer} aria-label={`Keep server version for ${targetLine(target, entityType, entityId, thing)}`} className="flex items-center justify-center gap-1.5 flex-1 py-2 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] text-xs font-medium rounded-[var(--cal-radius-md)]">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={onKeepServer} aria-label={`Keep server version for ${targetLine(target, entityType, entityId, thing)}`} className="flex items-center justify-center gap-1.5 flex-1 basis-[7.5rem] py-2 bg-[var(--cal-primary)] hover:bg-[var(--cal-primary-active)] text-[var(--cal-on-primary)] text-xs font-medium rounded-[var(--cal-radius-md)]">
               <Check size={14} /> Keep server version
             </button>
-            <button onClick={onExport} aria-label={`Export edit ${mutationId}`} className="flex items-center justify-center gap-1.5 flex-1 py-2 border border-[var(--cal-border)] text-[var(--cal-ink)] text-xs font-medium rounded-[var(--cal-radius-md)]">
+            {onUseMine && reason === 'STALE_REVISION' ? (
+              <button onClick={onUseMine} data-testid="conflict-use-mine" aria-label={`Use my edit for ${targetLine(target, entityType, entityId, thing)}`} className="flex items-center justify-center gap-1.5 flex-1 basis-[7.5rem] py-2 border border-[var(--cal-border)] text-[var(--cal-ink)] text-xs font-medium rounded-[var(--cal-radius-md)]">
+                <Upload size={14} /> Use my edit
+              </button>
+            ) : null}
+            <button onClick={onExport} aria-label={`Export edit ${mutationId}`} className="flex items-center justify-center gap-1.5 flex-1 basis-[7.5rem] py-2 border border-[var(--cal-border)] text-[var(--cal-ink)] text-xs font-medium rounded-[var(--cal-radius-md)]">
               <Download size={14} /> Export my edit
             </button>
           </div>

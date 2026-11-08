@@ -36,6 +36,8 @@ export async function newPage(browser: Browser, opts: { serviceWorkers?: 'allow'
 
 export async function login(page: Page, email = creds.email!, password = creds.password!) {
   await page.goto('/');
+  // Fill only after the app has hydrated; an early submit is silently dropped.
+  await page.waitForLoadState('networkidle').catch(() => {});
   await page.getByPlaceholder('coach@example.com').fill(email);
   await page.getByPlaceholder('Password').fill(password);
   await page.locator('button[type=submit]').click();
@@ -98,8 +100,20 @@ export async function createSession(page: Page, title: string, date: string) {
   await expect(page.getByTestId('new-session-dialog')).toHaveCount(0, { timeout: 15_000 });
 }
 
+/**
+ * Test sessions carry no Block label. On an account that already uses Block labels the
+ * Sessions view shows one block at a time, so switch to "Unassigned" when it exists.
+ */
+export async function showUnassigned(page: Page) {
+  const picker = page.getByTestId('sessions-block-picker');
+  if (await picker.isVisible().catch(() => false)) {
+    if (await picker.locator('option[value="unassigned"]').count()) await picker.selectOption('unassigned');
+  }
+}
+
 export async function openSession(page: Page, title: string, navigate = true) {
   if (navigate) await page.getByRole('button', { name: 'Sessions' }).click();
+  await showUnassigned(page);
   const card = sessionCards(page, title);
   await expect(card).toHaveCount(1, { timeout: 20_000 });
   await card.locator('button').first().click();
@@ -114,7 +128,8 @@ export async function addDeadlift(page: Page) {
   await page.getByTestId('add-lift').click();
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
+  // Production add-lift is a save plus a full plan reload (several seconds from far regions).
+  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true }).first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Expand Deadlift', exact: true }).click();
 }
 
@@ -142,6 +157,7 @@ export async function cleanupRunSessions(browser: Browser, email = creds.email!,
     await login(page, email, password);
     await page.getByRole('button', { name: 'Sessions' }).click();
     await waitForSessionsList(page);
+    await showUnassigned(page);
     const mine = () => sessionCards(page, RUN_ID);
     for (let i = 0; i < 20 && (await mine().count()) > 0; i++) {
       const card = mine().first();

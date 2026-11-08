@@ -4,6 +4,7 @@ import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
 import { API_BASE_URL } from './apiBase';
 import { IS_FRESH_PRODUCTION_CLIENT } from './clientDataBoundary';
+import { setListsMatch } from './setSyncShape';
 
 let syncTimeout: number | null = null;
 let insightSyncTimeout: number | null = null;
@@ -178,21 +179,12 @@ function scheduleInsightCardSync(accountId?: string) {
 }
 
 const MAX_SELF_CONFLICT_REBASES = 3;
-const SET_COMPARE_KEYS = [
-  'label', 'scope', 'plannedWeight', 'plannedReps', 'plannedRpe', 'intensityType',
-  'dropPercent', 'isAuto', 'isTop', 'actual', 'reps', 'executedRpe',
-] as const;
 
 const sameValue = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
 
-function setsMatch(base: unknown, server: unknown): boolean {
-  if (!Array.isArray(base) || !Array.isArray(server) || base.length !== server.length) return false;
-  const serverById = new Map<unknown, any>(server.map((row: any) => [row?.id, row]));
-  return base.every((row: any) => {
-    const other = serverById.get(row?.id);
-    return !!other && SET_COMPARE_KEYS.every((key) => sameValue(row[key], other[key]));
-  });
-}
+// Baselines from older builds are raw UI rows (intensity_type / target_value); the server
+// snapshot is normalized. setListsMatch normalizes both sides before comparing.
+const setsMatch = setListsMatch;
 
 /**
  * True when the server rejected an edit as STALE_REVISION but every field the edit changes

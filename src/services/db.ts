@@ -365,6 +365,41 @@ export async function resolveMutationKeepServer(mutationId: string, accountId?: 
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('sync-server-state-restored'));
 }
 
+/**
+ * The user chose their edit over the server version of a STALE_REVISION conflict:
+ * re-base the edit on the revision and values the server reported and queue it again.
+ * The edit is still guarded by that revision, so a further change by someone else
+ * produces a new conflict instead of being overwritten silently.
+ * Resolves with the re-queued edit, or null when it was not eligible.
+ */
+export async function resolveMutationUseMine(mutationId: string, accountId?: string): Promise<SyncMutation | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+    const req = store.get(mutationId);
+    let requeued: SyncMutation | null = null;
+    req.onsuccess = () => {
+      const mutation = req.result as SyncMutation | undefined;
+      const conflict = mutation?.conflict;
+      if (!mutation || mutation.status !== 'CONFLICTED' || conflict?.reason !== 'STALE_REVISION' ||
+          !Number.isSafeInteger(conflict.server_revision) || !conflict.server_fields ||
+          !mutationVisibleToAccount(mutation, accountId, IS_FRESH_PRODUCTION_CLIENT)) return;
+      mutation.base_revision = conflict.server_revision;
+      mutation.base_fields = conflict.server_fields;
+      mutation.conflict = undefined;
+      mutation.rebase_count = 0;
+      mutation.status = 'PENDING';
+      mutation.updated_at = new Date().toISOString();
+      store.put(mutation);
+      requeued = mutation;
+    };
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve(requeued);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function exportConflictMutation(mutationId: string, accountId?: string): Promise<SyncMutation | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {

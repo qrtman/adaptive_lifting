@@ -1,6 +1,32 @@
 # Production status
 
-## Production rollout of launch-gap branch — 2026-11-08 (CURRENT)
+## Fix: false "Sync conflict needs review" on your own set edits — 2026-11-08 (CURRENT)
+
+**Status: fixed on branch `fix/set-sync-self-conflict`; NOT deployed yet.** Owner commits/PRs; deploy after merge.
+
+Reported by owner: editing a set showed "Sync conflict needs review · STALE_REVISION" ("server has Set 2: Plan not set") with only "Keep server" / "Export my edit".
+
+**CONFIRMED reproduced on production** (owner's account, throwaway session, deleted afterwards): add a plan set, type its kg, add a log set and type it, edit set 1 within ~3 s → sync 200 then 409 STALE_REVISION → conflict card. The grid also lost the second edit (set 1 showed "—") after the first save's reload.
+
+Cause (client only; server behaviour is correct):
+- Each save raises the lift revision; a quick next edit is sent with the old revision → STALE_REVISION.
+- The automatic "our own change" re-base (`isSelfConflict`) compared raw grid rows (new sets carry `intensity_type` only) strictly against the server's normalized snapshot, so it never matched.
+- The post-save reload replaced the grid with server data while a later edit was still queued.
+
+Fix:
+- `src/services/setSyncShape.ts`: one set shape for payload and baseline; value-based, id-matched comparison (`setListsMatch`).
+- `PeriodizationContext.reloadMicrocycles`: queued set edits stay on screen, paired with their own base revision (Codex P1: prevents a follow-up edit from silently overwriting a coach change).
+- Conflict card: plan/log lines follow set scope ("Log …" for log-only rows), unchanged sets hidden, neutral STALE_REVISION copy, new "Use my edit" (re-bases on the server revision and resends; still revision-guarded).
+- Prod e2e: new `e2e/prod/selfconflict.spec.ts`; helpers wait for app load before sign-in, switch the Sessions block picker to "Unassigned", and allow 20 s for add-lift (prod add-lift ≈ 4 s).
+
+Verification: `tsc -b` clean; vitest 512 passed / 1 skipped (new cases in `sync_engine.test.ts`, `setSyncShape.test.ts`, `ConflictReviewCard.test.tsx`); Codex review: one P1 fixed, second pass "no blockers".
+Gaps: local `npm run test:e2e` cannot start here (webServer needs `.venv/bin/python`); ESLint cannot run (`@eslint/js` missing from node_modules); no IndexedDB unit test for "Use my edit" (no fake-indexeddb in repo).
+
+Also found (not fixed): server set order uses text rank `'a' || index`, so a lift with 11+ sets is read back as a0, a1, a10, a2, … (reordered after reload). Needs a migration (zero-padded rank or integer position).
+
+PENDING: owner commit + PR + merge; `npm run build:production` + Worker deploy; run `npx playwright test -c playwright.prod.config.ts e2e/prod/selfconflict.spec.ts` against production (expect green).
+
+## Production rollout of launch-gap branch — 2026-11-08
 
 **CONFIRMED:** Owner-authorized ("go production") rollout from branch `ux-and-prod-smoke` (commit c1ca390 plus the uncommitted status-doc edits) to production project `gadusaizqnshxqcckibq` and Worker `adaptive-lifting-production`.
 

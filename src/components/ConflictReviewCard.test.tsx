@@ -48,7 +48,7 @@ it('shows only the changed set fields with coach labels and invokes explicit res
   expect(text).toContain('Logged RPEServer has8.5Your edit9');
   expect(text).not.toContain('Logged reps'); // equal on both sides
   expect(node.querySelector('[data-testid="conflict-changes"]')?.textContent).not.toMatch(/revision|exercise|lexo|deleted|created|id/i);
-  expect(text).toContain('changed elsewhere');
+  expect(text).toContain('changed on the server after you started editing');
   expect(text).toContain('Code: STALE_REVISION');
   const buttons = [...node.querySelectorAll('button')];
   await act(async () => buttons[0].click());
@@ -75,7 +75,7 @@ it('renders Exercise set lists one per line in coach language', async () => {
     'Set 2: Plan 112.5 kg × 3 @ RPE 9',
   ]);
   expect(node.textContent).toContain('latest copy');
-  expect(node.textContent).not.toContain('changed elsewhere');
+  expect(node.textContent).not.toContain('changed on the server after you started editing');
   expect(node.textContent).toContain('Lift ex-1');
   expect(node.querySelector('pre')).toBeNull();
 });
@@ -130,4 +130,46 @@ it('names each of two simultaneous conflicts so Keep server targets the right on
   await act(async () => keepBench.click());
   expect(keepB).toHaveBeenCalledOnce();
   expect(keepA).not.toHaveBeenCalled();
+});
+
+it('reads plan-only and log-only rows by scope and hides a set list that only differs in bookkeeping', async () => {
+  // Production repro 2026-11-08: a log-only row was shown as "Plan not set".
+  const server = [
+    { id: 'a', revision: 3, label: 'Set 1', scope: 'log', plannedWeight: null, plannedReps: null, plannedRpe: null, intensityType: 'RPE', actual: 102.5, reps: 3, executedRpe: null },
+    { id: 'b', revision: 2, label: 'Set 2', scope: 'plan', plannedWeight: 100, plannedReps: 5, plannedRpe: null, intensityType: 'RPE', actual: null, reps: null, executedRpe: null },
+  ];
+  const client = [{ ...server[0], actual: null, reps: null }, { ...server[1] }];
+  await act(async () => root.render(
+    <ConflictReviewCard mutationId="m3" entityType="Exercise" entityId="ex-1" reason="STALE_REVISION"
+      serverFields={{ sets: server }} clientFields={{ sets: client }}
+      onKeepServer={vi.fn()} onExport={vi.fn()} onUseMine={vi.fn()} />,
+  ));
+  expect(changeLines()).toEqual(['Set 1: Log 102.5 × 3', 'Set 2: Plan 100 kg × 5', 'Set 1: Log not set', 'Set 2: Plan 100 kg × 5']);
+
+  const sameSets = server.map(({ revision: _r, ...row }) => ({ ...row, isTop: false, isAuto: false, dropPercent: 0 }));
+  await act(async () => root.render(
+    <ConflictReviewCard mutationId="m4" entityType="Exercise" entityId="ex-1" reason="STALE_REVISION"
+      serverFields={{ sets: server }} clientFields={{ sets: sameSets }}
+      onKeepServer={vi.fn()} onExport={vi.fn()} />,
+  ));
+  expect(changeLines()).toEqual([]);
+  expect(node.textContent).toContain('No field differences to show.');
+});
+
+it('offers "Use my edit" only for a stale revision and only when the handler is provided', async () => {
+  const useMine = vi.fn();
+  await act(async () => root.render(
+    <ConflictReviewCard mutationId="m5" entityType="ExerciseSet" entityId="set-1" reason="STALE_REVISION"
+      serverFields={setRow} clientFields={{ actual: 100 }} onKeepServer={vi.fn()} onExport={vi.fn()} onUseMine={useMine} />,
+  ));
+  const button = node.querySelector<HTMLButtonElement>('[data-testid="conflict-use-mine"]');
+  expect(button?.textContent).toContain('Use my edit');
+  await act(async () => button!.click());
+  expect(useMine).toHaveBeenCalledOnce();
+
+  await act(async () => root.render(
+    <ConflictReviewCard mutationId="m6" entityType="ExerciseSet" entityId="set-1" reason="TOMBSTONE_CONFLICT"
+      serverFields={setRow} clientFields={{ actual: 100 }} onKeepServer={vi.fn()} onExport={vi.fn()} onUseMine={useMine} />,
+  ));
+  expect(node.querySelector('[data-testid="conflict-use-mine"]')).toBeNull();
 });
