@@ -1,6 +1,6 @@
 import { useAuth } from './AuthContext';
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { countMutationsByStatus, getPendingMutations, getConflictedMutations, getSnapshot, resolveMutationKeepServer, exportConflictMutation, type SyncMutation } from '../services/db';
+import { countMutationsByStatus, getPendingMutations, getConflictedMutations, getSnapshot, resolveMutationKeepServer, resolveMutationUseMine, exportConflictMutation, type SyncMutation } from '../services/db';
 import { findConflictTarget, type ConflictTarget } from '../services/conflictTarget';
 import { processPendingQueues, processSyncQueue } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
@@ -177,6 +177,17 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     }
   };
 
+  const handleUseMine = async (mutationId: string) => {
+    if (!window.confirm('Use your edit? It replaces the server version of this lift shown on the left.')) return;
+    try {
+      const requeued = await resolveMutationUseMine(mutationId, user?.id);
+      await refreshConflicts(user?.id);
+      if (requeued?.workout_id) triggerSync(requeued.workout_id);
+    } catch {
+      // Keep the conflict visible until the local resolution is durably stored.
+    }
+  };
+
   const handleExportConflict = async (mutationId: string) => {
     const mutation = await exportConflictMutation(mutationId, user?.id);
     if (!mutation) return;
@@ -215,6 +226,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
                   target={conflictTargets[c.mutation_id]}
                   onKeepServer={() => void handleKeepServer(c.mutation_id)}
                   onExport={() => void handleExportConflict(c.mutation_id)}
+                  onUseMine={() => void handleUseMine(c.mutation_id)}
                />
              </div>
           ))}

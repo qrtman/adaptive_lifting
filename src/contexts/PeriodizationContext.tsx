@@ -1,8 +1,10 @@
 import { canReadOffline } from '../services/authAuthorization';
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, ReactNode } from 'react';
 import { ApiRequestError, apiService } from '../services/api';
-import { saveSnapshot, getSnapshot, clearSnapshot, evictOldSyncedData, microcycleSnapshotKey } from '../services/db';
+import { saveSnapshot, getSnapshot, clearSnapshot, evictOldSyncedData, microcycleSnapshotKey, getPendingMutations } from '../services/db';
 import { queueMutation } from '../services/sync_engine';
+import { IS_FRESH_PRODUCTION_CLIENT } from '../services/clientDataBoundary';
+import { overlayQueuedExerciseSets, toSyncSets } from '../services/setSyncShape';
 import { trainingIntOrZero, trainingOrZero } from '../services/numericTraining';
 import { UI_KEYS, getUiPref, setUiPref, removeUiPref } from '../storage/uiPrefs';
 import { useAuth } from './AuthContext';
@@ -109,10 +111,16 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
       throw error;
     }
     if (gen !== reloadGen.current) return;
+    // Keep edits that are still queued on screen; the server copy is what gets cached.
+    // IndexedDB can be unavailable (private mode, tests); then show the server copy as is.
+    const queued = await Promise.resolve()
+      .then(() => getPendingMutations(undefined, IS_FRESH_PRODUCTION_CLIENT ? user.id : undefined))
+      .catch(() => []);
+    if (gen !== reloadGen.current) return;
     snapshotOwnerRef.current = owner ?? null;
     snapshotAccountRef.current = user.id;
     liveFetchedRef.current = true;
-    setMicrocycles(data);
+    setMicrocycles(overlayQueuedExerciseSets(data, queued));
     if (owner) {
       await saveSnapshot(microcycleSnapshotKey(owner), data);
       if (gen !== reloadGen.current) {
@@ -294,24 +302,12 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (!activeWorkoutId) return;
     const baselineExercise = microcycles.flatMap(mc => mc.workouts).find(w => w.id === activeWorkoutId)
       ?.exercises.find(ex => ex.id === exerciseId);
-    const payload = updatedSets.map((row, index) => ({
-      id: row.id,
-      label: row.label || `Set ${index + 1}`,
-      scope: row.scope ?? 'both',
-      plannedWeight: row.plannedWeight ?? null,
-      plannedReps: row.plannedReps ?? null,
-      plannedRpe: row.target_value ?? row.plannedRpe ?? null,
-      intensityType: row.intensity_type || row.intensityType || 'RPE',
-      dropPercent: row.dropPercent ?? 0,
-      isAuto: false,
-      isTop: index === 0,
-      actual: row.actual ?? null,
-      reps: row.reps ?? null,
-      executedRpe: row.executedRpe ?? null,
-    }));
+    const payload = toSyncSets(updatedSets);
     void queueMutation(activeWorkoutId, 'Exercise', exerciseId, { sets: payload }, {
       revision: baselineExercise?.revision,
-      fields: { sets: baselineExercise?.sets ?? [] },
+      // Same shape as the payload, so a self-caused STALE_REVISION can be recognised
+      // by comparing it with the server snapshot.
+      fields: { sets: toSyncSets(baselineExercise?.sets) },
       snapshot_key: planAthleteId ? `microcycles:${planAthleteId}` : undefined,
     });
   }, [activeWorkoutId, microcycles, planAthleteId]);

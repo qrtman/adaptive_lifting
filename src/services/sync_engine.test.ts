@@ -355,6 +355,47 @@ describe('self-inflicted STALE_REVISION conflicts', () => {
     expect(isSelfConflict(baseMutation(), staleConflict([set(), set({ id: 's-2' })]))).toBe(false);
   });
 
+  // Reproduced on production 2026-11-08: add a set, type into it before the add-set save
+  // is acknowledged. The baseline is the raw grid row, which a freshly added set carries
+  // with `intensity_type` only, so a strict key compare against the server snapshot failed.
+  it('treats raw grid-row baselines as ours (new set without intensityType, mode switch, legacy flags)', () => {
+    const rawRow = (over: Record<string, unknown> = {}) => ({
+      id: 's-2', label: 'Set 2', scope: 'plan', plannedWeight: null, plannedReps: null, plannedRpe: null,
+      intensity_type: 'RPE', target_value: null, dropPercent: 0, isTop: false, isAuto: false,
+      actual: null, reps: null, executedRpe: null, suggestedWeight: null, ...over,
+    });
+    const serverRow = (over: Record<string, unknown> = {}) => ({
+      id: 's-2', revision: 3, label: 'Set 2', scope: 'plan', plannedWeight: null, plannedReps: null, plannedRpe: null,
+      intensityType: 'RPE', dropPercent: 0, isAuto: false, isTop: false, actual: null, reps: null, executedRpe: null,
+      velocity: null, hrv: null, note: null, ...over,
+    });
+    const mutation = (base: unknown[]): SyncMutation => ({
+      ...baseMutation(), fields: { sets: [set(), set({ id: 's-2', plannedWeight: 100 })] }, base_fields: { sets: base },
+    });
+    const conflict = (serverSets: unknown[]) => staleConflict(serverSets);
+
+    // New set: no intensityType key on the grid row.
+    expect(isSelfConflict(mutation([set(), rawRow()]), conflict([set(), serverRow()]))).toBe(true);
+    // Mode switched to %: grid row has intensity_type PERCENT + target_value, a stale intensityType.
+    expect(isSelfConflict(
+      mutation([set(), rawRow({ intensity_type: 'PERCENT', intensityType: 'RPE', target_value: 75 })]),
+      conflict([set(), serverRow({ intensityType: 'PERCENT', plannedRpe: 75 })]),
+    )).toBe(true);
+    // Legacy rows: null isTop/isAuto on one side, numbers as text, decimal drop %.
+    expect(isSelfConflict(
+      mutation([set({ isTop: null }), rawRow({ isAuto: null, plannedWeight: '100', dropPercent: 0 })]),
+      conflict([set(), serverRow({ plannedWeight: 100, dropPercent: 0.0 })]),
+    )).toBe(true);
+    // Server returns 11+ sets ordered a0, a1, a10, a2: compare by id, not position.
+    expect(isSelfConflict(mutation([set(), rawRow()]), conflict([serverRow(), set()]))).toBe(true);
+    // A real change by someone else still goes to review.
+    expect(isSelfConflict(mutation([set(), rawRow()]), conflict([set(), serverRow({ plannedWeight: 110 })]))).toBe(false);
+    expect(isSelfConflict(
+      mutation([set(), rawRow()]),
+      conflict([set(), serverRow({ intensityType: 'PERCENT' })]),
+    )).toBe(false);
+  });
+
   it('never re-bases without a comparable baseline, another reason, or a newer revision', () => {
     const noBase = { ...baseMutation(), base_fields: undefined };
     expect(isSelfConflict(noBase, staleConflict([set()]))).toBe(false);
