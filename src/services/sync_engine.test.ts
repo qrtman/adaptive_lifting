@@ -5,6 +5,7 @@ import legacyQueue from './fixtures/legacy-offline-queue-v1.json';
 import {
   isInsightCardMutation,
   isLockSyncCode,
+  isSelfConflict,
   mutationsForInsightCards,
   mutationsForWorkout,
   parseSyncErrorCode,
@@ -320,5 +321,104 @@ describe('legacy offline queue recovery', () => {
       mutation_id: 'legacy-replay-set-001', fields: { actual: 92.5, reps: 5, executedRpe: 8 },
     });
     expect(posted.changes[0].base_revision).toBeUndefined();
+  });
+});
+
+
+describe('self-inflicted STALE_REVISION conflicts', () => {
+  const set = (over: Record<string, unknown> = {}) => ({
+    id: 's-1', label: 'Set 1', scope: 'both', plannedWeight: null, plannedReps: null, plannedRpe: null,
+    intensityType: 'RPE', dropPercent: 0, isAuto: false, isTop: true, actual: 100, reps: 5, executedRpe: null,
+    ...over,
+  });
+  // Shape captured from production: the client based its edit on revision 2, the server was at 5
+  // because of this device's own earlier saves.
+  const baseMutation = (): SyncMutation => ({
+    mutation_id: 'mut-1', client_device_id: 'dev-1', workout_id: 'w-a', entity_type: 'Exercise',
+    entity_id: 'e-1', field_path: 'ALL', fields: { sets: [set({ executedRpe: 8 })] },
+    base_revision: 2,
+    // Client copies carry extra keys and a different per-set revision than the server's.
+    base_fields: { sets: [{ ...set(), revision: 1, baseline_e1rm: 100, intensity_type: 'RPE' }] },
+    updated_at: '2026-11-07T16:40:40.077Z', status: 'PENDING', retry_count: 0,
+  });
+  const staleConflict = (serverSets: unknown[]) => ({
+    reason: 'STALE_REVISION', entity_id: 'e-1', entity_type: 'Exercise', mutation_id: 'mut-1',
+    base_revision: 2, server_revision: 5, server_fields: { sets: serverSets },
+  });
+
+  it('treats a stale revision as ours when the server still holds the values we based on', () => {
+    expect(isSelfConflict(baseMutation(), staleConflict([{ ...set(), revision: 2, hrv: null, note: null }]))).toBe(true);
+  });
+
+  it('keeps a real conflict when another change altered a field', () => {
+    expect(isSelfConflict(baseMutation(), staleConflict([set({ actual: 120 })]))).toBe(false);
+    expect(isSelfConflict(baseMutation(), staleConflict([set(), set({ id: 's-2' })]))).toBe(false);
+  });
+
+  it('never re-bases without a comparable baseline, another reason, or a newer revision', () => {
+    const noBase = { ...baseMutation(), base_fields: undefined };
+    expect(isSelfConflict(noBase, staleConflict([set()]))).toBe(false);
+    expect(isSelfConflict(baseMutation(), { ...staleConflict([set()]), reason: 'TOMBSTONE_CONFLICT' })).toBe(false);
+    expect(isSelfConflict(baseMutation(), { ...staleConflict([set()]), server_revision: 2 })).toBe(false);
+  });
+
+  async function flushWith(conflictBody: unknown, mutation: SyncMutation) {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    const queue: SyncMutation[] = [mutation];
+    const updateMutationConflict = vi.fn(async (id: string, conflict: Record<string, any>) => {
+      const row = queue.find(item => item.mutation_id === id);
+      if (row) { row.status = 'CONFLICTED'; row.conflict = conflict; }
+    });
+    vi.doMock('./db', () => ({
+      getPendingMutations: async () => queue.filter(row => row.status === 'PENDING'),
+      updateMutationStatus: vi.fn(async (id: string, status: string) => {
+        const row = queue.find(item => item.mutation_id === id);
+        if (row) row.status = status as SyncMutation['status'];
+      }),
+      saveMutation: vi.fn(async (m: SyncMutation) => { queue[0] = m; }),
+      updateMutationConflict,
+    }));
+    vi.doMock('../storage/uiPrefs', () => ({
+      UI_KEYS: { deviceId: 'al_client_device_id' }, getUiPref: () => 'dev-1', setUiPref: () => {},
+    }));
+    const setTimeoutSpy = vi.fn(() => 1);
+    vi.stubGlobal('window', { setTimeout: setTimeoutSpy, clearTimeout: vi.fn(), dispatchEvent: vi.fn() });
+    vi.stubGlobal('navigator', { onLine: true });
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false, status: 409,
+      json: async () => ({ detail: { error: { code: 'SYNC_CONFLICT_REVIEW', message: 'review', details: conflictBody } } }),
+    })));
+    const { processSyncQueue } = await import('./sync_engine');
+    const conflicts = await processSyncQueue('w-a');
+    return { conflicts, row: queue[0], setTimeoutSpy, updateMutationConflict };
+  }
+
+  it('re-bases and retries instead of showing a conflict the user caused', async () => {
+    const conflict = staleConflict([{ ...set(), revision: 2 }]);
+    const { conflicts, row, setTimeoutSpy, updateMutationConflict } = await flushWith({ conflicts: [conflict], accepted_mutation_ids: [] }, baseMutation());
+    expect(conflicts).toEqual([]);
+    expect(updateMutationConflict).not.toHaveBeenCalled();
+    expect(row).toMatchObject({ status: 'PENDING', base_revision: 5, rebase_count: 1 });
+    expect(row.conflict).toBeUndefined();
+    expect(setTimeoutSpy).toHaveBeenCalled();
+  });
+
+  it('still parks a genuine conflict for review', async () => {
+    const conflict = staleConflict([set({ actual: 120 })]);
+    const { conflicts, row, setTimeoutSpy, updateMutationConflict } = await flushWith({ conflicts: [conflict], accepted_mutation_ids: [] }, baseMutation());
+    expect(conflicts).toHaveLength(1);
+    expect(updateMutationConflict).toHaveBeenCalledTimes(1);
+    expect(row).toMatchObject({ status: 'CONFLICTED', base_revision: 2 });
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('stops re-basing after repeated attempts', async () => {
+    const { conflicts, row } = await flushWith(
+      { conflicts: [staleConflict([set()])], accepted_mutation_ids: [] },
+      { ...baseMutation(), rebase_count: 3 },
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(row.status).toBe('CONFLICTED');
   });
 });

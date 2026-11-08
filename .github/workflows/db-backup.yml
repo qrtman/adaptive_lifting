@@ -1,0 +1,88 @@
+name: Daily production database backup
+
+# Encrypted pg_dump of the production database to Cloudflare R2.
+# Restore procedure: scripts/recovery/restore-drill.sh and docs/PRODUCTION_STATUS.md.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production-recovery
+    env:
+      RETENTION_DAYS: '30'
+    steps:
+      - name: Install PostgreSQL 17 client and age
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 age
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          age --version
+
+      - name: Dump, encrypt, upload, prune
+        env:
+          PGPASSWORD: ${{ secrets.RECOVERY_DB_PASSWORD }}
+          RECOVERY_DB_CA_PEM: ${{ secrets.RECOVERY_DB_CA_PEM }}
+          AGE_RECIPIENT: ${{ vars.RECOVERY_AGE_RECIPIENT }}
+          R2_ACCOUNT_ID: ${{ vars.RECOVERY_R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.RECOVERY_R2_BUCKET }}
+          R2_PREFIX: ${{ vars.RECOVERY_R2_PREFIX }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.RECOVERY_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RECOVERY_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+          umask 077
+          for v in PGPASSWORD RECOVERY_DB_CA_PEM AGE_RECIPIENT R2_ACCOUNT_ID R2_BUCKET R2_PREFIX AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            [ -n "${!v}" ] || { echo "FAIL: $v is empty"; exit 1; }
+          done
+          work="$(mktemp -d /dev/shm/backup.XXXXXX)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$RECOVERY_DB_CA_PEM" > "$work/root.crt"
+
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          name="db-${stamp}.dump.age"
+
+          export PGHOST=aws-0-ap-northeast-2.pooler.supabase.com PGPORT=5432
+          export PGUSER=postgres.gadusaizqnshxqcckibq PGDATABASE=postgres
+          export PGSSLMODE=verify-full PGSSLROOTCERT="$work/root.crt"
+
+          # Plain dump streamed straight into age: no unencrypted file on disk.
+          /usr/lib/postgresql/17/bin/pg_dump \
+            --format=custom --no-owner --no-privileges \
+            --schema=public --schema=al_private --schema=supabase_migrations --schema=auth \
+            | age -r "$AGE_RECIPIENT" -o "$work/$name"
+
+          size="$(stat -c %s "$work/$name")"
+          echo "Encrypted dump: $name ($size bytes)"
+          [ "$size" -gt 10000 ] || { echo "FAIL: dump suspiciously small"; exit 1; }
+
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          dest="s3://${R2_BUCKET}/${R2_PREFIX}/daily"
+          aws s3 cp "$work/$name" "$dest/$name" --endpoint-url "$endpoint" --only-show-errors
+          aws s3 ls "$dest/$name" --endpoint-url "$endpoint"
+
+          # Prune backups older than RETENTION_DAYS (name carries the timestamp).
+          cutoff="$(date -u -d "-${RETENTION_DAYS} days" +%Y%m%dT%H%M%SZ)"
+          aws s3 ls "$dest/" --endpoint-url "$endpoint" | awk '{print $4}' | grep -E '^db-[0-9]{8}T[0-9]{6}Z\.dump\.age$' | while read -r key; do
+            ts="${key#db-}"; ts="${ts%.dump.age}"
+            if [[ "$ts" < "$cutoff" ]]; then
+              echo "Pruning $key"
+              aws s3 rm "$dest/$key" --endpoint-url "$endpoint" --only-show-errors
+            fi
+          done
+          echo "Backup complete."

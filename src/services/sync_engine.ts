@@ -177,6 +177,71 @@ function scheduleInsightCardSync(accountId?: string) {
   }, SYNC_DEBOUNCE_MS);
 }
 
+const MAX_SELF_CONFLICT_REBASES = 3;
+const SET_COMPARE_KEYS = [
+  'label', 'scope', 'plannedWeight', 'plannedReps', 'plannedRpe', 'intensityType',
+  'dropPercent', 'isAuto', 'isTop', 'actual', 'reps', 'executedRpe',
+] as const;
+
+const sameValue = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
+
+function setsMatch(base: unknown, server: unknown): boolean {
+  if (!Array.isArray(base) || !Array.isArray(server) || base.length !== server.length) return false;
+  const serverById = new Map<unknown, any>(server.map((row: any) => [row?.id, row]));
+  return base.every((row: any) => {
+    const other = serverById.get(row?.id);
+    return !!other && SET_COMPARE_KEYS.every((key) => sameValue(row[key], other[key]));
+  });
+}
+
+/**
+ * True when the server rejected an edit as STALE_REVISION but every field the edit changes
+ * still has the value the edit was based on. That happens when our own earlier saves raised the
+ * server revision before this device refreshed its copy. Nobody else's change is overwritten,
+ * so the edit can be re-based on the server revision and sent again. Anything that differs,
+ * or any field we cannot compare, stays a real conflict for review.
+ */
+export function isSelfConflict(mutation: SyncMutation, conflict: Record<string, any>): boolean {
+  if (conflict?.reason !== 'STALE_REVISION') return false;
+  const serverRevision = conflict.server_revision;
+  if (!Number.isSafeInteger(serverRevision) || serverRevision <= (mutation.base_revision ?? 0)) return false;
+  const base = mutation.base_fields;
+  const server = conflict.server_fields;
+  if (!base || typeof base !== 'object' || !server || typeof server !== 'object') return false;
+  const keys = Object.keys(mutation.fields || {});
+  if (keys.length === 0) return false;
+  return keys.every((key) => key in base && key in server
+    && (key === 'sets' ? setsMatch(base[key], server[key]) : sameValue(base[key], server[key])));
+}
+
+async function rebaseSelfConflicts(
+  pending: SyncMutation[],
+  conflicts: any[],
+): Promise<{ remaining: any[]; rebased: SyncMutation[] }> {
+  const remaining: any[] = [];
+  const rebased: SyncMutation[] = [];
+  for (const conflict of conflicts) {
+    const mutation = pending.find(item => item.mutation_id === conflict?.mutation_id);
+    if (mutation && (mutation.rebase_count ?? 0) < MAX_SELF_CONFLICT_REBASES && isSelfConflict(mutation, conflict)) {
+      mutation.base_revision = conflict.server_revision;
+      mutation.base_fields = conflict.server_fields;
+      mutation.rebase_count = (mutation.rebase_count ?? 0) + 1;
+      mutation.status = 'PENDING';
+      await saveMutation(mutation);
+      rebased.push(mutation);
+    } else {
+      remaining.push(conflict);
+    }
+  }
+  return { remaining, rebased };
+}
+
+function scheduleRebasedSync(rebased: SyncMutation[]) {
+  if (rebased.length === 0 || typeof window === 'undefined') return;
+  const first = rebased[0];
+  if (first.workout_id) scheduleSync(first.workout_id, first.account_id);
+}
+
 async function postSync(
   url: string,
   payload: Record<string, unknown>,
@@ -226,9 +291,10 @@ async function postSync(
       const message = parseSyncErrorMessage(err, 'This workout is locked right now.');
       if (code === 'SYNC_CONFLICT_REVIEW') {
         const details = parseSyncErrorDetails(err) || {};
-        const conflicts = Array.isArray(details.conflicts) ? details.conflicts : [];
+        const allConflicts = Array.isArray(details.conflicts) ? details.conflicts : [];
         const acceptedIds = Array.isArray(details.accepted_mutation_ids) ? details.accepted_mutation_ids : [];
         for (const id of acceptedIds) await updateMutationStatus(id, 'ACKED');
+        const { remaining: conflicts, rebased } = await rebaseSelfConflicts(pending, allConflicts);
         const conflictingIds = new Set<string>();
         for (const conflict of conflicts) {
           if (typeof conflict.mutation_id !== 'string') continue;
@@ -240,6 +306,7 @@ async function postSync(
             await updateMutationStatus(m.mutation_id, 'PENDING');
           }
         }
+        scheduleRebasedSync(rebased);
         return conflicts.map((conflict: any) => ({
           ...conflict,
           reason: conflict.reason || code,

@@ -1,5 +1,135 @@
 # Production status
 
+## Hostname cutover — 2026-11-08 (CURRENT)
+
+**CONFIRMED:** Owner-authorized deploy of Worker `adaptive-lifting-production`
+(account `05a07c48f5e8e3afb784e11931502508`) with the exact route
+`app.goatedmethod.me/*` (zone `goatedmethod.me`), using the cutover config with
+project ref `gadusaizqnshxqcckibq`. Active version
+`462d5577-fd31-4136-b133-2edd192c1a57`. Built with `npm run build:production`;
+`validate:production:local` and a Wrangler dry-run passed first; type check and
+432 tests passed (one billing test is locale-dependent, see below). No DNS record
+was changed: the existing proxied `app` record is overridden by the Worker route.
+
+Pre-cutover readback: `app.goatedmethod.me` returned Cloudflare 530/1033 because
+Tunnel `adaptive-lifting-prod` (`744f508c-41d1-44f1-bc89-de5dd6abd914`, status
+down) pointed at a retired local origin (`127.0.0.1:8088`) and served only this
+hostname. The Worker had no routes or custom domains.
+
+Post-deploy smoke checks (unauthenticated, no accounts created):
+`/` 200 (app); `/api/health` 200 `{"status":"ok"}`; `POST /api/auth/register`
+503 (registration still disabled); `/api/auth/me` 401. The deploy reported
+Preview URLs disabled by default, replacing the earlier "Version URLs enabled
+behind Access" state; not separately re-verified.
+
+Still **PENDING / NOT TESTED:** production email sender and enabling
+registration; private Realtime; browser end-to-end on the live origin
+(cookie/CSRF/session); backup/restore (free Supabase tier, no managed backups);
+retiring the dead Tunnel and its DNS record (cleanup only); security/monitoring
+checks. Public launch is not authorized. Known test note: `CoachBillingPanel`
+asserts `$29.00` and fails when `LC_ALL` is a non-US locale such as `en_AU`
+(component is correct; test should pin `en-US`).
+
+**Email sender progress — 2026-11-08:** Owner-authorized. Resend domain
+`mail.goatedmethod.me` (id `5e020c74-bffb-412f-aa41-af8fa12b1c58`, region
+`ap-northeast-1`, open/click tracking off) was created via the Resend API using
+a key the owner stored in the gitignored `.env`. Using an owner-created
+Cloudflare token (Zone DNS Edit, `goatedmethod.me` only), five DNS-only records
+were added: DKIM TXT `resend._domainkey.mail`, SPF MX and TXT on `send.mail`,
+CNAME `rsend.mail`, and TXT `_dmarc.mail` (`v=DMARC1; p=none;`). Resend then
+reported the domain **verified** (DKIM and SPF records all verified). Existing
+records were not changed. Real-inbox header authentication (SPF/DKIM/DMARC pass)
+is NOT TESTED.
+
+**Vault secrets — 2026-11-08:** Owner-authorized ("you write them"). Seven
+Vault secrets were created in one SQL run on project `gadusaizqnshxqcckibq`:
+`adaptive_lifting_email_payload_encryption_key` (generated Fernet-format key),
+`adaptive_lifting_resend_api_key` (new Resend **sending-only** key limited to
+`mail.goatedmethod.me`, key id `5be6be4b-9692-49d4-b0f7-58afb31fd136`),
+`adaptive_lifting_email_from` (`Adaptive Lifting <no-reply@mail.goatedmethod.me>`),
+`adaptive_lifting_email_app_url` (`https://app.goatedmethod.me`),
+`adaptive_lifting_email_worker_edge_url`, `adaptive_lifting_email_worker_publishable_key`
+and `adaptive_lifting_email_worker_internal_secret` (generated). Verified by name
+and creation time only (the CLI role cannot decrypt; values were never printed
+or stored in the repo). Existing readback: `pg_cron`, `pg_net`, `supabase_vault`
+installed; cron job `email-verification-edge-worker` active (`* * * * *`).
+The `RESEND_API_KEY` in `.env` is a full-access key; revoke or restrict it after
+setup.
+
+**Email worker deploy — 2026-11-08:** Owner-approved (exact command) deploy of
+Edge Function `email-verification-worker` (v1, ACTIVE, `verify_jwt=false`) to
+`gadusaizqnshxqcckibq` via `supabase functions deploy --use-api --no-verify-jwt`.
+The first attempt failed at bundling (no change to the project) because the
+function lacked an import map; a new `supabase/functions/email-verification-worker/deno.json`
+(same `@db/postgres` and `jose` pins as `api`) fixed it. `api` is unchanged (v3).
+CONFIRMED: before deploy, cron requests returned 404; at 2026-11-07 16:10 UTC
+(2026-11-08 local) the `email-verification-edge-worker` job reached the function
+and got HTTP 200 `{"status":"ok","claimed":0,...}` (no jobs queued).
+
+**Registration opened for controlled test — 2026-11-08:** Owner-authorized.
+`EMAIL_ONBOARDING_ENABLED=true` was set as a production Edge secret. An empty
+`POST /api/auth/register` now returns 422 (field required) instead of 503, so the
+gate is open to the public internet. Controlled test mailbox:
+`gartman.bekaali@gmail.com`. **If the test fails or is not finished promptly, set
+`EMAIL_ONBOARDING_ENABLED=false` again.**
+
+**Controlled registration result — 2026-11-08:** The owner registered the test
+mailbox, received the verification email, confirmed it and logged in.
+CONFIRMED by read-only database query: 1 user, 1 verified, newest verification
+token consumed and not invalidated. This establishes end-to-end delivery and
+verification on the real path. CONFIRMED from the owner's Gmail "Show original":
+spf=pass (smtp.mailfrom `send.mail.goatedmethod.me`), dkim=pass with
+`d=mail.goatedmethod.me` (aligned), dmarc=pass (`p=NONE`); the message has a
+plain-text part and the token only in the URL fragment, no tracking. CONFIRMED
+by the owner: reusing the consumed link fails. Resend on the already-verified
+account sent no email, which matches the documented generic no-send behavior for
+verified addresses (so it is not a defect). Not done / NOT TESTED: resend
+invalidating a prior link (needs a second, unverified account), link expiry, rate
+limits, deployed-log check for token/URL capture, delivery monitoring.
+Registration remains open (`EMAIL_ONBOARDING_ENABLED=true`) pending the owner's
+decision to keep or close it.
+
+**Production browser smoke test — 2026-11-08:** Headless Chromium (Playwright,
+service workers blocked; script kept outside the repo) against
+`https://app.goatedmethod.me` with the owner's account. CONFIRMED: login works;
+the only cookie is `session_id` (HttpOnly, Secure, SameSite=Lax, 7-day Max-Age);
+session survives reload; create session, add Deadlift, online log of kg/reps
+returns sync 200 with an empty mutation queue; offline log queues, reconnect
+flushes with sync 200; values persist after reload; sign out; no 5xx responses.
+**FINDING (open):** if the user goes offline within seconds after an online sync
+and edits the same exercise, the offline flush returns 409 `SYNC_CONFLICT_REVIEW`
+(`STALE_REVISION`, client `base_revision` 2 vs server 5): the client does not take
+the new revision from the sync response and relies on the later
+`sync-server-state-restored` refresh (`src/services/sync_engine.ts`). Waiting 4 s
+before going offline made it pass. The repo's e2e tests mock the sync call, so
+they do not cover this. **Fix DEPLOYED and verified (2026-11-08):** Owner-approved redeploy of Worker
+`adaptive-lifting-production` (version `c2e6e292-7f2b-48d5-b2c8-53b1ffce0bd8`,
+route `app.goatedmethod.me/*`, built from commits `39018a2` and `ca9aa65`; `/` and
+`/api/health` return 200). With no settle delay the offline-edit smoke test passed
+3 of 3 runs: after reconnect the sync responses were 409, 409, 200, no
+conflict reached the user, the queue emptied and values persisted. Note that two
+automatic re-bases were needed (cap is 3); if a flow ever needs more, the user would
+see a conflict card, so watch for it. Test data was deleted afterwards. Also: a
+`CLOUDFLARE_API_TOKEN` (DNS-only) left in the project `.env` made Wrangler fail
+with "Authentication error 10000" because Wrangler auto-loads `.env`; it was
+removed. Keep deploy credentials out of `.env`.
+Original analysis and fix description follow. `sync_engine.ts`
+now re-bases an edit and retries once the server reports `STALE_REVISION` but the
+server's values for every field the edit changes still equal the values it was
+based on (a self-conflict); real differences still go to conflict review, with a
+cap of 3 re-bases per edit (new `rebase_count` on stored mutations). Seven new
+tests cover it, including a flow test built on the captured production 409 body
+(typecheck clean, 439 tests pass, production build passes). NOT TESTED: service-worker/PWA behaviour, mobile layout,
+a second user/coach link, multi-device conflict. Test data (6 `E2E smoke`
+sessions) was created and then deleted; the account has no sessions. Other
+notes: the Worker passes through a Supabase `__cf_bm` Set-Cookie with
+`Domain=supabase.co` (browsers ignore it; worth stripping); the session card
+shows overlapping text for a logged set ("100 × 5 @ 8" over the e1RM line). `EMAIL_ONBOARDING_ENABLED` remains false. The key in
+`.env` can manage domains; use a separate sending-only key for Vault.
+
+Sections below are dated history. Where they say the hostname cutover is
+pending or the Worker has no public address, this section supersedes them.
+
 ## Request admission verification — 2026-10-28
 
 The maintenance admission patch in [draft PR #47](https://github.com/qrtman/adaptive_lifting/pull/47)
@@ -171,7 +301,7 @@ disabled and recheck Worker custom domains and the `goatedmethod.me` route
 list. Do not delete the reusable preview policy if another application uses
 it. Recheck DNS and Tunnel state separately; neither is part of this test
 endpoint's teardown.
-- **PENDING:** Recheck and perform the existing hostname Worker-route cutover
+- **DONE 2026-11-08 (see top section):** Hostname Worker-route cutover. Original text: Recheck and perform the existing hostname Worker-route cutover
   only after separate authorization. Preserve current DNS and Cloudflare
   Tunnel routing until then.
 - **PENDING:** Verify a production email sender and worker dispatch, then run

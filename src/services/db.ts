@@ -25,6 +25,8 @@ export interface SyncMutation {
   base_fields?: Record<string, any>;
   snapshot_key?: string;
   conflict?: Record<string, any>;
+  /** Times this edit was re-based onto a newer server revision because nothing it edits had changed. */
+  rebase_count?: number;
   resolved_at?: string;
   updated_at: string;
   status: 'PENDING' | 'IN_FLIGHT' | 'ACKED' | 'REJECTED' | 'CONFLICTED' | 'RESOLVED_SERVER';
