@@ -215,8 +215,8 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   await expect(firstWeek.getByTestId('sessions-rest-2026-09-05')).toBeVisible();
   await expect(secondWeek.locator('[data-testid^="sessions-rest-"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No Week' })).toBeVisible();
-  await expect(page.getByTestId('sessions-block-picker')).toHaveValue('block:1');
-  await expect(page.getByTestId('sessions-block-picker').locator('option[value="unassigned"]')).toHaveCount(1);
+  await expect(page.getByTestId('sessions-block-picker')).toHaveAttribute('data-value', 'block:1');
+  await expect(page.getByTestId('sessions-block-tab-unassigned')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'No Block or Week' })).toHaveCount(0);
   await expect(page.getByTestId('lift-filter-open')).toHaveText('All lifts');
   await expect(page.getByTestId('sessions-show-accessories')).toHaveCount(0);
@@ -237,24 +237,24 @@ test('labeled weeks compare by first session date with dated rest rows', async (
   await page.getByTestId('nav-sessions').click();
   await expect(page.getByTestId('sessions-mode-both')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-testid^="sessions-plan-h-"]')).toHaveCount(3);
-  await page.getByTestId('sessions-block-picker').selectOption('unassigned');
+  await page.getByTestId('sessions-block-tab-unassigned').click();
   await expect(page.getByRole('heading', { name: 'No Block or Week' })).toBeVisible();
   await expect(page.getByTestId(`sessions-card-${ids[4]}`)).toContainText('Accessory Row');
   await page.getByTestId('sessions-add').click();
   await expect(page.getByTestId('new-session-block')).toHaveValue('');
   await page.getByTestId('new-session-cancel').click();
 
-  await page.getByTestId('sessions-block-picker').selectOption('block:1');
+  await page.getByTestId('sessions-block-tab-block:1').click();
   await page.getByTestId(`sessions-actions-${ids[3]}`).click();
   await page.getByTestId(`sessions-edit-${ids[3]}`).click();
   await expect(page.getByTestId('edit-session-dialog')).toBeVisible();
   await page.getByTestId('edit-session-cancel').click();
-  await page.getByTestId('sessions-block-picker').selectOption('unassigned');
+  await page.getByTestId('sessions-block-tab-unassigned').click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByTestId(`sessions-actions-${ids[4]}`).click();
   await page.getByTestId(`sessions-delete-${ids[4]}`).click();
   await expect(page.getByTestId(`sessions-card-${ids[4]}`)).toHaveCount(0);
-  await expect(page.getByTestId('sessions-block-picker').locator('option[value="unassigned"]')).toHaveCount(0);
+  await expect(page.getByTestId('sessions-block-tab-unassigned')).toHaveCount(0);
 
   await page.setViewportSize({ width: 360, height: 400 });
   await page.getByTestId('sidebar-toggle').click();
@@ -329,7 +329,7 @@ test('block picker opens the latest block and resets scrolling when switching', 
   const first = page.getByTestId('sessions-week-board-1');
   const second = page.getByTestId('sessions-week-board-2');
   const picker = page.getByTestId('sessions-block-picker');
-  await expect(picker).toHaveValue('block:2');
+  await expect(picker).toHaveAttribute('data-value', 'block:2');
   await expect(first).toHaveCount(0);
   await expect(second).toBeVisible();
   await expect(scrollbar).toBeVisible();
@@ -344,8 +344,8 @@ test('block picker opens the latest block and resets scrolling when switching', 
     if (weekBoard) element.scrollTop += weekBoard.getBoundingClientRect().top - element.getBoundingClientRect().top + 20;
   });
   await expect(page.getByTestId('sessions-sticky-weeks')).toContainText('Block 2');
-  await page.getByTestId('sessions-block-prev').click();
-  await expect(picker).toHaveValue('block:1');
+  await page.getByTestId('sessions-block-tab-block:2').press('ArrowLeft');
+  await expect(picker).toHaveAttribute('data-value', 'block:1');
   await expect(first).toBeVisible();
   await expect(second).toHaveCount(0);
   await expect.poll(() => first.evaluate((element) => element.scrollLeft)).toBe(0);
@@ -353,12 +353,12 @@ test('block picker opens the latest block and resets scrolling when switching', 
   await page.getByTestId('sessions-add').click();
   await expect(page.getByTestId('new-session-block')).toHaveValue('1');
   await page.getByTestId('new-session-cancel').click();
-  await page.getByTestId('sessions-block-next').click();
-  await expect(picker).toHaveValue('block:2');
+  await page.getByTestId('sessions-block-tab-block:2').click();
+  await expect(picker).toHaveAttribute('data-value', 'block:2');
   await page.getByTestId('lift-filter-open').click();
   await page.getByTestId('lift-filter-lift-Squat').click();
   await page.getByTestId('lift-filter-done').click();
-  await expect(picker).toHaveValue('block:1');
+  await expect(picker).toHaveAttribute('data-value', 'block:1');
   await expect(second).toHaveCount(0);
 });
 
