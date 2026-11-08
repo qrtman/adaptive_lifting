@@ -18,7 +18,11 @@ Post-deploy smoke (production):
 - E2E account: login 200, `/api/auth/me` 200, JSON export 200, password change with wrong current password 400 (no change made).
 - Password reset: `POST /api/auth/password/forgot` for the owner address returned 202 generic; one reset token created; outbox row `password-reset` status success, result "Password reset email accepted" (Resend). Owner to confirm the email arrived and the link works.
 
-Still PENDING: owner confirms reset email delivery/link; merge `ux-and-prod-smoke` to `main` via PR (production now runs code ahead of `main`); remaining legal placeholders ([OPERATOR_NAME], [JURISDICTION], [EFFECTIVE_DATE]); restrict/rotate the full-access Resend key; uptime monitor; remaining a11y/screen-pass/security findings listed below.
+Still PENDING: owner confirms reset email delivery/link; merge `ux-and-prod-smoke` to `main` via PR (production now runs code ahead of `main`); optional PIPA additions to the privacy page (named privacy officer/contact, retention periods); restrict/rotate the full-access Resend key; uptime monitor; remaining a11y/screen-pass/security findings listed below.
+
+### Legal pages finalized — 2026-11-08
+
+**CONFIRMED:** Placeholders filled in `public/privacy.html` and `public/terms.html` (commit 5771882): operator "Bekali Gartman", governing law "the Republic of Korea", effective date "8 November 2026". The hidden "Replace every [PLACEHOLDER]" comment was removed; the "DRAFT – needs legal review" comment remains. Owner deployed with `npm run build:production` and the cutover config; active Worker version `19fb6d1a-5d49-4ba6-a926-3b928a485d12`. Readback: `/privacy` and `/terms` show the new values with no placeholders left; `/api/health` 200; temporary `wrangler.production.local.jsonc` removed.
 
 ## Staging rollout of launch-gap branch — 2026-11-08
 
