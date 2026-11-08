@@ -84,9 +84,16 @@ export function compileVariation(title: string, mods: LiftModifiers): string {
   return `${bits.join(' ')} ${normalizedTitle}${note}`.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Bar positions / stances that are still the competition lift: high- or low-bar squat,
+ * conventional or sumo deadlift. Anything else (SSB, front, box, grips, incline, RDL…)
+ * makes it a variation.
+ */
+export const COMP_BAR_CHOICES = new Set(['', 'Competition', 'Standard', 'Conventional', 'Sumo', 'High Bar', 'Low Bar']);
+
 export function variationTier(mods: LiftModifiers): 'Comp' | 'Variation' {
   const isComp =
-    (mods.bar === 'Competition' || mods.bar === 'Standard' || mods.bar === 'Conventional' || mods.bar === '')
+    COMP_BAR_CHOICES.has(mods.bar)
     && isDefaultTempo(mods.tempo)
     && mods.rom === 'Full'
     && mods.gear.length === 0;

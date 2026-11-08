@@ -8,6 +8,8 @@ export type RoleMode = 'coach' | 'athlete';
 
 interface AuthState {
   user: any | null;
+  /** True until the first session check finishes; never show the sign-in form meanwhile. */
+  checking: boolean;
   roleMode: RoleMode;
   setRoleMode: (role: RoleMode) => void;
   signIn: (user: any) => Promise<void>;
@@ -31,6 +33,7 @@ function roleFromPref(): RoleMode {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
+  const [checking, setChecking] = useState(true);
   const authGeneration = useRef(0);
   const [roleMode, setRoleMode] = useState<RoleMode>(() => roleFromPref());
 
@@ -41,6 +44,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    // On a refresh the server check takes a few seconds. A still-valid offline grant on
+    // this device opens the app right away; the server answer below then confirms it or
+    // signs out. Without one, a neutral loading screen shows instead of the sign-in form,
+    // so nobody signs in again (creating another session) while already signed in.
+    const bootGeneration = authGeneration.current + 1;
+    void restoreOfflineAuthorization().then((restored) => {
+      if (!active || !restored || authGeneration.current !== bootGeneration) return;
+      setUser((current: any) => current ?? restored);
+      setChecking(false);
+    }).catch(() => undefined);
     const refresh = async () => {
       const generation = ++authGeneration.current;
       try {
@@ -62,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const restored = await restoreOfflineAuthorization();
           if (active && generation === authGeneration.current) setUser(restored);
         }
+      } finally {
+        if (active) setChecking(false);
       }
     };
     const deny = () => { authGeneration.current++; void clearAuthorization(); setUser(null); };
@@ -135,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, roleMode, setRoleMode, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, checking, roleMode, setRoleMode, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

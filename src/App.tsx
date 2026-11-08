@@ -62,7 +62,7 @@ function SortableExerciseCard({ value, reorderContainerRef, canReorder = true, .
 }
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, checking } = useAuth();
   const { canProgram } = useAccountAccess();
   const coachCanProgram = !shouldDisableCoachAction(String(user?.role || '').toUpperCase() === 'COACH', canProgram);
   const {
@@ -264,6 +264,14 @@ export default function App() {
       alert(err instanceof Error ? err.message : 'Failed to reorder lifts');
     }
   };
+
+  if (!user && checking) {
+    return (
+      <div className="flex h-dvh w-full items-center justify-center bg-[var(--cal-canvas)]" role="status" aria-live="polite" data-testid="auth-checking">
+        <span className="text-xs text-[var(--cal-muted)]">Loading…</span>
+      </div>
+    );
+  }
 
   if (!user) {
     return <LoginView />;

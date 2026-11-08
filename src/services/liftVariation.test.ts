@@ -87,4 +87,15 @@ describe('liftVariation', () => {
       gear: [],
     })).toBe('RDL');
   });
+
+  it('keeps high/low bar squat and sumo/conventional deadlift as the main lift', () => {
+    const plain = { tempo: '1-0-1', rom: 'Full' as const, gear: [] };
+    for (const bar of ['Low Bar', 'High Bar', 'Sumo', 'Conventional', '']) {
+      expect(variationTier({ ...plain, bar }), bar).toBe('Comp');
+    }
+    for (const bar of ['SSB', 'Front', 'Box', 'Close Grip', 'Incline', 'RDL', 'Block']) {
+      expect(variationTier({ ...plain, bar }), bar).toBe('Variation');
+    }
+    expect(variationTier({ ...plain, bar: 'Low Bar', rom: 'Pin' })).toBe('Variation');
+  });
 });
