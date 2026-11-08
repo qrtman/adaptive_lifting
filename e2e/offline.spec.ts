@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
-import { fillLogCell } from './helpers';
+import { fillLogCell, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 test('queues a set offline and flushes it when the network returns', async ({ page, context, request }) => {
   const email = `offline-${Date.now()}@example.com`;

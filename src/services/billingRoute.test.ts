@@ -293,13 +293,29 @@ describe('billing Edge route provider boundaries', () => {
     }
   });
 
-  it('uses the gateway client IP and rejects caller-supplied forwarding headers', () => {
-    expect(billingTestHelpers.trustedVoucherClientIp(new Headers({
+  it('uses the gateway client IP and rejects caller-supplied forwarding headers', async () => {
+    const voucherRequest = (headers: Record<string, string>) =>
+      new Request('https://project.supabase.co/functions/v1/api/billing/vouchers/redeem', { headers });
+    expect(await billingTestHelpers.trustedVoucherClientIp(voucherRequest({
       'cf-connecting-ip': '203.0.113.9', 'x-forwarded-for': '198.51.100.7',
-    }))).toBe('203.0.113.9');
-    expect(() => billingTestHelpers.trustedVoucherClientIp(new Headers({
+    }), config as any)).toBe('203.0.113.9');
+    await expect(billingTestHelpers.trustedVoucherClientIp(voucherRequest({
       'x-forwarded-for': '198.51.100.7',
-    }))).toThrow('Voucher redemption is currently unavailable.');
+    }), config as any)).rejects.toThrow('Voucher redemption is currently unavailable.');
+  });
+
+  it('uses the Worker-signed visitor IP for voucher limits when the shared key verifies it', async () => {
+    const key = 'test-client-ip-signing-key-0123456789abcdef';
+    const ts = String(Math.floor(Date.now() / 1000));
+    const cryptoKey = await crypto.subtle.importKey('raw', encoder.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = [...new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(`203.0.113.60|${ts}`)))]
+      .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    const headers = {
+      'cf-connecting-ip': '104.28.0.9', 'x-al-client-ip': '203.0.113.60', 'x-al-client-ip-ts': ts, 'x-al-client-ip-sig': sig,
+    };
+    const request = () => new Request('https://project.supabase.co/functions/v1/api/billing/vouchers/redeem', { headers });
+    expect(await billingTestHelpers.trustedVoucherClientIp(request(), { ...(config as object), clientIpSigningKey: key } as any)).toBe('203.0.113.60');
+    expect(await billingTestHelpers.trustedVoucherClientIp(request(), config as any)).toBe('104.28.0.9');
   });
 
   it('rejects a voucher HMAC key reused from another configured secret', () => {

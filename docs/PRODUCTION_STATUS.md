@@ -1,6 +1,152 @@
 # Production status
 
-## Untested-areas pass — 2026-11-08 (CURRENT)
+## Launch-gap work in progress — 2026-11-08 (NOT DEPLOYED)
+
+Nothing in this section is live. Production is still Worker `c7f2c2ae-...`.
+
+### Combined on branch ux-and-prod-smoke (uncommitted)
+
+- All nine worktrees are merged into the main working tree on branch `ux-and-prod-smoke`, based on `main` `edda6c4` (includes prod-fixes PR #49). The worktrees are superseded.
+- Merge fixes:
+  - Login-limit migration renamed to `20261108130000_auth_login_account_limit.sql` (it clashed with `20261108120000_password_reset_change.sql`).
+  - Expected migration count is now 66.
+  - Password-reset routes and the coach-link rate limit use the async signed-IP helper.
+  - `SecurityView` shows `ChangePasswordPanel`, `DataExportPanel` and `LegalLinks`.
+- Verification:
+  - `tsc` clean.
+  - Vitest: 504 passed, 1 skipped.
+  - Deno `_shared`: 91 passed.
+  - `supabase/tests`: 32 passed.
+  - `deno check` on `api` and `email-verification-worker` clean.
+  - `validate-production-config` PASS (66 migrations).
+  - Playwright `--list`: 53 tests (default), 8 (prod).
+- Not run: browser e2e, the SQL migrations against any database, the GitHub workflows.
+- Owner decisions (2026-11-08):
+  - Finished sessions stay fully editable. Only a session locked by another writer is read-only (`src/features/plan/sessionReadOnly.ts`). This overrides the AGENTS.md "Finished sessions cannot mutate" line.
+  - Support email is `gartman.bekaali@gmail.com` (`src/config/support.ts`, `public/privacy.html`, `public/terms.html`). `[OPERATOR_NAME]`, `[JURISDICTION]` and `[EFFECTIVE_DATE]` remain.
+  - Sign-up stays open.
+- Next:
+  1. Owner commits and opens a PR.
+  2. Staging: apply the 3 migrations; set `CLIENT_IP_SIGNING_KEY` on the Edge and the Worker; check the Vault coach-code HMAC key; deploy the `api` and `email-verification-worker` Edge functions; deploy the Worker and frontend; run the checks.
+  3. Production only after owner approval.
+
+### Committed
+
+- `prod-fixes` (merged in PR #49): first-visit offline, phone sidebar and cards, card menu clipping, stray proxy cookie strip.
+
+### Worktrees
+
+Paths are under `.claude/worktrees/`. File lists come from `git -C <path> status -s` on 2026-11-08. Every change listed is uncommitted.
+
+| Worktree | Contains | Status | Merge notes |
+| :--- | :--- | :--- | :--- |
+| `agent-ae5bbfa8cfdfec84e` (base `316bcfc`) | Voucher access refresh (keeps access across reconnect and user switch). Readable conflict card: camelCase labels, per-reason copy, names the session/lift/set via new `src/services/conflictTarget.ts`. | Done. 56/57 tests pass. The one failure is the $29 locale test, already fixed on `prod-fixes`. | Touches `SyncContext.tsx` (overlaps `a5ed99e`) and `api.ts` (overlaps `ab017c1`). |
+| `agent-ac69b212ec21f79b6` (base `316bcfc`) | Production Playwright suite `e2e/prod/`, `playwright.prod.config.ts`, `npm run test:e2e:prod`. | Review fixes done: coach unlink only on the test coach's side, no cookie values in output, fresh-context persistence checks, loads `E2E_*` from `.env`. Never run against production. | Edits `package.json` and `playwright.verification.config.ts`. |
+| `agent-aa05fc6429a86e028` | Backups: post-upload size check in `db-backup.yml`; new `backup-alert.yml` (workflow_run, Resend email on non-success); new `restore-drill-reminder.yml` (monthly issue). | Not run on GitHub. | Needs environment `production-recovery`: secret `RESEND_API_KEY`; vars `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM`. |
+| `agent-a2363ab73235d637a` | Draft `public/privacy.html` and `public/terms.html`; `LegalLinks` on login and Security; support line in coach billing; `src/config/support.ts`. | Placeholders unfilled: `[SUPPORT_EMAIL]`, `[OPERATOR_NAME]`, `[JURISDICTION]`, `[EFFECTIVE_DATE]`. Needs owner/legal review. | Overlaps `SecurityView.tsx`, `CoachBillingPanel.test.tsx`, `cloudflare/worker.test.ts`. |
+| `agent-a84d9ba2ca7fe102d` | "Download my data" CSV/JSON in Security via `DataExportPanel`; `VITE_INTEGRATIONS_ENABLED` flag (off in production by default) hides Integrations; Telegram "Not available yet" state. | Tests added. Staging also defaults to off. | Overlaps `SecurityView.tsx`, `App.tsx`, `Sidebar.tsx`. Also edits `.env.*.example` and `scripts/validate-production-config.mjs`. |
+| `agent-ab017c1c80379c97d` | Password reset and change: `passwordRoute.ts` (+ test), migration `20261108120000_password_reset_change.sql`, `PasswordResetView`, `ChangePasswordPanel`. | Done. Deno 81 and vitest 453 pass; SQL not executed. | Migration timestamp clashes with `a844e58d`; rename one. Overlaps `onboardingRoute.ts` (`a844e58d`), `api.ts` (`ae5bbfa8`), `index.html` (`a5ed99e4`). |
+| `agent-a5ed99e49d533db8d` | A11y batch: finished-session read-only lock (`sessionReadOnly.ts`, `lockedWorkoutIds` from `SyncContext`), calendar opens on the real month, calendar keyboard and touch access, zoom re-enabled, `CenteredDialog` fixes, aria labels. | Done. 446 unit tests pass; e2e not run. | Overlaps `SyncContext.tsx` (`ae5bbfa8`), `App.tsx` and `Sidebar.tsx` (`a84d9ba2`), `index.html` (`ab017c1c`). |
+| `agent-a844e58d9b1567ef7` | IP signing (`x-al-client-ip` HMAC, `clientIp.ts`) and per-account login limit. Touches `config.ts`, `billingRoute.ts`, `accountSecurityRoute.ts`, `onboardingRoute.ts`, `cloudflare/worker.ts`. Migration `20261108120000_auth_login_account_limit.sql`. | Done. Vitest 452 pass; Deno and SQL not executed. | Migration timestamp clashes with `ab017c1c`; rename one. Overlaps `onboardingRoute.ts` (`ab017c1c`). |
+| `agent-a4c65c72ac7ccc172` | Coach-code hardening; no `access_token` in response bodies. Migration `20261108140000_coach_code_link_hardening.sql`. | Done. Deno 84 and vitest 447 pass; SQL not executed. | Apply the migration and deploy `api` together. |
+
+Merge notes:
+
+- The main checkout's uncommitted list also shows `package.json`, `playwright.verification.config.ts`, `e2e/prod/`, `playwright.prod.config.ts`, `ConflictReviewCard`, `AccessContext` and `api.ts`. Reconcile these with the worktrees before merging so no change is applied twice.
+- `ae5bbfa8` and `ac69b212` branch from `316bcfc`, before PR #49. Rebase or check them against `edda6c4`.
+
+### Worktree results (2026-11-08)
+
+- **Migration timestamp clash:** `ab017c1c` (`20261108120000_password_reset_change.sql`) and `a844e58d` (`20261108120000_auth_login_account_limit.sql`) share `20261108120000`. Rename one (e.g. `20261108130000`) before merge.
+- **Migration count:** three worktrees set the count to 64 in `scripts/validate-production-config.mjs` and `cloudflare/productionConfig.test.ts`. The true final count is 66.
+- **Accessibility (`a5ed99e4`, done):** finished sessions are read-only. Calendar opens on the real month. 13 e2e specs are pinned to 15 Sept 2026 via `pinCalendarClock` in `e2e/helpers.ts`. Not run.
+  - Open owner question: should a finished session's date and labels also be locked?
+- **Password reset (`ab017c1c`, done):** forgot, reset and change routes in `passwordRoute.ts`. Migration `20261108120000_password_reset_change.sql`. SQL not executed.
+  - Deploy: migration, then `api` and `email-verification-worker` Edge functions, then frontend.
+- **IP signing and login limit (`a844e58d`, done):** the Worker signs `x-al-client-ip` with HMAC, and `clientIp.ts` verifies it. Secret `CLIENT_IP_SIGNING_KEY` is needed on both Worker and Edge. Wrangler configs now require it. Per-email login limit: 10 failures per 15 min, dummy bcrypt, `LOGIN_FAILED` audit. SQL not executed.
+  - Deploy order: Edge secret, Edge deploy, migration, Worker secret, Worker deploy.
+- **Coach codes (`a4c65c72`, done):** 10-character codes, Vault HMAC key, single use with 15-min expiry. Limits are 5/min and 20/h per account and per IP. Errors are generic. The coach email is not returned. `access_token` is removed from response bodies. Migration `20261108140000_coach_code_link_hardening.sql`. SQL not executed.
+  - Apply the migration and deploy `api` together.
+
+### Production screen pass (2026-11-08, read-only, athlete account with no sessions)
+
+- Integrations cards clip their buttons at 360px.
+- Athletes see the Sheets panel error "Could not load your active athlete roster" (roster 403).
+- Insights editor overflows at 360px and shows raw ids (`avg_intensity`, `inol`, `acwr`, `e1rm` instead of e1RM/INOL/ACWR). Insights "Del" has no confirm. Titles truncate on phone.
+- Telegram and Sheets panels hardcode dark colours in light mode.
+- Compare menu is clipped at 360px.
+- Security shows an enabled "Unlink coach" with no coach linked, and an unbounded device/session list (about 13 devices from E2E logins).
+- New session date defaults from UTC (wrong day in KST before 09:00).
+- Login page ignores the saved dark theme.
+- The first Escape in the New session dialog is swallowed.
+- Service worker registration error when the registration is missing.
+- Fixed in the a11y worktree: the calendar Sept-2026 bug and phone calendar actions.
+- Screenshots are in the session scratchpad `screenpass/shots` (not in repo).
+- Not covered: session grid, roster, billing (needs a coach account).
+
+### Launch blockers (readiness review)
+
+- No privacy policy or terms in production. Drafts are in `a2363ab7`, unreviewed.
+- No account deletion. No worktree covers it.
+- No password reset. In progress in `ab017c1c`.
+- No support contact. Drafted in `a2363ab7`; owner address pending.
+- Data export not wired in UI. Built in `a84d9ba2`.
+- No uptime monitor or client error reporting.
+- Telegram/Sheets visible but unconfigured. Hidden in production by the flag in `a84d9ba2`.
+- Revoke the full-access Resend key.
+- Consider Turnstile on sign-up.
+- Confirm the daily backup keeps Supabase from pausing.
+
+### Security audit (2026-11-08): two launch blockers
+
+1. All users likely share one IP rate-limit bucket. The Worker proxy makes `cf-connecting-ip` the Worker's egress IP, so one attacker can lock out logins, drop signups and block voucher redeems. Not yet confirmed on staging. Fix in `a844e58d`.
+2. Coach codes can be brute-forced: 6 hex characters, unsalted hash, 365-day expiry, no rate limit on `/api/auth/link`, and the response reveals whether a code is valid. Fix in `a4c65c72` (no changes on disk yet).
+
+Also open:
+
+- No per-account login limit or failed-login audit.
+- Sheets OAuth state is not bound to the session that started it.
+- The session token is returned in the response body.
+- No RLS backstop on public tables.
+- Workout locks apply only to sync.
+- Request lists are uncapped.
+- All SECURITY DEFINER functions were checked: `search_path` fixed, EXECUTE revoked. Ended links are blocked. CSRF origin checks hold.
+
+### Owner decisions pending
+
+- ~~Support address.~~ Resolved 2026-11-08: `gartman.bekaali@gmail.com`.
+- ~~Keep sign-up open, or set `EMAIL_ONBOARDING_ENABLED=false` until legal pages and password reset are live.~~ Resolved 2026-11-08: sign-up stays open.
+- ~~Finished sessions read-only (open question in `a5ed99e4`).~~ Resolved 2026-11-08: finished sessions stay editable; only a session locked by another writer is read-only.
+- Uptime monitor on `/api/health`.
+
+### DNS
+
+- Owner chose to leave the `app` record as is.
+
+### Accessibility audit findings not yet addressed
+
+- Phone tap targets under 44px in the set grid.
+- No plan loading/error state in Calendar/Sessions.
+- No persistent online/offline indicator or last-sync indicator.
+- Expanded sidebar squeezes content at 360px.
+- Telegram terminal steppers are not buttons, and they hide errors.
+- Set delete has no confirm or undo.
+
+### Security findings not yet addressed
+
+- Sheets OAuth state not bound to the session.
+- No RLS/default-privilege backstop on public tables.
+- Workout locks only enforced in sync.
+- Uncapped request lists.
+- Pre-registration of a victim's email.
+- Inconsistent 404/403 leaks.
+- `decodeURIComponent` 500s.
+- Unlink-snapshot date-text comparison.
+- Device revoke not enforced.
+- Sync upsert can un-delete sets.
+- Runtime role can read all Vault secrets.
+
+## Untested-areas pass — 2026-11-08
 
 Latest Worker version `c7f2c2ae-d44e-48c8-a6fe-2db90164aa15` (owner-approved deploy) adds the
 phone session-card fix below. Earlier versions in this section: `bf948840-...`, `2d9c2c2d-...`,

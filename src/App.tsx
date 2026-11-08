@@ -22,10 +22,12 @@ import { UI_KEYS, getUiPref, setUiPref, setRecentBlock } from './storage/uiPrefs
 import { parseLiftFilter, type LiftFilterState } from './services/liftFilter';
 import { readThemePref, applyThemeToDocument, setThemePref, toggleTheme } from './theme/themePref';
 import type { ThemePreference } from './theme/themePref';
-import { parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
+import { isDashboardModeAvailable, parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel } from './features/plan/sessionLabels';
-import { splitWorkoutExercises, type LiftMetaPatch } from './types';
+import { isWorkoutCompleted, splitWorkoutExercises, type LiftMetaPatch } from './types';
+import { useSync } from './contexts/SyncContext';
+import { sessionReadOnlyReason } from './features/plan/sessionReadOnly';
 
 type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
   value: string;
@@ -102,6 +104,10 @@ export default function App() {
   const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
   const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
   const workoutExercises = activeWorkout ? splitWorkoutExercises(activeWorkout.exercises) : null;
+  const { lockedWorkoutIds } = useSync();
+  const readOnlyReason = sessionReadOnlyReason(activeWorkout, lockedWorkoutIds);
+  const sessionFinished = activeWorkout ? isWorkoutCompleted(activeWorkout.status) : false;
+  const sessionLocked = readOnlyReason !== null;
 
   useEffect(() => {
     const mainIds = workoutExercises?.main.map((exercise) => exercise.id) ?? [];
@@ -177,6 +183,7 @@ export default function App() {
   }, [setActiveAthleteId]);
 
   const handleNavigate = (mode: DashboardMode) => {
+    if (!isDashboardModeAvailable(mode)) return;
     setDashboardMode(mode);
     setCurrentView('dashboard');
     if (mode !== 'calendar') setFocusAthleteScope(false);
@@ -308,12 +315,12 @@ export default function App() {
                   <RosterView onNavigate={handleNavigate} />
                 ) : dashboardMode === 'security' ? (
                   <SecurityView />
-                ) : (
+                ) : isDashboardModeAvailable('integrations') ? (
                   <div className="flex flex-col gap-4 p-4 w-full overflow-y-auto">
                     <TelegramLinkPanel />
                     <SheetsPublishPanel />
                   </div>
-                )}
+                ) : null}
               </div>
             </motion.div>
           ) : (
@@ -366,10 +373,17 @@ export default function App() {
                         <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Tonnage</span>
                         <span className="tnum">{activeWorkout.tonnage.toLocaleString()} kg</span>
                       </p>
+                      {sessionFinished ? (
+                        <span data-testid="session-finished-badge" className="h-7 inline-flex items-center px-2 text-[11px] font-semibold text-[var(--cal-muted)]">
+                          Finished
+                        </span>
+                      ) : (
                       <button
                         type="button"
                         data-testid="session-complete"
+                        disabled={sessionLocked}
                         onClick={async () => {
+                          if (sessionLocked) return;
                           try {
                             await finishSession('COMPLETED');
                             setCurrentView('dashboard');
@@ -377,12 +391,19 @@ export default function App() {
                             alert(err instanceof Error ? err.message : 'Failed to complete session');
                           }
                         }}
-                        className="h-7 px-2 text-[11px] bg-[var(--cal-primary)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)]"
+                        className="h-7 px-2 text-[11px] bg-[var(--cal-primary)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
                       >
                         Complete
                       </button>
+                      )}
                     </div>
                   </div>
+
+                  {readOnlyReason ? (
+                    <p data-testid="session-readonly" role="status" className="px-2 py-1 text-xs text-[var(--cal-muted)]">
+                      Session locked by another writer — read-only until the lock is released
+                    </p>
+                  ) : null}
 
                   <div>
                     {activeWorkout.exercises.length === 0 && (
@@ -395,7 +416,7 @@ export default function App() {
                       axis="y"
                       ref={reorderContainerRef}
                       values={orderedMainExercises.map((exercise) => exercise.id)}
-                      onReorder={(next) => { if (coachCanProgram) void handleReorderLifts(next); }}
+                      onReorder={(next) => { if (coachCanProgram && !sessionLocked) void handleReorderLifts(next); }}
                     >
                     {orderedMainExercises.map((ex) => {
                       return (
@@ -403,7 +424,8 @@ export default function App() {
                         key={ex.id}
                         value={ex.id}
                         reorderContainerRef={reorderContainerRef}
-                        canReorder={coachCanProgram}
+                        canReorder={coachCanProgram && !sessionLocked}
+                        locked={sessionLocked}
                         id={ex.id}
                         title={ex.title}
                         variation={ex.variation}
@@ -424,13 +446,14 @@ export default function App() {
 
                     <AccessoryLedger
                       exercises={workoutExercises?.accessories ?? []}
+                      locked={sessionLocked}
                       onUpdateSets={updateExerciseSets}
                       canEditPlan={coachCanProgram}
                       onUpdateMeta={coachCanProgram ? handleUpdateLift : undefined}
                       onRemove={coachCanProgram ? handleRemoveLift : undefined}
                     />
 
-                    {coachCanProgram ? (
+                    {sessionLocked ? null : coachCanProgram ? (
                       <AddLiftBar sessionId={activeWorkout.id} onAdded={() => reloadMicrocycles(planAthleteId)} />
                     ) : (
                       <p className="px-2 py-3 text-xs text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</p>

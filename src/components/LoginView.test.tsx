@@ -4,17 +4,19 @@ import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '../services/api';
 import { LoginView } from './LoginView';
+import { SUPPORT_EMAIL } from '../config/support';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const { signIn, login, register } = vi.hoisted(() => ({
+const { signIn, login, register, forgotPassword } = vi.hoisted(() => ({
   signIn: vi.fn(),
   login: vi.fn(),
   register: vi.fn(),
+  forgotPassword: vi.fn(),
 }));
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ signIn }) }));
-vi.mock('../services/api', async (original) => ({ ...await original<typeof import('../services/api')>(), apiService: { login, register, googleLogin: vi.fn(), developmentLogin: vi.fn() } }));
+vi.mock('../services/api', async (original) => ({ ...await original<typeof import('../services/api')>(), apiService: { login, register, forgotPassword, googleLogin: vi.fn(), developmentLogin: vi.fn() } }));
 
 let root: Root;
 let container: HTMLDivElement;
@@ -41,6 +43,7 @@ beforeEach(async () => {
   signIn.mockReset();
   login.mockReset();
   register.mockReset();
+  forgotPassword.mockReset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -53,6 +56,33 @@ afterEach(async () => {
 });
 
 describe('LoginView authentication modes', () => {
+  it('links to the privacy policy, terms, and support', () => {
+    const hrefs = Array.from(container.querySelectorAll('nav[aria-label="Legal and support"] a')).map(a => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/privacy.html', '/terms.html', `mailto:${SUPPORT_EMAIL}`]);
+  });
+
+  it('offers Forgot password? on sign-in and returns to sign-in after requesting a link', async () => {
+    forgotPassword.mockResolvedValue({ message: 'generic' });
+    await enter(container.querySelector<HTMLInputElement>('input[type="email"]')!, 'coach@example.com');
+    const link = [...container.querySelectorAll('button')].find(button => button.textContent === 'Forgot password?');
+    expect(link).toBeTruthy();
+    await act(async () => { link!.click(); });
+    expect(container.textContent).toContain('Reset your password');
+    expect(container.querySelector<HTMLInputElement>('input[type="email"]')?.value).toBe('coach@example.com');
+    await submit();
+    expect(forgotPassword).toHaveBeenCalledWith('coach@example.com');
+    expect(login).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('If an account exists');
+    const back = [...container.querySelectorAll('button')].find(button => button.textContent === 'Return to sign in');
+    await act(async () => { back!.click(); });
+    expect(container.querySelector('[data-testid="login-card"]')).not.toBeNull();
+  });
+
+  it('hides Forgot password? while creating an account', async () => {
+    await act(async () => { container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="false"]')?.click(); });
+    expect([...container.querySelectorAll('button')].some(button => button.textContent === 'Forgot password?')).toBe(false);
+  });
+
   it('creates a pending account without signing in', async () => {
     const user = { id: 'new-user', email: 'new@example.com', role: 'ATHLETE' };
     register.mockResolvedValue({ user });

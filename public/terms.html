@@ -1,0 +1,149 @@
+<!doctype html>
+<!--
+  DRAFT - NOT FINAL. These terms of service are a plain-language draft and need
+  review by the owner and a qualified legal advisor before they are relied on.
+  Replace every [PLACEHOLDER] (gartman.bekaali@gmail.com, [OPERATOR_NAME], [JURISDICTION],
+  [EFFECTIVE_DATE]) and confirm each statement still matches how the service runs.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Terms of Service · Adaptive Lifting</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>
+    try {
+      var stored = localStorage.getItem('al_theme');
+      if (stored === 'dark' || stored === 'light') document.documentElement.dataset.theme = stored;
+    } catch (e) { /* No stored preference: follow the system setting. */ }
+  </script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --cal-canvas: #ffffff;
+      --cal-ink: #111111;
+      --cal-muted: #6b7280;
+      --cal-hairline: #e5e7eb;
+      --cal-surface-card: #f5f5f5;
+      --cal-accent: #007aff;
+      --cal-radius-md: 8px;
+      --cal-radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --cal-canvas: #101010;
+        --cal-ink: #ffffff;
+        --cal-muted: #a1a1aa;
+        --cal-hairline: rgba(255, 255, 255, 0.12);
+        --cal-surface-card: #1a1a1a;
+      }
+    }
+    :root[data-theme="dark"] {
+      --cal-canvas: #101010;
+      --cal-ink: #ffffff;
+      --cal-muted: #a1a1aa;
+      --cal-hairline: rgba(255, 255, 255, 0.12);
+      --cal-surface-card: #1a1a1a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--cal-canvas);
+      color: var(--cal-ink);
+      font: 16px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+    a { color: var(--cal-accent); overflow-wrap: anywhere; }
+    .back { font-size: 14px; color: var(--cal-muted); text-decoration: none; }
+    .back:hover { color: var(--cal-ink); }
+    h1 { font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; margin: 16px 0 4px; }
+    h2 { font-size: 17px; font-weight: 600; margin: 32px 0 8px; }
+    p, li { color: var(--cal-ink); }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { margin: 4px 0; }
+    .meta { font-size: 14px; color: var(--cal-muted); margin: 0; }
+    .draft {
+      margin: 20px 0 0;
+      padding: 12px 14px;
+      border: 1px solid var(--cal-hairline);
+      border-radius: var(--cal-radius-lg);
+      background: var(--cal-surface-card);
+      font-size: 14px;
+      color: var(--cal-muted);
+    }
+    footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--cal-hairline); font-size: 14px; color: var(--cal-muted); }
+    footer a { color: var(--cal-muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">&larr; Back to Adaptive Lifting</a>
+    <h1>Terms of Service</h1>
+    <p class="meta">Effective [EFFECTIVE_DATE]</p>
+    <p class="draft">Draft. These terms are still being reviewed and may change before they take effect.</p>
+
+    <h2>The agreement</h2>
+    <p>These terms are between you and [OPERATOR_NAME] ("we"), who runs Adaptive Lifting at app.goatedmethod.me. By creating an account or using the app, you agree to them. Our <a href="/privacy.html">Privacy Policy</a> explains how we handle your data.</p>
+
+    <h2>What the app does</h2>
+    <p>Adaptive Lifting is a tool for planning and logging powerlifting training. Athletes keep their own training plan. Coaches can be linked to athletes to plan and review training with them.</p>
+
+    <h2>Your account</h2>
+    <ul>
+      <li>Use a real email address you control. You will need it to verify your account and reset your password.</li>
+      <li>Keep your password private. You are responsible for activity on your account.</li>
+      <li>If you think someone else has access, change your password and revoke unknown devices and sessions on the Security page, then tell us.</li>
+    </ul>
+
+    <h2>Your training data</h2>
+    <p>You own the plans, logs, and notes you put into the app. You give us permission to store and process them only so we can run the service for you. You can export your data as CSV or JSON, and you can ask us to delete your account by emailing <a href="mailto:gartman.bekaali@gmail.com">gartman.bekaali@gmail.com</a>.</p>
+
+    <h2>Coaches and athletes</h2>
+    <ul>
+      <li>An athlete links a coach by entering that coach's code. The linked coach can then view and edit the athlete's plan.</li>
+      <li>The athlete can unlink at any time. The coach's access ends and the plan stays with the athlete.</li>
+      <li>Coaches must only use an athlete's data to coach that athlete, and must respect the athlete's choice to unlink.</li>
+      <li>The relationship between a coach and an athlete, including any fee between them, is between them. We are not a party to it.</li>
+    </ul>
+
+    <h2>Coach access and payments</h2>
+    <p>Coach features are currently enabled with vouchers. Payments are turned off for now, so we do not charge you anything. A voucher grants coach access for the period it states. If we introduce paid plans, we will show the price and terms clearly before you are asked to pay, and nothing will be charged without your action. To ask about coach access, email <a href="mailto:gartman.bekaali@gmail.com">gartman.bekaali@gmail.com</a>.</p>
+
+    <h2>Training is at your own risk</h2>
+    <p>Lifting heavy weights carries a real risk of injury. The app does arithmetic on the numbers you enter, such as e1RM, suggested loads, and training load metrics. These numbers are estimates, not medical or professional advice. Use your own judgment, train within your limits, and consult a qualified professional if you have a health concern.</p>
+
+    <h2>Fair use</h2>
+    <p>Please do not:</p>
+    <ul>
+      <li>access another person's account or data without their permission;</li>
+      <li>try to break, overload, or get around the app's security or access rules;</li>
+      <li>use the app for anything unlawful, or to harass anyone.</li>
+    </ul>
+    <p>We may suspend or close an account that does these things. Where reasonable, we will tell you why and give you a chance to export your data.</p>
+
+    <h2>Availability</h2>
+    <p>We work to keep the app running and your data safe, and we keep encrypted backups. Even so, the app is provided "as is". It may sometimes be unavailable, and features may change. Keep your own exports if your training history matters to you.</p>
+
+    <h2>Liability</h2>
+    <p>To the extent the law allows, we are not liable for indirect or consequential losses, or for injury resulting from training decisions. Nothing in these terms limits rights you have under consumer law that cannot be waived.</p>
+
+    <h2>Ending your use</h2>
+    <p>You can stop using the app at any time and ask us to delete your account. We may stop offering the service; if we do, we will give reasonable notice so you can export your data.</p>
+
+    <h2>Changes to these terms</h2>
+    <p>If we change these terms, we will update the effective date above, and for significant changes we will let you know in the app or by email before they apply.</p>
+
+    <h2>Governing law</h2>
+    <p>These terms are governed by the laws of [JURISDICTION].</p>
+
+    <h2>Contact</h2>
+    <p>Questions? Email <a href="mailto:gartman.bekaali@gmail.com">gartman.bekaali@gmail.com</a>.</p>
+
+    <footer>
+      <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · <a href="mailto:gartman.bekaali@gmail.com">Support</a>
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,7 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Page } from '@playwright/test';
+import { pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function signIn(page: Page, email: string, password: string) {
   await page.goto('/');
@@ -19,6 +24,7 @@ test('athlete sees sessions the linked coach created after reload', async ({ bro
   const coachApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
   const athleteApi = await playwright.request.newContext({ baseURL: `${apiUrl}` });
   const athletePage = await browser.newPage();
+  await pinCalendarClock(athletePage);
   try {
     const coachReg = await registerVerified(coachApi, {
       data: { email: coachEmail, password, role: 'COACH' },

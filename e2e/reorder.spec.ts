@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
-import { fillEditableCell } from './helpers';
+import { fillEditableCell, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 test('moves a lift up and keeps the order after reload', async ({ page, request }) => {
   const email = `reorder-${Date.now()}@example.com`;

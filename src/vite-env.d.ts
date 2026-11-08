@@ -4,6 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_BACKEND_URL?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_CLIENT_DATA_GENERATION?: string;
+  readonly VITE_INTEGRATIONS_ENABLED?: string;
 }
 
 interface ImportMeta {

@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator } from '@playwright/test';
-import { fillEditableCell, pickComboOption } from './helpers';
+import { fillEditableCell, pickComboOption, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 test('empty athlete plan shows an addable empty state', async ({ page, request }) => {
   const email = `sessions-empty-${Date.now()}@example.com`;

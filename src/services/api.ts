@@ -245,7 +245,7 @@ export const apiService = {
     return (await response.json() as { url: string }).url;
   },
   async fetchAccountAccess(): Promise<WorkspaceAccess> {
-    const response = await fetch(`${BACKEND_URL}/api/account/access`, { headers: getHeaders(), credentials: 'include' });
+    const response = await fetch(`${BACKEND_URL}/api/account/access`, { headers: getHeaders(), credentials: 'include', cache: 'no-store' });
     if (!response.ok) throw await apiRequestError(response, 'Could not load coaching access status.');
     return await response.json() as WorkspaceAccess;
   },
@@ -524,6 +524,32 @@ export const apiService = {
       method: 'POST', headers: getHeaders(), credentials: 'omit', body: JSON.stringify({ email }),
     });
     if (!response.ok) throw await apiRequestError(response, 'Please wait before requesting another email.');
+    return await response.json();
+  },
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/password/forgot`, {
+      method: 'POST', headers: getHeaders(), credentials: 'omit', body: JSON.stringify({ email }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'Password reset is temporarily unavailable. Try again later.');
+    return await response.json();
+  },
+
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/password/reset`, {
+      method: 'POST', headers: getHeaders(), credentials: 'omit', referrerPolicy: 'no-referrer',
+      body: JSON.stringify({ token, password }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'This password reset link is invalid or expired.');
+    return await response.json();
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string; sessionsRevoked: number }> {
+    const response = await fetch(`${BACKEND_URL}/api/auth/password/change`, {
+      method: 'POST', headers: getHeaders(), credentials: 'include',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!response.ok) throw await apiRequestError(response, 'Password could not be changed.');
     return await response.json();
   },
 

@@ -16,6 +16,16 @@ describe('resolveDashboardMode', () => {
       redirectedFrom: 'analytics',
     });
   });
+
+  it('sends the Integrations route to Sessions when integrations are disabled', () => {
+    expect(resolveDashboardMode('integrations', { integrations: false })).toEqual({
+      mode: 'sessions',
+      panel: null,
+      redirectedFrom: 'integrations',
+    });
+    expect(resolveDashboardMode('integrations', { integrations: true }).mode).toBe('integrations');
+    expect(resolveDashboardMode('security', { integrations: false }).mode).toBe('security');
+  });
 });
 
 describe('parseAppLocation', () => {

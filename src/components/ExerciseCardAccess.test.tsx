@@ -34,4 +34,21 @@ describe('ExerciseCard coach plan access', () => {
     expect(logDelete).toBeTruthy();
     expect(logDelete?.disabled).toBe(false);
   });
+
+  it('renders a finished (locked) session read-only for plan and log', async () => {
+    await act(async () => root.render(<ExerciseCard
+      id="lift-1" title="Squat" variation="Back Squat" tags={[]} initialMinimized={false}
+      canEditPlan locked initialSets={[
+        { id: 'both-1', scope: 'both', actual: 90, reps: 5, plannedWeight: 95, plannedReps: 5 },
+      ]} onUpdateSets={() => undefined} onUpdateMeta={() => undefined} onRemove={() => undefined}
+    />));
+    expect(container.querySelector('[data-testid="add-plan-set-lift-1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="add-log-set-lift-1"]')).toBeNull();
+    expect(container.querySelector('input')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[aria-label^="Delete log set"]')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Copy plan set 1 to log"]')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Remove Back Squat"]')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Edit Back Squat"]')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLTextAreaElement>('[data-testid="lift-note-lift-1"]')?.disabled).toBe(true);
+  });
 });

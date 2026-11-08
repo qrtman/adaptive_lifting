@@ -1,7 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function signIn(page: Page, email: string) {
   await page.goto('/');

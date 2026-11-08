@@ -114,6 +114,7 @@ export function LabelCombo({
       {custom ? (
         <input
           data-testid={`${testId}-custom`}
+          aria-label={`New ${label} label`}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className={inputClass}

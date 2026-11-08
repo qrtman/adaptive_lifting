@@ -23,6 +23,7 @@ export const WorkoutLockBanner: React.FC<WorkoutLockBannerProps> = ({
   return (
     <div
       data-testid="workout-lock-banner"
+      role="status"
       data-mode="other_writer"
       className="bg-[color-mix(in_srgb,var(--cal-warning)_12%,var(--cal-surface-elevated))] border border-[color-mix(in_srgb,var(--cal-warning)_30%,transparent)] rounded-[var(--cal-radius-lg)] p-3 mb-4 flex items-center justify-between gap-3"
     >

@@ -148,8 +148,7 @@ export async function handleIntegrationsRoute(
     const result=await rpc<Json>(db,"select al_private.al_telegram_session($1::text,$2::text,$3::text,$4::boolean) as payload",[String(user.id),link,sessionId,config.enforceLegacyEmailVerification]);
     denialResponse(result.denial);
     const response=await sessionResponse({id:String(result.id),email:String(result.email),role:String(result.role),displayName:typeof result.displayName==="string"?result.displayName:null},sessionId,config);
-    const data=await response.json();
-    return jsonResponse({status:"success",access_token:data.access_token,user:{id:result.id,email:result.email,role:result.role,tg_username:user.username??null}},response.status,Object.fromEntries(response.headers));
+    return jsonResponse({status:"success",user:{id:result.id,email:result.email,role:result.role,tg_username:user.username??null}},response.status,Object.fromEntries(response.headers));
   }
   const principal: Principal=await authenticate(request,authRepository(db),config);
   const actor=principal.user.id, sid=principal.sessionId, enforce=config.enforceLegacyEmailVerification;

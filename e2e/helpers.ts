@@ -1,6 +1,17 @@
 import { expect, Page, Locator } from '@playwright/test';
 import { registerVerified } from './verified-fixture';
 
+/**
+ * The calendar opens on the browser's current month. Specs that seed or click
+ * September 2026 days pin the browser clock there; time still flows normally.
+ */
+export const CALENDAR_PINNED_DATE = new Date('2026-09-15T12:00:00');
+
+/** Call before the first navigation of `page` (e.g. in test.beforeEach). */
+export async function pinCalendarClock(page: Page) {
+  await page.clock.install({ time: CALENDAR_PINNED_DATE });
+}
+
 export async function signInCoach(page: Page, prefs: Record<string, string> = {}) {
   const login = await registerVerified(page.request, { data: {
     email: `navigation-coach-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`,

@@ -34,6 +34,8 @@ export interface AppConfig {
   voucherCodeSecret?: string | null;
   voucherBillingEnabled?: boolean;
   voucherBillingEnabledConfigured?: boolean;
+  /** Shared with the Cloudflare Worker; verifies the signed visitor IP header. */
+  clientIpSigningKey?: string | null;
   billingAppUrlConfigured?: boolean;
   appEnv?: string;
 }
@@ -179,5 +181,6 @@ export function loadConfig(
     voucherCodeSecret: read("VOUCHER_CODE_SECRET")?.trim() || null,
     voucherBillingEnabled: ["1", "true", "yes"].includes(voucherBillingRaw),
     voucherBillingEnabledConfigured: voucherBillingValue !== undefined,
+    clientIpSigningKey: read("CLIENT_IP_SIGNING_KEY")?.trim() || null,
   };
 }

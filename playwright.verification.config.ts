@@ -27,7 +27,7 @@ process.env.E2E_API_URL = 'http://127.0.0.1:8123';
 const python = process.env.PYTHON ?? path.resolve(process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
 
 export default defineConfig({
-  testDir: './e2e', fullyParallel: false, workers: 1,
+  testDir: './e2e', testIgnore: '**/prod/**', fullyParallel: false, workers: 1,
   use: { baseURL: 'http://127.0.0.1:3011', trace: 'off', viewport: { width: 1440, height: 900 } },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [

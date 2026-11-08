@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useId, useMemo, useState, type KeyboardEvent } from 'react';
 
 const inputClass =
   'h-10 w-full min-w-0 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
@@ -22,7 +22,9 @@ export function ComboBox({
 }) {
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
-  const listId = `${testId}-listbox`;
+  const domPrefix = `${testId.replace(/[^A-Za-z0-9_-]/g, '-')}-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`;
+  const listId = `${domPrefix}-listbox`;
+  const optionId = (index: number) => `${domPrefix}-option-${index}`;
 
   const filtered = useMemo(() => {
     const query = value.trim().toLowerCase();
@@ -90,6 +92,7 @@ export function ComboBox({
           role="combobox"
           aria-expanded={listOpen}
           aria-controls={listId}
+          aria-activedescendant={listOpen ? optionId(Math.min(highlightIndex, filtered.length - 1)) : undefined}
           aria-autocomplete="list"
           autoComplete="off"
           value={value}
@@ -112,7 +115,8 @@ export function ComboBox({
           <div
             id={listId}
             role="listbox"
-            data-testid={listId}
+            aria-label={label}
+            data-testid={`${testId}-listbox`}
             className="absolute z-30 mt-1 w-full max-h-40 overflow-y-auto p-1 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] shadow-[var(--cal-shadow-lift)]"
           >
             {filtered.map((option, index) => {
@@ -120,7 +124,9 @@ export function ComboBox({
               return (
                 <button
                   key={option}
+                  id={optionId(index)}
                   type="button"
+                  tabIndex={-1}
                   role="option"
                   aria-selected={active}
                   data-testid={`${testId}-option-${option}`}

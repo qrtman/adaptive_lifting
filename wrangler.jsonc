@@ -6,6 +6,9 @@
   "vars": {
     "SUPABASE_PROJECT_ORIGIN": "https://admyuepbbtstayaydjmo.supabase.co"
   },
+  "secrets": {
+    "required": ["CLIENT_IP_SIGNING_KEY"]
+  },
   "assets": {
     "directory": "./dist/",
     "binding": "ASSETS",

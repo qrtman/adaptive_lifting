@@ -29,9 +29,9 @@ export async function sessionResponse(
     `Max-Age=${config.sessionLifetimeSeconds ?? 604800}`,
     ...(config.cookieSecure ? ["Secure"] : []),
   ].join("; ");
+  // The session JWT travels only in the HttpOnly cookie; returning it in the
+  // JSON body would expose a 7-day credential to page scripts.
   return jsonResponse({
-    access_token: token,
-    token_type: "bearer",
     user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName ?? null },
   }, 200, { "set-cookie": cookie, "cache-control": "no-store" });
 }

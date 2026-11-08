@@ -11,6 +11,24 @@ function accountRole(user: { role?: string } | null): 'COACH' | 'ATHLETE' | null
   return null;
 }
 
+/** Server timestamps are UTC; older payloads omit the zone suffix. */
+function parseCoachCodeExpiry(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const iso = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`;
+  const time = Date.parse(iso);
+  return Number.isFinite(time) ? time : null;
+}
+
+function formatExpiryTime(time: number): string {
+  const date = new Date(time);
+  return date.toDateString() === new Date().toDateString()
+    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+// setTimeout overflows past ~24.8 days; legacy codes may expire later than that.
+const MAX_EXPIRY_TIMER_MS = 60 * 60 * 1000;
+
 const PANEL = 'mb-6 cal-nested-card';
 const MUTED = 'text-xs text-[var(--cal-muted)]';
 const ERROR = 'text-xs text-[var(--cal-error)]';
@@ -31,6 +49,9 @@ export const CoachLinkPanel: React.FC = () => {
   const [generatingCode, setGeneratingCode] = useState(false);
   const [coachCode, setCoachCode] = useState<string | null>(null);
   const [codeActive, setCodeActive] = useState(false);
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number | null>(null);
+  const [codeExpired, setCodeExpired] = useState(false);
+  const [expiryTick, setExpiryTick] = useState(0);
   const [coachError, setCoachError] = useState<string | null>(null);
   const [coachSuccess, setCoachSuccess] = useState<string | null>(null);
   const [coachDenied, setCoachDenied] = useState(false);
@@ -51,6 +72,7 @@ export const CoachLinkPanel: React.FC = () => {
       .then((status) => {
         if (cancelled) return;
         setCodeActive(Boolean(status.active));
+        setCodeExpiresAt(status.active ? parseCoachCodeExpiry(status.expires_at) : null);
         if (status.code) setCoachCode(status.code);
       })
       .catch((err: unknown) => {
@@ -70,6 +92,28 @@ export const CoachLinkPanel: React.FC = () => {
     };
   }, [role]);
 
+  // Codes are short-lived; retire the shown code once its expiry passes.
+  useEffect(() => {
+    if (codeExpiresAt === null) return;
+    const expire = () => {
+      setCoachCode(null);
+      setCodeActive(false);
+      setCodeExpiresAt(null);
+      setCodeExpired(true);
+      setCoachSuccess(null);
+    };
+    const remaining = codeExpiresAt - Date.now();
+    if (remaining <= 0) {
+      expire();
+      return;
+    }
+    const timer = window.setTimeout(
+      () => (Date.now() >= codeExpiresAt ? expire() : setExpiryTick((tick) => tick + 1)),
+      Math.min(remaining, MAX_EXPIRY_TIMER_MS),
+    );
+    return () => window.clearTimeout(timer);
+  }, [codeExpiresAt, expiryTick]);
+
   const generateCoachCode = async () => {
     setGeneratingCode(true);
     setCoachError(null);
@@ -78,7 +122,9 @@ export const CoachLinkPanel: React.FC = () => {
       const result = await apiService.createCoachCode();
       setCoachCode(result.code);
       setCodeActive(true);
-      setCoachSuccess('Coach code ready. Share it with the athlete.');
+      setCodeExpired(false);
+      setCodeExpiresAt(parseCoachCodeExpiry(result.expires_at));
+      setCoachSuccess('Coach code ready. Share it with the athlete now — it works once and expires in 15 minutes.');
     } catch (err: unknown) {
       const message = saasErrorMessage(err) || (err instanceof Error ? err.message : 'Failed to generate coach code');
       if (/only coaches/i.test(message) || /not authorized/i.test(message)) {
@@ -107,13 +153,15 @@ export const CoachLinkPanel: React.FC = () => {
     setLinkError(null);
     setLinkSuccess(null);
     try {
-      const result = await apiService.linkAthlete(coachCodeInput.trim());
-      setLinkSuccess(result.message || 'Linked to coach.');
+      await apiService.linkAthlete(coachCodeInput.trim());
+      setLinkSuccess('Linked to your coach.');
       setCoachCodeInput('');
     } catch (err: unknown) {
       const message = saasErrorMessage(err) || (err instanceof Error ? err.message : 'Failed to link coach');
       if (/only athletes/i.test(message) || /not authorized/i.test(message)) {
         setLinkError('You do not have permission to link a coach.');
+      } else if (/invalid or expired/i.test(message)) {
+        setLinkError('Invalid or expired code. Ask your coach for a new one.');
       } else {
         setLinkError(message);
       }
@@ -178,7 +226,7 @@ export const CoachLinkPanel: React.FC = () => {
           Coach code
         </h2>
         <p className={`${MUTED} mb-3`}>
-          Generate a coach code and share it with an athlete. They enter it in Security to link. Unlink keeps the athlete plan.
+          Generate a coach code and share it with an athlete. They enter it in Security to link. Each code works once and expires 15 minutes after you generate it. Unlink keeps the athlete plan.
         </p>
 
         {codeLoading && (
@@ -213,9 +261,19 @@ export const CoachLinkPanel: React.FC = () => {
                   Copy
                 </button>
               </div>
-            ) : codeActive ? (
+            ) : null}
+            {coachCode && codeExpiresAt !== null && (
+              <p data-testid="coach-code-expiry" className={`${MUTED} mb-2`}>
+                Expires at {formatExpiryTime(codeExpiresAt)}. Single use.
+              </p>
+            )}
+            {coachCode ? null : codeActive ? (
               <p data-testid="coach-code-active-hint" className={`${MUTED} mb-2`}>
-                An active coach code exists. Rotate to reveal a new code.
+                An active coach code exists{codeExpiresAt !== null ? ` until ${formatExpiryTime(codeExpiresAt)}` : ''}. Rotate to reveal a new code.
+              </p>
+            ) : codeExpired ? (
+              <p data-testid="coach-code-expired" className={`${MUTED} mb-2`}>
+                Coach code expired. Generate a new one when the athlete is ready to link.
               </p>
             ) : (
               <p data-testid="coach-code-empty" className={`${MUTED} mb-2`}>
@@ -263,15 +321,19 @@ export const CoachLinkPanel: React.FC = () => {
         Coach link
       </h2>
       <p className={`${MUTED} mb-3`}>
-        Enter the coach code (not an email) to link. Unlink keeps your plan.
+        Enter the coach code (not an email) to link. Codes expire 15 minutes after your coach generates them. Unlink keeps your plan.
       </p>
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <input
           type="text"
           data-testid="athlete-link-input"
+          aria-label="Coach code"
           value={coachCodeInput}
           onChange={(e) => setCoachCodeInput(e.target.value.toUpperCase())}
-          placeholder="Coach code"
+          placeholder="XXXXX-XXXXX"
+          maxLength={16}
+          autoComplete="off"
+          spellCheck={false}
           autoCapitalize="characters"
           className={`${FIELD} uppercase`}
         />

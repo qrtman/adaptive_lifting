@@ -7,7 +7,7 @@ import {
   AlertTriangle,
   Trash2,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { CenteredDialog } from './CenteredDialog';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
@@ -73,6 +73,13 @@ const COPY_MODE_OPTIONS: Array<{ value: CopyMode; label: string; description: st
   },
 ];
 
+function dayAriaLabel(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+}
+
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -97,9 +104,9 @@ export function CalendarView({
   const onUpdateWorkouts = setMicrocycles;
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
-  // Navigation states (we start in September 2026)
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(8); // September is 8 (0-indexed)
+  // Navigation starts on the current month (0-indexed month).
+  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
 
   // Drag and drop states
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
@@ -486,15 +493,19 @@ export function CalendarView({
             <button
               type="button"
               onClick={handlePrevMonth}
+              aria-label="Previous month"
+              data-testid="calendar-prev-month"
               className="h-7 w-7 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={16} aria-hidden="true" />
             </button>
             <button
               type="button"
+              data-testid="calendar-today"
               onClick={() => {
-                setCurrentYear(2026);
-                setCurrentMonth(8);
+                const now = new Date();
+                setCurrentYear(now.getFullYear());
+                setCurrentMonth(now.getMonth());
               }}
               className="h-7 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
             >
@@ -503,9 +514,11 @@ export function CalendarView({
             <button
               type="button"
               onClick={handleNextMonth}
+              aria-label="Next month"
+              data-testid="calendar-next-month"
               className="h-7 w-7 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] rounded-[var(--cal-radius-md)]"
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={16} aria-hidden="true" />
             </button>
           </div>
           <LiftFilter value={filter} onChange={onFilterChange} />
@@ -708,30 +721,40 @@ export function CalendarView({
                               cell.isCurrentMonth
                               && !copyClipboard
                               && (isHovered || newSessionDate === dateStr || notesDate === dateStr);
+                            const dayInteractive = cell.isCurrentMonth && !showCoachSelectAthlete;
+                            const activateDay = () => {
+                              if (!dayInteractive) return;
+                              if (copyClipboard) {
+                                void copyToDate(dateStr);
+                                return;
+                              }
+                              if (dayWorkouts.length === 1) {
+                                onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
+                                return;
+                              }
+                              if (dayWorkouts.length === 0) {
+                                openNewSession(dateStr);
+                              }
+                            };
 
                             return (
                               <div
                                 key={dateStr}
                                 data-testid={`calendar-day-${dateStr}`}
+                                tabIndex={dayInteractive ? 0 : undefined}
+                                aria-label={dayInteractive ? dayAriaLabel(dateStr) : undefined}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, dateStr)}
                                 onMouseEnter={() => {
-                                  if (cell.isCurrentMonth && !showCoachSelectAthlete) enterDayHover(dateStr);
+                                  if (dayInteractive) enterDayHover(dateStr);
                                 }}
                                 onMouseLeave={() => leaveDayHover(dateStr)}
-                                onClick={() => {
-                                  if (!cell.isCurrentMonth || showCoachSelectAthlete) return;
-                                  if (copyClipboard) {
-                                    void copyToDate(dateStr);
-                                    return;
-                                  }
-                                  if (dayWorkouts.length === 1) {
-                                    onViewSession(dayWorkouts[0].workout, dayWorkouts[0].microId);
-                                    return;
-                                  }
-                                  if (dayWorkouts.length === 0) {
-                                    openNewSession(dateStr);
-                                  }
+                                onClick={activateDay}
+                                onKeyDown={(event) => {
+                                  if (event.target !== event.currentTarget) return;
+                                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                                  event.preventDefault();
+                                  activateDay();
                                 }}
                                 className={`cal-day-cell h-auto min-h-[128px] min-w-0 p-1.5 flex flex-col relative overflow-visible cursor-pointer border-r border-b border-[var(--cal-hairline)] ${
                                   cellIdx === 6 ? 'border-r-0' : ''
@@ -781,22 +804,35 @@ export function CalendarView({
                                       formatPlanLabel('Week', workout.weekLabel),
                                       formatPlanLabel('Block', workout.blockLabel),
                                     ].filter(Boolean);
+                                    const activateChip = () => {
+                                      if (copyClipboard) {
+                                        void copyToDate(dateStr);
+                                        return;
+                                      }
+                                      onViewSession(workout, microId);
+                                    };
                                     return (
                                       <div
                                         key={workout.id}
                                         data-testid={`workout-card-${workout.id}`}
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`Open ${workout.title || 'session'}, ${dayAriaLabel(dateStr)}${isWorkoutCompleted(workout.status) ? ', finished' : ''}`}
                                         draggable
                                         onDragOver={(e) => e.preventDefault()}
                                         onDragStart={(e) => handleDragStart(e, workout.id, microId)}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (copyClipboard) {
-                                            void copyToDate(dateStr);
-                                            return;
-                                          }
-                                          onViewSession(workout, microId);
+                                          activateChip();
                                         }}
-                                        className="cal-day-chip group relative mt-1 px-1.5 py-1 flex flex-col gap-0.5 cursor-pointer w-full min-w-0 max-w-full overflow-hidden"
+                                        onKeyDown={(e) => {
+                                          if (e.target !== e.currentTarget) return;
+                                          if (e.key !== 'Enter' && e.key !== ' ') return;
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          activateChip();
+                                        }}
+                                        className="cal-day-chip group relative mt-1 px-1.5 py-1 flex flex-col gap-0.5 cursor-pointer w-full min-w-0 max-w-full overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
                                       >
                                         <button
                                           type="button"
@@ -806,9 +842,9 @@ export function CalendarView({
                                             event.stopPropagation();
                                             void onDeleteSession(workout);
                                           }}
-                                          className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] text-[var(--cal-muted)] opacity-0 transition-opacity hover:text-[var(--cal-error)] focus:opacity-100 group-hover:opacity-100"
+                                          className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] text-[var(--cal-muted)] opacity-0 transition-opacity hover:text-[var(--cal-error)] focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                                         >
-                                          <Trash2 size={11} />
+                                          <Trash2 size={11} aria-hidden="true" />
                                         </button>
                                         <span className="text-[10px] font-medium text-[var(--cal-ink)] truncate leading-tight">
                                           {workout.title || 'Session'}
@@ -861,10 +897,11 @@ export function CalendarView({
                                     className={`mt-auto shrink-0 w-full min-w-0 flex flex-col justify-end ${copyClipboard ? 'invisible' : ''}`}
                                     style={{ minHeight: hoverDockMinHeight(dayWorkouts[0] ? 3 : 2) }}
                                   >
-                                    {hoveredDate === dateStr && !copyClipboard ? (
+                                    {!copyClipboard ? (
                                       <div
                                         data-testid={`calendar-day-hover-${dateStr}`}
-                                        className="cal-day-dock flex flex-col gap-0.5 w-full min-w-0"
+                                        data-open={hoveredDate === dateStr ? 'true' : undefined}
+                                        className="cal-day-dock flex-col gap-0.5 w-full min-w-0"
                                       >
                                         <button
                                           type="button"
@@ -975,25 +1012,31 @@ export function CalendarView({
       )}
 
       {/* Conflict Decision Modal */}
-      <AnimatePresence>
         {conflictModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ scale: 0.98, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.98, opacity: 0 }}
-              className="bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] max-w-md w-full p-4 shadow-sm"
-            >
-              <div className="flex items-center gap-2 text-[var(--cal-warning)] mb-3">
-                <AlertTriangle size={16} />
-                <h4 className="text-sm text-[var(--cal-ink)]">Periodization conflict</h4>
-              </div>
-
-              <p className="text-xs text-[var(--cal-muted)] leading-relaxed mb-4">
-                Rescheduling <strong className="text-[var(--cal-ink)]">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-[var(--cal-ink)]">{conflictModal.newDate}</strong>.
+          <CenteredDialog
+            title="Periodization conflict"
+            subtitle="Another session is already on this day."
+            onClose={cancelMove}
+            testId="calendar-move-conflict-dialog"
+            footer={(
+              <button
+                type="button"
+                onClick={cancelMove}
+                onMouseDown={triggerHaptic}
+                className="h-7 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+              >
+                Cancel
+              </button>
+            )}
+          >
+              <p className="flex items-start gap-2 text-xs text-[var(--cal-muted)] leading-relaxed mb-4">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[var(--cal-warning)]" aria-hidden="true" />
+                <span>
+                  Rescheduling <strong className="text-[var(--cal-ink)]">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-[var(--cal-ink)]">{conflictModal.newDate}</strong>.
+                </span>
               </p>
 
-              <div className="space-y-2 mb-4">
+              <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => executeMove(
@@ -1036,21 +1079,8 @@ export function CalendarView({
                   <ChevronRight size={14} className="text-[var(--cal-muted)]" />
                 </button>
               </div>
-
-              <div className="flex justify-end border-t border-[var(--cal-hairline)] pt-3">
-                <button
-                  type="button"
-                  onClick={cancelMove}
-                  onMouseDown={triggerHaptic}
-                  className="h-7 px-2 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          </CenteredDialog>
         )}
-      </AnimatePresence>
     </div>
   );
 }

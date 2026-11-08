@@ -7,6 +7,9 @@ import { CoachLinkPanel } from './CoachLinkPanel';
 import { AthleteProfilePanel } from './AthleteProfilePanel';
 import { CoachAccessStatus } from './CoachAccessStatus';
 import { CoachBillingPanel } from './CoachBillingPanel';
+import { DataExportPanel } from './DataExportPanel';
+import { ChangePasswordPanel } from './ChangePasswordPanel';
+import { LegalLinks } from './LegalLinks';
 import { API_BASE_URL } from '../services/apiBase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -151,7 +154,7 @@ export const SecurityView: React.FC = () => {
             Security
           </h1>
           <p className="text-[var(--cal-muted)] text-sm mt-1">
-            Coach link, devices, browser sessions, and audit events.
+            Coach link, password, your data, devices, browser sessions, and audit events.
           </p>
         </div>
         <button
@@ -168,6 +171,8 @@ export const SecurityView: React.FC = () => {
       <CoachAccessStatus />
       <CoachBillingPanel />
       <AthleteProfilePanel />
+      <ChangePasswordPanel />
+      <DataExportPanel />
 
       {String(user?.role || '').toUpperCase() === 'ATHLETE' && (
         <section className="mb-6 cal-nested-card">
@@ -367,6 +372,8 @@ export const SecurityView: React.FC = () => {
           </section>
         </div>
       )}
+
+      <LegalLinks className="mt-6" />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 
@@ -42,6 +42,7 @@ export function CenteredDialog({
   testId?: string;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -78,14 +79,15 @@ export function CenteredDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <button
         type="button"
-        aria-label="Close dialog"
+        tabIndex={-1}
+        aria-hidden="true"
         className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
       <motion.div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="centered-dialog-title"
+        aria-labelledby={titleId}
         data-testid={testId}
         ref={dialogRef}
         onKeyDown={handleDialogKeyDown}
@@ -96,7 +98,7 @@ export function CenteredDialog({
       >
         <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
           <div>
-            <h2 id="centered-dialog-title" className="text-sm font-medium text-[var(--cal-ink)]">
+            <h2 id={titleId} className="text-sm font-medium text-[var(--cal-ink)]">
               {title}
             </h2>
             {subtitle ? <p className="text-xs text-[var(--cal-muted)] mt-1">{subtitle}</p> : null}
@@ -104,6 +106,7 @@ export function CenteredDialog({
           <button
             type="button"
             data-testid="dialog-close"
+            aria-label="Close"
             onClick={onClose}
             className="h-8 w-8 flex items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]"
           >

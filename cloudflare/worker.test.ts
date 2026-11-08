@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from './worker';
+import { resolveClientIp } from '../supabase/functions/_shared/clientIp';
 
 const origin = 'https://abcdefghijklmnopqrst.supabase.co';
+const signingKey = 'test-client-ip-signing-key-0123456789abcdef';
+
+async function hmacHex(key: string, message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey('raw', encoder.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const digest = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(message));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -106,6 +115,22 @@ describe('Cloudflare API Worker', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it.each(['/privacy.html', '/terms.html'])('serves the static legal page %s from assets, not the API proxy', async (pathname) => {
+    const assetsFetch = vi.fn(async (request: Request) => new Response('page:' + new URL(request.url).pathname, {
+      headers: { 'content-type': 'text/html' },
+    }));
+    vi.stubGlobal('fetch', vi.fn());
+
+    const response = await worker.fetch(new Request('https://app.example.test' + pathname), {
+      SUPABASE_PROJECT_ORIGIN: origin,
+      ASSETS: { fetch: assetsFetch },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('page:' + pathname);
+    expect(assetsFetch).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('fails closed for a missing or untrusted configured origin', async () => {
     vi.stubGlobal('fetch', vi.fn());
     for (const configured of [undefined, 'https://evil.example/path', 'http://abcdefghijklmnopqrst.supabase.co']) {
@@ -126,5 +151,82 @@ describe('Cloudflare API Worker', () => {
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ detail: 'Supabase API proxy unavailable' });
     expect(response.headers.get('cache-control')).toBe('private, no-store');
+  });
+
+  it('forwards the visitor IP in signed headers and drops client-supplied copies', async () => {
+    let forwarded: Request | null = null;
+    vi.stubGlobal('fetch', vi.fn(async (request: Request) => {
+      forwarded = request;
+      return new Response(null, { status: 204 });
+    }));
+    const before = Math.floor(Date.now() / 1000);
+    await worker.fetch(new Request('https://app.example.test/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'cf-connecting-ip': '203.0.113.50',
+        'x-al-client-ip': '198.51.100.1',
+        'X-AL-Client-IP-TS': '1',
+        'x-al-client-ip-sig': 'f'.repeat(64),
+        'x-al-client-ip-extra': 'spoof',
+      },
+      body: 'username=a&password=b',
+    }), { SUPABASE_PROJECT_ORIGIN: origin, CLIENT_IP_SIGNING_KEY: signingKey });
+
+    const headers = forwarded!.headers;
+    expect(headers.get('cf-connecting-ip')).toBeNull();
+    expect(headers.get('x-al-client-ip-extra')).toBeNull();
+    expect(headers.get('x-al-client-ip')).toBe('203.0.113.50');
+    const ts = Number(headers.get('x-al-client-ip-ts'));
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+    expect(headers.get('x-al-client-ip-sig')).toBe(await hmacHex(signingKey, `203.0.113.50|${ts}`));
+
+    // The Edge resolver accepts exactly what the Worker produced.
+    const edgeRequest = new Request('https://abcdefghijklmnopqrst.supabase.co/functions/v1/api/auth/login', {
+      headers: { ...Object.fromEntries(headers), 'cf-connecting-ip': '104.28.0.9' },
+    });
+    expect(await resolveClientIp(edgeRequest, signingKey)).toBe('203.0.113.50');
+    expect(await resolveClientIp(edgeRequest, 'a-different-signing-key-0123456789abcdef')).toBe('104.28.0.9');
+  });
+
+  it('strips spoofed signed-IP headers and adds none when no signing key is configured', async () => {
+    let forwarded: Request | null = null;
+    vi.stubGlobal('fetch', vi.fn(async (request: Request) => {
+      forwarded = request;
+      return new Response(null, { status: 204 });
+    }));
+    for (const env of [
+      { SUPABASE_PROJECT_ORIGIN: origin },
+      { SUPABASE_PROJECT_ORIGIN: origin, CLIENT_IP_SIGNING_KEY: 'too-short' },
+    ]) {
+      await worker.fetch(new Request('https://app.example.test/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'cf-connecting-ip': '203.0.113.50',
+          'x-al-client-ip': '198.51.100.1',
+          'x-al-client-ip-ts': String(Math.floor(Date.now() / 1000)),
+          'x-al-client-ip-sig': 'a'.repeat(64),
+        },
+        body: 'x',
+      }), env);
+      const headers = forwarded!.headers;
+      expect(headers.get('x-al-client-ip')).toBeNull();
+      expect(headers.get('x-al-client-ip-ts')).toBeNull();
+      expect(headers.get('x-al-client-ip-sig')).toBeNull();
+      expect(headers.get('cf-connecting-ip')).toBeNull();
+    }
+  });
+
+  it('does not sign when the incoming request has no usable visitor IP', async () => {
+    let forwarded: Request | null = null;
+    vi.stubGlobal('fetch', vi.fn(async (request: Request) => {
+      forwarded = request;
+      return new Response(null, { status: 204 });
+    }));
+    await worker.fetch(new Request('https://app.example.test/api/auth/me', {
+      headers: { 'cf-connecting-ip': '203.0.113.50, 198.51.100.1' },
+    }), { SUPABASE_PROJECT_ORIGIN: origin, CLIENT_IP_SIGNING_KEY: signingKey });
+    expect(forwarded!.headers.get('x-al-client-ip')).toBeNull();
+    expect(forwarded!.headers.get('x-al-client-ip-sig')).toBeNull();
   });
 });

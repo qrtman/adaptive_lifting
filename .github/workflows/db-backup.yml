@@ -74,7 +74,18 @@ jobs:
           endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           dest="s3://${R2_BUCKET}/${R2_PREFIX}/daily"
           aws s3 cp "$work/$name" "$dest/$name" --endpoint-url "$endpoint" --only-show-errors
-          aws s3 ls "$dest/$name" --endpoint-url "$endpoint"
+
+          # Post-upload sanity check: the object must exist in R2, match the local
+          # size and be larger than a sane minimum.
+          key="${R2_PREFIX}/daily/${name}"
+          min_bytes=10240
+          remote_size="$(aws s3api head-object --bucket "$R2_BUCKET" --key "$key" \
+            --endpoint-url "$endpoint" --query ContentLength --output text)" \
+            || { echo "FAIL: uploaded object not found: $key"; exit 1; }
+          echo "Uploaded object: $key ($remote_size bytes)"
+          [[ "$remote_size" =~ ^[0-9]+$ ]] || { echo "FAIL: bad ContentLength '$remote_size'"; exit 1; }
+          [ "$remote_size" -gt "$min_bytes" ] || { echo "FAIL: uploaded object smaller than $min_bytes bytes"; exit 1; }
+          [ "$remote_size" -eq "$size" ] || { echo "FAIL: uploaded size $remote_size != local size $size"; exit 1; }
 
           # Prune backups older than RETENTION_DAYS (name carries the timestamp).
           cutoff="$(date -u -d "-${RETENTION_DAYS} days" +%Y%m%dT%H%M%SZ)"

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Send, CheckCircle2, AlertCircle, RefreshCw, XCircle, ArrowRight } from 'lucide-react';
+import { Send, CheckCircle2, AlertCircle, RefreshCw, XCircle, Clock } from 'lucide-react';
 import { API_BASE_URL } from '../services/apiBase';
 
+/** Status codes that mean "Telegram is not set up on this server", not a user-facing failure. */
+const UNAVAILABLE_STATUSES = new Set([404, 405, 501, 502, 503]);
+
 export const TelegramLinkPanel = () => {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'unlinked' | 'generating' | 'linked' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'unlinked' | 'generating' | 'linked' | 'error' | 'unavailable'>('idle');
   const [token, setToken] = useState<string | null>(null);
   const [botUsername, setBotUsername] = useState<string>('AdaptiveLiftingBot');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -25,15 +28,18 @@ export const TelegramLinkPanel = () => {
             setStatus('unlinked');
           }
         }
+      } else if (res.status === 401 || res.status === 403) {
+        if (!silent) {
+          setStatus('error');
+          setErrorMsg('You do not have access to Telegram linking on this account.');
+        }
       } else {
-        throw new Error("Failed to fetch connection status");
+        // Missing route or unconfigured provider: treat as not available, not as a failure.
+        if (!silent) setStatus('unavailable');
       }
     } catch (e: any) {
       console.error(e);
-      if (!silent) {
-        setStatus('error');
-        setErrorMsg("Could not load Telegram linkage status. Ensure backend is running.");
-      }
+      if (!silent) setStatus('unavailable');
     }
   };
 
@@ -51,6 +57,8 @@ export const TelegramLinkPanel = () => {
         setBotUsername(data.bot_username || 'AdaptiveLiftingBot');
         setStatus('generating');
         setSecondsLeft(600); // reset countdown
+      } else if (UNAVAILABLE_STATUSES.has(res.status)) {
+        setStatus('unavailable');
       } else {
         throw new Error("Failed to request short-lived linking token");
       }
@@ -147,6 +155,28 @@ export const TelegramLinkPanel = () => {
         <div className="flex items-center gap-3 py-6 justify-center text-gray-400">
           <RefreshCw size={18} className="animate-spin text-mac-blue" />
           <span className="text-sm font-semibold tracking-wide">Syncing status...</span>
+        </div>
+      )}
+
+      {status === 'unavailable' && (
+        <div
+          data-testid="telegram-unavailable"
+          className="mt-2 cal-nested-card flex items-start gap-3"
+        >
+          <Clock size={16} className="text-[var(--cal-muted)] shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-[var(--cal-ink)]">Not available yet</p>
+            <p className="text-xs text-[var(--cal-muted)] mt-1">
+              Telegram linking is not switched on for this app yet. Planning and logging on the web are unaffected.
+            </p>
+            <button
+              type="button"
+              onClick={() => checkStatus()}
+              className="text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] underline mt-2 cursor-pointer"
+            >
+              Check again
+            </button>
+          </div>
         </div>
       )}
 

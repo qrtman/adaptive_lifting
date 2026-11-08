@@ -495,8 +495,10 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid={`edit-lift-${id}`}
+              aria-label={`Edit ${variation}`}
+              disabled={locked}
               onClick={() => setEditOpen(true)}
-              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0"
+              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0 disabled:opacity-40"
             >
               Edit
             </button>
@@ -507,7 +509,7 @@ export const ExerciseCard = ({
             {intensityPct != null ? <>
             <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Intensity</span>
             <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-intensity-${id}`}>
-              {intensityPct != null ? `${intensityPct}%` : 'â€”'}
+              {intensityPct != null ? `${intensityPct}%` : '—'}
             </span>
             <span aria-hidden="true" className="ml-1 text-[var(--cal-muted-soft)]">·</span>
             </> : null}
@@ -537,6 +539,7 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid={`move-lift-up-${id}`}
+              aria-label={`Move ${variation} up`}
               disabled={locked}
               onClick={() => void onMoveUp()}
               className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
@@ -548,6 +551,7 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid={`move-lift-down-${id}`}
+              aria-label={`Move ${variation} down`}
               disabled={locked}
               onClick={() => void onMoveDown()}
               className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
@@ -559,7 +563,7 @@ export const ExerciseCard = ({
             <button
               type="button"
               data-testid={`remove-lift-${id}`}
-              aria-label="Remove exercise"
+              aria-label={removing ? `Removing ${variation}` : `Remove ${variation}`}
               title="Remove exercise"
               disabled={locked || removing}
               onClick={() => {
@@ -568,9 +572,8 @@ export const ExerciseCard = ({
                 setRemoving(true);
                 void Promise.resolve(onRemove()).finally(() => setRemoving(false));
               }}
-              className={`${actionButton} text-[0px]`}
+              className={actionButton}
             >
-              {removing ? 'Removing…' : 'Remove'}
               <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
@@ -784,8 +787,9 @@ export const ExerciseCard = ({
                       onClick={() => syncTarget(planIndex, laneIndex)}
                       className="h-5 w-4 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
                       title="Copy plan to log"
+                      aria-label={`Copy plan set ${laneIndex + 1} to log`}
                     >
-                      <ArrowRight size={12} />
+                      <ArrowRight size={12} aria-hidden="true" />
                     </button>
                     ) : null}
                   </td>
