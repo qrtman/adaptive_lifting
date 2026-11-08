@@ -105,21 +105,31 @@ export async function createSession(page: Page, title: string, date: string) {
  * Sessions view shows one block at a time, so switch to "Unassigned" when it exists.
  */
 export async function showUnassigned(page: Page) {
+  await waitForSessionsList(page);
   const picker = page.getByTestId('sessions-block-picker');
-  if (await picker.isVisible().catch(() => false)) {
-    if (await picker.locator('option[value="unassigned"]').count()) await picker.selectOption('unassigned');
-  }
+  if (!(await picker.isVisible().catch(() => false))) return;
+  // Options load with the plan; a just-created unlabeled session adds "Unassigned" a moment later.
+  const option = picker.locator('option[value="unassigned"]');
+  await option.waitFor({ state: 'attached', timeout: 5_000 }).catch(() => {});
+  if (!(await option.count())) return;
+  if ((await picker.inputValue()) !== 'unassigned') await picker.selectOption('unassigned');
 }
 
 export async function openSession(page: Page, title: string, navigate = true) {
   if (navigate) await page.getByRole('button', { name: 'Sessions' }).click();
-  await showUnassigned(page);
   const card = sessionCards(page, title);
-  await expect(card).toHaveCount(1, { timeout: 20_000 });
-  await card.locator('button').first().click();
+  // The block picker can reset to the first block while the plan finishes loading, so
+  // select "Unassigned" and click the card as one retried step.
+  await expect(async () => {
+    await showUnassigned(page);
+    await expect(card).toHaveCount(1, { timeout: 2_000 });
+    await card.locator('button').first().click({ timeout: 2_000 });
+  }).toPass({ timeout: 40_000 });
 }
 
 export async function expandDeadlift(page: Page) {
+  // The session opens before its lifts render on a slow link; wait for the lift first.
+  await expect(page.getByRole('heading', { name: 'Deadlift', exact: true }).first()).toBeVisible({ timeout: 20_000 });
   const expand = page.getByRole('button', { name: 'Expand Deadlift', exact: true });
   if (await expand.isVisible().catch(() => false)) await expand.click();
 }
@@ -153,24 +163,15 @@ export async function serverRunSessions(page: Page): Promise<string[]> {
 export async function cleanupRunSessions(browser: Browser, email = creds.email!, password = creds.password!) {
   const { context, page } = await newPage(browser);
   try {
-    page.on('dialog', (d) => d.accept());
     await login(page, email, password);
-    await page.getByRole('button', { name: 'Sessions' }).click();
-    await waitForSessionsList(page);
-    await showUnassigned(page);
-    const mine = () => sessionCards(page, RUN_ID);
-    for (let i = 0; i < 20 && (await mine().count()) > 0; i++) {
-      const card = mine().first();
-      const actions = card.locator('[data-testid^="sessions-actions-"]').first();
-      const id = ((await actions.getAttribute('data-testid')) ?? '').replace('sessions-actions-', '');
-      await actions.click();
-      if (!(await page.getByTestId(`sessions-delete-${id}`).isVisible())) await actions.click();
-      await expect(page.getByTestId(`sessions-delete-${id}`)).toBeVisible({ timeout: 5000 });
-      await page.getByTestId(`sessions-delete-${id}`).evaluate((el) => (el as HTMLElement).click());
-      await expect(page.getByTestId(`sessions-card-${id}`)).toHaveCount(0, { timeout: 15_000 });
-    }
-    await expect(mine(), 'cleanup left session cards behind').toHaveCount(0);
+    // Let queued edits land first, so a late sync cannot recreate anything we delete.
     await expect.poll(() => pendingMutations(page), { timeout: 30_000 }).toBe(0);
+    // Delete through the API by id. The Sessions view shows one Block at a time and loads
+    // its picker asynchronously, so clicking cards silently missed sessions on real accounts.
+    for (const id of await serverRunSessions(page)) {
+      const res = await page.request.delete(`/api/sessions/${encodeURIComponent(id)}`, { headers: API_HEADERS });
+      expect(res.ok(), `DELETE /api/sessions/${id} ${res.status()}`).toBeTruthy();
+    }
   } finally {
     await context.close();
   }

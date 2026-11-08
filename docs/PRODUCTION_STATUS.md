@@ -2,7 +2,7 @@
 
 ## Fix: false "Sync conflict needs review" on your own set edits — 2026-11-08 (CURRENT)
 
-**Status: fixed on branch `fix/set-sync-self-conflict`; NOT deployed yet.** Owner commits/PRs; deploy after merge.
+**CONFIRMED: deployed.** PR #52 merged (`ad8397b`); owner deployed Worker version `9c51228e-e0b4-4ca3-b6c0-502d06278305` (2026-11-08 13:08 UTC). The live bundle contains the new conflict card ('Use my edit').
 
 Reported by owner: editing a set showed "Sync conflict needs review · STALE_REVISION" ("server has Set 2: Plan not set") with only "Keep server" / "Export my edit".
 
@@ -24,7 +24,14 @@ Gaps: local `npm run test:e2e` cannot start here (webServer needs `.venv/bin/pyt
 
 Also found (not fixed): server set order uses text rank `'a' || index`, so a lift with 11+ sets is read back as a0, a1, a10, a2, … (reordered after reload). Needs a migration (zero-padded rank or integer position).
 
-PENDING: owner commit + PR + merge; `npm run build:production` + Worker deploy; run `npx playwright test -c playwright.prod.config.ts e2e/prod/selfconflict.spec.ts` against production (expect green).
+Production verification (2026-11-08, owner's account, test sessions deleted afterwards, only "Squatish" remains):
+- `e2e/prod/selfconflict.spec.ts` PASS: add plan set → type kg → add log set → type → edit set 1 within ~3 s; no conflict card, queue clean, server has set 1 plan 90 and the new set plan 100 / log 102.5.
+- `e2e/prod/twodevice.spec.ts` PASS: a genuine two-device edit still shows the card (server Log 120 vs your edit Log 110) with Keep server / Use my edit / Export; Keep server resolves it.
+- Prod e2e helper fixes (branch `fix/prod-e2e-cleanup`, not yet committed): cleanup deletes run sessions via `DELETE /api/sessions/{id}` (UI clicking silently missed them, leaving test sessions behind); `openSession` retries selecting the "Unassigned" block and clicking as one step; `expandDeadlift` waits for the lift; two-device assertion updated to the new card copy and accepts the Keep-server confirm.
+
+Finding (not fixed): on an account with Block labels, the Sessions block picker can jump back to the first block while the plan finishes loading, undoing the user's "Unassigned" choice.
+
+PENDING: owner commits `fix/prod-e2e-cleanup`; server set-order bug for 11+ sets (needs migration).
 
 ## Production rollout of launch-gap branch — 2026-11-08
 
