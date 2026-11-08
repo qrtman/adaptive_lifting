@@ -106,13 +106,13 @@ export async function createSession(page: Page, title: string, date: string) {
  */
 export async function showUnassigned(page: Page) {
   await waitForSessionsList(page);
-  const picker = page.getByTestId('sessions-block-picker');
-  if (!(await picker.isVisible().catch(() => false))) return;
-  // Options load with the plan; a just-created unlabeled session adds "Unassigned" a moment later.
-  const option = picker.locator('option[value="unassigned"]');
-  await option.waitFor({ state: 'attached', timeout: 5_000 }).catch(() => {});
-  if (!(await option.count())) return;
-  if ((await picker.inputValue()) !== 'unassigned') await picker.selectOption('unassigned');
+  // Block tabs render only when there are 2+ choices; a just-created unlabeled session
+  // adds the "Unassigned" tab a moment after the plan loads.
+  const tab = page.getByTestId('sessions-block-tab-unassigned');
+  await tab.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+  if (await tab.isVisible().catch(() => false)) {
+    if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  }
 }
 
 export async function openSession(page: Page, title: string, navigate = true) {

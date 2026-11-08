@@ -26,6 +26,7 @@ import { formatPlanLabel, isDayLikeTitle } from '../features/plan/sessionLabels'
 import { formatSessionStatusMeta, formatSetReadout, getLoggedLiftSummary } from '../features/plan/sessionSetReadout';
 import { sortByFirstSession, weekBoardRows } from '../features/plan/weekBoard';
 import { buildPreviousWeekLiftSummaries, formatSigned, metricChange, type LoggedLiftSummary } from '../features/plan/sessionComparison';
+import { BlockTabs, formatBlockRange, sessionCountLabel, type BlockTab } from './BlockTabs';
 
 interface SessionsViewProps {
   onViewSession: (workout: WorkoutData, microId: string) => void;
@@ -452,11 +453,23 @@ export function SessionsView({
     }];
   }, [groupedSessions]);
   const defaultBlockKey = [...blockChoices].reverse().find((choice) => choice.blockLabel)?.key || blockChoices[0]?.key || '';
-  const selectedBlockKey = blockSelection?.athleteId === planAthleteId && blockChoices.some((choice) => choice.key === blockSelection.key)
-    ? blockSelection.key
+  // A choice made before the plan owner resolved (athleteId null) still applies once it does;
+  // otherwise the tab snapped back to the newest block as the plan finished loading.
+  const selectionApplies = !!blockSelection && (blockSelection.athleteId === planAthleteId || blockSelection.athleteId == null);
+  const selectedBlockKey = selectionApplies && blockChoices.some((choice) => choice.key === blockSelection!.key)
+    ? blockSelection!.key
     : defaultBlockKey;
   const selectedBlockIndex = blockChoices.findIndex((choice) => choice.key === selectedBlockKey);
   const selectedBlock = blockChoices[selectedBlockIndex];
+  const blockTabs = useMemo((): BlockTab[] => blockChoices.map((choice) => {
+    const dates = choice.all.map((entry) => entry.workout.date || '').filter(Boolean).sort();
+    return {
+      key: choice.key,
+      label: choice.label,
+      count: choice.all.length,
+      detail: choice.blockLabel ? formatBlockRange(dates[0] ?? '', dates.at(-1) ?? '') || sessionCountLabel(choice.all.length) : sessionCountLabel(choice.all.length),
+    };
+  }), [blockChoices]);
   const occupiedDates = useMemo(
     () => new Set(microcycles.flatMap((micro) => micro.workouts.map((workout) => workout.date))),
     [microcycles],
@@ -627,15 +640,6 @@ export function SessionsView({
       <div data-testid="sessions-toolbar" className="relative z-30 shrink-0 px-[var(--cal-space-sm)] py-[var(--cal-space-sm)] flex flex-col gap-2 border-b border-[var(--cal-hairline)] bg-[var(--cal-canvas)] sm:flex-row sm:items-center sm:justify-between">
             {!showCoachSelectAthlete ? (
               <div className="flex flex-wrap items-center gap-2 order-first sm:order-last">
-                {selectedBlock ? (
-                  <div role="group" aria-label="Block navigation" className="inline-flex h-8 items-center rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] text-[11px] text-[var(--cal-ink)]">
-                    <button type="button" data-testid="sessions-block-prev" aria-label="Previous block" disabled={selectedBlockIndex <= 0} onClick={() => setBlockSelection({ athleteId: planAthleteId, key: blockChoices[selectedBlockIndex - 1].key })} className="h-full px-2 disabled:opacity-40">‹</button>
-                    <select data-testid="sessions-block-picker" aria-label="Block" value={selectedBlockKey} onChange={(event) => setBlockSelection({ athleteId: planAthleteId, key: event.target.value })} className="h-full max-w-32 bg-[var(--cal-canvas)] font-semibold outline-none">
-                      {blockChoices.map((choice) => <option key={choice.key} value={choice.key}>{choice.label}</option>)}
-                    </select>
-                    <button type="button" data-testid="sessions-block-next" aria-label="Next block" disabled={selectedBlockIndex >= blockChoices.length - 1} onClick={() => setBlockSelection({ athleteId: planAthleteId, key: blockChoices[selectedBlockIndex + 1].key })} className="h-full px-2 disabled:opacity-40">›</button>
-                  </div>
-                ) : null}
                 <button
                   type="button"
                   data-testid="sessions-add"
@@ -703,6 +707,15 @@ export function SessionsView({
               </p>
             ) : null}
       </div>
+      {!showCoachSelectAthlete && blockTabs.length > 1 ? (
+        <div data-testid="sessions-block-bar" className="shrink-0 px-[var(--cal-space-sm)] py-1.5 border-b border-[var(--cal-hairline)] bg-[var(--cal-canvas)]">
+          <BlockTabs
+            tabs={blockTabs}
+            selectedKey={selectedBlockKey}
+            onSelect={(key) => setBlockSelection({ athleteId: planAthleteId, key })}
+          />
+        </div>
+      ) : null}
       <div ref={contentRef} data-testid="sessions-content" className="flex-1 min-h-0 min-w-0 overflow-y-auto">
         {activeWeekHeaders.length > 0 ? (
           <div data-testid="sessions-sticky-weeks" className="sticky top-0 z-20 h-0 overflow-visible">
