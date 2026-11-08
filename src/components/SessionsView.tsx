@@ -123,7 +123,7 @@ function SessionCard({
     <div
       data-testid={`sessions-card-${workout.id}`}
       data-elevated={active ? 'true' : undefined}
-      className={`cal-nested-card relative w-full max-w-full min-w-0 flex flex-col gap-[var(--cal-space-xs)] ${
+      className={`cal-nested-card relative has-[details[open]]:z-30 w-full max-w-full min-w-0 flex flex-col gap-[var(--cal-space-xs)] ${
         active ? 'ring-1 ring-[color-mix(in_srgb,var(--cal-accent)_45%,transparent)]' : ''
       }`}
     >
@@ -144,7 +144,7 @@ function SessionCard({
           <span className="text-[10px] tnum text-[var(--cal-muted)] shrink-0 pt-0.5">{statusMeta || 'Planned'}</span>
         </div>
         {visibleExercises.length > 0 ? (
-          <div className={`grid ${showPlan && showLog ? 'grid-cols-[1rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,9.5rem)]' : 'grid-cols-[1rem_minmax(0,1fr)_minmax(0,9.5rem)]'} gap-x-2 gap-y-0.5 min-w-0`}>
+          <div className={`grid ${showPlan && showLog ? 'grid-cols-[1rem_minmax(min-content,1fr)_minmax(min-content,1fr)_minmax(min-content,9.5rem)]' : 'grid-cols-[1rem_minmax(min-content,1fr)_minmax(min-content,9.5rem)]'} gap-x-2 gap-y-0.5 min-w-0`}>
             <span className="text-[10px] text-[var(--cal-muted-soft)]">#</span>
             {showPlan && <span
               data-testid={`sessions-plan-h-${workout.id}`}

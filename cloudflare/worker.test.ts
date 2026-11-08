@@ -18,6 +18,7 @@ describe('Cloudflare API Worker', () => {
     });
     upstreamResponse.headers.append('set-cookie', 'session_id=new-token; HttpOnly; Secure; SameSite=Lax; Path=/');
     upstreamResponse.headers.append('set-cookie', 'csrf=new-value; Secure; SameSite=Lax; Path=/');
+    upstreamResponse.headers.append('set-cookie', '__cf_bm=x; Path=/; Expires=Wed, 01 Jan 2031 00:00:00 GMT; Domain=supabase.co; HttpOnly; Secure');
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);

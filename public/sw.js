@@ -6,10 +6,26 @@ const CACHE_NAME = IS_FRESH_PRODUCTION_CLIENT
   : 'adaptive-lifting-v4';
 const CORE_ASSETS = ['/', '/index.html', '/favicon.svg', '/icons.svg'];
 
+// The first page load happens before this worker controls the page, so its own
+// scripts/styles never pass through the fetch handler. Precache the files the
+// HTML shell references so a brand-new visitor can reopen the app offline.
+async function precacheShellAssets(cache) {
+  try {
+    const response = await fetch('/index.html', { cache: 'no-store' });
+    if (!response.ok) return;
+    const html = await response.text();
+    const urls = new Set();
+    for (const match of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)) urls.add(match[1]);
+    await Promise.all([...urls].map((url) => cache.add(url).catch(() => undefined)));
+  } catch { /* Precaching is best effort; installation must still succeed. */ }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await cache.addAll(CORE_ASSETS);
+      await precacheShellAssets(cache);
+    }).then(() => self.skipWaiting())
   );
 });
 

@@ -85,7 +85,12 @@ export default function App() {
 
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => initialLocation.mode);
   const [focusAthleteScope, setFocusAthleteScope] = useState(() => initialLocation.panel === 'athlete-scope');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getUiPref(UI_KEYS.sidebarCollapsed) === '1');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const stored = getUiPref(UI_KEYS.sidebarCollapsed);
+    // First visit on a phone-width screen: start collapsed so content is usable.
+    if (stored === null) return typeof window !== 'undefined' && window.innerWidth < 768;
+    return stored === '1';
+  });
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePref());
 
   const [filter, setFilter] = useState<LiftFilterState>(() => parseLiftFilter(getUiPref(UI_KEYS.liftFilter)));

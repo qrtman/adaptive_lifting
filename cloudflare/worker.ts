@@ -61,11 +61,14 @@ function cleanResponseHeaders(source: Headers): Headers {
   });
   const sourceWithCookieAccess = source as Headers & { getSetCookie?: () => string[]; getAll?: (name: string) => string[] };
   const cookies = sourceWithCookieAccess.getSetCookie?.() ?? sourceWithCookieAccess.getAll?.('set-cookie');
+  // Supabase's own edge adds bot-management cookies scoped to supabase.co. They
+  // are meaningless for this host (browsers reject them), so do not pass them on.
+  const foreignDomain = /;\s*domain=\.?(?:[a-z0-9-]+\.)*supabase\.co\s*(?:;|$)/i;
   if (cookies?.length) {
-    for (const cookie of cookies) headers.append('set-cookie', cookie);
+    for (const cookie of cookies) if (!foreignDomain.test(cookie)) headers.append('set-cookie', cookie);
   } else {
     const cookie = source.get('set-cookie');
-    if (cookie) headers.append('set-cookie', cookie);
+    if (cookie && !foreignDomain.test(cookie)) headers.append('set-cookie', cookie);
   }
   headers.set('cache-control', 'private, no-store');
   headers.set('cdn-cache-control', 'no-store');
