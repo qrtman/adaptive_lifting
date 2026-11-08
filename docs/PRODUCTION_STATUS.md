@@ -1,6 +1,19 @@
 # Production status
 
-## Fix: false "Sync conflict needs review" on your own set edits — 2026-11-08 (CURRENT)
+## Sessions block tabs — 2026-11-08 (CURRENT)
+
+**CONFIRMED: deployed.** PR #54 merged (`fe02763`); owner deployed Worker version `240c6183-1732-46eb-adf7-08369830d06c` (2026-11-08 14:22 UTC). Live bundle contains the block tabs.
+
+What changed (owner asked: the block picker popover was not good UX):
+- The native `<select>` with ‹ › on the Sessions toolbar is replaced by `BlockTabs` (`src/components/BlockTabs.tsx`): one tab per Block plus Unassigned, in its own row under the toolbar; each tab shows the date range ("Nov 3 – 30") or, for Unassigned, the session count; accent edge on the current tab; ← → / Home / End move; scrolls sideways on narrow screens; hidden when there is only one choice.
+- Fixed: the choice no longer snaps back to the newest block when the plan finishes loading (selection made before the plan owner resolved now still applies).
+- Tests: `BlockTabs.test.tsx` (dates, click, keyboard); `e2e/sessions-list.spec.ts` and the prod helper now use the tabs.
+
+Verification: `tsc -b` clean; vitest 515 passed / 1 skipped; build previewed with the owner's real data at 1440 px and 360 px (temporary session deleted); after deploy `e2e/prod/selfconflict.spec.ts` and `e2e/prod/twodevice.spec.ts` PASS; only "Squatish" remains on the account. Local `npm run test:e2e` still cannot start here (needs `.venv/bin/python`).
+
+Still PENDING: server set order for 11+ sets (`'a' || index` text rank) needs a migration.
+
+## Fix: false "Sync conflict needs review" on your own set edits — 2026-11-08
 
 **CONFIRMED: deployed.** PR #52 merged (`ad8397b`); owner deployed Worker version `9c51228e-e0b4-4ca3-b6c0-502d06278305` (2026-11-08 13:08 UTC). The live bundle contains the new conflict card ('Use my edit').
 
@@ -29,7 +42,7 @@ Production verification (2026-11-08, owner's account, test sessions deleted afte
 - `e2e/prod/twodevice.spec.ts` PASS: a genuine two-device edit still shows the card (server Log 120 vs your edit Log 110) with Keep server / Use my edit / Export; Keep server resolves it.
 - Prod e2e helper fixes (branch `fix/prod-e2e-cleanup`, not yet committed): cleanup deletes run sessions via `DELETE /api/sessions/{id}` (UI clicking silently missed them, leaving test sessions behind); `openSession` retries selecting the "Unassigned" block and clicking as one step; `expandDeadlift` waits for the lift; two-device assertion updated to the new card copy and accepts the Keep-server confirm.
 
-Finding (not fixed): on an account with Block labels, the Sessions block picker can jump back to the first block while the plan finishes loading, undoing the user's "Unassigned" choice.
+Finding (not fixed): on an account with Block labels, the Sessions block picker can jump back to the first block while the plan finishes loading, undoing the user's "Unassigned" choice — fixed 2026-11-08 by block tabs.
 
 PENDING: owner commits `fix/prod-e2e-cleanup`; server set-order bug for 11+ sets (needs migration).
 
