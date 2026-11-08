@@ -2,7 +2,7 @@ import { Calendar, BarChart3, Link2, Settings, List, Users, PanelLeftClose, Pane
 import { useAuth } from '../contexts/AuthContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import type { ThemePreference } from '../theme/themePref';
-import type { DashboardMode } from '../navigation';
+import { isDashboardModeAvailable, type DashboardMode } from '../navigation';
 import { AthleteScopeSelector } from './AthleteScopeSelector';
 
 const PRIMARY: { mode: DashboardMode; label: string; testId?: string }[] = [
@@ -48,6 +48,8 @@ function NavButton({
       type="button"
       data-testid={testId}
       title={label}
+      aria-current={active ? 'page' : undefined}
+      aria-label={collapsed ? label : undefined}
       onClick={() => onNavigate(mode)}
       className={`w-full px-2 h-8 rounded-[var(--cal-radius-md)] flex items-center gap-2 text-left text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
         collapsed ? 'justify-center' : ''
@@ -57,7 +59,7 @@ function NavButton({
           : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] border border-transparent'
       }`}
     >
-      <Icon size={14} className={active ? 'text-[var(--cal-accent)]' : ''} />
+      <Icon size={14} aria-hidden="true" className={active ? 'text-[var(--cal-accent)]' : ''} />
       {!collapsed && label}
     </button>
   );
@@ -134,7 +136,7 @@ export const Sidebar = ({
           {!collapsed && (
             <p className="px-2 pb-1 text-[10px] text-[var(--cal-muted)] uppercase tracking-wider">Ops</p>
           )}
-          {OPS.map((item) => (
+          {OPS.filter((item) => isDashboardModeAvailable(item.mode)).map((item) => (
             <NavButton
               key={item.mode}
               {...item}
@@ -160,18 +162,20 @@ export const Sidebar = ({
         <button
           type="button"
           data-testid="theme-toggle"
-          aria-label={theme === 'light' ? 'Dark' : 'Light'}
-          title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
+          aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+          title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
           onClick={onToggleTheme}
           className={`flex items-center gap-2 text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] h-7 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
             collapsed ? 'justify-center w-full' : 'text-left w-full'
           }`}
         >
-          {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+          {theme === 'light' ? <Moon size={14} aria-hidden="true" /> : <Sun size={14} aria-hidden="true" />}
           {!collapsed && (theme === 'light' ? 'Dark' : 'Light')}
         </button>
         <button
           type="button"
+          aria-label="Sign out"
+          title="Sign out"
           onClick={signOut}
           className={`text-[12px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] rounded-[var(--cal-radius-md)] h-7 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
             collapsed ? 'w-full text-center' : 'text-left w-full'

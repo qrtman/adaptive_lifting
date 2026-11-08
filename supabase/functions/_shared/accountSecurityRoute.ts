@@ -40,6 +40,8 @@ function failOnDenial(result: Json): Json {
     only_coaches_view: [403, "Only coaches can view coach codes"],
     only_athletes_link: [403, "Only athletes can link to a coach"],
     invalid_invite: [404, "Invalid or expired coach code"],
+    invalid_code: [400, "Invalid or expired code"],
+    coach_code_unavailable: [503, "Coach codes are temporarily unavailable"],
     coach_not_found: [404, "Coach not found for this code"],
     already_linked: [400, "Athlete is already linked to a coach"],
     no_active_link: [404, "No active coaching link"],
@@ -93,6 +95,23 @@ function clearCookie(config: AppConfig): string {
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// 32 symbols without 0/O, 1/I: each random byte maps without modulo bias.
+const COACH_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const COACH_CODE_LENGTH = 10;
+
+export function generateCoachCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(COACH_CODE_LENGTH));
+  return [...bytes].map((byte) => COACH_CODE_ALPHABET[byte & 31]).join("");
+}
+
+export function formatCoachCode(code: string): string {
+  return code.length === COACH_CODE_LENGTH ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
+}
+
+export function normalizeCoachCode(input: string): string {
+  return input.toUpperCase().replace(/[\s-]+/g, "");
 }
 
 async function offlineGrant(
@@ -165,7 +184,7 @@ async function login(request: Request, db: Database, config: AppConfig): Promise
     ]);
   }
   const email = username.trim().toLowerCase();
-  const address = rateLimitClientIp(request);
+  const address = await rateLimitClientIp(request, config);
   const subjectHash = await sha256Hex(`auth:${address}`);
   const sessionId = crypto.randomUUID();
   const result = sqlJson(await rpc(db,
@@ -303,24 +322,26 @@ async function handleAuthenticatedAccountRoute(
     return jsonResponse(result);
   }
   if (path === "/api/auth/coach-code" && method === "POST") {
-    const bytes = crypto.getRandomValues(new Uint8Array(3));
-    const code = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
-    const codeHash = await sha256Hex(code);
+    const code = generateCoachCode();
+    // The database keys the code with an HMAC; the raw code is never stored.
     const result = sqlJson(await rpc(db,
-      "select al_private.al_coach_code_create($1::text,$2::text,$3::text,$4::text,$5::boolean,$6::integer) as payload",
-      [actor, sid, codeHash, crypto.randomUUID(), enforce, config.analyticsPastDueGraceDays],
+      "select al_private.al_coach_code_issue($1::text,$2::text,$3::text,$4::text,$5::boolean,$6::integer) as payload",
+      [actor, sid, code, crypto.randomUUID(), enforce, config.analyticsPastDueGraceDays],
     ));
-    return jsonResponse({ code, expires_at: result.expiresAt });
+    return jsonResponse({ code: formatCoachCode(code), expires_at: result.expiresAt });
   }
   if ((path === "/api/auth/link" || path === "/api/auth/link-athlete") && method === "POST") {
     const body = await jsonBody(request);
     if (typeof body.code !== "string") {
       routeError(422, [{ loc: ["body", "code"], msg: "Field required", type: "missing" }]);
     }
-    const codeHash = await sha256Hex(body.code.trim().toUpperCase());
+    // Over-long input is still sent (as an invalid code) so it counts against
+    // the per-account and per-IP limits and gets the same generic answer.
+    const code = body.code.length > 64 ? "" : normalizeCoachCode(body.code);
+    const ipSubject = await sha256Hex(`coach-link:${await rateLimitClientIp(request, config)}`);
     const result = sqlJson(await rpc(db,
-      "select al_private.al_athlete_link($1::text,$2::text,$3::text,$4::boolean,$5::integer) as payload",
-      [actor, sid, codeHash, enforce, config.analyticsPastDueGraceDays],
+      "select al_private.al_athlete_link_code($1::text,$2::text,$3::text,$4::text,$5::boolean,$6::integer) as payload",
+      [actor, sid, code, ipSubject, enforce, config.analyticsPastDueGraceDays],
     ));
     delete result.denial;
     return jsonResponse(result);

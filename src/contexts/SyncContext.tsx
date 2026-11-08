@@ -1,6 +1,7 @@
 import { useAuth } from './AuthContext';
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { countMutationsByStatus, getPendingMutations, getConflictedMutations, resolveMutationKeepServer, exportConflictMutation, type SyncMutation } from '../services/db';
+import { countMutationsByStatus, getPendingMutations, getConflictedMutations, getSnapshot, resolveMutationKeepServer, exportConflictMutation, type SyncMutation } from '../services/db';
+import { findConflictTarget, type ConflictTarget } from '../services/conflictTarget';
 import { processPendingQueues, processSyncQueue } from '../services/sync_engine';
 import { ConflictReviewCard } from '../components/ConflictReviewCard';
 import { WorkoutLockBanner } from '../components/WorkoutLockBanner';
@@ -18,6 +19,8 @@ interface SyncState {
   rejectedCount: number;
   triggerSync: (workout_id: string) => void;
   conflicts: any[];
+  /** Workouts the server reported as locked by another writer. */
+  lockedWorkoutIds: string[];
 }
 
 const SyncContext = createContext<SyncState>({
@@ -25,7 +28,8 @@ const SyncContext = createContext<SyncState>({
   pendingCount: 0,
   rejectedCount: 0,
   triggerSync: () => {},
-  conflicts: []
+  conflicts: [],
+  lockedWorkoutIds: [],
 });
 
 export const useSync = () => useContext(SyncContext);
@@ -39,6 +43,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [rejectedCount, setRejectedCount] = useState(0);
   const [countsAccountId, setCountsAccountId] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<SyncMutation[]>([]);
+  const [conflictTargets, setConflictTargets] = useState<Record<string, ConflictTarget | null>>({});
   const [conflictsAccountId, setConflictsAccountId] = useState<string | null>(null);
   const [locks, setLocks] = useState<SyncLockNotice[]>([]);
   const [locksAccountId, setLocksAccountId] = useState<string | null>(null);
@@ -54,8 +59,20 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
 
   const refreshConflicts = async (accountId?: string) => {
     const next = await getConflictedMutations(accountId);
+    // Name each conflict (session, lift, set) from the local plan snapshot so the
+    // coach keeps the server version on the right one. Missing snapshots fall back to ids.
+    const snapshots = new Map<string, unknown>();
+    const targets: Record<string, ConflictTarget | null> = {};
+    for (const mutation of next) {
+      if (!mutation.snapshot_key) { targets[mutation.mutation_id] = null; continue; }
+      if (!snapshots.has(mutation.snapshot_key)) {
+        snapshots.set(mutation.snapshot_key, await getSnapshot(mutation.snapshot_key).catch(() => null));
+      }
+      targets[mutation.mutation_id] = findConflictTarget(snapshots.get(mutation.snapshot_key), mutation);
+    }
     if (activeAccountId.current !== accountId) return;
     setConflicts(next);
+    setConflictTargets(targets);
     setConflictsAccountId(accountId || null);
   };
 
@@ -173,11 +190,11 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   };
 
   return (
-    <SyncContext.Provider value={{ isOnline, pendingCount: visiblePendingCount, rejectedCount: visibleRejectedCount, triggerSync, conflicts: visibleConflicts }}>
+    <SyncContext.Provider value={{ isOnline, pendingCount: visiblePendingCount, rejectedCount: visibleRejectedCount, triggerSync, conflicts: visibleConflicts, lockedWorkoutIds: visibleLocks.map((lock) => lock.workout_id) }}>
       {children}
       {user && <SyncQueueOverlay collide={visibleLocks.length > 0 || visibleConflicts.length > 0} />}
       {(visibleLocks.length > 0 || visibleConflicts.length > 0) && (
-        <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm mx-auto">
+        <div className="fixed bottom-20 left-4 right-4 z-50 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto pointer-events-none max-w-sm mx-auto">
           {visibleLocks.map((lock) => (
             <div key={lock.workout_id} className="pointer-events-auto">
               <WorkoutLockBanner
@@ -195,6 +212,7 @@ export const SyncProvider: React.FC<{children: ReactNode}> = ({ children }) => {
                   reason={c.conflict?.reason || 'server revision changed'}
                   serverFields={c.conflict?.server_fields || {}}
                   clientFields={c.fields}
+                  target={conflictTargets[c.mutation_id]}
                   onKeepServer={() => void handleKeepServer(c.mutation_id)}
                   onExport={() => void handleExportConflict(c.mutation_id)}
                />

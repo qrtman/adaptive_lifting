@@ -15,11 +15,12 @@ describe('shared custom app-session response', () => {
       },
     );
     const body = await response.json();
-    const { payload, protectedHeader } = await jwtVerify(body.access_token, new TextEncoder().encode(secret));
+    const cookieToken = decodeURIComponent(/session_id=([^;]+)/.exec(response.headers.get('set-cookie') ?? '')![1]);
+    const { payload, protectedHeader } = await jwtVerify(cookieToken, new TextEncoder().encode(secret));
     expect(protectedHeader).toMatchObject({ alg: 'HS256', kid: 'current' });
     expect(payload).toMatchObject({ sub: 'user-1', role: 'ATHLETE', session_id: 'session-1' });
+    // The JWT stays in the HttpOnly cookie; page scripts never receive it.
     expect(body).toEqual({
-      access_token: body.access_token, token_type: 'bearer',
       user: { id: 'user-1', email: 'athlete@example.invalid', role: 'ATHLETE', displayName: null },
     });
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');

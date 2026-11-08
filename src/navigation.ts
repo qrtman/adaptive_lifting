@@ -1,4 +1,5 @@
 import { UI_KEYS, getUiPref } from './storage/uiPrefs';
+import { integrationsEnabled } from './featureFlags';
 
 export const WORKSPACE_MODES = ['calendar', 'sessions', 'insights', 'roster'] as const;
 export const OPS_MODES = ['integrations', 'security'] as const;
@@ -32,12 +33,23 @@ function firstParam(params: URLSearchParams, key: string): string | null {
   return value && value.trim() ? value.trim() : null;
 }
 
-export function resolveDashboardMode(raw: string | null | undefined): {
+/** Whether a mode is reachable in this build. Integrations is hidden unless VITE_INTEGRATIONS_ENABLED allows it. */
+export function isDashboardModeAvailable(mode: DashboardMode, integrations: boolean = integrationsEnabled()): boolean {
+  return mode !== 'integrations' || integrations;
+}
+
+export function resolveDashboardMode(
+  raw: string | null | undefined,
+  { integrations = integrationsEnabled() }: { integrations?: boolean } = {},
+): {
   mode: DashboardMode;
   panel: NavPanel | null;
   redirectedFrom: string | null;
 } {
   const token = (raw || '').trim().toLowerCase();
+  if (isDashboardMode(token) && !isDashboardModeAvailable(token, integrations)) {
+    return { mode: 'sessions', panel: null, redirectedFrom: token };
+  }
   if (isDashboardMode(token)) {
     return { mode: token, panel: null, redirectedFrom: null };
   }

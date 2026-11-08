@@ -6,7 +6,7 @@ import { verifyAppJwt } from "./auth/jwt.ts";
 import { fernetEncrypt } from "./fernet.ts";
 import { verifyGoogleIdToken } from "./googleIdToken.ts";
 import { sessionResponse } from "./sessionResponse.ts";
-import { tryProcessEmailVerificationJob } from "./emailWorkerCore.ts";
+import { tryProcessEmailVerificationJob, tryProcessPasswordResetJob } from "./emailWorkerCore.ts";
 import { requireEmailRegistrationReady } from "./emailReadiness.ts";
 import { rateLimitClientIp } from "./clientIp.ts";
 
@@ -28,7 +28,7 @@ async function rpc<T extends Json>(db: Database, sql: string, args: unknown[]): 
   }
 }
 
-async function emailPayloadKey(db: Database, config: AppConfig): Promise<string> {
+export async function emailPayloadKey(db: Database, config: AppConfig): Promise<string> {
   if (config.emailPayloadEncryptionKey) return config.emailPayloadEncryptionKey;
   try {
     const client = await db.connect();
@@ -47,7 +47,7 @@ async function emailPayloadKey(db: Database, config: AppConfig): Promise<string>
   throw new ApiError(503, "Email verification is temporarily unavailable");
 }
 
-function validationError(field: string, missing = false): never {
+export function validationError(field: string, missing = false): never {
   throw new ApiError(422, [{
     loc: ["body", field],
     msg: missing ? "Field required" : "Input should be a valid string",
@@ -55,7 +55,7 @@ function validationError(field: string, missing = false): never {
   }]);
 }
 
-async function jsonBody(request: Request): Promise<Json> {
+export async function jsonBody(request: Request): Promise<Json> {
   const value = await request.json().catch(() => null);
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new ApiError(422, [{ loc: ["body"], msg: "Input should be a valid object", type: "model_type" }]);
@@ -63,7 +63,7 @@ async function jsonBody(request: Request): Promise<Json> {
   return value as Json;
 }
 
-function emailAddress(value: unknown): string {
+export function emailAddress(value: unknown): string {
   if (value === undefined) validationError("email", true);
   if (typeof value !== "string") validationError("email");
   const email = value.trim().toLowerCase();
@@ -73,17 +73,21 @@ function emailAddress(value: unknown): string {
   return email;
 }
 
-async function sha256Hex(value: string): Promise<string> {
+export async function sha256Hex(value: string): Promise<string> {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function addressHashInput(request: Request, route: "register" | "resend" | "verify" | "google"): string {
-  const address = rateLimitClientIp(request);
+export async function addressHashInput(
+  request: Request,
+  route: "register" | "resend" | "verify" | "google" | "password-forgot" | "password-reset" | "password-change",
+  config: AppConfig,
+): Promise<string> {
+  const address = await rateLimitClientIp(request, config);
   return `auth:${route}:${address}`;
 }
 
-function randomToken(): string {
+export function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -133,7 +137,7 @@ async function register(request: Request, db: Database, config: AppConfig): Prom
 
   const result = await rpc<Json>(db,
     "select al_private.al_onboarding_register($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::boolean) as payload",
-    [email, password, await sha256Hex(addressHashInput(request, "register")), crypto.randomUUID(),
+    [email, password, await sha256Hex(await addressHashInput(request, "register", config)), crypto.randomUUID(),
       requiresEmail ? crypto.randomUUID() : null, requiresEmail ? crypto.randomUUID() : null,
       requiresEmail ? tokenHash : null, requiresEmail ? ciphertext : null, requiresEmail],
   );
@@ -158,7 +162,7 @@ async function resend(request: Request, db: Database, config: AppConfig): Promis
   }
   const result = await rpc<Json>(db,
     "select al_private.al_onboarding_resend($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::boolean) as payload",
-    [email, await sha256Hex(addressHashInput(request, "resend")), crypto.randomUUID(), crypto.randomUUID(),
+    [email, await sha256Hex(await addressHashInput(request, "resend", config)), crypto.randomUUID(), crypto.randomUUID(),
       tokenHash, ciphertext, config.enforceLegacyEmailVerification],
   );
   if (result.denial === "email_config_unavailable") throw new ApiError(503, "Email verification is temporarily unavailable");
@@ -172,7 +176,7 @@ function requireOnboardingEnabled(config: AppConfig): void {
   }
 }
 
-async function verify(request: Request, db: Database): Promise<Response> {
+async function verify(request: Request, db: Database, config: AppConfig): Promise<Response> {
   const body = await jsonBody(request);
   if (body.token === undefined) validationError("token", true);
   if (typeof body.token !== "string") validationError("token");
@@ -180,7 +184,7 @@ async function verify(request: Request, db: Database): Promise<Response> {
   const validFormat = /^[A-Za-z0-9_-]{43}$/.test(token);
   const result = await rpc<Json>(db,
     "select al_private.al_onboarding_verify($1::text,$2::boolean,$3::text) as payload",
-    [await sha256Hex(token), validFormat, await sha256Hex(addressHashInput(request, "verify"))],
+    [await sha256Hex(token), validFormat, await sha256Hex(await addressHashInput(request, "verify", config))],
   );
   if (result.denial === "rate_limited" || result.denial === "invalid_token") {
     throw new ApiError(400, INVALID_TOKEN);
@@ -217,7 +221,7 @@ async function google(request: Request, db: Database, config: AppConfig): Promis
   try {
     result = await rpc<Json>(db,
       "select al_private.al_onboarding_google($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::boolean) as payload",
-      [identity.subject, identity.email, await sha256Hex(addressHashInput(request, "google")), crypto.randomUUID(),
+      [identity.subject, identity.email, await sha256Hex(await addressHashInput(request, "google", config)), crypto.randomUUID(),
         sessionId, authenticatedUserId, authenticatedSessionId, config.enforceLegacyEmailVerification],
     );
   } catch {
@@ -310,23 +314,30 @@ export async function handleEmailVerificationWorker(
     throw new ApiError(503, "Email delivery is not configured");
   }
 
-  const counters = { claimed: 0, accepted: 0, deferred: 0, cancelled: 0 };
-  for (let index = 0; index < 10; index++) {
-    const outcome = await tryProcessEmailVerificationJob(db, {
-      payloadKey,
-      emailApiKey,
-      emailFrom,
-      appUrl: origin,
-      enforceLegacy: config.enforceLegacyEmailVerification,
-      fetcher: fetch,
-    });
-    if (outcome === "empty") break;
-    counters.claimed++;
-    if (outcome === "accepted") counters.accepted++;
-    else if (outcome === "cancelled") counters.cancelled++;
-    else counters.deferred++;
-  }
-  return jsonResponse({ status: "ok", ...counters }, 200, { "cache-control": "no-store" });
+  const workerConfig = {
+    payloadKey,
+    emailApiKey,
+    emailFrom,
+    appUrl: origin,
+    enforceLegacy: config.enforceLegacyEmailVerification,
+    fetcher: fetch,
+  };
+  const drain = async (process: typeof tryProcessEmailVerificationJob) => {
+    const counters = { claimed: 0, accepted: 0, deferred: 0, cancelled: 0 };
+    for (let index = 0; index < 10; index++) {
+      const outcome = await process(db, workerConfig);
+      if (outcome === "empty") break;
+      counters.claimed++;
+      if (outcome === "accepted") counters.accepted++;
+      else if (outcome === "cancelled") counters.cancelled++;
+      else counters.deferred++;
+    }
+    return counters;
+  };
+  // Password reset links expire after 30 minutes, so they are sent first.
+  const passwordReset = await drain(tryProcessPasswordResetJob);
+  const counters = await drain(tryProcessEmailVerificationJob);
+  return jsonResponse({ status: "ok", ...counters, passwordReset }, 200, { "cache-control": "no-store" });
 }
 
 export async function handleOnboardingRoute(
@@ -339,7 +350,7 @@ export async function handleOnboardingRoute(
   const handlers: Record<string, (req: Request) => Promise<Response>> = {
     "/api/auth/register": (req) => register(req, db, config),
     "/api/auth/resend-verification": (req) => resend(req, db, config),
-    "/api/auth/verify-email": (req) => verify(req, db),
+    "/api/auth/verify-email": (req) => verify(req, db, config),
     "/api/auth/google": (req) => google(req, db, config),
   };
   const handler = handlers[path];

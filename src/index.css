@@ -215,8 +215,22 @@
   transition: background-color 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Day action dock: hidden at rest; shown on hover intent, keyboard focus
+   inside the day, and always on touch devices without hover. */
 .cal-day-dock {
+  display: none;
   animation: cal-day-dock-in 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.cal-day-dock[data-open="true"],
+.cal-day-cell:focus-within .cal-day-dock {
+  display: flex;
+}
+
+@media (hover: none) {
+  .cal-day-dock {
+    display: flex;
+  }
 }
 
 @keyframes cal-day-dock-in {

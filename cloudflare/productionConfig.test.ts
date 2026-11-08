@@ -16,7 +16,7 @@ describe('isolated production release configuration', () => {
     expect(prod.routes).toBeUndefined();
     expect(env.get('APP_ENV')).toBe('production');
     expect(env.get('COOKIE_SECURE')).toBe('true');
-    expect(versions).toHaveLength(63);
+    expect(versions).toHaveLength(66);
   });
 
   it('preserves the exact hostname route only in the separate future cutover config', () => {

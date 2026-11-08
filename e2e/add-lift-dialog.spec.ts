@@ -1,7 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
+import { pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function openAddLift(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
   const email = `add-lift-dialog-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
@@ -63,7 +68,9 @@ test('keyboard arrows and Enter select a catalog exercise', async ({ page, reque
   const search = page.getByTestId('add-lift-search');
   await search.fill('squat');
   await search.press('ArrowDown');
-  await expect(search).toHaveAttribute('aria-activedescendant', 'add-lift-option-Front Squat');
+  await expect(search).toHaveAttribute('aria-activedescendant', /^add-lift-option-\d+$/);
+  const activeId = await search.getAttribute('aria-activedescendant');
+  await expect(page.locator(`#${activeId}`)).toContainText('Front Squat');
   await search.press('Enter');
   await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
   await expect(page.getByTestId('add-lift-selected-exercise')).toContainText('Front Squat');

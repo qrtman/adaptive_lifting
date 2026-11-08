@@ -1,7 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
+import { pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function openAddLift(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
   const email = `add-lift-search-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;

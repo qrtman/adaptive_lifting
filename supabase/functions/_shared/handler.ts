@@ -20,6 +20,7 @@ import { handleReplaceExerciseSets } from "./replaceExerciseSetsRoute.ts";
 import { handleSetLog } from "./setLogRoute.ts";
 import { handleAccountSecurityRoute } from "./accountSecurityRoute.ts";
 import { handleOnboardingRoute } from "./onboardingRoute.ts";
+import { handlePasswordRoute } from "./passwordRoute.ts";
 import { handleDayNotesRoute, handleExportRoute } from "./dayNotesExportsRoute.ts";
 import { handleIntegrationsRoute } from "./integrationsRoute.ts";
 import { handleBillingRoute } from "./billingRoute.ts";
@@ -111,6 +112,11 @@ export function createHandler(
         const response = await handleExportRoute(request, db, principal, config, path);
         for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
         return response;
+      }
+      const passwordResponse = await handlePasswordRoute(request, db, config);
+      if (passwordResponse) {
+        for (const [key, value] of Object.entries(cors)) passwordResponse.headers.set(key, value);
+        return passwordResponse;
       }
       const onboardingResponse = await handleOnboardingRoute(request, db, config);
       if (onboardingResponse) {

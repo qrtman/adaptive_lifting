@@ -909,7 +909,7 @@ Browser profile preferences are presentation data, not authorization. Online res
 - **Token Lifetime:** 7 days
 - **Storage:** `HttpOnly` cookies (mitigates XSS token theft)
 - **CSRF Protection:** Production browser mutations require an explicitly allowed Origin (or Referer); cookie writes without either are rejected.
-- **Rate Limiting:** IP-based throttling on `/api/auth/login` to prevent brute-force credential stuffing.
+- **Rate Limiting:** IP-based throttling on `/api/auth/login` (20/min), signup and voucher redeem, plus a per-account bucket on login (10 failed attempts per 15 min per hashed normalized email, same generic `429`; unknown emails run a dummy bcrypt compare; each failure writes a `LOGIN_FAILED` audit event with hashes only). The Cloudflare Worker forwards the visitor address as `x-al-client-ip` + `x-al-client-ip-ts` + HMAC-SHA256 `x-al-client-ip-sig` over `ip|ts`, keyed by `CLIENT_IP_SIGNING_KEY` (same secret in Worker and Edge). The Edge trusts it only when the signature verifies (constant-time) and the timestamp is within 60 s; otherwise it uses Supabase ingress `cf-connecting-ip`. Forwarded headers are never trusted.
 
 ### 9.2 Role-Based Access Control (RBAC) Matrix
 
@@ -954,6 +954,7 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 
 - **Logout:** Clears the auth cookie server-side and invalidates the current session identifier.
 - **Password Change:** Revokes all active sessions for the account and requires re-login on every device.
+- **Password Reset:** `/api/auth/password/forgot` issues a hash-only, single-use token that expires after 30 minutes, delivered through the `password-reset` email outbox jobs drained by the email worker (`/reset-password#token=...`, scrubbed from the URL before app code loads). Reset and change both revoke every session; offline grants are session-bound and die at their next online revalidation (or lease expiry while disconnected). Both write `PASSWORD_RESET` / `PASSWORD_CHANGED` audit events.
 - **Invite Codes:** Stored as salted hashes, expire after 15 minutes, and are single-use.
 - **Audit Events:** Login, logout, failed login, athlete link, athlete unlink, coach-initiated unlink, export, and account deletion events are written to an append-only audit log. Relationship events identify the relationship and participants but never include raw coach codes or workout contents.
 
@@ -977,6 +978,9 @@ Athletes link to coaches via `CoachingRelationship`. An athlete may have at most
 | `POST` | `/api/auth/login` | Authenticate, issue JWT | Public |
 | `PATCH` | `/api/auth/profile` | Update own optional athlete display name | Coach / Athlete (athlete name shown to linked coaches) |
 | `POST` | `/api/auth/logout` | Revoke current session and clear auth cookie | Coach / Athlete |
+| `POST` | `/api/auth/password/forgot` | Queue a 30-minute single-use reset email; always 202 (no account enumeration); per-IP and per-email limits | Public |
+| `POST` | `/api/auth/password/reset` | Consume reset token, set new password, revoke all sessions, audit | Public (token) |
+| `POST` | `/api/auth/password/change` | Verify current password, set new password, revoke all sessions, audit | Coach / Athlete |
 | `GET` | `/api/auth/sessions` | List active device sessions | Coach / Athlete |
 | `DELETE` | `/api/auth/sessions/{id}` | Revoke a device session | Coach / Athlete |
 | `POST` | `/api/auth/coach-code` | Generate or rotate coach code | Coach |

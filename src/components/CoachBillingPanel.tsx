@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAccountAccess } from '../contexts/AccessContext';
 import { apiService, type BillingPlan } from '../services/api';
 import { openHostedBilling } from '../services/billingNavigation';
+import { SUPPORT_MAILTO } from '../config/support';
 
 const BILLING_MESSAGES: Record<string, string> = {
   BILLING_OWNER_REQUIRED: 'Only the workspace owner can manage billing.',
@@ -177,6 +178,7 @@ export function CoachBillingPanel() {
         <button type="submit" disabled={busy || !voucherCode.trim()} className="text-xs underline disabled:opacity-50">Redeem</button>
       </div>
     </form>
+    <p className="mt-2 text-xs text-[var(--cal-muted)]">Need coach access? <a className="underline" href={SUPPORT_MAILTO}>Contact support</a></p>
     {voucherMessage && <p role="status" className="mt-2 text-xs">{voucherMessage}</p>}
     {error && <p role="alert" className="mt-2 text-xs text-[var(--cal-error)]">{error}</p>}
   </section>;

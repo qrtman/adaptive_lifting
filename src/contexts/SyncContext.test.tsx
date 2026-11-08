@@ -13,7 +13,7 @@ const { authState, processPendingQueues, getPendingMutations, getConflictedMutat
 }));
 
 vi.mock('./AuthContext', () => ({ useAuth: () => authState }));
-vi.mock('../services/db', () => ({ getPendingMutations, getConflictedMutations, countMutationsByStatus }));
+vi.mock('../services/db', () => ({ getPendingMutations, getConflictedMutations, countMutationsByStatus, getSnapshot: vi.fn(async () => null) }));
 vi.mock('../services/sync_engine', () => ({ isLockSyncCode: () => false, processPendingQueues }));
 vi.mock('../components/ConflictReviewCard', () => ({ ConflictReviewCard: conflictCard }));
 vi.mock('../components/WorkoutLockBanner', () => ({ WorkoutLockBanner: () => null }));

@@ -67,4 +67,61 @@ describe('AccessProvider', () => {
     expect(container.querySelector('[data-testid="state"]')?.getAttribute('data-active')).toBe('null');
     expect(container.querySelector('[data-testid="state"]')?.getAttribute('data-program')).toBe('null');
   });
+
+  it('refreshes access in place after a voucher redeem without dropping back to loading', async () => {
+    const inactive = { workspace: { id: 'w1', name: 'C' }, membershipRole: 'OWNER', entitlements: { active: false }, grant: null, usage: null };
+    const activeAccess = { ...inactive, entitlements: { active: true, planKey: 'coach_pro', canProgram: true } };
+    fetchAccess.mockResolvedValueOnce(inactive);
+    let refresh: () => Promise<void> = async () => {};
+    function Grab() {
+      const s = useAccountAccess(); refresh = s.refreshAccess;
+      return <div data-testid="g" data-status={s.status} data-active={String(s.hasActiveCoachAccess)} />;
+    }
+    await act(async () => { root.render(<AccessProvider><Grab /></AccessProvider>); });
+    const el = () => container.querySelector('[data-testid="g"]')!;
+    expect(el().getAttribute('data-active')).toBe('false');
+    let release!: (v: unknown) => void;
+    fetchAccess.mockReturnValueOnce(new Promise(r => { release = r; }));
+    let pending!: Promise<void>;
+    await act(async () => { pending = refresh(); });
+    expect(el().getAttribute('data-status')).toBe('resolved');
+    await act(async () => { release(activeAccess); await pending; });
+    expect(el().getAttribute('data-active')).toBe('true');
+  });
+
+  it('keeps held access when AuthContext re-creates the same user and when a background refresh fails', async () => {
+    const held = { workspace: { id: 'w1', name: 'C' }, membershipRole: 'OWNER', entitlements: { active: true, canProgram: true }, grant: null, usage: null };
+    fetchAccess.mockResolvedValueOnce(held);
+    let refresh: () => Promise<void> = async () => {};
+    function Grab() {
+      const s = useAccountAccess(); refresh = s.refreshAccess;
+      return <div data-testid="g" data-status={s.status} data-active={String(s.hasActiveCoachAccess)} data-error={s.error ?? ''} />;
+    }
+    await act(async () => { root.render(<AccessProvider><Grab /></AccessProvider>); });
+    const el = () => container.querySelector('[data-testid="g"]')!;
+    expect(el().getAttribute('data-active')).toBe('true');
+    const calls = fetchAccess.mock.calls.length;
+
+    auth.current = { ...auth.current }; // same id/role, new object (e.g. reconnect)
+    await act(async () => { root.render(<AccessProvider><Grab /></AccessProvider>); });
+    expect(fetchAccess.mock.calls.length).toBe(calls);
+    expect(el().getAttribute('data-active')).toBe('true');
+
+    fetchAccess.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => { await refresh(); });
+    expect(el().getAttribute('data-status')).toBe('resolved');
+    expect(el().getAttribute('data-active')).toBe('true');
+    expect(el().getAttribute('data-error')).toBe('offline');
+  });
+
+  it('never shows access fetched for a previous user', async () => {
+    fetchAccess.mockResolvedValueOnce({ workspace: { id: 'w-a', name: 'A' }, membershipRole: 'OWNER', entitlements: { active: true }, grant: null, usage: null });
+    await render();
+    expect(container.textContent).toBe('w-a');
+    fetchAccess.mockReturnValueOnce(new Promise(() => {}));
+    auth.current = { id: 'coach-2', role: 'COACH' };
+    await render();
+    expect(container.textContent).toBe('no-workspace');
+    expect(container.querySelector('[data-testid="state"]')?.getAttribute('data-status')).toBe('loading');
+  });
 });

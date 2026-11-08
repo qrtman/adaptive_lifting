@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { pickComboOption } from './helpers';
+import { CALENDAR_PINNED_DATE, pickComboOption, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function expectOverlayParked(overlay: Locator, day?: Locator) {
   await expect(overlay).toBeVisible();
@@ -331,7 +335,7 @@ test('hover overlay does not grow the day cell; Notes saves a day card', async (
   const day02 = page.getByTestId('calendar-day-2026-09-02');
   await expect(day01).toBeVisible();
 
-  const today = new Date();
+  const today = CALENDAR_PINNED_DATE;
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const todayCell = page.getByTestId(`calendar-day-${todayIso}`);
   if (await todayCell.count()) {

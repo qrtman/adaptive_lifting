@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test } from '@playwright/test';
-import { expectCellEditing, expectCellSelected } from './helpers';
+import { expectCellEditing, expectCellSelected, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 test('Sheets-parity: click selects; Tab kg→reps; Enter down same column; PLAN↔LOG arrows', async ({ page, request }) => {
   const email = `sheets-cell-${Date.now()}@example.com`;

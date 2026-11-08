@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ApiRequestError, apiService } from '../services/api';
+import { LegalLinks } from './LegalLinks';
+import { ForgotPasswordForm } from './PasswordResetView';
 
 const fieldClass =
   'w-full min-h-12 bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-md)] py-3 pl-10 pr-3 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus:outline-none focus:border-[var(--cal-accent)] focus:ring-1 focus:ring-[var(--cal-accent)]';
@@ -10,7 +12,7 @@ export const LoginView = () => {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const googleButton = useRef<HTMLDivElement>(null);
   const { signIn } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -131,6 +133,16 @@ export const LoginView = () => {
           finally { setLoading(false); }
         }}>{cooldown ? `Resend in ${cooldown}s` : 'Resend verification email'}</button>
         <button type="button" className="min-h-12" onClick={() => { setPending(false); setMode('signin'); setError(null); }}>Return to sign in</button>
+        <LegalLinks className="justify-center" />
+      </div>
+    </div>
+  );
+
+  if (mode === 'forgot') return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
+      <div className="w-full max-w-md cal-nested-card p-6 flex flex-col gap-4" data-elevated="true" data-testid="forgot-card">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--cal-ink)]">Reset your password</h1>
+        <ForgotPasswordForm initialEmail={email} onCancel={() => { setMode('signin'); setError(null); }} />
       </div>
     </div>
   );
@@ -191,6 +203,16 @@ export const LoginView = () => {
             </div>
           </label>
 
+          {mode === 'signin' && (
+            <button
+              type="button"
+              onClick={() => { setMode('forgot'); setError(null); setPassword(''); }}
+              className="self-end min-h-10 text-xs text-[var(--cal-accent)] underline-offset-2 hover:underline"
+            >
+              Forgot password?
+            </button>
+          )}
+
           {mode === 'signup' && (
             <label className="flex flex-col gap-1 text-xs text-[var(--cal-muted)]">
               Confirm password
@@ -235,6 +257,8 @@ export const LoginView = () => {
             </div>
           </div>
         )}
+
+        <LegalLinks className="justify-center" />
       </div>
     </div>
   );

@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { apiUrl, registerVerified, verificationToken } from './verified-fixture';
+import { pinCalendarClock } from './helpers';
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 test('registration, explicit POST verification, login and reload', async ({ page, request, context }) => {
   const email = `verify-${Date.now()}@example.com`;

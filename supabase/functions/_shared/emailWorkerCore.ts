@@ -30,30 +30,65 @@ function emailContent(url: string): { text: string; html: string } {
   };
 }
 
-async function unlock(client: SqlClient, userId: string): Promise<void> {
+function passwordResetContent(url: string): { text: string; html: string } {
+  const safeUrl = escapeHtml(url);
+  return {
+    text: `Reset your Adaptive Lifting password\n\nChoose a new password: ${url}\n\nThis single-use link expires 30 minutes after your request. Resetting signs you out on every device. If you did not ask to reset your password, you can ignore this email; your password will not change.`,
+    html: `<h1>Reset your Adaptive Lifting password</h1><p><a style="display:inline-block;padding:14px 20px;background:#202020;color:#ffffff;border-radius:6px;text-decoration:none" href="${safeUrl}">Choose a new password</a></p><p>This single-use link expires 30 minutes after your request. Resetting signs you out on every device.</p><p>If you did not ask to reset your password, you can ignore this email; your password will not change.</p>`,
+  };
+}
+
+interface EmailJobKind {
+  rpc: "al_email_worker" | "al_password_reset_worker";
+  beginSql: string;
+  beginArgs: (jobId: string, claimToken: string, config: EmailWorkerConfig) => unknown[];
+  path: "/verify-email" | "/reset-password";
+  subject: string;
+  content: (url: string) => { text: string; html: string };
+}
+
+const VERIFICATION_JOB: EmailJobKind = {
+  rpc: "al_email_worker",
+  beginSql: "select al_private.al_email_worker_begin($1::text,$2::text,$3::boolean) as payload",
+  beginArgs: (jobId, claimToken, config) => [jobId, claimToken, config.enforceLegacy],
+  path: "/verify-email",
+  subject: "Verify your Adaptive Lifting email",
+  content: emailContent,
+};
+
+const PASSWORD_RESET_JOB: EmailJobKind = {
+  rpc: "al_password_reset_worker",
+  beginSql: "select al_private.al_password_reset_worker_begin($1::text,$2::text) as payload",
+  beginArgs: (jobId, claimToken) => [jobId, claimToken],
+  path: "/reset-password",
+  subject: "Reset your Adaptive Lifting password",
+  content: passwordResetContent,
+};
+
+async function unlock(client: SqlClient, kind: EmailJobKind, userId: string): Promise<void> {
   try {
-    await scalar(client, "select al_private.al_email_worker_unlock($1::text) as payload", [userId]);
+    await scalar(client, `select al_private.${kind.rpc}_unlock($1::text) as payload`, [userId]);
   } catch {
     // Closing the client also releases the session advisory lock.
   }
 }
 
-export async function tryProcessEmailVerificationJob(
+async function tryProcessEmailJob(
   db: Database,
   config: EmailWorkerConfig,
+  kind: EmailJobKind,
 ): Promise<EmailWorkerOutcome> {
   const client = await db.connect();
   let lockUserId: string | null = null;
   try {
     const claimToken = crypto.randomUUID();
     const claim = await scalar<Record<string, unknown>>(client,
-      "select al_private.al_email_worker_claim($1::text) as payload", [claimToken]);
+      `select al_private.${kind.rpc}_claim($1::text) as payload`, [claimToken]);
     const jobId = typeof claim?.jobId === "string" ? claim.jobId : "";
     if (!jobId) return "empty";
 
-    const begin = await scalar<Record<string, unknown>>(client,
-      "select al_private.al_email_worker_begin($1::text,$2::text,$3::boolean) as payload",
-      [jobId, claimToken, config.enforceLegacy]);
+    const begin = await scalar<Record<string, unknown>>(client, kind.beginSql,
+      kind.beginArgs(jobId, claimToken, config));
     if (begin?.busy === true) return "deferred";
     if (begin?.send !== true) return "cancelled";
     if (typeof begin.userId !== "string" || typeof begin.email !== "string" ||
@@ -70,8 +105,8 @@ export async function tryProcessEmailVerificationJob(
     let outcome: "success" | "temporary" | "permanent" = rawToken ? "success" : "permanent";
     if (rawToken) {
       try {
-      const verificationUrl = `${config.appUrl.replace(/\/$/, "")}/verify-email#token=${rawToken}`;
-      const content = emailContent(verificationUrl);
+      const linkUrl = `${config.appUrl.replace(/\/$/, "")}${kind.path}#token=${rawToken}`;
+      const content = kind.content(linkUrl);
       const response = await config.fetcher("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -82,7 +117,7 @@ export async function tryProcessEmailVerificationJob(
         body: JSON.stringify({
           from: config.emailFrom,
           to: [begin.email],
-          subject: "Verify your Adaptive Lifting email",
+          subject: kind.subject,
           text: content.text,
           html: content.html,
         }),
@@ -99,14 +134,28 @@ export async function tryProcessEmailVerificationJob(
     }
 
     const result = await scalar<Record<string, unknown>>(client,
-      "select al_private.al_email_worker_finish($1::text,$2::text,$3::text,$4::text) as payload",
+      `select al_private.${kind.rpc}_finish($1::text,$2::text,$3::text,$4::text) as payload`,
       [jobId, claimToken, lockUserId, outcome]);
     lockUserId = null; // finish releases the advisory lock on this session.
     return result?.updated === true && outcome === "success" ? "accepted" : "deferred";
   } finally {
-    if (lockUserId) await unlock(client, lockUserId);
+    if (lockUserId) await unlock(client, kind, lockUserId);
     client.release();
   }
 }
 
-export { emailContent };
+export function tryProcessEmailVerificationJob(
+  db: Database,
+  config: EmailWorkerConfig,
+): Promise<EmailWorkerOutcome> {
+  return tryProcessEmailJob(db, config, VERIFICATION_JOB);
+}
+
+export function tryProcessPasswordResetJob(
+  db: Database,
+  config: EmailWorkerConfig,
+): Promise<EmailWorkerOutcome> {
+  return tryProcessEmailJob(db, config, PASSWORD_RESET_JOB);
+}
+
+export { emailContent, passwordResetContent };

@@ -54,6 +54,8 @@ describe('CoachBillingPanel', () => {
   it('shows coach voucher redemption and refreshes server access after success', async () => {
     await render();
     expect(container.textContent).toContain('Have a voucher?');
+    expect(container.textContent).toContain('Need coach access? Contact support');
+    expect(Array.from(container.querySelectorAll('a')).some(a => a.getAttribute('href')?.startsWith('mailto:'))).toBe(true);
     await enterVoucher('  VCH-EXAMPLE  ');
     await submitVoucher();
     expect(api.redeemVoucher).toHaveBeenCalledWith('VCH-EXAMPLE');

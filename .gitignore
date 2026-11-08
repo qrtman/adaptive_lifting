@@ -44,3 +44,7 @@ certs/
 
 .wrangler/
 wrangler.production.local.jsonc
+
+# Claude Code agent worktrees
+.claude/worktrees/
+.claude/

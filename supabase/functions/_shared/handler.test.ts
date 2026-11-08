@@ -36,6 +36,9 @@ Deno.test("shared request boundary rejects cross-origin mutations before route o
   const routes: Array<[string, string]> = [
     ["POST", "/api/auth/logout"],
     ["PATCH", "/api/auth/profile"],
+    ["POST", "/api/auth/password/forgot"],
+    ["POST", "/api/auth/password/reset"],
+    ["POST", "/api/auth/password/change"],
     ["POST", "/api/sessions"],
     ["PATCH", "/api/sessions/synthetic-session"],
     ["DELETE", "/api/sessions/synthetic-session"],

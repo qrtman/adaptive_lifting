@@ -10,7 +10,7 @@ const stagingConfigPath = join(root, 'wrangler.jsonc');
 const envExamplePath = join(root, 'supabase', 'production.env.example');
 const viteEnvExamplePath = join(root, '.env.production.example');
 const migrationDir = join(root, 'supabase', 'migrations');
-const publicViteKeys = new Set(['VITE_BACKEND_URL', 'VITE_OFFLINE_AUTH_PUBLIC_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_CLIENT_DATA_GENERATION']);
+const publicViteKeys = new Set(['VITE_BACKEND_URL', 'VITE_OFFLINE_AUTH_PUBLIC_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_CLIENT_DATA_GENERATION', 'VITE_INTEGRATIONS_ENABLED']);
 const stagingRef = 'admyuepbbtstayaydjmo';
 const productionRef = 'gadusaizqnshxqcckibq';
 const productionOriginPlaceholder = 'https://REQUIRED_PRODUCTION_PROJECT_REF.supabase.co';
@@ -74,7 +74,7 @@ function verifyMigrationOrder() {
   const versions = readdirSync(migrationDir)
     .filter((name) => name.endsWith('.sql'))
     .sort();
-  if (versions.length !== 63) fail(`expected 63 SQL migrations, found ${versions.length}`);
+  if (versions.length !== 66) fail(`expected 66 SQL migrations, found ${versions.length}`);
   let previous = '';
   for (const name of versions) {
     const match = /^(\d{14})_[a-z0-9_]+\.sql$/.exec(name);
@@ -137,9 +137,13 @@ export function validateProductionConfig({ local = false } = {}) {
   if (Object.hasOwn(prod, 'routes') || Object.hasOwn(prod, 'route') || Object.hasOwn(prod, 'custom_domains')) {
     fail('worker-only production config must not attach a route or custom domain');
   }
-  const allowedConfigKeys = ['$schema', 'name', 'main', 'compatibility_date', 'workers_dev', 'observability', 'vars', 'assets'];
+  const allowedConfigKeys = ['$schema', 'name', 'main', 'compatibility_date', 'workers_dev', 'observability', 'vars', 'secrets', 'assets'];
   if (Object.keys(prod).some((key) => !allowedConfigKeys.includes(key))) {
     fail('worker-only production config contains an unexpected deployment binding or resource');
+  }
+  // Secret names only (values live in `wrangler secret put`); deploy fails closed if unset.
+  if (JSON.stringify(prod.secrets) !== JSON.stringify({ required: ['CLIENT_IP_SIGNING_KEY'] })) {
+    fail('production Worker must require exactly the CLIENT_IP_SIGNING_KEY secret');
   }
   if (JSON.stringify(Object.keys(prod.vars ?? {}).sort()) !== JSON.stringify(['SUPABASE_PROJECT_ORIGIN'])) {
     fail('production Worker vars must contain only the Supabase project origin');

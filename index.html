@@ -13,8 +13,13 @@
         window.__emailVerification = { token: params.get('token') || '' };
         history.replaceState(null, '', '/verify-email');
       }
+      if (location.pathname === '/reset-password') {
+        var resetParams = new URLSearchParams(location.hash.slice(1));
+        window.__passwordReset = { token: resetParams.get('token') || '' };
+        history.replaceState(null, '', '/reset-password');
+      }
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Adaptive Lifting</title>
     <script>
       (function () {

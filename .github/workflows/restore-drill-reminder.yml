@@ -1,0 +1,58 @@
+name: Monthly restore drill reminder
+
+# Opens a "Monthly restore drill" issue on the 1st of each month, unless one is
+# already open. The drill itself is manual: scripts/recovery/restore-drill.sh.
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: restore-drill-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Monthly restore drill
+    steps:
+      - name: Open restore drill issue if none is open
+        run: |
+          set -euo pipefail
+          existing="$(gh issue list --state open --json number,title --limit 200 \
+            | jq -r --arg title "$TITLE" 'map(select(.title == $title)) | .[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Open issue #$existing already exists; skipping."
+            exit 0
+          fi
+          month="$(date -u +%Y-%m)"
+          body_file="$(mktemp)"
+          cat > "$body_file" <<EOF
+          Monthly restore drill for ${month}. Proves the latest encrypted backup can be decrypted and restored.
+
+          Script: \`scripts/recovery/restore-drill.sh\`. Needs \`age\`, \`docker\`, and the bare \`AGE-SECRET-KEY-1...\` line in the gitignored \`.env\`.
+
+          ## Steps
+
+          - [ ] Confirm the latest "Daily production database backup" run succeeded.
+          - [ ] Download the newest backup from R2: bucket \`adaptive-lifting-production-recovery\`, key \`production/gadusaizqnshxqcckibq/recovery/daily/db-<UTC stamp>.dump.age\`.
+          - [ ] Run \`scripts/recovery/restore-drill.sh path/to/db-YYYYMMDDTHHMMSSZ.dump.age\`. It:
+            - [ ] decrypts the file with the age key from \`.env\` ("Decrypted OK (N bytes)");
+            - [ ] starts a throwaway \`postgres:17\` container;
+            - [ ] creates the Supabase roles (\`anon\`, \`authenticated\`, \`service_role\`, \`supabase_auth_admin\`);
+            - [ ] runs \`pg_restore --no-owner --no-privileges\` (only expected error: \`schema "public" already exists\`);
+            - [ ] runs \`analyze\` and prints row counts for \`public\`, \`auth\`, \`al_private\`, \`supabase_migrations\`, plus \`auth.users\`.
+          - [ ] Compare the row counts with production (e.g. \`public.users\`, \`workouts\`, \`exercise_sets\`, \`sync_mutations\`).
+          - [ ] Delete the downloaded \`.dump.age\` file; the script removes the container and decrypted dump itself.
+          - [ ] Record the date, backup file and result in \`docs/PRODUCTION_STATUS.md\` (Database backups section).
+          - [ ] Close this issue.
+          EOF
+          gh issue create --title "$TITLE" --body-file "$body_file"

@@ -6,6 +6,11 @@ const FIELD = 'h-8 px-2 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] bo
 const LABEL = 'text-[10px] uppercase tracking-wider text-[var(--cal-muted)]';
 type LiftTier = 'Comp' | 'Variation' | 'Accessory';
 
+/** DOM ids must not contain whitespace; key options by position, not by name. */
+export function optionDomId(prefix: string, index: number): string {
+  return `${prefix.replace(/[^A-Za-z0-9_-]/g, '-')}-option-${index}`;
+}
+
 export function LiftCatalogChoice({
   testPrefix, category, tier, movementPattern, search, exerciseName, customName,
   onCategoryChange, onTierChange, onMovementPatternChange, onSearchChange, onExerciseChange, onCustomNameChange,
@@ -88,7 +93,7 @@ export function LiftCatalogChoice({
               aria-autocomplete="list"
               aria-expanded={resultsOpen}
               aria-controls={`${testPrefix}-results`}
-              aria-activedescendant={resultsOpen && options[highlightIndex] ? `${testPrefix}-option-${options[highlightIndex].name}` : undefined}
+              aria-activedescendant={resultsOpen && options[highlightIndex] ? optionDomId(testPrefix, highlightIndex) : undefined}
               aria-label="Search exercises"
               data-testid={`${testPrefix}-search`}
               value={search}
@@ -116,7 +121,7 @@ export function LiftCatalogChoice({
           {options.map((item, index) => (
             <div
               key={`${item.category}-${item.name}`}
-              id={`${testPrefix}-option-${item.name}`}
+              id={optionDomId(testPrefix, index)}
               role="option"
               aria-selected={item.name === exerciseName}
               data-testid={`${testPrefix}-result-${item.name}`}

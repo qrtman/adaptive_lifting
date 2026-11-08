@@ -1,0 +1,166 @@
+<!doctype html>
+<!--
+  DRAFT - NOT FINAL. This privacy policy is a plain-language draft and needs
+  review by the owner and a qualified legal advisor before it is relied on.
+  Replace every [PLACEHOLDER] (gartman.bekaali@gmail.com, [OPERATOR_NAME], [JURISDICTION],
+  [EFFECTIVE_DATE]) and confirm each statement still matches how the service runs.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Privacy Policy · Adaptive Lifting</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>
+    try {
+      var stored = localStorage.getItem('al_theme');
+      if (stored === 'dark' || stored === 'light') document.documentElement.dataset.theme = stored;
+    } catch (e) { /* No stored preference: follow the system setting. */ }
+  </script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --cal-canvas: #ffffff;
+      --cal-ink: #111111;
+      --cal-muted: #6b7280;
+      --cal-hairline: #e5e7eb;
+      --cal-surface-card: #f5f5f5;
+      --cal-accent: #007aff;
+      --cal-radius-md: 8px;
+      --cal-radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --cal-canvas: #101010;
+        --cal-ink: #ffffff;
+        --cal-muted: #a1a1aa;
+        --cal-hairline: rgba(255, 255, 255, 0.12);
+        --cal-surface-card: #1a1a1a;
+      }
+    }
+    :root[data-theme="dark"] {
+      --cal-canvas: #101010;
+      --cal-ink: #ffffff;
+      --cal-muted: #a1a1aa;
+      --cal-hairline: rgba(255, 255, 255, 0.12);
+      --cal-surface-card: #1a1a1a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--cal-canvas);
+      color: var(--cal-ink);
+      font: 16px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+    a { color: var(--cal-accent); overflow-wrap: anywhere; }
+    .back { font-size: 14px; color: var(--cal-muted); text-decoration: none; }
+    .back:hover { color: var(--cal-ink); }
+    h1 { font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; margin: 16px 0 4px; }
+    h2 { font-size: 17px; font-weight: 600; margin: 32px 0 8px; }
+    p, li { color: var(--cal-ink); }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { margin: 4px 0; }
+    .meta { font-size: 14px; color: var(--cal-muted); margin: 0; }
+    .draft {
+      margin: 20px 0 0;
+      padding: 12px 14px;
+      border: 1px solid var(--cal-hairline);
+      border-radius: var(--cal-radius-lg);
+      background: var(--cal-surface-card);
+      font-size: 14px;
+      color: var(--cal-muted);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 8px 0; }
+    th, td { text-align: left; vertical-align: top; padding: 8px 8px 8px 0; border-bottom: 1px solid var(--cal-hairline); }
+    th { font-weight: 600; }
+    footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--cal-hairline); font-size: 14px; color: var(--cal-muted); }
+    footer a { color: var(--cal-muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">&larr; Back to Adaptive Lifting</a>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective [EFFECTIVE_DATE]</p>
+    <p class="draft">Draft. This page is still being reviewed and may change before it takes effect.</p>
+
+    <h2>Who runs this</h2>
+    <p>Adaptive Lifting (app.goatedmethod.me) is a powerlifting planner run by [OPERATOR_NAME] ("we"). If you have a question about your data, email <a href="mailto:gartman.bekaali@gmail.com">gartman.bekaali@gmail.com</a>.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>We keep what the app needs to plan and log your training. Nothing else.</li>
+      <li>No ads. We do not sell your data or share it for marketing.</li>
+      <li>You can export your data and ask us to delete your account at any time.</li>
+    </ul>
+
+    <h2>What we store</h2>
+    <ul>
+      <li><strong>Account:</strong> your email address and a hash of your password. We never store the password itself.</li>
+      <li><strong>Training:</strong> your training plans, sessions, prescribed and logged sets, and notes you add to them.</li>
+      <li><strong>Optional readiness notes:</strong> bodyweight and HRV notes, only if you choose to enter them.</li>
+      <li><strong>Coach links:</strong> which coach is linked to which athlete, and when a link started or ended.</li>
+      <li><strong>Audit records:</strong> a log of important actions (sign-ins, plan changes, link changes, device and session revocations) so you and we can see who changed what.</li>
+    </ul>
+    <p>Bodyweight and HRV notes can relate to your health. Only add them if you are comfortable doing so; the app works without them.</p>
+
+    <h2>Why we use it</h2>
+    <ul>
+      <li>To run your account and keep you signed in securely.</li>
+      <li>To save, sync, and calculate your training (for example e1RM and other training metrics).</li>
+      <li>To let a coach you have linked view and edit your plan.</li>
+      <li>To send account emails such as email verification and password reset.</li>
+      <li>To keep the service secure and investigate problems.</li>
+    </ul>
+
+    <h2>Who can see your training</h2>
+    <p>Your training plan belongs to you. If you enter a coach's code, that coach gets shared access to view and edit your plan. When you unlink the coach, their access ends and your plan stays with you. We do not show your data to anyone else except as described below.</p>
+
+    <h2>Services we rely on</h2>
+    <p>We use a small number of providers to run the app. They process data on our behalf and only to provide their service.</p>
+    <table>
+      <thead><tr><th>Provider</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Supabase</td><td>Database and the server functions that handle sign-in and the app's API. Hosted in the Seoul region.</td></tr>
+        <tr><td>Cloudflare</td><td>Hosts the app and delivers it through its network. Also stores encrypted database backups (R2), kept for 30 days.</td></tr>
+        <tr><td>Resend</td><td>Sends transactional email, such as verification and password reset.</td></tr>
+      </tbody>
+    </table>
+    <p>Because these providers operate in several countries, your data may be processed outside the country you live in.</p>
+
+    <h2>How long we keep it</h2>
+    <p>We keep your data while your account is open. When we delete your account, it is removed from the live database. Copies in encrypted backups expire within 30 days.</p>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li><strong>Export:</strong> you can export your training data as CSV or JSON from the app.</li>
+      <li><strong>Delete:</strong> email <a href="mailto:gartman.bekaali@gmail.com">gartman.bekaali@gmail.com</a> from your account's email address to ask for your account to be deleted.</li>
+      <li><strong>Correct:</strong> you can edit your own plans and logs at any time.</li>
+      <li><strong>Unlink:</strong> you can end a coach's access from the Security page.</li>
+    </ul>
+    <p>Depending on where you live, you may have further rights under local law. Contact us and we will help.</p>
+
+    <h2>Cookies and local storage</h2>
+    <p>We use a sign-in cookie to keep you logged in and protect against forged requests. The app also stores data on your device so it can work offline and remember settings such as light or dark mode. We do not use advertising or tracking cookies.</p>
+
+    <h2>Security</h2>
+    <p>Data travels over HTTPS. Passwords are stored only as hashes. Backups are encrypted. You can see your active devices and sessions, and revoke them, on the Security page. No system is perfectly secure; if something goes wrong that affects you, we will tell you.</p>
+
+    <h2>Children</h2>
+    <p>Adaptive Lifting is not intended for children. Do not use it if you are under the age required to consent to data processing where you live.</p>
+
+    <h2>Changes</h2>
+    <p>If we change this policy, we will update the effective date above, and for significant changes we will let you know in the app or by email.</p>
+
+    <h2>Governing law</h2>
+    <p>This policy is governed by the laws of [JURISDICTION].</p>
+
+    <footer>
+      <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · <a href="mailto:gartman.bekaali@gmail.com">Support</a>
+    </footer>
+  </main>
+</body>
+</html>

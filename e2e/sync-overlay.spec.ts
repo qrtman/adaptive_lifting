@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { fillLogCell } from './helpers';
+import { fillLogCell, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function openSession(page: Page, request: APIRequestContext, title: string) {
   const email = `sync-overlay-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;

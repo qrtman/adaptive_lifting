@@ -1,8 +1,12 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator } from '@playwright/test';
-import { fillEditableCell } from './helpers';
+import { fillEditableCell, pinCalendarClock } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
+
+test.beforeEach(async ({ page }) => {
+  await pinCalendarClock(page);
+});
 
 async function typeCell(cell: Locator, value: string) {
   await cell.page().keyboard.press('Escape');

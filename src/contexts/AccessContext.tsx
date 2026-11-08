@@ -20,38 +20,56 @@ const AccessContext = createContext<AccessState | null>(null);
 
 export function AccessProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const isCoach = String(user?.role || '').toUpperCase() === 'COACH';
-  const [access, setAccess] = useState<WorkspaceAccess | null>(null);
-  const [status, setStatus] = useState<AccessStatus>('idle');
+  // Key on identity, not the user object: AuthContext re-creates the object
+  // (e.g. on reconnect), which must not wipe access that is already held.
+  const userId: string | null = user?.id ?? null;
+  const userRole = String(user?.role || '').toUpperCase();
+  const isCoach = userRole === 'COACH';
+  const [held, setHeld] = useState<{ userId: string; role: string; access: WorkspaceAccess } | null>(null);
+  const [fetchStatus, setFetchStatus] = useState<AccessStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
+  const heldKey = useRef<string | null>(null);
 
   const refreshAccess = useCallback(async () => {
     const currentRequestId = ++requestId.current;
-    if (!user) {
-      setAccess(null);
-      setStatus('idle');
+    const key = userId ? `${userId}|${userRole}` : null;
+    if (!key) {
+      heldKey.current = null;
+      setHeld(null);
+      setFetchStatus('idle');
       setError(null);
       return;
     }
-    setStatus('loading');
+    // Background refresh (e.g. after redeeming a voucher) keeps the last known
+    // access on screen instead of unmounting billing/access panels.
+    const background = heldKey.current === key;
+    if (!background) setFetchStatus('loading');
     setError(null);
     try {
       const nextAccess = await apiService.fetchAccountAccess();
       if (requestId.current !== currentRequestId) return;
-      setAccess(nextAccess);
-      setStatus('resolved');
+      heldKey.current = key;
+      setHeld({ userId: userId!, role: userRole, access: nextAccess });
+      setFetchStatus('resolved');
     } catch (err) {
       if (requestId.current !== currentRequestId) return;
-      setStatus('error');
+      // A failed background refresh keeps the held access; only report the error.
+      if (!background) setFetchStatus('error');
       setError(err instanceof Error ? err.message : 'Access status unavailable');
     }
-  }, [user]);
+  }, [userId, userRole]);
 
   useEffect(() => {
-    setAccess(null);
     void refreshAccess();
   }, [refreshAccess]);
+
+  // Access fetched for another user or role is never shown; treat it as loading.
+  const matches = !!held && held.userId === userId && held.role === userRole;
+  const access = matches ? held!.access : null;
+  const status: AccessStatus = !userId ? 'idle'
+    : matches ? 'resolved'
+    : fetchStatus === 'error' ? 'error' : 'loading';
 
   useEffect(() => {
     const onSaasError = (event: Event) => {

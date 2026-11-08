@@ -4,6 +4,7 @@ import { authRepository } from "./db/mod.ts";
 import { authenticate } from "./auth/session.ts";
 import type { Principal } from "./types/mod.ts";
 import { ApiError, jsonResponse } from "./errors/mod.ts";
+import { resolveClientIp } from "./clientIp.ts";
 
 type Json = Record<string, unknown>;
 type Fetcher = typeof fetch;
@@ -209,18 +210,16 @@ function voucherSecretIsIndependent(value: string, config: AppConfig): boolean {
     config.jwtCurrent, config.jwtPrevious, config.integrationEncryptionKey,
     config.stripeSecretKey, config.stripeWebhookSecret,
     config.offlineAuthPrivateKey, config.realtimeSigningJwk,
-    config.emailPayloadEncryptionKey,
+    config.emailPayloadEncryptionKey, config.clientIpSigningKey,
   ].filter((secretValue): secretValue is string => typeof secretValue === "string" && secretValue.length > 0);
   return !otherSecrets.some((secretValue) => secretValue === value);
 }
 
-function trustedVoucherClientIp(headers: Headers): string {
-  // Supabase's API gateway exposes cf-connecting-ip as the requester's address.
-  // Do not fall back to caller-controlled X-Forwarded-For values.
-  const value = headers.get("cf-connecting-ip")?.trim();
-  if (!value || value.length > 128 || /[\r\n,]/.test(value)) {
-    fail(503, "VOUCHER_UNAVAILABLE", "Voucher redemption is currently unavailable.");
-  }
+async function trustedVoucherClientIp(request: Request, config: AppConfig): Promise<string> {
+  // Shared resolver: Worker-signed visitor IP when verified, otherwise the
+  // Supabase ingress cf-connecting-ip. Never caller-controlled X-Forwarded-For.
+  const value = await resolveClientIp(request, config.clientIpSigningKey);
+  if (!value) fail(503, "VOUCHER_UNAVAILABLE", "Voucher redemption is currently unavailable.");
   return value;
 }
 
@@ -303,7 +302,7 @@ async function handleVoucher(request: Request, db: Database, principal: Principa
       !voucherSecretIsIndependent(key, config)) {
     fail(503, "VOUCHER_UNAVAILABLE", "Voucher redemption is currently unavailable.");
   }
-  const ip = trustedVoucherClientIp(request.headers);
+  const ip = await trustedVoucherClientIp(request, config);
   let limit: Json;
   try {
     limit = await rpc<Json>(db, "select al_private.al_voucher_rate_limit($1::text,$2::text) as payload", [principal.user.id, ip]);

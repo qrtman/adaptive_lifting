@@ -239,6 +239,7 @@ export function AthleteScopeSelector({
             <input
               id="athlete-scope-input"
               data-testid="athlete-scope-search"
+              aria-label="Search athletes"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
