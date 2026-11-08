@@ -72,7 +72,7 @@ test('flushing shows a fixed spinner then unmounts without shifting session-name
   await openSession(page, request, 'Overlay flush');
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Hip Dominant');
+  await page.getByTestId('add-lift-pattern-Hip Dominant').click();
   await page.getByTestId('add-lift-result-Deadlift').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Deadlift', exact: true })).toBeVisible();
