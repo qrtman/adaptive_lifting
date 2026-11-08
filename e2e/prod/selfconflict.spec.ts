@@ -62,6 +62,22 @@ test.describe('production self-conflict', () => {
       const sets: any[] = workout?.exercises?.[0]?.sets ?? [];
       expect(sets[0]?.plannedWeight, 'set 1 plan kg').toBe(90);
       expect(sets.some((s) => s.plannedWeight === 100 && s.actual === 102.5), 'new set has plan 100 and log 102.5').toBe(true);
+
+      // Production 2026-11-09 "Squatish": log one set, then change another set's log while
+      // that save is still in flight. Must merge, never ask.
+      const lastLog = (await logKg.count()) - 1;
+      await typeInto(logKg.nth(lastLog), 140);
+      await page.waitForTimeout(2_300); // first save leaves and is in flight
+      await typeInto(logKg.nth(0), 160);
+      await page.waitForTimeout(300);
+      await typeInto(logKg.nth(0), 170);
+      await expectQueueClean(page);
+      expect(conflicts, 'no sync conflict for our own edits (second round)').toBe(0);
+      await expect(page.getByText('Sync conflict needs review')).toHaveCount(0);
+      const res2 = await page.request.get('/api/microcycles', { headers: API_HEADERS });
+      const sets2: any[] = ((await res2.json()) as any[]).flatMap((c) => c.workouts ?? [])
+        .find((w: any) => w.title === TITLE)?.exercises?.[0]?.sets ?? [];
+      expect(sets2.map((s) => s.actual), 'both logs saved').toEqual(expect.arrayContaining([170, 140]));
     } finally {
       await context.close();
     }
