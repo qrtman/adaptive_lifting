@@ -1,6 +1,25 @@
 # Production status
 
-## Sessions block tabs — 2026-11-08 (CURRENT)
+## Fix: OVERLAPPING_BATCH_PATCH conflict on quick lift edits — 2026-11-08 (CURRENT)
+
+**CONFIRMED: deployed.** PR #56 merged (`e0edb46`); owner deployed Worker version `b8d28f27-6100-4542-b702-5ab43b43a863` (2026-11-08 14:44 UTC). Live bundle contains the fix.
+
+Reported by owner: "Sync conflict needs review · OVERLAPPING_BATCH_PATCH" on session "Squatish" (server Set 1 only; their edit Sets 1–3 at 160 kg × 5 @ RPE 6).
+
+Cause (client): an edit of a lift was queued while an earlier edit of the same lift was in flight or being re-based (more frequent since the self-conflict re-base fix); the next sync sent both in one batch, and the server rejects a second change to the same entity fields in one batch. The queue was also read in random order (random mutation ids).
+
+Fix:
+- `planSyncBatch` (`src/services/sync_engine.ts`): per entity, ordered by edit time, drop an older edit whose fields are all carried by the newest (only if strictly older); send non-overlapping edits oldest first and hold overlapping ones for the next run.
+- Per-tab strictly increasing `updated_at`; `deleteSupersededMutation` deletes only a PENDING/IN_FLIGHT row unchanged since planning.
+- "Use my edit" also offered for OVERLAPPING_BATCH_PATCH; clearer card copy.
+
+Verification: `tsc -b` clean; vitest 519 passed / 1 skipped (new `planSyncBatch` cases incl. the Squatish shape and timestamp ties); Codex: two P1s found and fixed (timestamp ties; merge-after-planning delete race), third pass "no blockers". After deploy, `e2e/prod/selfconflict.spec.ts` and `twodevice.spec.ts` PASS. "Squatish" on the server now has Squat 3 × (160 kg × 5).
+
+Known, not fixed (pre-existing, rare): an edit merged into a PENDING row between reading the queue and marking it IN_FLIGHT can be acked without its newest value.
+
+Still PENDING: server set order for 11+ sets needs a migration.
+
+## Sessions block tabs — 2026-11-08
 
 **CONFIRMED: deployed.** PR #54 merged (`fe02763`); owner deployed Worker version `240c6183-1732-46eb-adf7-08369830d06c` (2026-11-08 14:22 UTC). Live bundle contains the block tabs.
 
