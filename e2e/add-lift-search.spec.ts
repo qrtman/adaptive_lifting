@@ -38,7 +38,7 @@ test('empty search shows the catalog in a visible listbox', async ({ page, reque
   await expect(page.getByTestId('add-lift-search')).toBeFocused();
   await expect(page.getByTestId('add-lift-results')).toBeVisible();
   await expect(page.getByRole('option', { name: 'Squat', exact: true })).toBeVisible();
-  await expect(page.getByTestId('add-lift-confirm')).toBeDisabled();
+  await expect(page.getByTestId('add-lift-confirm')).toHaveCount(0);
 });
 
 test('typing bench shows Bench variants; click and Confirm adds the lift', async ({ page, request }) => {
@@ -58,15 +58,15 @@ test('typing bench shows Bench variants; click and Confirm adds the lift', async
 test('zzzz shows no catalog matches and disables Confirm', async ({ page, request }) => {
   await openAddLift(page, request);
   await page.getByTestId('add-lift-search').fill('zzzz');
-  await expect(page.getByTestId('add-lift-no-results')).toBeVisible();
-  await expect(page.getByTestId('add-lift-no-results')).toContainText('No catalog matches.');
   await expect(page.getByTestId('add-lift-results')).toBeVisible();
-  await expect(page.getByTestId('add-lift-confirm')).toBeDisabled();
+  await expect(page.getByTestId('add-lift-custom')).toBeVisible();
+  await expect(page.locator('[data-testid^="add-lift-result-"]')).toHaveCount(0);
+  await expect(page.getByTestId('add-lift-confirm')).toHaveCount(0);
 });
 
 test('Knee Dominant plus press is Leg Press not Bench', async ({ page, request }) => {
   await openAddLift(page, request);
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-search').fill('press');
   await expect(page.getByTestId('add-lift-result-Leg Press')).toBeVisible();
   await expect(page.getByRole('option', { name: 'Leg Press', exact: true })).toBeVisible();
@@ -77,13 +77,12 @@ test('Knee Dominant plus press is Leg Press not Bench', async ({ page, request }
 
 test('User Defined hides catalog results and ignores search', async ({ page, request }) => {
   await openAddLift(page, request);
-  await page.getByTestId('add-lift-search').fill('bench');
   await expect(page.getByTestId('add-lift-results')).toBeVisible();
-  await page.getByTestId('add-lift-category').selectOption('User Defined');
+  await page.getByTestId('add-lift-custom-start').click();
   await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
-  await expect(page.getByTestId('add-lift-no-results')).toHaveCount(0);
   await expect(page.getByTestId('add-lift-search')).toHaveCount(0);
   await expect(page.getByTestId('add-lift-custom-name')).toBeVisible();
+  await expect(page.getByTestId('add-lift-custom-name')).toBeFocused();
 });
 
 test('search results stay visible at 360px', async ({ page, request }) => {

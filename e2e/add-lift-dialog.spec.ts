@@ -43,21 +43,16 @@ test('catalog search supports selection, filtering, and keyboard dismissal', asy
   await search.fill('bench');
   await expect(page.getByRole('option', { name: 'Bench', exact: true })).toBeVisible();
   await page.getByTestId('add-lift-result-Bench').click();
-  await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
-  await expect(page.getByTestId('add-lift-selected-exercise')).toContainText('Bench');
+  await expect(page.getByTestId('add-lift-step-configure')).toBeVisible();
+  await expect(page.getByTestId('add-lift-preview')).toContainText('Bench');
   await expect(page.getByTestId('add-lift-confirm')).toBeEnabled();
 
-  await search.fill('close');
-  await expect(page.getByTestId('add-lift-results')).toBeVisible();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
-  await search.fill('press');
+  await page.getByTestId('add-lift-back').click();
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
+  await page.getByTestId('add-lift-search').fill('press');
   await expect(page.getByTestId('add-lift-result-Leg Press')).toBeVisible();
   await expect(page.getByTestId('add-lift-result-Bench')).toHaveCount(0);
-  await expect(page.getByTestId('add-lift-selected-exercise')).toContainText('Bench');
 
-  await page.getByTestId('add-lift-search').press('Escape');
-  await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
-  await expect(page.getByTestId('add-lift-dialog')).toBeVisible();
   await page.getByTestId('add-lift-search').press('Escape');
   await expect(page.getByTestId('add-lift-dialog')).toHaveCount(0);
   await expect(page.getByTestId('add-lift')).toBeFocused();
@@ -73,14 +68,14 @@ test('keyboard arrows and Enter select a catalog exercise', async ({ page, reque
   await expect(page.locator(`#${activeId}`)).toContainText('Front Squat');
   await search.press('Enter');
   await expect(page.getByTestId('add-lift-results')).toHaveCount(0);
-  await expect(page.getByTestId('add-lift-selected-exercise')).toContainText('Front Squat');
+  await expect(page.getByTestId('add-lift-preview')).toContainText('Front Squat');
 });
 
 test('User Defined requires a name and stores its movement pattern', async ({ page, request }) => {
   await openAddLift(page, request);
-  await page.getByTestId('add-lift-category').selectOption('User Defined');
-  await expect(page.getByTestId('add-lift-custom-name')).toBeVisible();
-  await page.getByTestId('add-lift-custom-name').fill('Cable Crunch');
+  await page.getByTestId('add-lift-search').fill('Cable Crunch');
+  await page.getByTestId('add-lift-custom').click();
+  await expect(page.getByTestId('add-lift-custom-name')).toHaveValue('Cable Crunch');
   await page.getByTestId('movement-pattern-add-lift').selectOption('Vertical Pull');
   const responsePromise = page.waitForResponse((response) => response.url().includes('/api/sessions/') && response.url().endsWith('/exercises') && response.request().method() === 'POST');
   await page.getByTestId('add-lift-confirm').click();
@@ -93,13 +88,15 @@ test('User Defined requires a name and stores its movement pattern', async ({ pa
 test('modifiers change the saved name and base lifts have no Competition modifier', async ({ page, request }) => {
   await openAddLift(page, request);
   await page.getByTestId('add-lift-result-Squat').click();
-  await expect(page.getByTestId('lift-name-Squat')).toHaveText('Squat');
+  await expect(page.getByTestId('add-lift-preview')).toHaveText('Squat');
   await expect(page.getByRole('button', { name: 'Competition', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'High Bar', exact: true }).click();
-  await page.getByLabel('Eccentric').fill('2');
-  await page.getByRole('button', { name: 'Deficit', exact: true }).click();
-  await page.getByRole('button', { name: 'Beltless', exact: true }).click();
-  await expect(page.getByTestId('lift-name-Squat')).toHaveText('Beltless Deficit High Bar Squat (2-0-1)');
+  await page.getByTestId('lift-bar-High Bar').click();
+  await page.getByTestId('lift-tempo').fill('2-0-1');
+  await page.getByTestId('lift-tempo').press('Enter');
+  await page.getByTestId('lift-rom-Deficit').click();
+  await page.getByTestId('lift-gear-Beltless').click();
+  await expect(page.getByTestId('add-lift-preview')).toHaveText('Beltless Deficit High Bar Squat (2-0-1)');
+  await expect(page.getByTestId('add-lift-tier-Variation')).toHaveAttribute('aria-checked', 'true');
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Beltless Deficit High Bar Squat (2-0-1)', exact: true })).toBeVisible();
 });
@@ -121,11 +118,11 @@ test('Edit keeps a blank User Defined name visible and prevents saving', async (
   await expect(page.getByRole('heading', { name: 'Tempo Squat', exact: true })).toBeVisible();
 });
 
-test('no results disable confirm and save errors stay in the dialog', async ({ page, request }) => {
+test('no catalog match offers a custom lift and save errors stay in the dialog', async ({ page, request }) => {
   await openAddLift(page, request);
   await page.getByTestId('add-lift-search').fill('zzzz');
-  await expect(page.getByTestId('add-lift-no-results')).toContainText('No catalog matches.');
-  await expect(page.getByTestId('add-lift-confirm')).toBeDisabled();
+  await expect(page.getByTestId('add-lift-custom')).toContainText('Add “zzzz” as a custom lift');
+  await expect(page.getByTestId('add-lift-confirm')).toHaveCount(0);
   await page.getByTestId('add-lift-search').fill('squat');
   await page.getByTestId('add-lift-result-Squat').click();
   await page.route('**/api/sessions/*/exercises', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Save failed' }) }));

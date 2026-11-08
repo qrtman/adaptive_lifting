@@ -32,6 +32,7 @@ export function CenteredDialog({
   children,
   footer,
   testId,
+  fixedHeight = false,
 }: {
   title: string;
   subtitle?: string;
@@ -40,6 +41,8 @@ export function CenteredDialog({
   children: ReactNode;
   footer: ReactNode;
   testId?: string;
+  /** Keep one height across steps/results so the dialog does not jump while you type. */
+  fixedHeight?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -94,7 +97,7 @@ export function CenteredDialog({
         initial={false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-        className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-3 sm:max-h-[85dvh] sm:p-[var(--cal-space-md)] cal-card-outer"
+        className={`relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col ${fixedHeight ? 'h-[min(36rem,calc(100dvh-1rem))] sm:h-[min(36rem,85dvh)]' : ''} overflow-hidden bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-3 sm:max-h-[85dvh] sm:p-[var(--cal-space-md)] cal-card-outer`}
       >
         <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
           <div>

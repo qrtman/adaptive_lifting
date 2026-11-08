@@ -31,7 +31,7 @@ test('Sheets-parity: click selects; Tab kgâ†’reps; Enter down same column; PLANâ
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();

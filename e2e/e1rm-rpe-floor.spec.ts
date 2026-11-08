@@ -37,7 +37,7 @@ test('LOG e1RM: 150×6 @5 > @6 > @7, @4 equals @5, empty RPE is load', async ({ 
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();

@@ -41,7 +41,7 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
@@ -131,7 +131,7 @@ test('offers plan kg update after a log when later plan kg is already filled', a
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
@@ -191,7 +191,7 @@ test('set grid headers sit on kg/reps/RPE; \u0394% is e1RM percent; Adj is gone'
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();
@@ -278,7 +278,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   await card.locator('button').first().click();
 
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption('Knee Dominant');
+  await page.getByTestId('add-lift-pattern-Knee Dominant').click();
   await page.getByTestId('add-lift-result-Squat').click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByRole('heading', { name: 'Squat', exact: true })).toBeVisible();

@@ -33,7 +33,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   const addNamedLift = async (category: string, exercise: string) => {
     await page.getByTestId('add-lift').click();
-    await page.getByTestId('movement-pattern-add-lift').selectOption(category);
+    await page.getByTestId(`add-lift-pattern-${category}`).click();
     await page.getByTestId(`add-lift-result-${exercise}`).click();
     await page.getByTestId('add-lift-confirm').click();
     await expect(page.getByRole('heading', { name: exercise, exact: true })).toBeVisible();

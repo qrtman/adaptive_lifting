@@ -84,7 +84,7 @@ async function expectSessionHeaderHierarchy(page: Page) {
 
 async function addCatalogLift(page: Page, category: string, exercise: string) {
   await page.getByTestId('add-lift').click();
-  await page.getByTestId('movement-pattern-add-lift').selectOption(category);
+  await page.getByTestId(`add-lift-pattern-${category}`).click();
   await page.getByTestId(`add-lift-result-${exercise}`).click();
   await page.getByTestId('add-lift-confirm').click();
   await expect(page.getByTestId('add-lift-dialog')).toHaveCount(0);
