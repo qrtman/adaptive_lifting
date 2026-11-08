@@ -53,8 +53,9 @@ test.describe('production two devices', () => {
       if (outcome === 'conflict') {
         // SyncContext wraps each ConflictReviewCard in a .shadow-2xl div (no testid yet).
         const card = A.locator('div.shadow-2xl').filter({ has: keepServer }).first();
-        await expect(card).toContainText(/Server ·/);
-        await expect(card).toContainText(exactNumber(120));
+        await expect(card).toContainText(/Server has.*Log 120.*Your edit.*Log 110/);
+        await expect(card.getByRole('button', { name: /Use my edit/i })).toBeVisible();
+        A.once('dialog', (d) => d.accept()); // "Keep the current server values?" confirm
         await keepServer.click();
         await expect(A.getByRole('button', { name: /Keep Server/i })).toHaveCount(0, { timeout: 15_000 });
       }
