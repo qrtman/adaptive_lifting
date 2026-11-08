@@ -145,3 +145,83 @@ export function overlayQueuedExerciseSets<T>(data: T, queued: QueuedSetsEdit[]):
     };
   }) as T;
 }
+
+const MERGE_FIELDS = [
+  'label', 'scope', 'plannedWeight', 'plannedReps', 'plannedRpe', 'intensityType',
+  'dropPercent', 'actual', 'reps', 'executedRpe',
+] as const;
+
+export type SetMergeResult =
+  | { ok: true; sets: SyncSet[] }
+  | { ok: false; reason: string };
+
+type Indexed = { raw: Record<string, any>; index: number };
+
+function indexById(list: unknown[]): Map<unknown, Indexed> | null {
+  const map = new Map<unknown, Indexed>();
+  list.forEach((row, index) => map.set((row as any)?.id, { raw: (row ?? {}) as Record<string, any>, index }));
+  return map.size === list.length && !map.has(undefined) ? map : null;
+}
+
+const valuesOf = (entry: Indexed) => setTrainingValues(entry.raw, entry.index);
+
+/**
+ * Three-way merge of a lift's sets after a STALE_REVISION: `base` is what the edit started
+ * from, `mine` is the edit, `server` is the current server copy. Sets match by id.
+ * - A field takes my value if I changed it from base, otherwise the server's value.
+ * - Both sides changing the same field of the same set to different values is a conflict.
+ * - Sets I added stay; sets the server added are kept after mine; a set deleted on one side
+ *   is dropped unless the other side changed it (then it is a conflict).
+ * Order follows my list; `isTop` is re-derived from position by `toSyncSet`.
+ */
+export function mergeSetLists(base: unknown, mine: unknown, server: unknown): SetMergeResult {
+  if (!Array.isArray(base) || !Array.isArray(mine) || !Array.isArray(server)) return { ok: false, reason: 'missing set lists' };
+  const B = indexById(base);
+  const M = indexById(mine);
+  const S = indexById(server);
+  if (!B || !M || !S) return { ok: false, reason: 'set ids missing or repeated' };
+
+  const merged: Record<string, any>[] = [];
+  for (const [id, m] of M) {
+    const b = B.get(id);
+    const s = S.get(id);
+    const mine = toSyncSet(m.raw, m.index);
+    if (!s) {
+      // Not on the server: either I added it, or the server deleted it.
+      if (b && !sameSetValues(valuesOf(b), valuesOf(m))) return { ok: false, reason: 'set deleted on the server was edited here' };
+      if (!b) merged.push(mine);
+      continue;
+    }
+    if (!b) {
+      // On both sides but not in the base: no way to tell who changed what, so only an
+      // identical copy merges; anything else is reviewed rather than overwriting the server.
+      if (!sameSetValues(valuesOf(m), valuesOf(s))) return { ok: false, reason: 'set added on both sides differs' };
+      merged.push(mine);
+      continue;
+    }
+    const bv = valuesOf(b);
+    const mv = valuesOf(m);
+    const sv = valuesOf(s);
+    const theirs = toSyncSet(s.raw, s.index);
+    const out: Record<string, any> = { ...mine };
+    for (const field of MERGE_FIELDS) {
+      const mineChanged = (mv[field] ?? null) !== (bv[field] ?? null);
+      const serverChanged = (sv[field] ?? null) !== (bv[field] ?? null);
+      if (mineChanged && serverChanged && (mv[field] ?? null) !== (sv[field] ?? null)) {
+        return { ok: false, reason: `both changed ${String(field)} of a set` };
+      }
+      if (!mineChanged) out[field] = (theirs as any)[field];
+    }
+    merged.push(out);
+  }
+  for (const [id, b] of B) {
+    if (M.has(id)) continue;
+    const s = S.get(id);
+    // I deleted it; keep the deletion unless the server changed that set meanwhile.
+    if (s && !sameSetValues(valuesOf(b), valuesOf(s))) return { ok: false, reason: 'set deleted here was edited on the server' };
+  }
+  for (const [id, s] of S) {
+    if (!B.has(id) && !M.has(id)) merged.push(toSyncSet(s.raw, s.index));
+  }
+  return { ok: true, sets: merged.map((row, index) => toSyncSet(row, index)) };
+}

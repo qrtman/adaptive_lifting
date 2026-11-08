@@ -4,7 +4,7 @@ import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
 import { API_BASE_URL } from './apiBase';
 import { IS_FRESH_PRODUCTION_CLIENT } from './clientDataBoundary';
-import { setListsMatch } from './setSyncShape';
+import { mergeSetLists, setListsMatch } from './setSyncShape';
 
 let syncTimeout: number | null = null;
 let insightSyncTimeout: number | null = null;
@@ -188,7 +188,7 @@ function scheduleInsightCardSync(accountId?: string) {
   }, SYNC_DEBOUNCE_MS);
 }
 
-const MAX_SELF_CONFLICT_REBASES = 3;
+const MAX_SELF_CONFLICT_REBASES = 5;
 
 const sameValue = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
 
@@ -216,6 +216,28 @@ export function isSelfConflict(mutation: SyncMutation, conflict: Record<string, 
     && (key === 'sets' ? setsMatch(base[key], server[key]) : sameValue(base[key], server[key])));
 }
 
+/**
+ * For a STALE_REVISION on a lift's sets, the fields to resend on top of the server copy:
+ * a three-way merge of (what the edit started from, the edit, the server copy). Returns
+ * null when it cannot merge safely; then the conflict goes to review.
+ */
+export function mergeForResend(mutation: SyncMutation, conflict: Record<string, any>): Record<string, any> | null {
+  if (conflict?.reason !== 'STALE_REVISION') return null;
+  const serverRevision = conflict.server_revision;
+  if (!Number.isSafeInteger(serverRevision) || serverRevision <= (mutation.base_revision ?? 0)) return null;
+  const base = mutation.base_fields;
+  const server = conflict.server_fields;
+  const fields = mutation.fields || {};
+  if (!base || typeof base !== 'object' || !server || typeof server !== 'object') return null;
+  if (isSelfConflict(mutation, conflict)) return fields;
+  if (mutation.entity_type !== 'Exercise' || !Array.isArray(fields.sets)) return null;
+  // Any other field on the lift must still be as the edit started from.
+  const others = Object.keys(fields).filter((key) => key !== 'sets');
+  if (!others.every((key) => key in base && key in server && sameValue(base[key], server[key]))) return null;
+  const merged = mergeSetLists(base.sets, fields.sets, server.sets);
+  return merged.ok ? { ...fields, sets: merged.sets } : null;
+}
+
 async function rebaseSelfConflicts(
   pending: SyncMutation[],
   conflicts: any[],
@@ -224,7 +246,11 @@ async function rebaseSelfConflicts(
   const rebased: SyncMutation[] = [];
   for (const conflict of conflicts) {
     const mutation = pending.find(item => item.mutation_id === conflict?.mutation_id);
-    if (mutation && (mutation.rebase_count ?? 0) < MAX_SELF_CONFLICT_REBASES && isSelfConflict(mutation, conflict)) {
+    const resend = mutation && (mutation.rebase_count ?? 0) < MAX_SELF_CONFLICT_REBASES
+      ? mergeForResend(mutation, conflict)
+      : null;
+    if (mutation && resend) {
+      mutation.fields = resend;
       mutation.base_revision = conflict.server_revision;
       mutation.base_fields = conflict.server_fields;
       mutation.rebase_count = (mutation.rebase_count ?? 0) + 1;
@@ -421,10 +447,33 @@ export function planSyncBatch(pending: SyncMutation[]): {
   return { send, superseded: [...superseded], deferred };
 }
 
+const syncRuns = new Map<string, Promise<any[]>>();
+const syncRerun = new Set<string>();
+
+/**
+ * One sync request per session at a time. A second request would wait on the server lock
+ * and then fail the lift's exact version check against the first one's write. Edits made
+ * meanwhile stay PENDING (and coalesce); the session syncs again once the run finishes.
+ */
 export async function processSyncQueue(workout_id: string, accountId?: string): Promise<any[]> {
   if (workout_id === LEGACY_INSIGHT_CARD_WORKOUT_ID) {
     return processInsightCardSync(accountId);
   }
+  if (syncRuns.has(workout_id)) {
+    syncRerun.add(workout_id);
+    return [];
+  }
+  const run = runSyncQueue(workout_id, accountId);
+  syncRuns.set(workout_id, run);
+  try {
+    return await run;
+  } finally {
+    syncRuns.delete(workout_id);
+    if (syncRerun.delete(workout_id) && typeof window !== 'undefined') scheduleSync(workout_id, accountId);
+  }
+}
+
+async function runSyncQueue(workout_id: string, accountId?: string): Promise<any[]> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
 
   const pendingAll = await getPendingMutations(undefined, accountId);

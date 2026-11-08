@@ -446,8 +446,18 @@ describe('self-inflicted STALE_REVISION conflicts', () => {
     expect(setTimeoutSpy).toHaveBeenCalled();
   });
 
-  it('still parks a genuine conflict for review', async () => {
+  it('merges a server change to a different field instead of asking', async () => {
+    // Server changed the logged weight; this edit only adds the RPE: both survive.
     const conflict = staleConflict([set({ actual: 120 })]);
+    const { conflicts, row } = await flushWith({ conflicts: [conflict], accepted_mutation_ids: [] }, baseMutation());
+    expect(conflicts).toEqual([]);
+    expect(row).toMatchObject({ status: 'PENDING', base_revision: 5 });
+    expect(row.fields.sets[0]).toMatchObject({ actual: 120, executedRpe: 8 });
+  });
+
+  it('still parks a genuine conflict for review', async () => {
+    // Both sides changed the same field of the same set to different values.
+    const conflict = staleConflict([set({ executedRpe: 9 })]);
     const { conflicts, row, setTimeoutSpy, updateMutationConflict } = await flushWith({ conflicts: [conflict], accepted_mutation_ids: [] }, baseMutation());
     expect(conflicts).toHaveLength(1);
     expect(updateMutationConflict).toHaveBeenCalledTimes(1);
@@ -458,7 +468,7 @@ describe('self-inflicted STALE_REVISION conflicts', () => {
   it('stops re-basing after repeated attempts', async () => {
     const { conflicts, row } = await flushWith(
       { conflicts: [staleConflict([set()])], accepted_mutation_ids: [] },
-      { ...baseMutation(), rebase_count: 3 },
+      { ...baseMutation(), rebase_count: 5 },
     );
     expect(conflicts).toHaveLength(1);
     expect(row.status).toBe('CONFLICTED');
@@ -512,3 +522,45 @@ describe('planSyncBatch: never send two overlapping edits of one entity together
     expect(plan.deferred).toHaveLength(1);
   });
 });
+
+describe('single-flight sync per session', () => {
+  it('never sends a second request for a session while one is in flight, and runs again after', async () => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    const queue: SyncMutation[] = [{
+      mutation_id: 'm1', client_device_id: 'dev-1', workout_id: 'w-a', entity_type: 'Exercise', entity_id: 'e-1',
+      field_path: 'ALL', fields: { sets: [] }, base_revision: 1, updated_at: '2026-11-09T00:00:00.000Z', status: 'PENDING', retry_count: 0,
+    }];
+    vi.doMock('./db', () => ({
+      getPendingMutations: async () => queue.filter((row) => row.status === 'PENDING' || row.status === 'IN_FLIGHT'),
+      updateMutationStatus: vi.fn(async (id: string, status: string) => {
+        const row = queue.find((item) => item.mutation_id === id);
+        if (row) row.status = status as SyncMutation['status'];
+      }),
+      saveMutation: vi.fn(async () => {}),
+      updateMutationConflict: vi.fn(async () => {}),
+      deleteSupersededMutation: vi.fn(async () => {}),
+    }));
+    vi.doMock('../storage/uiPrefs', () => ({
+      UI_KEYS: { deviceId: 'al_client_device_id' }, getUiPref: () => 'dev-1', setUiPref: () => {},
+    }));
+    const setTimeoutSpy = vi.fn(() => 1);
+    vi.stubGlobal('window', { setTimeout: setTimeoutSpy, clearTimeout: vi.fn(), dispatchEvent: vi.fn() });
+    vi.stubGlobal('navigator', { onLine: true });
+    let release!: () => void;
+    const fetchMock = vi.fn(() => new Promise((resolve) => {
+      release = () => resolve({ ok: true, status: 200, json: async () => ({ accepted_mutation_ids: ['m1'], conflicts: [], math_version: MATH_VERSION }) });
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { processSyncQueue } = await import('./sync_engine');
+
+    const first = processSyncQueue('w-a');
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(await processSyncQueue('w-a')).toEqual([]); // skipped, not sent
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    release();
+    await first;
+    expect(setTimeoutSpy).toHaveBeenCalled(); // the skipped run happens after
+  });
+});
+
