@@ -11,6 +11,7 @@ describe('production PWA update handling', () => {
     const container = {
       addEventListener: vi.fn((type: string, listener: EventListener) => listeners.set(type, listener)),
       register: vi.fn().mockResolvedValue(registration),
+      controller: {},
     } as unknown as ServiceWorkerContainer;
     const reload = vi.fn();
     let onLoad: EventListener | undefined;
@@ -26,6 +27,19 @@ describe('production PWA update handling', () => {
     controllerChange?.(new Event('controllerchange'));
     controllerChange?.(new Event('controllerchange'));
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('does not reload a first-time visitor when the worker first takes control', () => {
+    const listeners = new Map<string, EventListener>();
+    const container = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => listeners.set(type, listener)),
+      register: vi.fn().mockResolvedValue({ scope: '/', update: vi.fn() }),
+      controller: null,
+    } as unknown as ServiceWorkerContainer;
+    const reload = vi.fn();
+    registerAppServiceWorker(container, { location: { reload } }, true, { addEventListener: vi.fn() });
+    listeners.get('controllerchange')?.(new Event('controllerchange'));
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it('keeps staging service-worker registration behavior unchanged', async () => {

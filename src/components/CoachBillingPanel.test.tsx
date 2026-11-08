@@ -101,7 +101,8 @@ describe('CoachBillingPanel', () => {
   it('renders server prices and starts a single owner checkout attempt', async () => {
     await render();
     expect(container.textContent).toContain('Starter');
-    expect(container.textContent).toContain('$29.00 / month');
+    const price = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(29);
+    expect(container.textContent).toContain(`${price} / month`);
     expect(container.textContent).toContain('5 athletes');
     const button = [...container.querySelectorAll('button')].find(el => el.textContent?.includes('Choose Starter'))!;
     await act(async () => { button.click(); });

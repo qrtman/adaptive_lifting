@@ -1,6 +1,152 @@
 # Production status
 
-## Hostname cutover — 2026-11-08 (CURRENT)
+## Untested-areas pass — 2026-11-08 (CURRENT)
+
+Latest Worker version `c7f2c2ae-d44e-48c8-a6fe-2db90164aa15` (owner-approved deploy) adds the
+phone session-card fix below. Earlier versions in this section: `bf948840-...`, `2d9c2c2d-...`,
+`47140e32-...`.
+
+- **Session-card text overlap on phones (FIXED, DEPLOYED, verified on production):** with a
+  logged set the Plan/Log columns shrank to 0 width and the non-wrapping text ("182.5 x 5")
+  ran over the e1RM/Tonnage column. Columns now use `minmax(min-content, ...)` in
+  `src/components/SessionsView.tsx`. Verified in a fresh 360 px browser: card 276 px wide, no
+  overlapping or overflowing children, no page-level horizontal scroll. Desktop card unchanged.
+  Note: the phone sidebar default only applies to browsers with no stored preference; a phone
+  that already opened the app keeps its stored (expanded) sidebar until the user collapses it.
+- **Realtime (DECIDED: stays off, not a launch dependency):** the web client contains no Realtime
+  subscription code (no websocket or channel use; only server-side token issuance and tests exist),
+  so turning on `REALTIME_TOKENS_ENABLED` would change nothing for users. Cross-device sync works
+  through the pull/sync path (verified with two devices above), and conflicts are surfaced.
+  Revisit only if live push is wanted: it needs client subscription code plus the signing-key
+  setup, token issuance, private-subscription and revocation tests listed under PENDING below.
+- **DNS record `app` (NOT CHANGED, needs owner action):** still a proxied CNAME to the deleted
+  tunnel; harmless because the Worker route answers the hostname. The Wrangler login has no DNS
+  scope, and an attempt to attach the Worker as a Custom Domain (which would replace the record)
+  was refused by the permission classifier. To tidy: set `app.goatedmethod.me` to a proxied
+  `A 192.0.2.1` in the dashboard (do not delete it), or add a DNS-Edit token as
+  `CF_DNS_API_TOKEN` in `.env` so it can be done and verified from here.
+
+Worker version `bf948840-afb3-4e65-b28f-6385761df7a4` (deployed with the owner's
+explicit approval) ships the offline first-visit precache, the collapsed phone sidebar,
+the card-menu fix and the foreign-cookie strip. Verified on production with Playwright:
+360 px viewport starts with `data-sidebar=collapsed` and 300 px content width; a first
+visit followed by offline reopen shows the sign-in screen (2 `/assets` files precached);
+no `Domain=supabase.co` Set-Cookie reaches the browser; the first-row card menu's Delete
+passes click actionability. Test sessions deleted afterwards.
+
+Browser checks against https://app.goatedmethod.me with the E2E account (service
+worker allowed, which real users always have; the earlier smoke test blocked it).
+
+- **FIXED and DEPLOYED (Worker version `47140e32-2b9f-48f3-a235-89bfe30e485c`):**
+  first-time visitors could lose their sign-in. On a first visit the new service
+  worker took control and `registerAppServiceWorker` reloaded the page 1-2 s in,
+  wiping the form or aborting a sign-in in flight. Measured before: 3/6 logins
+  failed with the service worker on, 6/6 ok with it blocked. After: 6/6 ok both.
+  Fix: reload on `controllerchange` only when a previous worker was already
+  controlling the tab (`src/services/serviceWorkerRegistration.ts`, test added;
+  returning users keep the update reload).
+- **PWA:** manifest `/manifest.webmanifest` serves 200; service worker registers
+  and activates with scope `/`.
+- **FIXED and DEPLOYED (Worker version `2d9c2c2d-7bda-4c65-8d63-6f39de8368e6`):
+  offline sign-in.** Closing the app and reopening it with no network used to show
+  the sign-in screen because production had no offline-grant keys. Set Edge secret
+  `OFFLINE_AUTH_PRIVATE_KEY` (fresh P-256 key, generated and set by a script that
+  printed nothing; no copy kept, the server only needs it there) and built with
+  `VITE_OFFLINE_AUTH_PUBLIC_KEY` read from the gitignored `.env.production`. Verified
+  on production: `/api/auth/me` returns `offlineGrant`, and after sign-in plus one
+  online reload, a closed-and-reopened app with the network off shows the signed-in
+  app. **If the key is ever rotated, set the new private secret and rebuild with the
+  matching public key in `.env.production`, or offline sign-in silently stops.**
+  Grants last up to 24 h by design.
+- **KNOWN GAP:** a brand-new visitor who goes offline before any second online
+  visit sees a blank page, because the service worker only caches files it fetched
+  itself and the first page load happens before it takes control. Fix would be to
+  precache the built asset files in `public/sw.js`.
+- **KNOWN GAP (FIXED, DEPLOYED and verified):** a brand-new visitor who goes offline
+  before any second online visit saw a blank page. `public/sw.js` now precaches the
+  `/assets/*` files named in `index.html` at install time.
+- **Mobile layout (FIXED, DEPLOYED and verified):** at 360/390 px the desktop sidebar
+  used about 60% of the width. On a first visit with a viewport under 768 px the
+  sidebar now starts collapsed (`src/App.tsx`); a stored user choice still wins.
+- **Session-card menu clipped (FIXED, DEPLOYED and verified):** the "..." menu's
+  Delete item was hidden behind the next row of cards. The card holding an open
+  menu now gets `z-30` (`src/components/SessionsView.tsx`).
+- **Two devices, same account (VERIFIED on production):** device B sees device A's
+  work; A edits offline while B edits online, then A reconnects: server answers 409
+  `STALE_REVISION`, A shows the "Sync conflict needs review" dialog (server vs your
+  edit, Keep Server / Export my edit, the offline edit stays saved on the device),
+  and both devices end on the server value. Note: the dialog shows raw JSON, which
+  is not coach-friendly (UI follow-up).
+- **Test data:** all `E2E smoke*` sessions were deleted afterwards.
+- **Billing test** no longer depends on the machine locale (`CoachBillingPanel.test.tsx`).
+- **Coach-athlete linking (VERIFIED on production, owner-approved test data):** with a
+  throwaway coach account that had a 1-day `coach_starter` access grant: coach generated a
+  6-character code; athlete entered it and linked; coach roster showed the athlete; coach
+  created a session on the athlete's plan and the athlete saw it; athlete unlinked, coach
+  roster no longer showed the athlete, athlete kept the session ("plan stays with the
+  athlete"). All test sessions, the coach account, workspace, membership, grant, invite
+  code, relationship and history snapshot were deleted afterwards (production back to
+  1 user). The test coach's `E2E_COACH_*` lines were removed from `.env`.
+- **DECIDED and VERIFIED, coach access = vouchers (owner chose vouchers over Stripe):**
+  Created Vault secrets `adaptive_lifting_voucher_code_secret` (random 64 hex chars, no
+  copy kept) and `adaptive_lifting_voucher_billing_enabled=true`, and set Edge secret
+  `VOUCHER_BILLING_ENABLED=true` (the Edge value overrides Vault; it was off, so redeem
+  returned 503 `VOUCHER_UNAVAILABLE`). Proven end to end on production with a throwaway
+  coach: register, operator verify + promote, operator-issued 1-day voucher, redeemed in
+  Security, Generate code enabled and an invite code created. All test rows deleted.
+  Stripe stays off (`STRIPE_BILLING_ENABLED` false); `/api/billing/plans` 503 is expected.
+  **Operator procedure to onboard a coach** (run with `supabase db query --linked --yes`
+  from outside the repo directory, see the `.env` note below):
+  1. Coach registers and verifies their email in the app.
+  2. `select al_private.al_operator_promote_coach('<email>');`
+  3. `select al_private.al_billing_operator_create_voucher('<email>','coach_starter',<days>,<valid_days>,'<payment ref>','<notes>');`
+     returns the one-time code (`VCH-XXXXX-XXXXX-XXXXX-XXXXX`); deliver it securely, it is
+     not stored in plaintext and cannot be shown again.
+  4. Coach pastes it under Security, Billing, "Have a voucher?", then reloads the page.
+  Known UI nit: right after redeeming, the page still shows "Coaching access inactive"
+  until a reload.
+- **Dead Tunnel (DONE):** deleted tunnel `adaptive-lifting-prod` (was down, 0 connections);
+  site still 200, `/api/auth/me` 401 when signed out. Do NOT delete DNS record `app`: the
+  Worker route needs a proxied record for the hostname. It is now a proxied CNAME to the
+  deleted tunnel and is harmless. Optional tidy-up needs a DNS-Edit token (the Wrangler
+  login cannot edit DNS): change it to a proxied `A 192.0.2.1` placeholder.
+- **Registration:** the owner chose to keep it open (athletes can sign up and log now).
+- **Stray Supabase cookie (FIXED, DEPLOYED and verified):** the Worker now drops upstream
+  `Set-Cookie` headers scoped to `Domain=supabase.co` (`__cf_bm`), which browsers reject
+  anyway. Test added in `cloudflare/worker.test.ts`; it fails without the change.
+
+## Database backups — 2026-11-08
+
+**CONFIRMED:** Daily encrypted backup is live and a restore was proven.
+
+- Workflow `.github/workflows/db-backup.yml` (PR #48), daily 03:17 UTC and
+  `workflow_dispatch`, runs under environment `production-recovery`. It does
+  `pg_dump` (PG17 client, custom format, schemas `public`, `al_private`,
+  `supabase_migrations`, `auth`) over the Session Pooler with `verify-full`,
+  streams it into `age` (recipient = repo variable `RECOVERY_AGE_RECIPIENT`),
+  uploads to R2 and deletes backups older than 30 days. No unencrypted file is
+  written. This replaces the unused, inventory-gated `recovery-daily-backup.yml.template`
+  pipeline for now.
+- R2 location: bucket `adaptive-lifting-production-recovery`, key
+  `production/gadusaizqnshxqcckibq/recovery/daily/db-<UTC stamp>.dump.age`.
+  The R2 keys cannot write to `goatedmethod-production-backups` (AccessDenied),
+  so environment variable `RECOVERY_R2_BUCKET` was changed to the recovery bucket.
+- `production-recovery` no longer has a required reviewer (so scheduled runs are
+  unattended); the `main`-only branch policy remains.
+- First run: ~657 KB encrypted. Restore drill (`scripts/recovery/restore-drill.sh`):
+  decrypted with the owner's private key (matches the repo recipient) and restored
+  into PostgreSQL 17 in Docker; row counts match production (users 1, workouts 12,
+  exercise_sets 10, sync_mutations 14). Only error: `schema "public" already exists`
+  (harmless). `auth.users` is 0, the app uses `public.users`.
+- Not in the dump: Supabase Vault secrets, Edge Function secrets, Cloudflare
+  settings, Resend config. Recreate by hand after a disaster.
+- The age private key lives only in the owner's gitignored `.env` (plus whatever
+  copy the owner keeps). Losing it makes all backups unreadable.
+- Known gap: the Supabase CLI cannot parse `.env` while it holds a bare
+  `AGE-SECRET-KEY-1…` line; run it with `--workdir` from another directory, or move
+  the key out of `.env`.
+
+## Hostname cutover — 2026-11-08
 
 **CONFIRMED:** Owner-authorized deploy of Worker `adaptive-lifting-production`
 (account `05a07c48f5e8e3afb784e11931502508`) with the exact route
