@@ -1,5 +1,76 @@
 # Production status
 
+## Production rollout of launch-gap branch — 2026-11-08 (CURRENT)
+
+**CONFIRMED:** Owner-authorized ("go production") rollout from branch `ux-and-prod-smoke` (commit c1ca390 plus the uncommitted status-doc edits) to production project `gadusaizqnshxqcckibq` and Worker `adaptive-lifting-production`.
+
+Steps, in order:
+1. Pre-migration backup: manual `db-backup.yml` run 42476078997 — success.
+2. Local gates: `tsc -b` clean; vitest 504 passed / 1 skipped; `validate-production-config` PASS (66 migrations).
+3. `supabase db push` applied 20261108120000_password_reset_change, 20261108130000_auth_login_account_limit, 20261108140000_coach_code_link_hardening. Vault secret `adaptive_lifting_coach_code_hmac_key` present. Run from a scratch copy of `supabase/` because the CLI cannot parse the repo `.env` (bare age key line).
+4. New `CLIENT_IP_SIGNING_KEY` generated once and set on Edge secrets and the production Worker (never printed; temp file deleted). Note: the first Edge attempt failed (`secrets set` does not accept `--linked`), so the key was regenerated and set on both sides again; they match.
+5. Edge functions `api` and `email-verification-worker` deployed.
+6. `npm run build:production` (PASS incl. staging/private-marker scan), Wrangler dry-run, then deploy with the cutover config. Active Worker version `4201cac7-bf48-4e22-82f7-3ef7aa8bd4c5`, route `app.goatedmethod.me/*`. The generated `wrangler.production.local.jsonc` was deleted after deploy.
+
+Post-deploy smoke (production):
+- `/` 200, `/api/health` 200, `/api/auth/me` 401 unauthenticated; `/privacy` and `/terms` 200 (`.html` 307-redirects to the extensionless path) and show the support email.
+- Signed client IP: a failed login sent with spoofed `X-Forwarded-For` and `x-al-client-ip` headers produced a LOGIN_FAILED audit event whose address_hash matches the real client IP.
+- E2E account: login 200, `/api/auth/me` 200, JSON export 200, password change with wrong current password 400 (no change made).
+- Password reset: `POST /api/auth/password/forgot` for the owner address returned 202 generic; one reset token created; outbox row `password-reset` status success, result "Password reset email accepted" (Resend). Owner to confirm the email arrived and the link works.
+
+Still PENDING: owner confirms reset email delivery/link; merge `ux-and-prod-smoke` to `main` via PR (production now runs code ahead of `main`); remaining legal placeholders ([OPERATOR_NAME], [JURISDICTION], [EFFECTIVE_DATE]); restrict/rotate the full-access Resend key; uptime monitor; remaining a11y/screen-pass/security findings listed below.
+
+## Staging rollout of launch-gap branch — 2026-11-08
+
+- Owner-approved. Branch `ux-and-prod-smoke` (commit `c1ca390` plus later local changes). Production NOT touched.
+- Staging project `admyuepbbtstayaydjmo`:
+  - Applied 3 migrations via `supabase db query -f` and recorded them in `supabase_migrations.schema_migrations`: `20261108120000_password_reset_change`, `20261108130000_auth_login_account_limit`, `20261108140000_coach_code_link_hardening`.
+  - `supabase db push` was refused because staging's migration history uses different version numbers for the original 63. The schema is equivalent.
+  - Verified: 6 new/updated `al_private` functions present, Vault secret `adaptive_lifting_coach_code_hmac_key` present, table `auth_login_failures` present.
+- Secrets:
+  - Generated `CLIENT_IP_SIGNING_KEY` (never printed) and set it on the staging Edge (`supabase secrets`) and the staging Worker (`wrangler secret put`).
+- Deployed:
+  - Staging Edge functions `api` and `email-verification-worker`.
+  - Staging Worker `adaptive-lifting-staging`, version `a1c7d5de-62bd-4d96-ac91-4b09a3a7e00f`, built with the staging offline public key derived from staging Vault (private key never printed).
+- Checks passed on `https://adaptive-lifting-staging.gartman-bekaali.workers.dev`:
+  - `/` 200. `/privacy` and `/terms` 200 (`/privacy.html` 307-redirects to `/privacy`). `/reset-password` 200. `/api/health` 200. `/api/auth/me` 401 when signed out.
+  - Password forgot with an untrusted Origin: 403. Reset with a bogus token: 400 `INVALID_RESET_TOKEN`. Bad login: 400 generic. `POST /api/auth/link` unauthenticated: 401.
+  - Signed-IP fix CONFIRMED: the `LOGIN_FAILED` audit rows' `address_hash` equals `sha256("auth:" + my real client IP)`, including a request carrying forged `x-al-client-ip` headers. The Worker-egress shared bucket is fixed and spoofed headers are ignored.
+- Not tested on staging:
+  - Password forgot returns 503 "temporarily unavailable" because staging has no email provider configured (no Resend key or sender in staging secrets). This fails closed as designed. The reset email delivery leg needs a staging email setup to test end to end.
+  - Browser E2E and the prod smoke suite.
+- GitHub environment `production-recovery`:
+  - Secret `RESEND_API_KEY` (owner chose to reuse the full-access `.env` key).
+  - Vars `ALERT_EMAIL_TO=gartman.bekaali@gmail.com` and `ALERT_EMAIL_FROM="Adaptive Lifting <no-reply@mail.goatedmethod.me>"`.
+- Note: local `dist/` now holds a staging build. Production deploys must rebuild with `npm run build:production`.
+- Production rollout order (pending owner approval):
+  1. Same 3 migrations. Production history matches the repo, so `db push` should work.
+  2. Edge secret `CLIENT_IP_SIGNING_KEY` (new value).
+  3. Deploy `api` and `email-verification-worker`.
+  4. Worker secret `CLIENT_IP_SIGNING_KEY`.
+  5. `npm run build:production` and Worker deploy.
+  6. Smoke.
+
+### Staging end-to-end flow test — 22 passed, 0 failed
+
+- Script: session scratchpad `stg/flowtest.sh` (not in repo).
+- Fixtures: two disposable accounts (`al-staging-e2e-*@example.invalid`), a verified athlete and a coach with a 1-day `coach_beta` operator grant. Provisioned by SQL, as in `scripts/staging-authenticated-e2e.mjs`, and deleted afterwards. Cleanup verified: 0 fixture users left.
+- Password change:
+  - A wrong current password returns 400 and keeps the user signed in.
+  - The correct current password returns 200 and revokes the session (`/me` 401).
+  - The old password is rejected. The new password signs in.
+- Password reset:
+  - A token seeded directly in the database (staging has no email provider, so the email leg is untested) resets with 200.
+  - The token is single use (second attempt 400).
+  - All sessions are revoked. The new password signs in.
+- Data export: `/api/export/csv` and `/api/export/json` return 200.
+- Coach code:
+  - Created in `XXXXX-XXXXX` format.
+  - The athlete links with it (200). The response does not contain the coach email.
+  - The code is single use (400 on reuse).
+  - The coach unlinks the athlete (200).
+  - Six bad codes all return the identical 400 "Invalid or expired code", so rate-limited and invalid responses cannot be told apart.
+
 ## Launch-gap work in progress — 2026-11-08 (NOT DEPLOYED)
 
 Nothing in this section is live. Production is still Worker `c7f2c2ae-...`.
