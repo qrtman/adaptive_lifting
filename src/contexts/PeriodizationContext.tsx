@@ -141,29 +141,30 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Remembered plan/session survive a reload or a fresh sign-in of the same account; only a
+  // real change (sign-out, or account A → B) starts over. Boot goes "no user" → user, which
+  // must not wipe the coach's pick (it reopened on the first linked athlete) or the open session.
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!user) {
-      reloadGen.current += 1;
-      snapshotAccountRef.current = null;
-      snapshotOwnerRef.current = null;
-      liveFetchedRef.current = false;
-      setMicrocycles([]);
-      setActiveAthleteIdState(null);
-      setActiveWorkoutId(null);
-      setActiveMicrocycleId(null);
-      return;
-    }
+    const prev = prevUserIdRef.current;
+    const next = user?.id ? String(user.id) : null;
+    prevUserIdRef.current = next;
     reloadGen.current += 1;
     snapshotAccountRef.current = null;
     snapshotOwnerRef.current = null;
     liveFetchedRef.current = false;
     setMicrocycles([]);
+    const signedOut = Boolean(prev) && !next;
+    const switched = Boolean(prev) && Boolean(next) && prev !== next;
+    if (!signedOut && !switched) return;
     setActiveAthleteIdState(null);
     setActiveWorkoutId(null);
     setActiveMicrocycleId(null);
-    removeUiPref(UI_KEYS.activeAthleteId);
-    removeUiPref(UI_KEYS.activeWorkoutId);
-    removeUiPref(UI_KEYS.activeMicrocycleId);
+    if (switched) {
+      removeUiPref(UI_KEYS.activeAthleteId);
+      removeUiPref(UI_KEYS.activeWorkoutId);
+      removeUiPref(UI_KEYS.activeMicrocycleId);
+    }
   }, [user?.id]);
 
   useEffect(() => {
