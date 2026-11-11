@@ -1,0 +1,29 @@
+---
+description: Session sheet (program 3) — week rail on the session screen, Day-first header, grouped Plan rows, ghost Log targets, per-lift-only summaries. Apply when changing the session screen, set grid, or session header.
+alwaysApply: true
+---
+
+# Session sheet (overrides `session-console.mdc` and `design.md` where they conflict)
+
+Plan and phases: `.cursor/scopes/session-sheet/PLAN.md`. Ship phases in order. Each phase PR updates the docs it changes.
+
+## Locked (owner decisions 2026-11-12 — do not re-litigate)
+
+| Topic | Verdict |
+| :--- | :--- |
+| Week rail | Session screen shows the other days of the **same assigned Block + Week**. An unlabeled session inside a labeled week's date span is shown there, tagged `no Week`, with `Assign to Week N`. **Never auto-write labels.** In no span → `Assign a Week` hint. In two spans → nearest week. |
+| Rail rows | One line per lift: name + scheme. Same list layout in every mode (Plan, Log, Both). Never a comma-joined line. Lift names high contrast. |
+| Session header | **Day** (`Day N`) is the large line. Name is optional and appears as a small muted subtitle. Date · Week · Block · set count are muted meta. Replaces session-console "Name is the only large line". |
+| Session/day summary | **Set count only** (and `Logged x / y sets` in Both). No session or day tonnage, NL, or average intensity. |
+| Lift summary | NL · Volume · Int per lift. |
+| Grouping | Merge consecutive plan sets only when reps, intensity, `dropPercent` **and kg** are equal. Different kg: never merge. Label `3 sets`, with faint numbers `2–4`; a single set shows its number only. Display layer only: one record per set stays. |
+| Fewer sets than logged | Set leaves Plan; its log stays as a `scope: 'log'` row. Never delete a log. |
+| Ghost targets | Empty Log cells show the Plan target faintly. Plain Enter does **not** fill. **Ctrl/Cmd+Enter** accepts (copies Plan to that set). |
+| Variation | `LiftVariationPicker` modifiers (Bar / Tempo / ROM / Gear). Never a fixed short list. |
+| Lift menu | `⋯`: Duplicate, Swap lift…, Add note, Delete. Shown on the hovered/focused row only. |
+| Columns kept | `%` (dropPercent) and INOL stay, even though the mockups omit them. Δ stays as defined until the Δ rethink. |
+| Copy | UI copy is **English**. Translation later. |
+
+## Non-goals
+
+Week board (variant B). Changing Δ math. Russian UI strings. Auto-assigning Block/Week. A grid library.
