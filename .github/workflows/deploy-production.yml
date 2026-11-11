@@ -1,0 +1,137 @@
+name: Deploy production
+
+# Runs after "Validate repository" passes on a push to main, then waits for an
+# owner approval on the `production` environment. Order: database migrations,
+# Edge functions, Worker (frontend + /api proxy), smoke checks.
+# Runbook: docs/production-deploy.md
+
+on:
+  workflow_run:
+    workflows: ["Validate repository"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  PROD_PROJECT_REF: gadusaizqnshxqcckibq
+  PROD_URL: https://app.goatedmethod.me
+  SUPABASE_CLI: supabase@2.122.1
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  deploy:
+    name: Migrate, deploy Edge functions and Worker
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://app.goatedmethod.me
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+
+      - name: Check required configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VITE_OFFLINE_AUTH_PUBLIC_KEY: ${{ vars.VITE_OFFLINE_AUTH_PUBLIC_KEY }}
+        run: |
+          missing=0
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID VITE_OFFLINE_AUTH_PUBLIC_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::$name is not set on the production environment"; missing=1; fi
+          done
+          exit $missing
+
+      # 1. Database first, so the new app never runs against an old schema.
+      #    Migrations must stay compatible with the app version still running.
+      - name: Link the production Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx --yes "$SUPABASE_CLI" link --project-ref "$PROD_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: List pending migrations (dry run)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx --yes "$SUPABASE_CLI" db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD"
+      - name: Apply pending migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx --yes "$SUPABASE_CLI" db push --linked --yes --password "$SUPABASE_DB_PASSWORD"
+
+      # 2. Edge functions (same flags as the manual deploys).
+      - name: Deploy Edge functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npx --yes "$SUPABASE_CLI" functions deploy api email-verification-worker --project-ref "$PROD_PROJECT_REF" --use-api --no-verify-jwt
+
+      # 3. Frontend build + Worker.
+      - name: Production build (validates config, scans for staging/secrets)
+        env:
+          VITE_OFFLINE_AUTH_PUBLIC_KEY: ${{ vars.VITE_OFFLINE_AUTH_PUBLIC_KEY }}
+        run: npm run build:production
+      - name: Generate the production Worker config
+        run: |
+          sed "s/REQUIRED_PRODUCTION_PROJECT_REF/$PROD_PROJECT_REF/" wrangler.production.cutover.jsonc > wrangler.production.local.jsonc
+          node -e "
+            const c = JSON.parse(require('node:fs').readFileSync('wrangler.production.local.jsonc', 'utf8'));
+            const ok = c.name === 'adaptive-lifting-production'
+              && c.vars?.SUPABASE_PROJECT_ORIGIN === 'https://' + process.env.PROD_PROJECT_REF + '.supabase.co'
+              && JSON.stringify(c.routes) === JSON.stringify([{ pattern: 'app.goatedmethod.me/*', zone_name: 'goatedmethod.me' }])
+              && c.workers_dev === false;
+            if (!ok) { console.error('Unexpected production Worker config'); process.exit(1); }
+            console.log('Production Worker, route and Supabase origin verified.');"
+      - name: Worker deploy (dry run)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config wrangler.production.local.jsonc --dry-run
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config wrangler.production.local.jsonc --message "main ${DEPLOY_SHA::7} (run $GITHUB_RUN_ID)"
+
+      # 4. Smoke checks against the live hostname.
+      - name: Smoke checks
+        run: |
+          check() {
+            for attempt in 1 2 3 4 5 6; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "$PROD_URL$1")
+              [ "$code" = "$2" ] && { echo "$1 -> $code"; return 0; }
+              sleep 10
+            done
+            echo "::error::$1 returned $code, expected $2"; return 1
+          }
+          check / 200
+          check /api/health 200
+          check /api/auth/me 401
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Production deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$DEPLOY_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
