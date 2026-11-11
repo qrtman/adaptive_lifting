@@ -16,6 +16,7 @@ export const AccessoryLedger = ({
   onCollapsedChange,
   locked = false,
   canEditPlan = true,
+  view = 'both',
   roleMode = 'athlete'
 }: {
   exercises: ExerciseData[],
@@ -27,6 +28,7 @@ export const AccessoryLedger = ({
   onCollapsedChange?: (exerciseId: string, collapsed: boolean) => void,
   locked?: boolean,
   canEditPlan?: boolean,
+  view?: 'plan' | 'both' | 'log',
   roleMode?: 'coach' | 'athlete'
 }) => {
   const [open, setOpen] = useState(true);
@@ -82,6 +84,7 @@ export const AccessoryLedger = ({
           onRemove={onRemove ? () => onRemove(exercise.id) : undefined}
           locked={locked}
           canEditPlan={canEditPlan}
+          view={view}
           roleMode={roleMode}
           minimized={isCollapsed(exercise.id)}
           onMinimizedChange={(value) => onCollapsedChange?.(exercise.id, value)}

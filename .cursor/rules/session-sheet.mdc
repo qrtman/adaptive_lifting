@@ -17,6 +17,7 @@ Plan and phases: `.cursor/scopes/session-sheet/PLAN.md`. Ship phases in order. E
 | Session/day summary | **Set count only** (and `Logged x / y sets` in Both). No session or day tonnage, NL, or average intensity. |
 | Lift summary | NL · Volume · Int per lift. |
 | Grouping | Merge consecutive plan sets only when reps, intensity, `dropPercent` **and kg** are equal. Different kg: never merge. Label `3 sets`, with faint numbers `2–4`; a single set shows its number only. Display layer only: one record per set stays. |
+| Session view | Plan · Both · Log above the lifts, remembered per device, default Both. Grouping happens in **Plan** view (Log hidden) — Both keeps one row per set. |
 | Fewer sets than logged | Set leaves Plan; its log stays as a `scope: 'log'` row. Never delete a log. |
 | Ghost targets | Empty Log cells show the Plan target faintly. Plain Enter does **not** fill. **Ctrl/Cmd+Enter** accepts (copies Plan to that set). |
 | Variation | `LiftVariationPicker` modifiers (Bar / Tempo / ROM / Gear). Never a fixed short list. |

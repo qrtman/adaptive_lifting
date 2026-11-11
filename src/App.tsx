@@ -102,6 +102,15 @@ export default function App() {
 
   const [filter, setFilter] = useState<LiftFilterState>(() => parseLiftFilter(getUiPref(UI_KEYS.liftFilter)));
   const [editSessionOpen, setEditSessionOpen] = useState(false);
+  // Session view (session sheet phase 3): Plan groups identical sets and hides Log; Log hides Plan.
+  const [sessionView, setSessionViewState] = useState<'plan' | 'both' | 'log'>(() => {
+    const saved = getUiPref(UI_KEYS.sessionView);
+    return saved === 'plan' || saved === 'log' ? saved : 'both';
+  });
+  const setSessionView = (next: 'plan' | 'both' | 'log') => {
+    setSessionViewState(next);
+    setUiPref(UI_KEYS.sessionView, next);
+  };
   const [copyClipboard, setCopyClipboard] = useState<CopyClipboard | null>(null);
   const [mainLiftOrder, setMainLiftOrder] = useState<string[]>([]);
   const reorderContainerRef = useRef<HTMLDivElement>(null);
@@ -438,6 +447,28 @@ export default function App() {
                     </p>
                   ) : null}
 
+                  {activeWorkout.exercises.length > 0 ? (
+                    <div className="mb-2 flex justify-end">
+                      <div role="group" aria-label="Show" data-testid="session-view" className="inline-flex rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] p-0.5">
+                        {(['plan', 'both', 'log'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            aria-pressed={sessionView === mode}
+                            data-testid={`session-view-${mode}`}
+                            onClick={() => setSessionView(mode)}
+                            className={`h-7 rounded-[calc(var(--cal-radius-md)-2px)] px-3 text-[12px] ${
+                              sessionView === mode
+                                ? 'bg-[var(--cal-surface-elevated)] font-semibold text-[var(--cal-ink)] shadow-sm'
+                                : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]'
+                            }`}
+                          >
+                            {mode === 'plan' ? 'Plan' : mode === 'both' ? 'Both' : 'Log'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <div>
                     {activeWorkout.exercises.length === 0 && (
                       <div
@@ -492,6 +523,7 @@ export default function App() {
                         minimized={isCollapsed(ex.id)}
                         onMinimizedChange={(value) => setCollapsed(ex.id, value)}
                         canEditPlan={coachCanProgram}
+                        view={sessionView}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={coachCanProgram ? (patch) => handleUpdateLift(ex.id, patch) : undefined}
                         onRemove={coachCanProgram ? () => handleRemoveLift(ex.id) : undefined}
@@ -507,6 +539,7 @@ export default function App() {
                       locked={sessionLocked}
                       onUpdateSets={updateExerciseSets}
                       canEditPlan={coachCanProgram}
+                      view={sessionView}
                       onUpdateMeta={coachCanProgram ? handleUpdateLift : undefined}
                       onRemove={coachCanProgram ? handleRemoveLift : undefined}
                     />

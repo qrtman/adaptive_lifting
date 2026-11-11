@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, type MouseEvent as ReactM
 import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus, Pencil, StickyNote } from 'lucide-react';
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
+import { PlanGroupGrid } from './PlanGroupGrid';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
 import { CenteredDialog, NestedCard } from './CenteredDialog';
@@ -188,6 +189,7 @@ export const ExerciseCard = ({
   roleMode: _roleMode = 'coach',
   initialMinimized = true,
   minimized: minimizedProp,
+  view = 'both',
 }: { 
   id: string,
   title: string, 
@@ -211,6 +213,8 @@ export const ExerciseCard = ({
   initialMinimized?: boolean,
   /** Controlled open/closed state; when omitted the card keeps its own (starting from initialMinimized). */
   minimized?: boolean,
+  /** Session view (session sheet phase 3): `plan` groups identical sets and hides Log; `log` hides Plan. */
+  view?: 'plan' | 'both' | 'log',
   key?: string,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
@@ -459,6 +463,9 @@ export const ExerciseCard = ({
     });
   };
 
+  // Log view hides the Plan columns: moves and Tab stay on Log cells.
+  const inView = (next: { row: number; col: number }) => (view === 'log' && next.col < 4 ? { row: next.row, col: 4 } : next);
+
   const bindGrid = (row: number, col: number): SetGridBind => ({
     cellId: makeCellId(id, row, col),
     row,
@@ -467,7 +474,7 @@ export const ExerciseCard = ({
     mode: grid?.row === row && grid?.col === col ? grid.mode : 'selected',
     editOverwrite: grid?.overwrite ?? false,
     editSeed: grid?.seed,
-    tabStop: (grid == null && row === 0 && col === 1) || (grid?.row === row && grid?.col === col),
+    tabStop: (grid == null && row === 0 && col === (view === 'log' ? 4 : 1)) || (grid?.row === row && grid?.col === col),
     onSelect: (nextRow, nextCol) => {
       setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
     },
@@ -487,7 +494,7 @@ export const ExerciseCard = ({
           return;
         }
         const next = neighbor(addressFrom(id, nextRow, nextCol), move, kind, Math.max(planRows.length, logRows.length));
-        setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
+        setGrid({ ...inView({ row: next.row, col: colOf(next) }), mode: 'selected', overwrite: false });
         return;
       }
       // Blur commit: if a mousedown already selected another cell, keep that selection.
@@ -516,7 +523,7 @@ export const ExerciseCard = ({
         return;
       }
       const next = neighbor(addressFrom(id, nextRow, nextCol), direction, kind, Math.max(planRows.length, logRows.length));
-      setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
+      setGrid({ ...inView({ row: next.row, col: colOf(next) }), mode: 'selected', overwrite: false });
     },
   });
 
@@ -545,7 +552,7 @@ export const ExerciseCard = ({
     const cells: Array<{ row: number; col: number }> = [];
     const rowCount = Math.max(planRows.length, logRows.length);
     for (let nextRow = 0; nextRow < rowCount; nextRow += 1) {
-      if (planRows[nextRow]) {
+      if (planRows[nextRow] && view !== 'log') {
         const firstPlanCol = nextRow === 0 ? 1 : 0;
         for (let nextCol = firstPlanCol; nextCol <= 3; nextCol += 1) cells.push({ row: nextRow, col: nextCol });
       }
@@ -1033,6 +1040,28 @@ export const ExerciseCard = ({
       <>
       <div className="lift-main flex min-w-0 max-w-full flex-col gap-3">
       <div id={`lift-grid-${id}`} ref={gridWrapRef} className="relative min-w-0 max-w-full overflow-x-auto">
+      {view === 'plan' ? (
+        <>
+          <PlanGroupGrid
+            liftId={id}
+            sets={sets}
+            planRows={planRows}
+            readOnly={locked || !canEditPlan}
+            onChange={(next) => updateAndPropagate(next)}
+            onNotice={(text) => setGridNotice(text ? { text } : null)}
+          />
+          {!locked && canEditPlan ? (
+            <button
+              type="button"
+              data-testid={`plan-view-add-set-${id}`}
+              onClick={() => addSet()}
+              className="mt-1 inline-flex h-8 items-center gap-1 self-start rounded-[var(--cal-radius-md)] border border-dashed border-[var(--cal-hairline)] px-3 text-[13px] text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]"
+            >
+              + Add set
+            </button>
+          ) : null}
+        </>
+      ) : (
       <table
         role="grid"
         aria-label="Plan and log sets"
@@ -1040,12 +1069,12 @@ export const ExerciseCard = ({
         data-testid="set-grid"
         onMouseDown={onGridMouseDown}
         onMouseOver={onGridMouseOver}
-        className={`sheet-grid text-left w-max max-w-full ${dragging ? 'sheet-grid--dragging' : ''}`}
+        className={`sheet-grid text-left w-max max-w-full ${dragging ? 'sheet-grid--dragging' : ''} ${view === 'log' ? 'sheet-grid--log-only' : ''}`}
       >
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${thMetric} sheet-th w-10 px-2 align-bottom`} data-testid="set-grid-h-num">#</th>
-            <th colSpan={4} className={`${th} sheet-th sheet-th--group`} data-testid="set-grid-h-plan">
+            <th colSpan={4} className={`${th} sheet-th sheet-th--group plan-col`} data-testid="set-grid-h-plan">
               <div className="relative flex min-h-5 items-center justify-start">
                 <span>Plan</span>
                 {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
@@ -1065,7 +1094,7 @@ export const ExerciseCard = ({
                 ) : null}
               </div>
             </th>
-            <th rowSpan={2} className="sheet-gap" aria-hidden="true" />
+            <th rowSpan={2} className="sheet-gap plan-col" aria-hidden="true" />
             <th colSpan={3} className={`${th} sheet-th sheet-th--group`} data-testid="set-grid-h-log">Log</th>
             <th rowSpan={2} className="sheet-gap" aria-hidden="true" />
             <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-e1rm">e1RM</th>
@@ -1075,10 +1104,10 @@ export const ExerciseCard = ({
             <th rowSpan={2} className="w-[7.5rem] p-0" aria-label="Set actions" data-testid="set-grid-h-copy" />
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={`${thField} sheet-th w-14`} data-testid="set-grid-h-pct">Drop %</th>
-            <th className={`${thField} sheet-th`} data-testid="set-grid-h-planKg">kg</th>
-            <th className={`${thField} sheet-th`} data-testid="set-grid-h-planReps">Reps</th>
-            <th className={`${thField} sheet-th`} data-testid="set-grid-h-planTarget">Intensity</th>
+            <th className={`${thField} sheet-th w-14 plan-col`} data-testid="set-grid-h-pct">Drop %</th>
+            <th className={`${thField} sheet-th plan-col`} data-testid="set-grid-h-planKg">kg</th>
+            <th className={`${thField} sheet-th plan-col`} data-testid="set-grid-h-planReps">Reps</th>
+            <th className={`${thField} sheet-th plan-col`} data-testid="set-grid-h-planTarget">Intensity</th>
             <th className={`${thField} sheet-th`} data-testid="set-grid-h-logKg">kg</th>
             <th className={`${thField} sheet-th`} data-testid="set-grid-h-logReps">Reps</th>
             <th className={`${thField} sheet-th`} data-testid="set-grid-h-logRpe">RPE</th>
@@ -1200,7 +1229,7 @@ export const ExerciseCard = ({
                       </>
                     )) : (
                       <>
-                        <td colSpan={3} className={`${td} sheet-td sheet-td--readonly`} aria-label="No plan set" />
+                        <td colSpan={3} className={`${td} sheet-td sheet-td--readonly plan-col`} aria-label="No plan set" />
                       </>
                     )}
                   </>) : (
@@ -1210,7 +1239,7 @@ export const ExerciseCard = ({
                       ))}
                     </>
                   )}
-                  <td className="sheet-gap" aria-hidden="true" />
+                  <td className="sheet-gap plan-col" aria-hidden="true" />
                   {hasLog ? (<>
                   <td data-grid-pos={`${laneIndex}:4`} className={`${td} sheet-td`}>
                     {locked ? (
@@ -1374,7 +1403,7 @@ export const ExerciseCard = ({
           <tfoot>
             <tr>
               {/* One "add row" strip across # → Log: it adds both halves, and it is as wide as the grid on any screen. */}
-              <td colSpan={9} className="p-0 pt-1">
+              <td colSpan={view === 'log' ? 4 : 9} className="p-0 pt-1">
                 <button
                   type="button"
                   data-testid={`add-set-${id}`}
@@ -1392,7 +1421,8 @@ export const ExerciseCard = ({
           </tfoot>
         ) : null}
       </table>
-      {rangeBox ? (
+      )}
+      {rangeBox && view !== 'plan' ? (
         <div
           aria-hidden="true"
           data-testid={`set-grid-range-${id}`}
