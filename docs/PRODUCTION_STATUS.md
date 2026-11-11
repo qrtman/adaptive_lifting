@@ -1,6 +1,24 @@
 # Production status
 
-## Fix: OVERLAPPING_BATCH_PATCH conflict on quick lift edits — 2026-11-08 (CURRENT)
+## Root fix: merge stale set edits, one sync per session — 2026-11-08 (CURRENT)
+
+**CONFIRMED: deployed.** PR #58 merged (`97f5f81`); owner deployed Worker version `8c421752-805d-49c8-9a30-00f72886516e` (2026-11-08 15:07 UTC). Live bundle contains the merge code.
+
+Reported by owner: still "Sync conflict needs review · STALE_REVISION" on "Squatish" — server sets 1–3 at 160 × 5 (Log 160) and set 4 140/140; edit identical except set 1 Log 170. Single user, no coach.
+
+Root cause: every set-grid edit replaces the whole lift and must match the lift's exact revision; each save raises it by about sets + 1 and the success reply returns no revision, so the app learns it only after a full reload. Edits made in that window were stale; the auto-retry only handled "server equals my starting point". Two sync requests for one session could also run at once.
+
+Fix (client only, no migration):
+- `mergeSetLists` (`src/services/setSyncShape.ts`): three-way merge by set id (start point, my edit, server copy); per field mine if I changed it, else server; conflict only when both changed the same field of the same set differently, or delete vs edit, or a set present on both sides but not in the start point differs (Codex P1).
+- `mergeForResend` / `rebaseSelfConflicts` (`src/services/sync_engine.ts`): resend the merged sets on the server revision (up to 5 retries) instead of showing the card.
+- Single-flight per session in `processSyncQueue`; calls during a run flag one rerun.
+
+Verification: vitest 529 passed / 1 skipped (owner's exact case, coach-other-field merge, same-field clash, add/delete, single-flight); Codex: one P1 fixed, second pass "no blockers". After deploy `e2e/prod/selfconflict.spec.ts` (now also the owner's log-then-quick-edit pattern) and `twodevice.spec.ts` (real same-field clash still shows the card) PASS; only "Squatish" remains on the account.
+
+Later (optional, migration): return accepted lift revisions in the sync reply to avoid the extra round trip.
+Still PENDING: server set order for 11+ sets needs a migration.
+
+## Fix: OVERLAPPING_BATCH_PATCH conflict on quick lift edits — 2026-11-08
 
 **CONFIRMED: deployed.** PR #56 merged (`e0edb46`); owner deployed Worker version `b8d28f27-6100-4542-b702-5ab43b43a863` (2026-11-08 14:44 UTC). Live bundle contains the fix.
 
