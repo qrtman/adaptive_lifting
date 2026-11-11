@@ -54,7 +54,9 @@ Shipped in `ExerciseCard.tsx` / `EditablePerformanceCell.tsx` (`ghost` prop) / `
 - **Set states:** the current set gets a row tint; logged sets get a faint check.
 - **Keep** the `%` (dropPercent) and INOL columns. The mockups omit them.
 
-### 3 · Grouped Plan rows
+### 3 · Grouped Plan rows — DONE (as a Plan view)
+Owner decision 2026-11-12: grouping lives in a **Plan** view (Plan · Both · Log toggle) where the Log is hidden, so rows really shrink; Both keeps one row per set (a rowspan Plan cell in Both is a possible later step). Shipped: `src/features/plan/planGroups.ts` (grouping, resize/remove keeping logs and other rows' pairs), `src/components/PlanGroupGrid.tsx`, `view` prop on `ExerciseCard`/`AccessoryLedger`, Log view hides Plan columns. Tests: `planGroups.test.ts`, `ExerciseCardViews.test.tsx`, staging `e2e/prod/plan-view.spec.ts`.
+
 - **Display layer only.** Every set stays its own record: sync, log, revisions and server math are unchanged.
 - **Grouping rule.** Consecutive plan sets merge into one row only when reps, intensity type and value (RPE or %), `dropPercent` **and kg** are all equal. Different kg is **never** merged.
 - **Row label.** Count shown as `3 sets`, plus faint set numbers `2–4`. A single set shows only its number.

@@ -23,6 +23,7 @@ export const UI_KEYS = {
   recentDay: 'al_recent_day',
   recentName: 'al_recent_name',
   collapsedLifts: 'al_collapsed_lifts',
+  sessionView: 'al_session_view',
 } as const;
 
 const LEGACY_UI_MAP: Array<[string, string]> = [

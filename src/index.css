@@ -535,3 +535,12 @@
   background: color-mix(in srgb, var(--cal-accent) 10%, transparent);
   color: var(--cal-ink);
 }
+
+/* Session sheet phase 3 — Log view hides the Plan columns (cells carry grid positions :0–:3). */
+.sheet-grid--log-only .plan-col,
+.sheet-grid--log-only td[data-grid-pos$=":0"],
+.sheet-grid--log-only td[data-grid-pos$=":1"],
+.sheet-grid--log-only td[data-grid-pos$=":2"],
+.sheet-grid--log-only td[data-grid-pos$=":3"] {
+  display: none;
+}
