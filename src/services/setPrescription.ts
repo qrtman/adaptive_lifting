@@ -1,4 +1,4 @@
-import { calculateCapacityScaledWeight, calculateE1RM, calculateWeightFromE1RM, roundToCompetitionPlates } from './mathEngine';
+import { calculateCapacityScaledWeight, calculateE1RM, calculatePlannedE1RM, calculateWeightFromE1RM, roundToCompetitionPlates } from './mathEngine';
 import { trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 
 export type LiftAdjMode = 'kg' | 'pct';
@@ -24,7 +24,9 @@ export type LiftAdjPatch = {
   plannedWeight: number;
 };
 
+/** e1RM from the log; 0 without a logged RPE (the formula would just echo the bar weight). */
 function executedE1RM(row: Record<string, unknown>): number {
+  if (!(trainingOrZero(row.executedRpe) > 0)) return 0;
   return calculateE1RM(
     trainingOrZero(row.actual),
     trainingIntOrZero(row.reps),
@@ -70,10 +72,11 @@ export function refreshSetAnchors<T extends Record<string, unknown>>(
   const top = setArray[topIndex];
   const loggedTopE1RM = executedE1RM(top);
   const topIntensity = String(top.intensity_type || top.intensityType || 'RPE');
-  const plannedTopE1RM = calculateE1RM(
+  const plannedTopE1RM = calculatePlannedE1RM(
     trainingOrZero(top.plannedWeight),
     trainingIntOrZero(top.plannedReps),
-    topIntensity === 'PERCENT' ? 0 : trainingOrZero(top.plannedRpe ?? top.target_value),
+    topIntensity,
+    trainingOrZero(top.target_value ?? top.plannedRpe),
   );
   const topE1RM = loggedTopE1RM > 0 ? loggedTopE1RM : plannedTopE1RM;
 

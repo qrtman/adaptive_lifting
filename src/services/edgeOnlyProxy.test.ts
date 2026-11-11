@@ -103,5 +103,36 @@ describe('Edge-only local API routing', () => {
 
   it('rejects non-HTTPS non-loopback targets', () => {
     expect(() => edgeOnlyProxy('http://untrusted.example')).toThrow();
+    expect(() => edgeOnlyProxy('https://edge.example', 'http://staging.example')).toThrow();
+  });
+
+  it('with an app origin, sends it only for requests from the local page', async () => {
+    const origins: (string | undefined)[] = [];
+    const referers: (string | undefined)[] = [];
+    const upstream = createHttpServer((request, response) => {
+      origins.push(request.headers.origin);
+      referers.push(request.headers.referer);
+      response.end('{}');
+    });
+    const upstreamUrl = await listen(upstream);
+    const dev = await createServer({
+      configFile: false,
+      plugins: [edgeTargetRequiredPlugin(true)],
+      optimizeDeps: { noDiscovery: true },
+      server: { host: '127.0.0.1', port: 0, proxy: edgeOnlyProxy(upstreamUrl, 'https://staging.example') },
+    });
+    try {
+      await dev.listen();
+      const address = dev.httpServer?.address();
+      if (!address || typeof address === 'string') throw new Error('Expected Vite TCP address');
+      const url = `http://127.0.0.1:${address.port}/api/auth/login`;
+      await fetch(url, { method: 'POST', headers: { Origin: 'http://localhost:3000', Referer: 'http://localhost:3000/calendar' } });
+      await fetch(url, { method: 'POST', headers: { Origin: 'https://evil.example' } });
+      expect(origins).toEqual(['https://staging.example', 'https://evil.example']);
+      expect(referers).toEqual([undefined, undefined]);
+    } finally {
+      await dev.close();
+      await close(upstream);
+    }
   });
 });

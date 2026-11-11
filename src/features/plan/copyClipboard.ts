@@ -1,3 +1,4 @@
+import { labelNumber } from './sessionLabels';
 export type CopyGrain = 'day' | 'week' | 'block';
 export type CopyMode = 'lifts' | 'plan' | 'logs';
 
@@ -48,31 +49,29 @@ export function clipboardMinDate(clip: CopyClipboard): string | null {
   return minSourceDate(clip.sessionIds.map((id) => clip.sourceDates[id]));
 }
 
-/** Day grain: shared labeled block, or recent block when every source is unlabeled. Mixed labeled blocks omit. */
+/**
+ * Day grain: the shared labeled block. Unlabeled or mixed sources get no block —
+ * copying never invents a block (a remembered "recent block" used to leak in here).
+ */
 export function resolveDayTargetBlock(
   sources: CopySourceSession[],
-  recentBlock: string,
+  _recentBlock?: string,
 ): string | undefined {
   const blocks = sources.map((source) => labeledValue(source.blockLabel));
   const uniqueLabeled = [...new Set(blocks.filter(Boolean))];
-  if (uniqueLabeled.length === 0) {
-    const recent = labeledValue(recentBlock);
-    return recent || undefined;
-  }
+  if (uniqueLabeled.length === 0) return undefined;
   const allShareOne = uniqueLabeled.length === 1 && blocks.every((block) => block === uniqueLabeled[0]);
   if (allShareOne) return uniqueLabeled[0];
   return undefined;
 }
 
-/** Week grain: source block if present, else recent block. */
+/** Week grain: the source block when there is exactly one; otherwise no block. */
 export function resolveWeekTargetBlock(
   sources: CopySourceSession[],
-  recentBlock: string,
+  _recentBlock?: string,
 ): string | undefined {
   const uniqueLabeled = [...new Set(sources.map((source) => labeledValue(source.blockLabel)).filter(Boolean))];
-  if (uniqueLabeled.length === 1) return uniqueLabeled[0];
-  const recent = labeledValue(recentBlock);
-  return recent || undefined;
+  return uniqueLabeled.length === 1 ? uniqueLabeled[0] : undefined;
 }
 
 function clipboardFromSources(
@@ -165,22 +164,32 @@ export type LabeledSessionGroup<T> = {
   }>;
 };
 
+/** Weeks group by number ("Week1" and "1" are one week); other text as written. */
+function weekKey(raw: string | null | undefined): string {
+  const value = labeledValue(raw);
+  const number = labelNumber('Week', value);
+  return number === null ? value : String(number);
+}
+
+const byLabel = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
 export function groupLabeledSessions<T>(
   items: T[],
   labelsOf: (item: T) => { blockLabel?: string | null; weekLabel?: string | null },
 ): LabeledSessionGroup<T> {
   const unlabeled: T[] = [];
   const weeksNoBlock = new Map<string, T[]>();
-  const blocks = new Map<string, T[]>();
+  // Blocks group case-insensitively; the first spelling seen is shown.
+  const blocks = new Map<string, { label: string; items: T[] }>();
 
   for (const item of items) {
     const labels = labelsOf(item);
     const block = labeledValue(labels.blockLabel);
-    const week = labeledValue(labels.weekLabel);
+    const week = weekKey(labels.weekLabel);
     if (block) {
-      const list = blocks.get(block) || [];
-      list.push(item);
-      blocks.set(block, list);
+      const entry = blocks.get(block.toLowerCase()) || { label: block, items: [] };
+      entry.items.push(item);
+      blocks.set(block.toLowerCase(), entry);
     } else if (week) {
       const list = weeksNoBlock.get(week) || [];
       list.push(item);
@@ -194,7 +203,7 @@ export function groupLabeledSessions<T>(
     const byWeek = new Map<string, T[]>();
     const noWeek: T[] = [];
     for (const item of itemsInBlock) {
-      const week = labeledValue(labelsOf(item).weekLabel);
+      const week = weekKey(labelsOf(item).weekLabel);
       if (week) {
         const list = byWeek.get(week) || [];
         list.push(item);
@@ -204,7 +213,7 @@ export function groupLabeledSessions<T>(
       }
     }
     const weeks = [...byWeek.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => byLabel(a, b))
       .map(([weekLabel, weekItems]) => ({ weekLabel, items: weekItems }));
     return { weeks, noWeek };
   };
@@ -212,13 +221,13 @@ export function groupLabeledSessions<T>(
   return {
     unlabeled,
     weeksNoBlock: [...weeksNoBlock.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => byLabel(a, b))
       .map(([weekLabel, weekItems]) => ({ weekLabel, items: weekItems })),
-    blocks: [...blocks.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([blockLabel, all]) => {
+    blocks: [...blocks.values()]
+      .sort((a, b) => byLabel(a.label, b.label))
+      .map(({ label, items: all }) => {
         const { weeks, noWeek } = weekEntries(all);
-        return { blockLabel, weeks, noWeek, all };
+        return { blockLabel: label, weeks, noWeek, all };
       }),
   };
 }

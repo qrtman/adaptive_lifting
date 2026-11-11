@@ -274,7 +274,7 @@ export function RosterView({ onNavigate }: { onNavigate: (mode: DashboardMode) =
                               <div className="mt-1 space-y-0.5">
                                 {exercise.sets.map((set, index) => (
                                   <p key={set.id} className="text-[11px] text-[var(--cal-muted)] tnum">
-                                    Set {index + 1}: Plan {set.plannedWeight ?? '—'} × {set.plannedReps ?? '—'}{set.plannedRpe != null ? ` @ ${set.plannedRpe}` : ''} · Log {set.actual ?? '—'} × {set.reps ?? '—'}{set.executedRpe != null ? ` @ ${set.executedRpe}` : ''}
+                                    Set {index + 1}: Plan {set.plannedWeight ?? '—'} × {set.plannedReps ?? '—'}{set.plannedRpe != null ? ` @ ${set.plannedRpe}${set.intensity_type === 'PERCENT' ? '%' : ''}` : ''} · Log {set.actual ?? '—'} × {set.reps ?? '—'}{set.executedRpe != null ? ` @ ${set.executedRpe}` : ''}
                                   </p>
                                 ))}
                               </div>

@@ -40,7 +40,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
     if (exercise === 'Squat') await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
   };
   await addNamedLift('Knee Dominant', 'Squat');
-  await expect(page.getByTestId('rx-weight').first()).toHaveText('—');
+  await expect(page.getByTestId('rx-weight').first()).toHaveText('');
   const savedSets = page.waitForResponse((res) =>
     res.url().includes('/sets') && res.request().method() === 'PUT'
   );
@@ -50,7 +50,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   expect((await savedSets).ok()).toBeTruthy();
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
   await page.getByRole('button', { name: '+ Plan set' }).click();
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('');
   await expect(page.getByTestId('lift-constructor')).toHaveCount(0);
   await page.getByTestId(/^edit-lift-/).first().click();
   await expect(page.getByTestId('edit-lift-dialog')).toBeVisible();
@@ -87,7 +87,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   const squatRow = page.getByRole('heading', { name: 'Squat', exact: true })
     .locator('xpath=ancestor::div[contains(@class,"cal-nested-card")][1]');
   await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('180');
-  await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('');
 
   await page.getByTestId('session-complete').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();

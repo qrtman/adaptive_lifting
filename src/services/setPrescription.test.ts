@@ -433,3 +433,14 @@ describe('per-set % scales the use {n} offer, not Plan kg', () => {
     expect(planKgOfferKg(next[1].suggestedWeight, next[1].plannedWeight)).toBeNull();
   });
 });
+
+describe('percent targets', () => {
+  it('a % top set anchors e1RM at kg / pct, not at its own kg', () => {
+    const next = refreshSetAnchors([
+      { isTop: true, plannedWeight: 160, plannedReps: 5, intensity_type: 'PERCENT', target_value: 80, plannedRpe: 80 },
+      { plannedWeight: null, plannedReps: 5, intensity_type: 'PERCENT', target_value: 70, plannedRpe: 70 },
+    ]);
+    expect((next[0] as Record<string, unknown>).baseline_e1rm).toBe(200);
+    expect(next[1].suggestedWeight).toBe(140);
+  });
+});

@@ -83,3 +83,27 @@ export async function html5Drag(page: Page, sourceTestId: string, targetTestId: 
     { from: sourceTestId, to: targetTestId }
   );
 }
+
+/** New / Edit session: Day and Week are number steppers, Block is a picker (existing or new). */
+export async function setSessionSlot(
+  page: Page,
+  prefix: 'new-session' | 'session',
+  slot: { day?: number | null; week?: number | null; block?: string | null },
+) {
+  if (slot.day !== undefined) await page.getByTestId(`${prefix}-day`).fill(slot.day === null ? '' : String(slot.day));
+  if (slot.week !== undefined) await page.getByTestId(`${prefix}-week`).fill(slot.week === null ? '' : String(slot.week));
+  if (slot.block === undefined) return;
+  const picker = page.getByTestId(`${prefix}-block`);
+  if (slot.block === null) {
+    await picker.selectOption('');
+    return;
+  }
+  const values = await picker.locator('option').evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+  const existing = values.find((value) => value.toLowerCase() === slot.block!.toLowerCase());
+  if (existing) {
+    await picker.selectOption(existing);
+    return;
+  }
+  await picker.selectOption('__new__');
+  await page.getByTestId(`${prefix}-block-new`).fill(slot.block);
+}

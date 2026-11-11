@@ -38,7 +38,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
     const button = modeButtonRef.current;
     if (!button) return;
     const rect = button.getBoundingClientRect();
-    setModeMenuPosition({ top: rect.top, left: Math.min(rect.left, window.innerWidth - 64) });
+    setModeMenuPosition({ top: rect.top, left: Math.min(rect.left, window.innerWidth - 88) });
   };
 
   useLayoutEffect(() => {
@@ -72,46 +72,46 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
 
   return (
     <>
-      <td className={tdClass} data-lift-id={liftId}>
+      <td className={tdClass} data-lift-id={liftId} data-grid-pos={`${kgGrid.row}:${kgGrid.col}`}>
         <EditablePerformanceCell
           value={weight !== null && weight !== undefined ? weight.toString() : ""}
           onChange={(val) => onChange({ weight: trainingNumber(val) })}
-          placeholder="—"
+          placeholder=""
           fieldKey="rx-weight"
           label="Plan weight"
-          widthClass="w-12"
+          widthClass="w-[72px]"
           step={2.5}
           rowIndex={rowIndex}
           grid={kgGrid}
         />
       </td>
-      <td className={tdClass}>
+      <td className={tdClass} data-grid-pos={`${repsGrid.row}:${repsGrid.col}`}>
         <EditablePerformanceCell
           value={reps !== null && reps !== undefined ? reps.toString() : ""}
           onChange={(val) => onChange({ reps: trainingInt(val) })}
-          placeholder="—"
+          placeholder=""
           fieldKey="reps"
           label="Reps"
-          widthClass="w-8"
+          widthClass="w-14"
           step={1}
           rowIndex={rowIndex}
           grid={repsGrid}
         />
       </td>
-      <td className={`${tdClass} pr-0`}>
-        <div className="flex items-center gap-1">
+      <td className={`${tdClass} pr-0`} data-grid-pos={`${rpeGrid.row}:${rpeGrid.col}`}>
+        <div className="flex items-stretch">
           <EditablePerformanceCell
             value={targetValue !== null && targetValue !== undefined ? targetValue.toString() : ""}
             onChange={(val) => onChange({ targetValue: trainingNumber(val) })}
-            placeholder="—"
+            placeholder=""
             fieldKey="targetValue"
             label={intensityType === "PERCENT" ? "Target %" : "Target RPE"}
-            widthClass="w-8"
+            widthClass="w-11"
             step={intensityType === "PERCENT" ? 1 : 0.5}
             rowIndex={rowIndex}
             grid={rpeGrid}
           />
-          <div ref={modeMenuRef} className="relative ml-auto shrink-0">
+          <div ref={modeMenuRef} className="relative flex shrink-0">
             <button
               type="button"
               ref={modeButtonRef}
@@ -119,10 +119,10 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
               onKeyDown={(event) => {
                 if (event.key === 'Escape') setModeMenuOpen(false);
               }}
-              className={`flex h-5 w-5 items-center justify-center rounded-[3px] border text-[11px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] ${
+              className={`flex h-9 w-10 items-center justify-center text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--cal-accent)] ${
                 modeMenuOpen
-                  ? 'border-[var(--cal-muted)] bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
-                  : 'border-[var(--cal-hairline)] text-[var(--cal-muted)] opacity-65 hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] group-hover:opacity-100'
+                  ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
+                  : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
               }`}
               data-testid="rx-intensity"
               aria-label={intensityType === 'PERCENT' ? 'Percentage target mode' : 'RPE target mode'}
@@ -131,7 +131,7 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
               aria-controls={`rx-intensity-menu-${liftId}-${rowIndex}`}
               title="Choose RPE or percentage"
             >
-              {intensityType === "PERCENT" ? "%" : "@"}
+              {intensityType === "PERCENT" ? "%" : "RPE"}
             </button>
             {createPortal(
               <AnimatePresence>
@@ -145,14 +145,14 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                 exit={{ clipPath: 'inset(0 40px 0 0)' }}
                 transition={{ duration: 0.12, ease: 'easeOut' }}
                 style={{ top: modeMenuPosition.top, left: modeMenuPosition.left }}
-                className="fixed z-[1000] flex h-5 w-[60px] overflow-hidden bg-[var(--cal-surface-card)] shadow-[var(--cal-shadow-lift)]"
+                className="fixed z-[1000] flex h-7 w-[84px] overflow-hidden rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-card)] shadow-[var(--cal-shadow-lift)]"
               >
                 <button
                   type="button"
                   role="menuitem"
                   data-testid="rx-intensity-rpe"
                   onClick={() => selectIntensityType('RPE')}
-                  className={`flex h-5 w-[30px] shrink-0 items-center justify-center border border-[var(--cal-hairline)] text-[11px] ${
+                  className={`flex h-7 w-[42px] shrink-0 items-center justify-center border border-[var(--cal-hairline)] text-xs ${
                     intensityType === 'RPE'
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
@@ -160,14 +160,14 @@ export const PrescriptionEditor: React.FC<PrescriptionEditorProps> = ({
                   aria-label="RPE"
                   title="RPE target"
                 >
-                  @
+                  RPE
                 </button>
                 <button
                   type="button"
                   role="menuitem"
                   data-testid="rx-intensity-percent"
                   onClick={() => selectIntensityType('PERCENT')}
-                  className={`flex h-5 w-[30px] shrink-0 items-center justify-center border-y border-r border-[var(--cal-hairline)] text-[11px] ${
+                  className={`flex h-7 w-[42px] shrink-0 items-center justify-center border-y border-r border-[var(--cal-hairline)] text-xs ${
                     intensityType === 'PERCENT'
                       ? 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'
                       : 'text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)]'
@@ -204,7 +204,7 @@ export function MovementPatternSelect({
     : 'Misc';
   return (
     <label className="flex items-center gap-1 min-w-0">
-      <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Movement Pattern</span>
+      <span className="text-[13px] text-[var(--cal-muted)]">Movement pattern</span>
       <select
         data-testid={id ? `movement-pattern-${id}` : 'movement-pattern'}
         disabled={locked}

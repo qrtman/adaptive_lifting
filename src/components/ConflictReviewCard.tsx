@@ -84,16 +84,16 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 
 /** One line per set in coach language: "Set 1: Plan 100 kg × 5 @ RPE 8 · Log 105 × 5". */
 export function describeSet(set: SetLike, index: number): string {
-  const part = (weight: unknown, reps: unknown, rpe: unknown) => {
+  const part = (weight: unknown, reps: unknown, rpe: unknown, percent = false) => {
     const w = num(weight), r = num(reps), e = num(rpe);
     if (w === null && r === null && e === null) return null;
     let out = w !== null ? `${w} kg` : '—';
     if (r !== null) out += ` × ${r}`;
-    if (e !== null) out += ` @ RPE ${e}`;
+    if (e !== null) out += percent ? ` @ ${e}%` : ` @ RPE ${e}`;
     return out;
   };
   const scope = set.scope === 'plan' || set.scope === 'log' ? set.scope : 'both';
-  const plan = part(set.plannedWeight, set.plannedReps, set.plannedRpe ?? set.target_value);
+  const plan = part(set.plannedWeight, set.plannedReps, set.target_value ?? set.plannedRpe, (set.intensity_type ?? set.intensityType) === 'PERCENT');
   const log = part(set.actual, set.reps, set.executedRpe);
   const pieces: string[] = [];
   // A log-only row has no plan to report, and a plan-only row has no log.

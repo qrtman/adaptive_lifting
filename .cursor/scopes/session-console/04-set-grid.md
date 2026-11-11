@@ -62,6 +62,10 @@ empty sets · logged vs unlogged · `%` on set ≥1 · `use {n}` · locked/finis
 - [ ] `lift-adj` testid count 0.
 - [ ] `%` and `use {n}` still work.
 
+## Range selection + Delete set (added 2026-11-10)
+
+Sheets-style ranges, TSV copy/paste, fill down, accept suggestions, undo/redo, and one **Delete set** per row. Full behaviour: `design.md` §11.4 and `.cursor/rules/sheets-cell-edit.mdc` ("Range selection"). Code: `src/services/sheetRange.ts`, `src/services/setGridHistory.ts`, `ExerciseCard.tsx` (range block), tests `ExerciseCardRange.test.tsx`.
+
 ## Out of scope
 
 Session header (05). e1RM formula. Mobile quick adjuster.

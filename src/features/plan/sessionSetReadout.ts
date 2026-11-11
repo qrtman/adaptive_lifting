@@ -19,7 +19,8 @@ export function getLoggedLiftSummary(sets: readonly SetData[]): {
     if (weight <= 0 || reps <= 0) continue;
     tonnage += weight * reps;
     const rpe = trainingOrZero(set.executedRpe);
-    const e1RM = calculateE1RM(weight, reps, rpe);
+    // No logged RPE → no e1RM (the formula would just echo the bar weight); tonnage still counts.
+    const e1RM = rpe > 0 ? calculateE1RM(weight, reps, rpe) : 0;
     top = Math.max(top, e1RM);
     if (rpe > 0 && e1RM > 0) {
       intensityTotal += (weight / e1RM) * 100;
@@ -39,7 +40,8 @@ export function getTopLoggedE1RM(sets: readonly SetData[]): number | null {
 }
 
 /** Compact Plan/Log cell. Omit missing pieces — never `—×5@8`. */
-export function formatSetReadout(kg: unknown, reps: unknown, rpe: unknown): string {
+/** `rpe` is the intensity number; pass `unit: '%'` for a percent target so 80 reads "@ 80%", not RPE 80. */
+export function formatSetReadout(kg: unknown, reps: unknown, rpe: unknown, unit: '' | '%' = ''): string {
   const w = trainingNumber(kg);
   const r = trainingNumber(reps);
   const p = trainingNumber(rpe);
@@ -49,7 +51,7 @@ export function formatSetReadout(kg: unknown, reps: unknown, rpe: unknown): stri
   else if (w != null) load = String(w);
   else if (r != null) load = String(r);
   if (p == null) return load || '—';
-  return load ? `${load} @ ${p}` : String(p);
+  return load ? `${load} @ ${p}${unit}` : `${p}${unit}`;
 }
 
 export function formatSessionStatusMeta(status: string, tonnage: unknown): string | null {

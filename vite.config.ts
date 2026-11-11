@@ -9,6 +9,7 @@ import { edgeTargetRequiredPlugin } from './deploy/edgeTargetRequired';
 export default defineConfig(({ mode }) => {
   const loadedEnv = loadEnv(mode, process.cwd(), '');
   const edgeTarget = process.env.API_EDGE_TARGET ?? loadedEnv.API_EDGE_TARGET;
+  const edgeAppOrigin = process.env.API_EDGE_ORIGIN ?? loadedEnv.API_EDGE_ORIGIN;
   return {
     plugins: [edgeTargetRequiredPlugin(Boolean(edgeTarget)), react(), tailwindcss()],
     resolve: {
@@ -26,7 +27,7 @@ export default defineConfig(({ mode }) => {
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Vite proxies all API paths to Supabase Edge when configured.
-      proxy: edgeOnlyProxy(edgeTarget),
+      proxy: edgeOnlyProxy(edgeTarget, edgeAppOrigin),
     },
   };
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SetData, isWorkoutInProgress } from '../../types';
 import { apiService } from '../../services/api';
-import { calculateE1RM } from '../../services/mathEngine';
+import { calculateE1RM, plannedRpeOf } from '../../services/mathEngine';
 import { usePeriodization } from '../../contexts/PeriodizationContext';
 import { displayTrainingValue, trainingInt, trainingNumber, trainingOrZero } from '../../services/numericTraining';
 import { Tab, TabList, Tabs } from '../ui/Tabs';
@@ -59,7 +59,7 @@ export default function TelegramSessionTerminal() {
       activeExercise.sets.forEach((s) => {
         newBuffers[s.id] = {
           reps: trainingInt(s.reps ?? s.plannedReps) || 5,
-          rpe: trainingNumber(s.executedRpe ?? s.plannedRpe) || 7.0,
+          rpe: trainingNumber(s.executedRpe ?? plannedRpeOf(s)) || 7.0,
           weight: trainingOrZero(s.actual ?? s.plannedWeight),
           note: s.note || '',
           velocity: trainingNumber(s.velocity),
@@ -107,7 +107,7 @@ export default function TelegramSessionTerminal() {
   const getSetBuffer = (setId: string, fallbackSet: SetData): SetBuffer => {
     return setBuffers[setId] || {
       reps: trainingInt(fallbackSet.reps ?? fallbackSet.plannedReps) || 5,
-      rpe: trainingNumber(fallbackSet.executedRpe ?? fallbackSet.plannedRpe) || 7.0,
+      rpe: trainingNumber(fallbackSet.executedRpe ?? plannedRpeOf(fallbackSet)) || 7.0,
       weight: trainingOrZero(fallbackSet.actual ?? fallbackSet.plannedWeight),
       note: fallbackSet.note || '',
       velocity: trainingNumber(fallbackSet.velocity),
@@ -183,7 +183,7 @@ export default function TelegramSessionTerminal() {
       if (activeSet) {
         if (activeInput === 'weight') setNumpadValueString(displayTrainingValue(activeSet.plannedWeight));
         if (activeInput === 'reps') setNumpadValueString(displayTrainingValue(activeSet.plannedReps));
-        if (activeInput === 'rpe') setNumpadValueString(displayTrainingValue(activeSet.plannedRpe));
+        if (activeInput === 'rpe') setNumpadValueString(displayTrainingValue(plannedRpeOf(activeSet)));
       }
     } else {
       if (key === '.' && numpadValueString.includes('.')) return;

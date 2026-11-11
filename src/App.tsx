@@ -13,6 +13,8 @@ import { SecurityView } from './components/SecurityView';
 import { RosterView } from './components/RosterView';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
+import { SessionHeader } from './components/SessionHeader';
+import { Lock } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { useAccountAccess } from './contexts/AccessContext';
 import { shouldDisableCoachAction } from './services/accessUi';
@@ -24,9 +26,10 @@ import { readThemePref, applyThemeToDocument, setThemePref, toggleTheme } from '
 import type { ThemePreference } from './theme/themePref';
 import { isDashboardModeAvailable, parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
-import { formatPlanLabel } from './features/plan/sessionLabels';
+import { formatPlanLabel, isPlaceholderTitle, sessionHeadline } from './features/plan/sessionLabels';
 import { isWorkoutCompleted, splitWorkoutExercises, type LiftMetaPatch } from './types';
 import { useSync } from './contexts/SyncContext';
+import { useCollapsedLifts } from './features/plan/useCollapsedLifts';
 import { sessionReadOnlyReason } from './features/plan/sessionReadOnly';
 
 type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
@@ -37,7 +40,6 @@ type SortableExerciseCardProps = ComponentProps<typeof ExerciseCard> & {
 
 function SortableExerciseCard({ value, reorderContainerRef, canReorder = true, ...props }: SortableExerciseCardProps) {
   const dragControls = useDragControls();
-  const [minimized, setMinimized] = useState(props.initialMinimized ?? true);
 
   return (
     <Reorder.Item
@@ -48,13 +50,11 @@ function SortableExerciseCard({ value, reorderContainerRef, canReorder = true, .
       dragControls={dragControls}
       dragConstraints={reorderContainerRef}
       layout="position"
-      layoutDependency={minimized}
+      layoutDependency={props.minimized}
       className="relative"
     >
       <ExerciseCard
         {...props}
-        initialMinimized={minimized}
-        onMinimizedChange={setMinimized}
         dragControls={canReorder ? dragControls : undefined}
       />
     </Reorder.Item>
@@ -103,6 +103,8 @@ export default function App() {
   const sessionDayLabel = formatPlanLabel('Day', activeWorkout?.dayLabel);
   const sessionWeekLabel = formatPlanLabel('Week', activeWorkout?.weekLabel);
   const sessionBlockLabel = formatPlanLabel('Block', activeWorkout?.blockLabel);
+  // An unnamed session's title already reads "Day 1 · Week 2"; don't repeat it below.
+  const headlineShowsSlot = Boolean(activeWorkout && isPlaceholderTitle(activeWorkout.title) && (sessionDayLabel || sessionWeekLabel));
   const workoutExercises = activeWorkout ? splitWorkoutExercises(activeWorkout.exercises) : null;
   const { lockedWorkoutIds } = useSync();
   const readOnlyReason = sessionReadOnlyReason(activeWorkout, lockedWorkoutIds);
@@ -127,6 +129,10 @@ export default function App() {
     const bIndex = mainLiftOrder.indexOf(b.id);
     return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
   });
+  // Lift cards are open unless collapsed; collapse is remembered per lift on this device.
+  const { isCollapsed, setCollapsed, setMany: setManyCollapsed } = useCollapsedLifts();
+  const allLiftIds = activeWorkout ? activeWorkout.exercises.map((exercise) => exercise.id) : [];
+  const anyLiftOpen = allLiftIds.some((liftId) => !isCollapsed(liftId));
 
   useEffect(() => {
     if (initialLocation.athleteId) setActiveAthleteId(initialLocation.athleteId);
@@ -212,7 +218,7 @@ export default function App() {
   };
 
   const handleDeleteSession = async (workout: { id: string; title?: string }) => {
-    if (!window.confirm(`Delete ${workout.title || 'this session'}?`)) return;
+    if (!window.confirm(`Delete ${sessionHeadline(workout)}?`)) return;
     try {
       await apiService.deleteSession(workout.id);
       await reloadMicrocycles(planAthleteId);
@@ -338,87 +344,71 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.12 }}
-              className="flex-1 overflow-y-auto p-1 bg-[var(--cal-canvas)]"
+              className="flex-1 overflow-y-auto bg-[var(--cal-canvas)]"
             >
               {activeWorkout ? (
-                <>
-                  <div id="training-focus" className="min-h-8 flex flex-wrap items-start justify-between gap-2 px-1">
-                    <div className="flex items-start gap-2 min-w-0 flex-1">
-                        <button 
-                          onClick={() => {
-                            setEditSessionOpen(false);
-                            setCurrentView('dashboard');
-                          }}
-                          className="text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0 mt-1"
-                        >
-                          Back
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <p data-testid="session-name" className="text-lg font-semibold tracking-tight text-[var(--cal-ink)] break-words">
-                            {activeWorkout.title}
-                          </p>
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
-                            <p data-testid="session-labels" className="min-w-0 rounded-[var(--cal-radius-sm)] bg-[var(--cal-surface-2)] px-1.5 py-0.5 text-[12px] font-semibold text-[var(--cal-ink)]">
-                              {[sessionDayLabel, sessionWeekLabel, sessionBlockLabel].filter(Boolean).join(' · ')}
-                              {sessionDayLabel && !sessionWeekLabel && !sessionBlockLabel ? ' · ' : null}
-                              {!sessionWeekLabel && !sessionBlockLabel ? 'No block/week' : null}
-                            </p>
-                            <button
-                              type="button"
-                              data-testid="session-edit"
-                              onClick={() => setEditSessionOpen(true)}
-                              disabled={!coachCanProgram}
-                              title={!coachCanProgram ? 'Active coaching access is required to edit athlete programming.' : undefined}
-                              className="h-6 px-1.5 text-[11px] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-auto">
-                      <p data-testid="workout-tonnage" className="flex w-36 shrink-0 items-baseline justify-end gap-1 text-right text-[11px] font-semibold text-[var(--cal-ink)]">
-                        <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Tonnage</span>
-                        <span className="tnum">{activeWorkout.tonnage.toLocaleString()} kg</span>
-                      </p>
-                      {sessionFinished ? (
-                        <span data-testid="session-finished-badge" className="h-7 inline-flex items-center px-2 text-[11px] font-semibold text-[var(--cal-muted)]">
-                          Finished
-                        </span>
-                      ) : (
-                      <button
-                        type="button"
-                        data-testid="session-complete"
-                        disabled={sessionLocked}
-                        onClick={async () => {
-                          if (sessionLocked) return;
-                          try {
-                            await finishSession('COMPLETED');
-                            setCurrentView('dashboard');
-                          } catch (err) {
-                            alert(err instanceof Error ? err.message : 'Failed to complete session');
-                          }
-                        }}
-                        className="h-7 px-2 text-[11px] bg-[var(--cal-primary)] text-[var(--cal-on-primary)] rounded-[var(--cal-radius-md)] disabled:opacity-40"
-                      >
-                        Complete
-                      </button>
-                      )}
-                    </div>
-                  </div>
+                <div className="mx-auto w-full max-w-[1200px] px-3 pb-8 sm:px-4">
+                  <SessionHeader
+                    session={activeWorkout}
+                    backLabel={dashboardMode === 'sessions' ? 'Sessions' : 'Calendar'}
+                    onBack={() => {
+                      setEditSessionOpen(false);
+                      setCurrentView('dashboard');
+                    }}
+                    onEdit={() => setEditSessionOpen(true)}
+                    canEdit={coachCanProgram}
+                    editDisabledReason="Active coaching access is required to edit athlete programming."
+                    finished={sessionFinished}
+                    locked={sessionLocked}
+                    onComplete={async () => {
+                      if (sessionLocked) return;
+                      try {
+                        await finishSession('COMPLETED');
+                        setCurrentView('dashboard');
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : 'Failed to complete session');
+                      }
+                    }}
+                  />
 
                   {readOnlyReason ? (
-                    <p data-testid="session-readonly" role="status" className="px-2 py-1 text-xs text-[var(--cal-muted)]">
+                    <p
+                      data-testid="session-readonly"
+                      role="status"
+                      className="mb-3 flex items-center gap-2 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] px-3 py-2 text-[13px] text-[var(--cal-body)]"
+                    >
+                      <Lock size={14} aria-hidden="true" className="shrink-0 text-[var(--cal-muted)]" />
                       Session locked by another writer — read-only until the lock is released
                     </p>
                   ) : null}
 
                   <div>
                     {activeWorkout.exercises.length === 0 && (
-                      <p className="px-2 py-6 text-xs text-[var(--cal-muted)]" data-testid="session-empty-lifts">
-                        No lifts yet. Add squat, bench, or deadlift.
-                      </p>
+                      <div
+                        data-testid="session-empty-lifts"
+                        className="flex flex-col items-center justify-center gap-1 rounded-[var(--cal-radius-lg)] border border-dashed border-[var(--cal-hairline)] px-4 py-12 text-center"
+                      >
+                        <p className="text-base font-semibold text-[var(--cal-ink)]">No lifts yet</p>
+                        <p className="text-sm text-[var(--cal-muted)]">Add squat, bench, deadlift or any accessory.</p>
+                        {!sessionLocked && coachCanProgram ? (
+                          <div className="mt-3">
+                            <AddLiftBar sessionId={activeWorkout.id} variant="empty" onAdded={() => reloadMicrocycles(planAthleteId)} />
+                          </div>
+                        ) : null}
+                      </div>
                     )}
+                    {allLiftIds.length >= 2 ? (
+                      <div className="mx-2 mb-1 flex justify-end">
+                        <button
+                          type="button"
+                          data-testid="toggle-all-lifts"
+                          onClick={() => setManyCollapsed(allLiftIds, anyLiftOpen)}
+                          className="inline-flex h-7 items-center rounded-[var(--cal-radius-md)] px-2 text-[13px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+                        >
+                          {anyLiftOpen ? 'Collapse all' : 'Expand all'}
+                        </button>
+                      </div>
+                    ) : null}
                     <Reorder.Group
                       as="div"
                       axis="y"
@@ -443,6 +433,8 @@ export default function App() {
                         movementPattern={ex.movementPattern}
                         liftNote={ex.liftNote}
                         initialSets={ex.sets}
+                        minimized={isCollapsed(ex.id)}
+                        onMinimizedChange={(value) => setCollapsed(ex.id, value)}
                         canEditPlan={coachCanProgram}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={coachCanProgram ? (patch) => handleUpdateLift(ex.id, patch) : undefined}
@@ -454,6 +446,8 @@ export default function App() {
 
                     <AccessoryLedger
                       exercises={workoutExercises?.accessories ?? []}
+                      isCollapsed={isCollapsed}
+                      onCollapsedChange={setCollapsed}
                       locked={sessionLocked}
                       onUpdateSets={updateExerciseSets}
                       canEditPlan={coachCanProgram}
@@ -462,7 +456,9 @@ export default function App() {
                     />
 
                     {sessionLocked ? null : coachCanProgram ? (
-                      <AddLiftBar sessionId={activeWorkout.id} onAdded={() => reloadMicrocycles(planAthleteId)} />
+                      activeWorkout.exercises.length === 0 ? null : (
+                        <AddLiftBar sessionId={activeWorkout.id} onAdded={() => reloadMicrocycles(planAthleteId)} />
+                      )
                     ) : (
                       <p className="px-2 py-3 text-xs text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</p>
                     )}
@@ -483,7 +479,7 @@ export default function App() {
                       }}
                     />
                   )}
-                </>
+                </div>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20 px-4">
                     <p className="text-sm text-[var(--cal-ink)]">No session open</p>

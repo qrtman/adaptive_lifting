@@ -38,7 +38,12 @@ export type CellKeyEffect =
   | { type: 'caret' }
   | { type: 'copy'; preventDefault: true }
   | { type: 'paste'; preventDefault: true }
+  | { type: 'extend'; direction: 'left' | 'right' | 'up' | 'down'; preventDefault: true }
+  | { type: 'range'; command: RangeCommand; preventDefault: boolean }
   | { type: 'noop'; preventDefault: true };
+
+/** Lift-level commands from selected mode. The card applies them to the whole range. */
+export type RangeCommand = 'collapse' | 'fillDown' | 'acceptSuggestions' | 'selectAll' | 'undo' | 'redo';
 
 export const GRID_COL_COUNT = 7;
 
@@ -69,6 +74,15 @@ export type SetGridBind = {
   onCommit: (row: number, col: number, value: string, move?: GridMove, kind?: MoveKind) => void;
   onCancel: (row: number, col: number) => void;
   onMove: (row: number, col: number, direction: GridMove, kind: MoveKind) => void;
+  /** Range selection (optional so standalone cells keep working). */
+  inRange?: boolean;
+  onExtend?: (direction: 'left' | 'right' | 'up' | 'down') => void;
+  /** Returns true when the command did something (Esc with no range does not). */
+  onRangeCommand?: (command: RangeCommand) => boolean;
+  /** Clear / copy / paste act on the whole range when the card provides them. */
+  onClearRange?: () => void;
+  copyText?: () => string;
+  onPasteText?: (text: string) => void;
 };
 
 const ARROWS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
@@ -202,6 +216,29 @@ export function reduceCellKey(state: CellKeyState, event: CellKeyEventLike): Cel
     if (ctrl && (key === 'v' || key === 'V')) {
       return { type: 'paste', preventDefault: true };
     }
+    if (ctrl && (key === 'z' || key === 'Z')) {
+      return { type: 'range', command: shift ? 'redo' : 'undo', preventDefault: true };
+    }
+    if (ctrl && (key === 'y' || key === 'Y')) {
+      return { type: 'range', command: 'redo', preventDefault: true };
+    }
+    if (ctrl && (key === 'd' || key === 'D')) {
+      return { type: 'range', command: 'fillDown', preventDefault: true };
+    }
+    if (ctrl && (key === 'a' || key === 'A')) {
+      return { type: 'range', command: 'selectAll', preventDefault: true };
+    }
+    if (ctrl && key === 'Enter') {
+      return { type: 'range', command: 'acceptSuggestions', preventDefault: true };
+    }
+    if (key === 'Escape') {
+      // Only claimed when there is a range to collapse (the card decides).
+      return { type: 'range', command: 'collapse', preventDefault: false };
+    }
+    if (shift && key === 'ArrowLeft') return { type: 'extend', direction: 'left', preventDefault: true };
+    if (shift && key === 'ArrowRight') return { type: 'extend', direction: 'right', preventDefault: true };
+    if (shift && key === 'ArrowUp') return { type: 'extend', direction: 'up', preventDefault: true };
+    if (shift && key === 'ArrowDown') return { type: 'extend', direction: 'down', preventDefault: true };
     if (key === 'ArrowLeft') {
       return { type: 'move', direction: 'left', kind: 'arrow', preventDefault: true };
     }

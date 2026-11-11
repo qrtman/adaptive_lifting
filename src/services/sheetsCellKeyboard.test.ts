@@ -306,3 +306,38 @@ describe('neighbor (Tab wrap vs arrow clamp vs Enter same-column)', () => {
     expect(neighbor(addr(1, 'plan', 'reps'), 'rowEnd', 'arrow', 2)).toEqual(addr(1, 'log', 'rpe'));
   });
 });
+
+describe('reduceCellKey range commands (selected)', () => {
+  it('Shift+Arrows extend the range instead of moving', () => {
+    expect(reduceCellKey(selected, key({ key: 'ArrowDown', shiftKey: true })))
+      .toEqual({ type: 'extend', direction: 'down', preventDefault: true });
+    expect(reduceCellKey(selected, key({ key: 'ArrowLeft', shiftKey: true })))
+      .toEqual({ type: 'extend', direction: 'left', preventDefault: true });
+  });
+
+  it('maps Sheets shortcuts to range commands', () => {
+    const cmd = (partial: Partial<CellKeyEventLike> & { key: string }) => {
+      const effect = reduceCellKey(selected, key(partial));
+      return effect.type === 'range' ? effect.command : effect.type;
+    };
+    expect(cmd({ key: 'z', ctrlKey: true })).toBe('undo');
+    expect(cmd({ key: 'Z', metaKey: true, shiftKey: true })).toBe('redo');
+    expect(cmd({ key: 'y', ctrlKey: true })).toBe('redo');
+    expect(cmd({ key: 'd', ctrlKey: true })).toBe('fillDown');
+    expect(cmd({ key: 'a', metaKey: true })).toBe('selectAll');
+    expect(cmd({ key: 'Enter', ctrlKey: true })).toBe('acceptSuggestions');
+    expect(cmd({ key: 'Escape' })).toBe('collapse');
+    // Plain Enter still begins editing.
+    expect(cmd({ key: 'Enter' })).toBe('beginEdit');
+  });
+
+  it('Escape only claims the key when the card says a range collapsed', () => {
+    expect(reduceCellKey(selected, key({ key: 'Escape' })))
+      .toEqual({ type: 'range', command: 'collapse', preventDefault: false });
+  });
+
+  it('editing keeps the input own undo and arrows', () => {
+    expect(reduceCellKey(editing, key({ key: 'z', ctrlKey: true }))).toEqual({ type: 'none' });
+    expect(reduceCellKey(editing, key({ key: 'ArrowLeft', shiftKey: true }))).toEqual({ type: 'caret' });
+  });
+});

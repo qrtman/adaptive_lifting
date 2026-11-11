@@ -7,6 +7,8 @@ import {
   calculateDOTS,
   calculateE1RM,
   calculateINOL,
+  calculatePlannedE1RM,
+  plannedRpeOf,
   calculateWeightFromE1RM,
   roundToCompetitionPlates,
   setPreviewMetrics,
@@ -95,5 +97,17 @@ describe('e1RM RPE floor and ranking', () => {
     expect(recovered).not.toBe(e1rm);
     expect(Math.round(recovered * 100) / 100).toBe(150);
     expect(calculateWeightFromE1RM(e1rm, 6, 4)).toBe(recovered);
+  });
+});
+
+describe('calculatePlannedE1RM', () => {
+  it('reads a % target as percent of e1RM, never as RPE', () => {
+    expect(calculatePlannedE1RM(160, 5, 'PERCENT', 80)).toBe(200);
+    expect(calculatePlannedE1RM(160, 5, 'RPE', 8)).toBe(calculateE1RM(160, 5, 8));
+    expect(calculatePlannedE1RM(0, 5, 'PERCENT', 80)).toBe(0);
+  });
+  it('plannedRpeOf hides a % target', () => {
+    expect(plannedRpeOf({ intensity_type: 'PERCENT', plannedRpe: 80 })).toBeNull();
+    expect(plannedRpeOf({ intensity_type: 'RPE', plannedRpe: 8 })).toBe(8);
   });
 });

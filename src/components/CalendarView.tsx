@@ -6,6 +6,9 @@ import {
   Check,
   AlertTriangle,
   Trash2,
+  Plus,
+  Copy,
+  StickyNote,
 } from 'lucide-react';
 import { CenteredDialog } from './CenteredDialog';
 import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
@@ -23,7 +26,7 @@ import {
   type LiftFilterState,
 } from '../services/liftFilter';
 import { apiService } from '../services/api';
-import { formatPlanLabel } from '../features/plan/sessionLabels';
+import { formatPlanLabel, isPlaceholderTitle, sessionHeadline } from '../features/plan/sessionLabels';
 import {
   buildCopyWeekRequest,
   buildDayClipboard,
@@ -52,9 +55,8 @@ function liftShortName(title: string): { code: string; color?: string } {
   return { code };
 }
 
-const HOVER_ACTION_ROW_PX = 24;
-const HOVER_ACTION_GAP_PX = 2;
-const DAY_HOVER_INTENT_MS = 100;
+/** The pointer must rest on a day this long before its buttons appear (no flashing while sweeping). */
+export const DAY_HOVER_INTENT_MS = 250;
 const COPY_MODE_OPTIONS: Array<{ value: CopyMode; label: string; description: string }> = [
   {
     value: 'lifts',
@@ -82,11 +84,6 @@ function dayAriaLabel(dateStr: string): string {
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function hoverDockMinHeight(actionCount: number): number {
-  if (actionCount <= 0) return 0;
-  return actionCount * HOVER_ACTION_ROW_PX + (actionCount - 1) * HOVER_ACTION_GAP_PX;
 }
 
 export function CalendarView({
@@ -719,7 +716,6 @@ export function CalendarView({
                             const isHovered = hoveredDate === dateStr && cell.isCurrentMonth;
                             const isQuietFill =
                               cell.isCurrentMonth
-                              && !copyClipboard
                               && (isHovered || newSessionDate === dateStr || notesDate === dateStr);
                             const dayInteractive = cell.isCurrentMonth && !showCoachSelectAthlete;
                             const activateDay = () => {
@@ -737,6 +733,7 @@ export function CalendarView({
                               }
                             };
 
+                            const copyTarget = Boolean(copyClipboard && cell.isCurrentMonth && dateStr !== copyOriginDate);
                             return (
                               <div
                                 key={dateStr}
@@ -756,7 +753,7 @@ export function CalendarView({
                                   event.preventDefault();
                                   activateDay();
                                 }}
-                                className={`cal-day-cell h-auto min-h-[128px] min-w-0 p-1.5 flex flex-col relative overflow-visible cursor-pointer border-r border-b border-[var(--cal-hairline)] ${
+                                className={`cal-day-cell h-auto min-h-[104px] min-w-0 p-1.5 flex flex-col relative overflow-visible cursor-pointer border-r border-b border-[var(--cal-hairline)] ${
                                   cellIdx === 6 ? 'border-r-0' : ''
                                 } ${
                                   isLastWeek ? 'border-b-0' : ''
@@ -766,17 +763,10 @@ export function CalendarView({
                                     : isQuietFill
                                       ? 'bg-[var(--cal-surface-soft)]'
                                       : 'bg-[var(--cal-canvas)]'
-                                } ${
-                                  copyClipboard && cell.isCurrentMonth && dateStr !== copyOriginDate
-                                    ? 'ring-1 ring-inset ring-[color-mix(in_srgb,var(--cal-accent)_50%,transparent)]'
-                                    : ''
-                                } ${
-                                  copyClipboard && dateStr === copyOriginDate
-                                    ? 'ring-1 ring-inset ring-[var(--cal-hairline)]'
-                                    : ''
                                 }`}
+                                data-copy-target={copyTarget ? 'true' : undefined}
                               >
-                                <div className="flex items-center gap-1 relative z-10 mb-1">
+                                <div className="flex h-[22px] items-center gap-1 relative z-10">
                                   <span
                                     className={`text-[11px] tnum shrink-0 ${
                                       isToday
@@ -786,6 +776,75 @@ export function CalendarView({
                                   >
                                     {String(cell.dayNumber).padStart(2, '0')}
                                   </span>
+                                  {/* Day actions live in the date row: no reserved space, no height change on hover. */}
+                                  {cell.isCurrentMonth && !showCoachSelectAthlete && (copyTarget || !copyClipboard) ? (
+                                    <div
+                                      data-testid={`calendar-day-hover-${dateStr}`}
+                                      data-open={hoveredDate === dateStr ? 'true' : undefined}
+                                      className="cal-day-dock ml-auto items-center gap-0.5"
+                                    >
+                                      {copyTarget ? (
+                                        <button
+                                          type="button"
+                                          data-testid={`calendar-paste-${dateStr}`}
+                                          data-tip="Paste the copied session on this day"
+                                          disabled={copyBusy || !isOnline}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            void copyToDate(dateStr);
+                                          }}
+                                          className="cal-dock-btn cal-dock-btn--main"
+                                        >
+                                          Paste
+                                        </button>
+                                      ) : (
+                                        <>
+                                          <button
+                                            type="button"
+                                            aria-label="New session"
+                                            data-tip="New session: plan a workout on this day"
+                                            data-testid={`calendar-new-session-${dateStr}`}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              openNewSession(dateStr);
+                                            }}
+                                            className="cal-day-tool"
+                                          >
+                                            <Plus size={13} aria-hidden="true" />
+                                          </button>
+                                          {dayWorkouts[0] ? (
+                                            <button
+                                              type="button"
+                                              aria-label="Copy to"
+                                              data-tip="Copy to: put this session on another day"
+                                              data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
+                                              disabled={!isOnline}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                startDayCopy(dayWorkouts[0].workout);
+                                              }}
+                                              className="cal-day-tool"
+                                            >
+                                              <Copy size={12} aria-hidden="true" />
+                                            </button>
+                                          ) : null}
+                                          <button
+                                            type="button"
+                                            aria-label="Notes"
+                                            data-tip="Notes: write a note for this day"
+                                            data-testid={`calendar-day-notes-${dateStr}`}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setNotesDate(dateStr);
+                                            }}
+                                            className="cal-day-tool"
+                                          >
+                                            <StickyNote size={12} aria-hidden="true" />
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  ) : null}
                                 </div>
                                 {cell.isCurrentMonth && dayWorkouts
                                   .filter(({ workout }) => workoutPassesFilter(workout, filter))
@@ -799,9 +858,12 @@ export function CalendarView({
                                       if (!next.code) continue;
                                       if (!shortLifts.some((item) => item.code === next.code)) shortLifts.push(next);
                                     }
+                                    const named = !isPlaceholderTitle(workout.title);
+                                    const headline = sessionHeadline(workout);
+                                    // An unnamed session's headline already shows Day · Week.
                                     const planMeta = [
-                                      formatPlanLabel('Day', workout.dayLabel),
-                                      formatPlanLabel('Week', workout.weekLabel),
+                                      named ? formatPlanLabel('Day', workout.dayLabel) : null,
+                                      named ? formatPlanLabel('Week', workout.weekLabel) : null,
                                       formatPlanLabel('Block', workout.blockLabel),
                                     ].filter(Boolean);
                                     const activateChip = () => {
@@ -815,9 +877,10 @@ export function CalendarView({
                                       <div
                                         key={workout.id}
                                         data-testid={`workout-card-${workout.id}`}
+                                        data-copy-source={copyClipboard?.sessionIds.includes(workout.id) ? 'true' : undefined}
                                         role="button"
                                         tabIndex={0}
-                                        aria-label={`Open ${workout.title || 'session'}, ${dayAriaLabel(dateStr)}${isWorkoutCompleted(workout.status) ? ', finished' : ''}`}
+                                        aria-label={`Open ${headline}, ${dayAriaLabel(dateStr)}${isWorkoutCompleted(workout.status) ? ', finished' : ''}`}
                                         draggable
                                         onDragOver={(e) => e.preventDefault()}
                                         onDragStart={(e) => handleDragStart(e, workout.id, microId)}
@@ -836,7 +899,7 @@ export function CalendarView({
                                       >
                                         <button
                                           type="button"
-                                          aria-label={`Delete ${workout.title || 'session'}`}
+                                          aria-label={`Delete ${headline}`}
                                           data-testid={`calendar-delete-${workout.id}`}
                                           onClick={(event) => {
                                             event.stopPropagation();
@@ -846,11 +909,13 @@ export function CalendarView({
                                         >
                                           <Trash2 size={11} aria-hidden="true" />
                                         </button>
-                                        <span className="text-[10px] font-medium text-[var(--cal-ink)] truncate leading-tight">
-                                          {workout.title || 'Session'}
-                                          {isWorkoutCompleted(workout.status) ? (
-                                            <span className="text-[var(--cal-success)]"> ✓</span>
-                                          ) : null}
+                                        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--cal-ink)] leading-tight">
+                                          <span
+                                            aria-hidden="true"
+                                            data-status={isWorkoutCompleted(workout.status) ? 'done' : 'planned'}
+                                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${isWorkoutCompleted(workout.status) ? 'bg-[var(--cal-success)]' : 'bg-[var(--cal-muted-soft)]'}`}
+                                          />
+                                          <span className="truncate">{headline}</span>
                                         </span>
                                         {planMeta.length > 0 ? (
                                           <span className="text-[9px] tnum text-[var(--cal-muted)] truncate leading-tight">
@@ -866,6 +931,8 @@ export function CalendarView({
                                               </span>
                                             ))}
                                           </span>
+                                        ) : workout.exercises.length === 0 ? (
+                                          <span className="text-[9px] text-[var(--cal-muted)] leading-tight">No lifts</span>
                                         ) : null}
                                       </div>
                                     );
@@ -891,57 +958,6 @@ export function CalendarView({
                                       {dayNote}
                                     </span>
                                   </button>
-                                ) : null}
-                                {cell.isCurrentMonth && !showCoachSelectAthlete ? (
-                                  <div
-                                    className={`mt-auto shrink-0 w-full min-w-0 flex flex-col justify-end ${copyClipboard ? 'invisible' : ''}`}
-                                    style={{ minHeight: hoverDockMinHeight(dayWorkouts[0] ? 3 : 2) }}
-                                  >
-                                    {!copyClipboard ? (
-                                      <div
-                                        data-testid={`calendar-day-hover-${dateStr}`}
-                                        data-open={hoveredDate === dateStr ? 'true' : undefined}
-                                        className="cal-day-dock flex-col gap-0.5 w-full min-w-0"
-                                      >
-                                        <button
-                                          type="button"
-                                          data-testid={`calendar-new-session-${dateStr}`}
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            openNewSession(dateStr);
-                                          }}
-                                          className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] truncate hover:bg-[var(--cal-primary-active)] transform-none"
-                                        >
-                                          New session
-                                        </button>
-                                        {dayWorkouts[0] ? (
-                                          <button
-                                            type="button"
-                                            data-testid={`calendar-copy-to-${dayWorkouts[0].workout.id}`}
-                                            disabled={!isOnline}
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              startDayCopy(dayWorkouts[0].workout);
-                                            }}
-                                            className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] truncate disabled:opacity-40 transform-none"
-                                          >
-                                            Copy to
-                                          </button>
-                                        ) : null}
-                                        <button
-                                          type="button"
-                                          data-testid={`calendar-day-notes-${dateStr}`}
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            setNotesDate(dateStr);
-                                          }}
-                                          className="h-6 w-full px-1.5 text-[10px] leading-none text-[var(--cal-ink)] bg-[var(--cal-surface-strong)] rounded-[var(--cal-radius-md)] truncate transform-none"
-                                        >
-                                          Notes
-                                        </button>
-                                      </div>
-                                    ) : null}
-                                  </div>
                                 ) : null}
                               </div>
                             );
@@ -1032,7 +1048,7 @@ export function CalendarView({
               <p className="flex items-start gap-2 text-xs text-[var(--cal-muted)] leading-relaxed mb-4">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[var(--cal-warning)]" aria-hidden="true" />
                 <span>
-                  Rescheduling <strong className="text-[var(--cal-ink)]">{conflictModal.workout.title}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-[var(--cal-ink)]">{conflictModal.newDate}</strong>.
+                  Rescheduling <strong className="text-[var(--cal-ink)]">{sessionHeadline(conflictModal.workout)}</strong> by {Math.abs(conflictModal.daysDiff)} {Math.abs(conflictModal.daysDiff) === 1 ? 'day' : 'days'} {conflictModal.daysDiff > 0 ? 'forward' : 'backward'} to <strong className="text-[var(--cal-ink)]">{conflictModal.newDate}</strong>.
                 </span>
               </p>
 

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus } from 'lucide-react';
+import { useState, useEffect, useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus, Pencil, StickyNote } from 'lucide-react';
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PrescriptionEditor } from './PrescriptionEditor';
@@ -8,6 +8,7 @@ import { CenteredDialog, NestedCard } from './CenteredDialog';
 import { 
   calculateE1RM, 
   calculateINOL,
+  calculatePlannedE1RM,
   getRpePercentage,
 } from '../services/mathEngine';
 import { displayTrainingValue, trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from '../services/numericTraining';
@@ -20,8 +21,25 @@ import {
   type CellMode,
   type MoveKind,
   type NeighborDir,
+  type RangeCommand,
   type SetGridBind,
 } from '../services/sheetsCellKeyboard';
+import {
+  cellsIn,
+  extendEnd,
+  isSingleCell,
+  normalizePastedNumber,
+  parseTsv,
+  planFillDown,
+  planPaste,
+  rectHas,
+  rectOf,
+  toTsv,
+  type CellWrite,
+  type GridCell,
+  type GridRect,
+} from '../services/sheetRange';
+import { clearHistory, createGridHistory, recordChange, sameSets, stepRedo, stepUndo } from '../services/setGridHistory';
 import {
   applySetDropPercent,
   parseDropPercent,
@@ -29,6 +47,46 @@ import {
   refreshSetAnchors,
 } from '../services/setPrescription';
 import type { LiftMetaPatch } from '../types';
+
+type LaneEntry = { set: any; index: number };
+
+/** Rows of the grid zip the plan list with the log list (the two halves may be different records). */
+function lanesOf(setList: any[]): { planRows: LaneEntry[]; logRows: LaneEntry[] } {
+  const entries = setList.map((set, index) => ({ set, index }));
+  return {
+    planRows: entries.filter(({ set }) => set.scope !== 'log'),
+    logRows: entries.filter(({ set }) => set.scope !== 'plan'),
+  };
+}
+
+function newSetRecord(number: number, scope: 'plan' | 'log' | 'both') {
+  return {
+    id: `s-${Math.random().toString(36).slice(2, 12)}`,
+    label: `Set ${number}`,
+    scope,
+    plannedWeight: null,
+    plannedReps: null,
+    plannedRpe: null,
+    intensity_type: 'RPE',
+    target_value: null,
+    dropPercent: 0,
+    isTop: false,
+    isAuto: false,
+    actual: null,
+    reps: null,
+    executedRpe: null,
+  };
+}
+
+function cellText(value: unknown): string {
+  return value === null || value === undefined || value === '' ? '' : String(value);
+}
+
+/** "Knee Dominant" → "Knee dominant" for display. */
+function sentenceCaseLabel(value: string): string {
+  const [first, ...rest] = value.split(' ');
+  return [first, ...rest.map((word) => word.toLowerCase())].join(' ');
+}
 import type { MovementPattern } from '../services/exerciseCatalog';
 import { compileVariation, defaultModifiers, parseModifiers } from '../services/liftVariation';
 import { catalogExercise, LiftCatalogChoice } from './LiftCatalogChoice';
@@ -114,7 +172,8 @@ export const ExerciseCard = ({
   locked = false,
   canEditPlan = true,
   roleMode: _roleMode = 'coach',
-  initialMinimized = true
+  initialMinimized = true,
+  minimized: minimizedProp,
 }: { 
   id: string,
   title: string, 
@@ -136,6 +195,8 @@ export const ExerciseCard = ({
   canEditPlan?: boolean,
   roleMode?: 'coach' | 'athlete',
   initialMinimized?: boolean,
+  /** Controlled open/closed state; when omitted the card keeps its own (starting from initialMinimized). */
+  minimized?: boolean,
   key?: string,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
@@ -186,14 +247,24 @@ export const ExerciseCard = ({
   const [noteDraft, setNoteDraft] = useState(liftNote ?? '');
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteStatus, setNoteStatus] = useState<'idle' | 'saved' | 'error'>('idle');
-  const [minimized, setMinimized] = useState(initialMinimized);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [ownMinimized, setOwnMinimized] = useState(initialMinimized);
+  const minimized = minimizedProp ?? ownMinimized;
   const [grid, setGrid] = useState<{
     row: number;
     col: number;
     mode: CellMode;
     overwrite: boolean;
     seed?: string;
+    /** Multi-cell selection. The active cell (row/col) stays where typing goes. */
+    range?: { anchor: GridCell; end: GridCell };
   } | null>(null);
+  const historyRef = useRef(createGridHistory<any[]>());
+  const [dragging, setDragging] = useState(false);
+  const dragAnchorRef = useRef<GridCell | null>(null);
+  const [gridNotice, setGridNotice] = useState<{ text: string; action?: { label: string; run: () => void } } | null>(null);
+  const gridWrapRef = useRef<HTMLDivElement>(null);
+  const [rangeBox, setRangeBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (!editOpen) return;
@@ -215,6 +286,8 @@ export const ExerciseCard = ({
 
   const saveLiftNote = async () => {
     if (!onUpdateMeta || locked || noteSaving) return;
+    // Blur-to-save: nothing to send when the note did not change.
+    if (noteDraft.trim() === (liftNote ?? '').trim()) return;
     setNoteSaving(true);
     setNoteStatus('idle');
     try {
@@ -237,8 +310,14 @@ export const ExerciseCard = ({
     setSets(mapInitialSets(initialSets));
   }, [initialSets]);
 
-  const updateAndPropagate = (newSets: any[]) => {
+  // Undo never crosses a lock, and a finished session can't be changed anyway.
+  useEffect(() => {
+    if (locked) clearHistory(historyRef.current);
+  }, [locked]);
+
+  const updateAndPropagate = (newSets: any[], record = true) => {
     const recalculated = recalculatePresetsAndSugs(newSets);
+    if (record && !sameSets(sets, recalculated)) recordChange(historyRef.current, sets, recalculated);
     setSets(recalculated);
     onUpdateSets(recalculated);
   };
@@ -275,15 +354,25 @@ export const ExerciseCard = ({
     updateAndPropagate(newSets);
   };
 
-  const deleteSet = (index: number, target: 'plan' | 'log') => {
-    const set = sets[index];
-    if (set.scope === 'both') {
-      updateSet(index, target === 'plan'
-        ? { scope: 'log', plannedWeight: null, plannedReps: null, plannedRpe: null, target_value: null, dropPercent: 0 }
-        : { scope: 'plan', actual: null, reps: null, executedRpe: null });
-      return;
-    }
-    updateAndPropagate(sets.filter((_, i) => i !== index));
+  /** Delete the whole row: its plan and its log, even when they are two separate records. */
+  const deleteRow = (laneIndex: number) => {
+    const planIdx = planRows[laneIndex]?.index;
+    const logIdx = logRows[laneIndex]?.index;
+    if (planIdx === undefined && logIdx === undefined) return;
+    const next = sets.flatMap((set, i) => {
+      const dropPlan = i === planIdx;
+      const dropLog = i === logIdx;
+      if (!dropPlan && !dropLog) return [set];
+      // A "both" record can show its plan in one row and its log in another: keep the other half.
+      if (set.scope === 'both' && dropPlan && !dropLog) {
+        return [{ ...set, scope: 'log', plannedWeight: null, plannedReps: null, plannedRpe: null, target_value: null, dropPercent: 0 }];
+      }
+      if (set.scope === 'both' && dropLog && !dropPlan) {
+        return [{ ...set, scope: 'plan', actual: null, reps: null, executedRpe: null }];
+      }
+      return [];
+    });
+    updateAndPropagate(next);
   };
 
   const syncTarget = (index: number, laneIndex: number) => {
@@ -305,7 +394,18 @@ export const ExerciseCard = ({
   const loggedCount = sets.filter((set) => set.scope !== 'plan' && trainingNumber(set.actual) != null).length;
   const { intensityPct, nl } = summarizeExerciseCard(sets);
 
-  const addSet = (target: 'plan' | 'log') => {
+  // One "Add set": a new full row (plan + log). If the plan and log columns are uneven,
+  // it first fills the next row that is missing a half. Without plan rights it adds a log set.
+  const addSet = () => {
+    if (!canEditPlan) return addHalfSet('log');
+    if (planRows.length < logRows.length) return addHalfSet('plan');
+    if (logRows.length < planRows.length) return addHalfSet('log');
+    const nextRow = planRows.length;
+    updateAndPropagate([...sets, newSetRecord(sets.length + 1, 'both')]);
+    setGrid({ row: nextRow, col: 1, mode: 'selected', overwrite: false });
+  };
+
+  const addHalfSet = (target: 'plan' | 'log') => {
     const targetRows = target === 'plan' ? planRows : logRows;
     const oppositeRows = target === 'plan' ? logRows : planRows;
     const nextRow = targetRows.length;
@@ -317,22 +417,7 @@ export const ExerciseCard = ({
       setGrid({ row: nextRow, col: target === 'plan' ? (nextRow === 0 ? 1 : 0) : 4, mode: 'selected', overwrite: false });
       return;
     }
-    updateAndPropagate([...sets, {
-      id: `s-${Math.random().toString(36).slice(2, 12)}`,
-      label: `Set ${sets.length + 1}`,
-      scope: target,
-      plannedWeight: null,
-      plannedReps: null,
-      plannedRpe: null,
-      intensity_type: 'RPE',
-      target_value: null,
-      dropPercent: 0,
-      isTop: false,
-      isAuto: false,
-      actual: null,
-      reps: null,
-      executedRpe: null
-    }]);
+    updateAndPropagate([...sets, newSetRecord(sets.length + 1, target)]);
     setGrid({
       row: nextRow,
       col: target === 'plan' ? (nextRow === 0 ? 1 : 0) : 4,
@@ -372,8 +457,17 @@ export const ExerciseCard = ({
         setGrid({ row: next.row, col: colOf(next), mode: 'selected', overwrite: false });
         return;
       }
-      setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
+      // Blur commit: if a mousedown already selected another cell, keep that selection.
+      setGrid((prev) => (prev && (prev.row !== nextRow || prev.col !== nextCol)
+        ? prev
+        : { row: nextRow, col: nextCol, mode: 'selected', overwrite: false }));
     },
+    inRange: rangeIsMulti && rangeRect != null && rectHas(rangeRect, row, col),
+    onExtend: extendRange,
+    onRangeCommand: runRangeCommand,
+    onClearRange: clearRange,
+    copyText: copyRange,
+    onPasteText: pasteRange,
     onCancel: (nextRow, nextCol) => {
       setGrid({ row: nextRow, col: nextCol, mode: 'selected', overwrite: false });
     },
@@ -393,12 +487,15 @@ export const ExerciseCard = ({
     },
   });
 
-  const td = "px-0.5 py-0.5 align-middle whitespace-nowrap";
-  const th = "px-0.5 py-1 text-center text-[10px] font-medium uppercase tracking-wider text-[var(--cal-muted)] whitespace-nowrap";
-  const thField = `${th} normal-case tracking-normal`;
-  const actionCell = "w-10 px-0 py-0.5 align-middle whitespace-nowrap";
-  const actionButton = "inline-flex h-5 w-5 items-center justify-center rounded-[3px] border border-[var(--cal-hairline)] bg-transparent text-[var(--cal-muted)] opacity-65 transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-30 group-hover:opacity-100";
-  const addSetButton = "inline-flex h-7 items-center justify-center gap-1 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-2 text-[11px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]";
+  const td = "p-0 align-middle whitespace-nowrap";
+  const th = "px-3 py-2 text-left text-[13px] font-semibold text-[var(--cal-ink)] whitespace-nowrap";
+  const thField = "px-3 py-1.5 text-right text-xs font-normal text-[var(--cal-muted)] whitespace-nowrap";
+  const thMetric = "px-3 py-1.5 text-center text-xs font-normal text-[var(--cal-muted)] whitespace-nowrap";
+  const actionCell = "w-14 px-0 py-1 align-middle whitespace-nowrap";
+  // Row tools: quiet ghost icons, shown on row hover/focus (always on touch), like the calendar day tools.
+  const actionButton = "inline-flex h-6 w-6 items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] opacity-0 transition-[opacity,background-color,color] hover:bg-[var(--cal-surface-strong)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 group-hover:disabled:opacity-30";
+  const headerButton = "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--cal-radius-md)] px-2 text-[13px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-40";
+  const headerIcon = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-40";
 
   const commitDropPercent = (index: number, pct: number) => {
     if (locked || index <= 0 || sets[index]?.scope === 'log') return;
@@ -437,10 +534,341 @@ export const ExerciseCard = ({
     ? grid!.row + 1
     : null;
 
+  // ---- Range selection (Sheets parity; see .cursor/rules/sheets-cell-edit.mdc) ----
+  const setsRef = useRef(sets);
+  setsRef.current = sets;
+  const rowCount = Math.max(planRows.length, logRows.length);
+  const rangeRect: GridRect | null = grid
+    ? grid.range ? rectOf(grid.range.anchor, grid.range.end) : rectOf({ row: grid.row, col: grid.col })
+    : null;
+  const rangeIsMulti = rangeRect != null && !isSingleCell(rangeRect);
+
+  const readCellOf = (lanes: { planRows: LaneEntry[]; logRows: LaneEntry[] }) => (row: number, col: number): string => {
+    const plan = lanes.planRows[row]?.set;
+    const log = lanes.logRows[row]?.set;
+    switch (col) {
+      case 0: return plan && row > 0 ? dropPercentDisplay(trainingInt(plan.dropPercent) ?? 0) : '';
+      case 1: return cellText(plan?.plannedWeight);
+      case 2: return cellText(plan?.plannedReps);
+      case 3: return cellText(plan?.target_value);
+      case 4: return cellText(log?.actual);
+      case 5: return cellText(log?.reps);
+      case 6: return cellText(log?.executedRpe);
+      default: return '';
+    }
+  };
+  const readCell = readCellOf({ planRows, logRows });
+
+  /** One rule for clear, paste, fill and accept: only real, editable cells; never creates sets. */
+  const isWritable = (lanes: { planRows: LaneEntry[]; logRows: LaneEntry[] }, row: number, col: number) => {
+    if (locked) return false;
+    if (col <= 3) return canEditPlan && Boolean(lanes.planRows[row]) && !(col === 0 && row === 0);
+    return Boolean(lanes.logRows[row]);
+  };
+
+  /** Typed text → the numeric patch for that column (null = not a number, skip). */
+  const patchFor = (col: number, raw: string): Record<string, unknown> | null => {
+    const empty = raw === '';
+    const n = empty ? null : trainingNumber(raw);
+    if (!empty && n === null) return null;
+    switch (col) {
+      case 0: return { dropPercent: empty ? 0 : parseDropPercent(raw), isAuto: false };
+      case 1: return { plannedWeight: n };
+      case 2: return { plannedReps: n === null ? null : Math.round(n) };
+      case 3: return { target_value: n, plannedRpe: n };
+      case 4: return { actual: n, isAuto: empty };
+      case 5: return { reps: n === null ? null : Math.round(n) };
+      case 6: return { executedRpe: n };
+      default: return null;
+    }
+  };
+
+  const applyWrites = (base: any[], writes: CellWrite[]) => {
+    const lanes = lanesOf(base);
+    const next = [...base];
+    let applied = 0;
+    let skipped = 0;
+    for (const write of writes) {
+      const patch = isWritable(lanes, write.row, write.col) ? patchFor(write.col, write.raw) : null;
+      if (!patch) {
+        skipped += 1;
+        continue;
+      }
+      const index = (write.col <= 3 ? lanes.planRows : lanes.logRows)[write.row].index;
+      next[index] = { ...next[index], ...patch };
+      applied += 1;
+    }
+    return { next, applied, skipped };
+  };
+
+  const saveWrites = (base: any[], writes: CellWrite[]) => {
+    const result = applyWrites(base, writes);
+    if (result.applied > 0) updateAndPropagate(result.next);
+    return result;
+  };
+
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  const clearRange = () => {
+    if (!rangeRect) return;
+    setGridNotice(null);
+    saveWrites(sets, cellsIn(rangeRect).map((cell) => ({ ...cell, raw: '' })));
+  };
+
+  const copyRange = () => (rangeRect ? toTsv(rangeRect, readCell) : '');
+
+  /** Append rows for a paste that ran past the last set — only when the person asks. */
+  const addRowsAndPaste = (rest: string[][], left: number) => {
+    const base = setsRef.current;
+    const lanes = lanesOf(base);
+    const firstRow = Math.max(lanes.planRows.length, lanes.logRows.length);
+    const width = Math.max(...rest.map((line) => line.length));
+    const touchesPlan = left <= 3;
+    const touchesLog = left + width - 1 >= 4;
+    const scope = touchesPlan && touchesLog ? 'both' : touchesPlan ? 'plan' : 'log';
+    const added = rest.map((_, i) => newSetRecord(base.length + i + 1, scope));
+    const writes = rest.flatMap((line, r) => line
+      .map((raw, c) => ({ row: firstRow + r, col: left + c, raw: normalizePastedNumber(raw) }))
+      .filter((write) => write.col < GRID_COL_COUNT));
+    const result = applyWrites([...base, ...added], writes);
+    updateAndPropagate(result.next);
+    setGridNotice(result.skipped > 0 ? { text: `${plural(result.skipped, 'cell')} skipped (no set there, read-only, or not a number).` } : null);
+  };
+
+  const pasteRange = (text: string) => {
+    if (!rangeRect || locked) return;
+    const matrix = parseTsv(text);
+    const plan = planPaste(rangeRect, matrix, rowCount, GRID_COL_COUNT);
+    const result = saveWrites(sets, plan.writes);
+    if (matrix.length > 1 || matrix[0].length > 1) {
+      const width = Math.max(...matrix.map((line) => line.length));
+      setGrid((prev) => prev && ({
+        ...prev,
+        mode: 'selected',
+        range: {
+          anchor: { row: rangeRect.top, col: rangeRect.left },
+          end: {
+            row: Math.min(rangeRect.top + plan.pastedRows - 1, Math.max(0, rowCount - 1)),
+            col: Math.min(rangeRect.left + width - 1, GRID_COL_COUNT - 1),
+          },
+        },
+      }));
+    }
+    const parts: string[] = [];
+    if (result.skipped > 0) parts.push(`${plural(result.skipped, 'cell')} skipped (no set there, read-only, or not a number).`);
+    if (plan.clippedRows > 0) {
+      const width = Math.max(...matrix.map((line) => line.length));
+      const touchesPlan = rangeRect.left <= 3;
+      const touchesLog = rangeRect.left + width - 1 >= 4;
+      // New rows only line up when the lists they join are full to the last row.
+      const canAdd = !locked
+        && (!touchesPlan || (canEditPlan && planRows.length === rowCount))
+        && (!touchesLog || logRows.length === rowCount);
+      const rest = matrix.slice(plan.pastedRows);
+      setGridNotice({
+        text: [`Pasted ${plan.pastedRows} of ${matrix.length} rows.`, ...parts].join(' '),
+        action: canAdd
+          ? { label: `Add ${plural(plan.clippedRows, 'set')}`, run: () => addRowsAndPaste(rest, rangeRect.left) }
+          : undefined,
+      });
+      return;
+    }
+    setGridNotice(parts.length ? { text: parts.join(' ') } : null);
+  };
+
+  const fillDown = () => {
+    if (!rangeRect) return;
+    setGridNotice(null);
+    saveWrites(sets, planFillDown(rangeRect, readCell));
+  };
+
+  const acceptSuggestions = () => {
+    if (!rangeRect || locked || !canEditPlan) return;
+    const writes: CellWrite[] = [];
+    for (let row = rangeRect.top; row <= rangeRect.bottom; row += 1) {
+      if (!rectHas(rangeRect, row, 1)) continue;
+      const plan = planRows[row]?.set;
+      const offer = plan ? planKgOfferKg(plan.suggestedWeight ?? null, plan.plannedWeight) : null;
+      if (offer != null) writes.push({ row, col: 1, raw: String(offer) });
+    }
+    if (writes.length === 0) {
+      setGridNotice({ text: 'No suggested weights in the selection.' });
+      return;
+    }
+    setGridNotice(null);
+    saveWrites(sets, writes);
+  };
+
+  const runHistory = (direction: 'undo' | 'redo') => {
+    const step = direction === 'undo'
+      ? stepUndo(historyRef.current, sets, sameSets)
+      : stepRedo(historyRef.current, sets, sameSets);
+    if (step.status === 'ok') {
+      updateAndPropagate(step.value, false);
+      setGridNotice(null);
+    } else if (step.status === 'conflict') {
+      setGridNotice({ text: `Can't ${direction}: this lift changed since.` });
+    }
+  };
+
+  const runRangeCommand = (command: RangeCommand): boolean => {
+    switch (command) {
+      case 'collapse':
+        if (!grid?.range) return false;
+        setGrid({ ...grid, range: undefined });
+        setGridNotice(null);
+        return true;
+      case 'selectAll':
+        if (rowCount === 0) return true;
+        setGrid((prev) => prev && ({ ...prev, mode: 'selected', range: { anchor: { row: 0, col: 0 }, end: { row: rowCount - 1, col: GRID_COL_COUNT - 1 } } }));
+        return true;
+      case 'fillDown': fillDown(); return true;
+      case 'acceptSuggestions': acceptSuggestions(); return true;
+      case 'undo': runHistory('undo'); return true;
+      case 'redo': runHistory('redo'); return true;
+      default: {
+        const _exhaustive: never = command;
+        return _exhaustive;
+      }
+    }
+  };
+
+  const extendRange = (direction: 'left' | 'right' | 'up' | 'down') => {
+    setGrid((prev) => {
+      if (!prev) return prev;
+      const base = prev.range ?? { anchor: { row: prev.row, col: prev.col }, end: { row: prev.row, col: prev.col } };
+      return { ...prev, mode: 'selected', range: { anchor: base.anchor, end: extendEnd(base.end, direction, rowCount, GRID_COL_COUNT) } };
+    });
+  };
+
+  const gridPosOf = (target: EventTarget | null): GridCell | null => {
+    const td = (target as HTMLElement | null)?.closest?.('[data-grid-pos]');
+    if (!td) return null;
+    const [row, col] = (td.getAttribute('data-grid-pos') ?? '').split(':').map(Number);
+    return Number.isInteger(row) && Number.isInteger(col) ? { row, col } : null;
+  };
+
+  const onGridMouseDown = (event: ReactMouseEvent<HTMLTableElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('input, button, textarea, select')) return;
+    // Stop the browser from starting a text selection anywhere in the grid (a drag can
+    // run over row numbers, metrics and headers). Focus is moved to the cell by hand.
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    const pos = gridPosOf(target);
+    if (!pos) return;
+    const cellEl = target.closest('[data-grid-pos]')?.querySelector<HTMLElement>('[data-cell-id]') ?? null;
+    if (event.shiftKey && grid) {
+      setGrid({ ...grid, mode: 'selected', range: { anchor: grid.range?.anchor ?? { row: grid.row, col: grid.col }, end: pos } });
+      return;
+    }
+    if (!cellEl) return;
+    // Focusing also blurs a cell that is being edited, which commits it.
+    cellEl.focus({ preventScroll: true });
+    setGridNotice(null);
+    dragAnchorRef.current = pos;
+    setDragging(true);
+    setGrid((prev) => (prev && prev.row === pos.row && prev.col === pos.col && !prev.range
+      ? prev
+      : { row: pos.row, col: pos.col, mode: 'selected', overwrite: false }));
+  };
+
+  const onGridMouseOver = (event: ReactMouseEvent<HTMLTableElement>) => {
+    const anchor = dragAnchorRef.current;
+    if (!anchor) return;
+    const pos = gridPosOf(event.target);
+    if (!pos) return;
+    setGrid((prev) => {
+      if (!prev) return prev;
+      if (pos.row === anchor.row && pos.col === anchor.col) return prev.range ? { ...prev, range: undefined } : prev;
+      return { ...prev, row: anchor.row, col: anchor.col, mode: 'selected', range: { anchor, end: pos } };
+    });
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const stop = () => {
+      dragAnchorRef.current = null;
+      setDragging(false);
+    };
+    window.addEventListener('mouseup', stop);
+    return () => window.removeEventListener('mouseup', stop);
+  }, [dragging]);
+
+  // One outline around the whole range, measured from its corner cells (Sheets look).
+  const rangeKey = rangeIsMulti && rangeRect ? `${rangeRect.top}:${rangeRect.left}:${rangeRect.bottom}:${rangeRect.right}` : '';
+  useLayoutEffect(() => {
+    const measure = () => {
+      const wrap = gridWrapRef.current;
+      if (!rangeKey || !wrap || !rangeRect) {
+        setRangeBox(null);
+        return;
+      }
+      const first = wrap.querySelector(`[data-grid-pos="${rangeRect.top}:${rangeRect.left}"]`);
+      const last = wrap.querySelector(`[data-grid-pos="${rangeRect.bottom}:${rangeRect.right}"]`);
+      if (!first || !last) {
+        setRangeBox(null);
+        return;
+      }
+      const frame = wrap.getBoundingClientRect();
+      const a = first.getBoundingClientRect();
+      const b = last.getBoundingClientRect();
+      setRangeBox({
+        left: a.left - frame.left + wrap.scrollLeft,
+        top: a.top - frame.top + wrap.scrollTop,
+        width: b.right - a.left,
+        height: b.bottom - a.top,
+      });
+    };
+    measure();
+    if (!rangeKey) return;
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeKey, sets.length, minimized]);
+
+  // Lift totals: one line in the minimized header, a stacked list beside the grid when open.
+  const liftStats = (layout: 'inline' | 'stacked') => {
+    const items: Array<{ key: string; label: string; value: ReactNode; testId?: string; title?: string }> = [];
+    if (intensityPct != null) items.push({ key: 'intensity', label: 'Intensity', value: `${intensityPct}%`, testId: `lift-intensity-${id}` });
+    items.push({
+      key: 'sets',
+      label: 'Sets',
+      title: `${plannedCount} planned, ${loggedCount} logged`,
+      testId: `lift-set-count-${id}`,
+      // Each half stays whole, so a narrow totals column breaks at the dot, not inside "0 logged".
+      value: <><span className="whitespace-nowrap"><span className="font-medium text-[var(--cal-ink)]">{plannedCount}</span> planned ·</span> <span className="whitespace-nowrap"><span className="font-medium text-[var(--cal-ink)]">{loggedCount}</span> logged</span></>,
+    });
+    items.push({ key: 'nl', label: 'NL', value: nl, testId: `lift-nl-${id}` });
+    items.push({ key: 'e1rm', label: 'e1RM', value: sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—' });
+    items.push({ key: 'volume', label: 'Volume', value: `${totalVolume.toLocaleString()} kg` });
+    if (layout === 'inline') {
+      return items.map((item) => (
+        <span key={item.key} className="whitespace-nowrap tnum" title={item.title}>
+          {item.key === 'sets' ? null : <>{item.label} </>}
+          <span className={item.key === 'sets' ? '' : 'font-medium text-[var(--cal-ink)]'} data-testid={item.testId}>{item.value}</span>
+        </span>
+      ));
+    }
+    return (
+      <dl className="lift-stats text-[13px] text-[var(--cal-muted)]" aria-label="Lift totals">
+        {items.map((item) => (
+          <div key={item.key} className="lift-stat" title={item.title}>
+            <dt>{item.label}</dt>
+            <dd className={`tnum ${item.key === 'sets' ? '' : 'font-medium text-[var(--cal-ink)]'}`} data-testid={item.testId}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  };
+
   return (
-    <div className="cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
-      <div className="px-2 min-h-8 py-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-center gap-2 min-w-0">
+    <div className="lift-card cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
+      {/* Narrow card: name row on top, grid, then totals. Wide open card: name row on top, grid, totals and note in a column on the right (index.css .lift-layout). */}
+      <div className={`lift-layout ${minimized ? '' : 'lift-layout--open'}`}>
+      <div className="lift-head flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="lift-head__main flex items-center gap-1.5 min-w-0">
           {dragControls ? (
             <button
               type="button"
@@ -448,7 +876,7 @@ export const ExerciseCard = ({
               aria-label={`Reorder ${variation}`}
               disabled={locked}
               onPointerDown={(event) => dragControls.start(event)}
-              className="inline-flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-[3px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+              className={`${headerIcon} cursor-grab touch-none active:cursor-grabbing disabled:cursor-not-allowed`}
               title="Drag to reorder lift"
             >
               <GripVertical size={15} strokeWidth={2} aria-hidden="true" />
@@ -461,17 +889,15 @@ export const ExerciseCard = ({
             aria-controls={`lift-grid-${id}`}
             aria-label={`${minimized ? 'Expand' : 'Minimize'} ${variation}`}
             onClick={() => {
-              setMinimized((value) => {
-                const next = !value;
-                onMinimizedChange?.(next);
-                return next;
-              });
+              const next = !minimized;
+              if (minimizedProp === undefined) setOwnMinimized(next);
+              onMinimizedChange?.(next);
               setGrid(null);
             }}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+            className={headerIcon}
             title={minimized ? 'Expand lift' : 'Minimize lift'}
           >
-            {minimized ? <ChevronRight size={14} strokeWidth={2} /> : <ChevronDown size={14} strokeWidth={2} />}
+            {minimized ? <ChevronRight size={15} strokeWidth={2} /> : <ChevronDown size={15} strokeWidth={2} />}
           </button>
           <h4
             className="text-base leading-6 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
@@ -479,18 +905,16 @@ export const ExerciseCard = ({
           >
             {variation}
           </h4>
-          {minimized ? (
-            <div
-              id={`lift-grid-${id}`}
-              data-testid={`lift-minimized-${id}`}
-              aria-label="Lift summary"
-              className="flex min-w-0 items-center gap-2 truncate text-[11px] text-[var(--cal-muted)]"
-            >
-              <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
-              <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
-              <span className="truncate whitespace-nowrap">{movementPattern ?? liftCategory}</span>
-            </div>
-          ) : null}
+          <div
+            id={minimized ? `lift-grid-${id}` : undefined}
+            data-testid={minimized ? `lift-minimized-${id}` : `lift-meta-${id}`}
+            aria-label="Lift summary"
+            className="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-[var(--cal-muted)]"
+          >
+            <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
+            <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
+            <span className="truncate whitespace-nowrap">{movementPattern ? sentenceCaseLabel(movementPattern) : liftCategory}</span>
+          </div>
           {onUpdateMeta ? (
             <button
               type="button"
@@ -498,43 +922,15 @@ export const ExerciseCard = ({
               aria-label={`Edit ${variation}`}
               disabled={locked}
               onClick={() => setEditOpen(true)}
-              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] shrink-0 disabled:opacity-40"
+              className={headerButton}
             >
+              <Pencil size={13} aria-hidden="true" />
               Edit
             </button>
           ) : null}
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1">
-            {intensityPct != null ? <>
-            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Intensity</span>
-            <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-intensity-${id}`}>
-              {intensityPct != null ? `${intensityPct}%` : '—'}
-            </span>
-            <span aria-hidden="true" className="ml-1 text-[var(--cal-muted-soft)]">·</span>
-            </> : null}
-            <span
-              className="text-xs tnum text-[var(--cal-muted)]"
-              data-testid={`lift-set-count-${id}`}
-              title={`${plannedCount} planned, ${loggedCount} logged`}
-            >
-              {plannedCount}/{loggedCount} sets
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">NL</span>
-            <span className="text-xs tnum text-[var(--cal-muted)]" data-testid={`lift-nl-${id}`}>{nl}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">e1RM</span>
-            <span className="text-xs tnum text-[var(--cal-muted)]">
-              {sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted-soft)]">Vol</span>
-            <span className="w-24 text-right text-xs tnum text-[var(--cal-muted)]">{totalVolume.toLocaleString()} kg</span>
-          </div>
+        <div className="lift-head__tools flex items-center gap-4 shrink-0 text-[13px] text-[var(--cal-muted)]">
+          {minimized ? <>{liftStats('inline')}</> : null}
           {onMoveUp && (
             <button
               type="button"
@@ -542,7 +938,7 @@ export const ExerciseCard = ({
               aria-label={`Move ${variation} up`}
               disabled={locked}
               onClick={() => void onMoveUp()}
-              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
+              className={headerButton}
             >
               Up
             </button>
@@ -554,7 +950,7 @@ export const ExerciseCard = ({
               aria-label={`Move ${variation} down`}
               disabled={locked}
               onClick={() => void onMoveDown()}
-              className="h-6 px-1.5 text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
+              className={headerButton}
             >
               Down
             </button>
@@ -564,7 +960,7 @@ export const ExerciseCard = ({
               type="button"
               data-testid={`remove-lift-${id}`}
               aria-label={removing ? `Removing ${variation}` : `Remove ${variation}`}
-              title="Remove exercise"
+              data-tip="Remove this lift from the session"
               disabled={locked || removing}
               onClick={() => {
                 if (locked || removing) return;
@@ -572,66 +968,42 @@ export const ExerciseCard = ({
                 setRemoving(true);
                 void Promise.resolve(onRemove()).finally(() => setRemoving(false));
               }}
-              className={actionButton}
+              className={`${headerIcon} hover:!text-[var(--cal-error)]`}
             >
-              <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
+              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
       {!minimized ? (
-      <div className="flex flex-col gap-2 px-2 pb-2 md:flex-row md:items-start">
-      {onUpdateMeta ? (
-        <section className="w-full shrink-0 md:w-44" data-testid={`lift-note-panel-${id}`}>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--cal-muted)]">Note</span>
-            <textarea
-              data-testid={`lift-note-${id}`}
-              value={noteDraft}
-              disabled={locked || noteSaving}
-              onChange={(event) => {
-                setNoteDraft(event.target.value);
-                setNoteStatus('idle');
-              }}
-              placeholder="Add a note for this lift"
-              rows={5}
-              className="h-24 min-h-24 w-full resize-y rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-canvas)] px-2 py-1.5 text-xs leading-5 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-50"
-            />
-          </label>
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <span className={`text-[10px] ${noteStatus === 'error' ? 'text-[var(--cal-error)]' : noteStatus === 'saved' ? 'text-[var(--cal-success)]' : 'text-[var(--cal-muted-soft)]'}`} role={noteStatus === 'error' ? 'alert' : undefined}>
-              {noteStatus === 'error' ? 'Save failed' : noteStatus === 'saved' ? 'Saved' : ' '}
-            </span>
-            <button
-              type="button"
-              data-testid={`save-lift-note-${id}`}
-              disabled={locked || noteSaving}
-              onClick={() => void saveLiftNote()}
-              className="h-6 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-soft)] px-1.5 text-[10px] font-medium text-[var(--cal-ink)] transition-colors hover:bg-[var(--cal-surface-strong)] disabled:opacity-40"
-            >
-              {noteSaving ? 'Saving…' : 'Save note'}
-            </button>
-          </div>
-        </section>
-      ) : null}
-      <div id={`lift-grid-${id}`} className="min-w-0 flex-1 overflow-x-auto">
-      <table role="grid" aria-label="Plan and log sets" data-testid="set-grid" className="text-left border-collapse w-max max-w-full">
+      <>
+      <div className="lift-main flex min-w-0 max-w-full flex-col gap-3">
+      <div id={`lift-grid-${id}`} ref={gridWrapRef} className="relative min-w-0 max-w-full overflow-x-auto">
+      <table
+        role="grid"
+        aria-label="Plan and log sets"
+        aria-multiselectable="true"
+        data-testid="set-grid"
+        onMouseDown={onGridMouseDown}
+        onMouseOver={onGridMouseOver}
+        className={`sheet-grid text-left w-max max-w-full ${dragging ? 'sheet-grid--dragging' : ''}`}
+      >
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th rowSpan={2} className={`${th} w-6 align-bottom`} data-testid="set-grid-h-num">#</th>
-            <th colSpan={5} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-plan">
-              <div className="relative flex min-h-5 items-center justify-center">
+            <th rowSpan={2} className={`${thMetric} sheet-th w-10 px-2 align-bottom`} data-testid="set-grid-h-num">#</th>
+            <th colSpan={4} className={`${th} sheet-th sheet-th--group`} data-testid="set-grid-h-plan">
+              <div className="relative flex min-h-5 items-center justify-start">
                 <span>Plan</span>
                 {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
-                  <span className="absolute right-0 inline-flex items-center gap-1 whitespace-nowrap normal-case tracking-normal text-[10px] font-normal text-[var(--cal-muted)]">
-                    <span className="text-[var(--cal-muted-soft)]">S{selectedPlanNumber}</span>
+                  <span className="absolute right-0 inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-[var(--cal-muted)]">
+                    <span className="text-[var(--cal-muted-soft)]">Set {selectedPlanNumber}</span>
                     <span>{selectedPlanEntry.set.plannedWeight ?? '—'} → <span data-testid="plan-suggestion-value">{selectedPlanOffer}</span> kg</span>
                     <button
                       type="button"
                       data-testid="plan-suggest"
                       onClick={() => updateSet(selectedPlanEntry.index, { plannedWeight: selectedPlanOffer, isAuto: false })}
                       disabled={locked || !canEditPlan}
-                      className="h-5 rounded-[3px] border border-[var(--cal-hairline)] bg-transparent px-1.5 text-[10px] font-medium text-[var(--cal-muted)] transition-colors hover:border-[var(--cal-muted)] hover:bg-[var(--cal-surface)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+                      className="cal-dock-btn cal-dock-btn--main focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
                     >
                       Use
                     </button>
@@ -639,28 +1011,29 @@ export const ExerciseCard = ({
                 ) : null}
               </div>
             </th>
-            <th rowSpan={2} className={`${th} w-4`} aria-label="Copy plan to log" data-testid="set-grid-h-copy" />
-            <th colSpan={4} className={`${th} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-log">Log</th>
-            <th rowSpan={2} className={`${th} border-l border-[var(--cal-hairline)] align-bottom`} data-testid="set-grid-h-e1rm">e1RM</th>
-            <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-delta">Δ%</th>
-            <th rowSpan={2} className={`${th} align-bottom`} data-testid="set-grid-h-inol">INOL</th>
+            <th rowSpan={2} className="sheet-gap" aria-hidden="true" />
+            <th colSpan={3} className={`${th} sheet-th sheet-th--group`} data-testid="set-grid-h-log">Log</th>
+            <th rowSpan={2} className="sheet-gap" aria-hidden="true" />
+            <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-e1rm">e1RM</th>
+            <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-delta">Δ%</th>
+            <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-inol">INOL</th>
+            {/* Row tools live in a borderless gutter outside the sheet. */}
+            <th rowSpan={2} className="w-[7.5rem] p-0" aria-label="Set actions" data-testid="set-grid-h-copy" />
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
-            <th className={`${thField} w-11 border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-pct">Adj %</th>
-            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planKg">kg</th>
-            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planReps">reps</th>
-            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-planTarget">Intensity</th>
-            <th className={`${thField} w-10 border-r border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Plan set actions" data-testid="set-grid-h-plan-actions" />
-            <th className={`${thField} border-l border-[var(--cal-hairline)] bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logKg">kg</th>
-            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logReps">reps</th>
-            <th className={`${thField} bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} data-testid="set-grid-h-logRpe">RPE</th>
-            <th className={`${thField} w-10 bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]`} aria-label="Log set actions" data-testid="set-grid-h-log-actions" />
+            <th className={`${thField} sheet-th w-14`} data-testid="set-grid-h-pct">Drop %</th>
+            <th className={`${thField} sheet-th`} data-testid="set-grid-h-planKg">kg</th>
+            <th className={`${thField} sheet-th`} data-testid="set-grid-h-planReps">Reps</th>
+            <th className={`${thField} sheet-th`} data-testid="set-grid-h-planTarget">Intensity</th>
+            <th className={`${thField} sheet-th`} data-testid="set-grid-h-logKg">kg</th>
+            <th className={`${thField} sheet-th`} data-testid="set-grid-h-logReps">Reps</th>
+            <th className={`${thField} sheet-th`} data-testid="set-grid-h-logRpe">RPE</th>
           </tr>
         </thead>
         <tbody>
             {planRows.length === 0 && logRows.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-2 py-3 text-xs text-[var(--cal-muted-soft)]">
+                <td colSpan={13} className="sheet-td px-3 py-3 text-[13px] text-[var(--cal-muted)]">
                   No sets programmed.
                 </td>
               </tr>
@@ -689,19 +1062,22 @@ export const ExerciseCard = ({
               const weight = trainingOrZero(set.actual);
               const reps = trainingIntOrZero(set.reps);
               const rpe = trainingOrZero(set.executedRpe);
-              const e1RM = calculateE1RM(weight, reps, rpe);
-              const planE1RM = calculateE1RM(
+              // No RPE logged → no e1RM from the log (the formula would just echo the bar weight).
+              const e1RM = rpe > 0 ? calculateE1RM(weight, reps, rpe) : 0;
+              const planE1RM = calculatePlannedE1RM(
                 trainingOrZero(set.plannedWeight),
                 trainingIntOrZero(set.plannedReps),
-                trainingOrZero(set.plannedRpe ?? set.target_value),
+                set.intensity_type,
+                trainingOrZero(set.target_value ?? set.plannedRpe),
               );
               const e1rmDelta = formatE1rmDeltaPct(planE1RM, e1RM);
-              const intensityPct = e1RM > 0 ? (weight / e1RM) * 100 : 0;
-              const inol = e1RM > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
+              // INOL needs %1RM: from the logged e1RM, else from the max the plan implies
+              // (e.g. 100 kg logged on a 60% row → 60%).
+              const inolMax = e1RM > 0 ? e1RM : planE1RM;
+              const intensityPct = inolMax > 0 && weight > 0 ? (weight / inolMax) * 100 : 0;
+              const inol = intensityPct > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
               
-              const rowHighlight = set.isTop
-                ? 'bg-[color-mix(in_srgb,var(--cal-accent)_5%,transparent)]'
-                : 'hover:bg-[var(--cal-surface-soft)]';
+              const rowHighlight = 'hover:bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]';
 
               const hasPlan = Boolean(planEntry);
               const hasLog = Boolean(logEntry);
@@ -709,10 +1085,24 @@ export const ExerciseCard = ({
               return (
                 <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`}>
                   {hasPlan ? (<>
-                  <td className={`${td} w-6 tnum text-[10px] text-[var(--cal-muted)]`}>{laneIndex + 1}</td>
-                  <td className={`${td} w-11 border-l border-[var(--cal-hairline)] pr-0`}>
+                  <td className={`${td} sheet-td sheet-td--num w-10 px-2 tnum text-[13px] text-[var(--cal-muted)] text-center ${set.isTop ? 'sheet-td--top' : ''}`} title={set.isTop ? 'Top set' : undefined}>{laneIndex + 1}</td>
+                  <td data-grid-pos={`${laneIndex}:0`} className={`${td} sheet-td`}>
                     {laneIndex === 0 ? (
-                      <span className="text-[11px] tnum text-[var(--cal-muted-soft)]" aria-hidden="true"> </span>
+                      locked ? (
+                        <span className="text-sm tnum text-[var(--cal-muted-soft)]" aria-hidden="true"> </span>
+                      ) : (
+                        // A1: selectable like any cell (start a range or paste here), never editable.
+                        <EditablePerformanceCell
+                          value=""
+                          onChange={() => undefined}
+                          readOnly
+                          placeholder=""
+                          fieldKey="set-drop-pct-first"
+                          label="Drop % (not used on set 1)"
+                          widthClass="w-16"
+                          grid={bindGrid(0, 0)}
+                        />
+                      )
                     ) : (
                       <DropPercentCell
                         value={trainingInt(set.dropPercent) ?? 0}
@@ -733,7 +1123,7 @@ export const ExerciseCard = ({
                             kgGrid={bindGrid(laneIndex, 1)}
                             repsGrid={bindGrid(laneIndex, 2)}
                             rpeGrid={bindGrid(laneIndex, 3)}
-                            tdClass={td}
+                            tdClass={`${td} sheet-td`}
                             onChange={(updates) => updateSet(planIndex, {
                               plannedReps: updates.reps !== undefined ? updates.reps : set.plannedReps,
                               intensity_type: updates.intensityType !== undefined ? updates.intensityType : set.intensity_type,
@@ -744,70 +1134,35 @@ export const ExerciseCard = ({
                           />
                     ) : (
                       <>
-                        <td className={`${td} tnum text-[11px] text-[var(--cal-ink)]`}>{set.plannedWeight != null ? set.plannedWeight : '—'}</td>
-                        <td className={`${td} tnum text-[11px]`}>{set.plannedReps ?? '—'}</td>
-                        <td className={`${td} tnum text-[11px] pr-3`}>{set.target_value != null ? `${set.target_value}${set.intensity_type === "PERCENT" ? "%" : ""}` : '—'}</td>
+                        <td data-grid-pos={`${laneIndex}:1`} className={`${td} sheet-td w-[72px] px-3 text-right tnum text-sm text-[var(--cal-ink)]`}>{set.plannedWeight ?? ''}</td>
+                        <td data-grid-pos={`${laneIndex}:2`} className={`${td} sheet-td w-14 px-3 text-right tnum text-sm`}>{set.plannedReps ?? ''}</td>
+                        <td data-grid-pos={`${laneIndex}:3`} className={`${td} sheet-td w-[84px] px-3 text-right tnum text-sm`}>{set.target_value != null ? `${set.target_value}${set.intensity_type === "PERCENT" ? "%" : ""}` : ''}</td>
                       </>
                     )) : (
                       <>
-                        <td colSpan={3} className={`${td} text-[var(--cal-muted-soft)]`} aria-label="No plan set" />
+                        <td colSpan={3} className={`${td} sheet-td sheet-td--readonly`} aria-label="No plan set" />
                       </>
                     )}
-                  <td className={`${actionCell} border-r border-[var(--cal-hairline)]`}>
-                    {hasPlan ? (<>
-                    <button
-                      type="button"
-                      disabled={locked || !canEditPlan || !hasPlan}
-                      onClick={() => duplicateSet(planIndex, 'plan')}
-                      className={actionButton}
-                      aria-label={`Copy plan set ${laneIndex + 1}`}
-                      title="Copy this set"
-                    >
-                      <Copy size={12} strokeWidth={2} aria-hidden="true" />
-                      <span className="sr-only">Copy plan set</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={locked || !canEditPlan || !hasPlan}
-                      onClick={() => deleteSet(planIndex, 'plan')}
-                      className={actionButton}
-                      aria-label={`Delete plan set ${laneIndex + 1}`}
-                      title="Delete this plan set"
-                    >
-                      <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
-                      <span className="sr-only">Delete plan set</span>
-                    </button>
-                    </>) : null}
-                  </td>
-                  <td className={`${td} pl-1`}>
-                    {hasPlan ? (
-                    <button
-                      type="button"
-                      disabled={locked || !canEditPlan}
-                      onClick={() => syncTarget(planIndex, laneIndex)}
-                      className="h-5 w-4 flex items-center justify-center text-[var(--cal-muted)] hover:text-[var(--cal-ink)] disabled:opacity-40"
-                      title="Copy plan to log"
-                      aria-label={`Copy plan set ${laneIndex + 1} to log`}
-                    >
-                      <ArrowRight size={12} aria-hidden="true" />
-                    </button>
-                    ) : null}
-                  </td>
                   </>) : (
-                    <td colSpan={7} className="p-0" aria-label="No plan set" />
+                    <>
+                      {Array.from({ length: 5 }).map((_, cell) => (
+                        <td key={`noplan-${cell}`} data-grid-pos={cell > 0 ? `${laneIndex}:${cell - 1}` : undefined} className="sheet-td sheet-td--readonly h-9" aria-label={cell === 0 ? 'No plan set' : undefined} />
+                      ))}
+                    </>
                   )}
+                  <td className="sheet-gap" aria-hidden="true" />
                   {hasLog ? (<>
-                  <td className={`${td} pl-px border-l border-[var(--cal-hairline)]`}>
+                  <td data-grid-pos={`${laneIndex}:4`} className={`${td} sheet-td`}>
                     {locked ? (
-                      <span className="text-[11px] tnum text-[var(--cal-ink)]">{set.actual ?? '—'}</span>
+                      <span className="flex h-9 w-[72px] items-center justify-end px-3 text-sm tnum text-[var(--cal-ink)]">{set.actual ?? ''}</span>
                     ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.actual)}
                         onChange={(val) => updateSet(logIndex, { actual: trainingNumber(val), isAuto: !val })}
-                        placeholder="—"
+                        placeholder=""
                         fieldKey={`${id}-actual-weight`}
                         label="Log Weight"
-                        widthClass="w-12"
+                        widthClass="w-[72px]"
                         isLogged={true}
                         isAuto={false}
                         suggestedValue={null}
@@ -817,17 +1172,17 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={td}>
+                  <td data-grid-pos={`${laneIndex}:5`} className={`${td} sheet-td`}>
                     {locked ? (
-                      <span className="text-[11px] tnum">{set.reps ?? '—'}</span>
+                      <span className="flex h-9 w-14 items-center justify-end px-3 text-sm tnum">{set.reps ?? ''}</span>
                     ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.reps)}
                         onChange={(val) => updateSet(logIndex, { reps: trainingInt(val) })}
-                        placeholder="—"
+                        placeholder=""
                         fieldKey={`${id}-reps`}
                         label="Log Reps"
-                        widthClass="w-8"
+                        widthClass="w-14"
                         isLogged={true}
                         step={1}
                         rowIndex={logIndex}
@@ -835,17 +1190,17 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={`${td} pr-1`}>
+                  <td data-grid-pos={`${laneIndex}:6`} className={`${td} sheet-td`}>
                     {locked ? (
-                      <span className="text-[11px] tnum">{set.executedRpe ?? '—'}</span>
+                      <span className="flex h-9 w-14 items-center justify-end px-3 text-sm tnum">{set.executedRpe ?? ''}</span>
                     ) : (
                       <EditablePerformanceCell
                         value={displayTrainingValue(set.executedRpe)}
                         onChange={(val) => updateSet(logIndex, { executedRpe: trainingNumber(val) })}
-                        placeholder="—"
+                        placeholder=""
                         fieldKey={`${id}-executedRpe`}
                         label="Log RPE"
-                        widthClass="w-8"
+                        widthClass="w-14"
                         isLogged={true}
                         step={0.5}
                         rowIndex={logIndex}
@@ -853,39 +1208,16 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className={actionCell}>
-                    <button
-                      type="button"
-                      disabled={locked || !hasLog}
-                      onClick={() => duplicateSet(logIndex, 'log')}
-                      className={actionButton}
-                      aria-label={`Copy log set ${laneIndex + 1}`}
-                      title="Copy this log set"
-                    >
-                      <Copy size={12} strokeWidth={2} aria-hidden="true" />
-                      <span className="sr-only">Copy log set</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={locked || !hasLog}
-                      onClick={() => deleteSet(logIndex, 'log')}
-                      className={actionButton}
-                      aria-label={`Delete log set ${laneIndex + 1}`}
-                      title="Delete this log set"
-                    >
-                      <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
-                      <span className="sr-only">Delete log set</span>
-                    </button>
-                  </td>
-                  <td className={`${td} border-l border-[var(--cal-hairline)] tnum text-[11px]`} data-testid={`set-metrics-${set.id}`}>
+                  <td className="sheet-gap" aria-hidden="true" />
+                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-center tnum text-sm`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
                   </td>
-                  <td className={`${td} tnum text-[11px] text-[var(--cal-muted)]`} data-testid={`set-e1rm-delta-${set.id}`}>
+                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-center tnum text-[13px] ${e1rmDelta.startsWith('-') ? 'text-[var(--cal-warning,var(--cal-muted))]' : e1rmDelta.startsWith('+') ? 'text-[var(--cal-success)]' : 'text-[var(--cal-muted)]'}`} data-testid={`set-e1rm-delta-${set.id}`}>
                     {e1rmDelta}
                   </td>
-                  <td className={`${td} tnum text-[11px]`}>
+                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-center tnum text-[13px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
                       className={inol > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}
@@ -894,52 +1226,220 @@ export const ExerciseCard = ({
                     </span>
                   </td>
                   </>) : (
-                    <td colSpan={7} className="p-0" aria-label="No log set" />
+                    <>
+                      {/* No log set yet: keep the gridlines, cells stay read-only until "Add set" fills this row. */}
+                      {Array.from({ length: 7 }).map((_, cell) => (cell === 3
+                        ? <td key="nolog-gap" className="sheet-gap" aria-hidden="true" />
+                        : <td key={`nolog-${cell}`} data-grid-pos={cell < 3 ? `${laneIndex}:${cell + 4}` : undefined} className="sheet-td sheet-td--readonly h-9" aria-label={cell === 0 ? 'No log set' : undefined} />
+                      ))}
+                    </>
                   )}
+                  <td className="w-[7.5rem] whitespace-nowrap bg-[var(--cal-surface-card)] px-1 align-middle">
+                    <div className="flex items-center gap-0.5">
+                    {hasPlan ? (<>
+                    <button
+                      type="button"
+                      disabled={locked || !canEditPlan}
+                      onClick={() => syncTarget(planIndex, laneIndex)}
+                      className={actionButton}
+                      data-tip="Copy plan to log"
+                      aria-label={`Copy plan set ${laneIndex + 1} to log`}
+                    >
+                      <ArrowRight size={12} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={locked || !canEditPlan || !hasPlan}
+                      onClick={() => duplicateSet(planIndex, 'plan')}
+                      className={actionButton}
+                      aria-label={`Copy plan set ${laneIndex + 1}`}
+                      data-tip="Copy this set"
+                    >
+                      <Copy size={12} strokeWidth={2} aria-hidden="true" />
+                      <span className="sr-only">Copy plan set</span>
+                    </button>
+                    </>) : null}
+                    {hasLog ? (<>
+                    <button
+                      type="button"
+                      disabled={locked || !hasLog}
+                      onClick={() => duplicateSet(logIndex, 'log')}
+                      className={actionButton}
+                      aria-label={`Copy log set ${laneIndex + 1}`}
+                      data-tip="Copy this log set"
+                    >
+                      <Copy size={12} strokeWidth={2} aria-hidden="true" />
+                      <span className="sr-only">Copy log set</span>
+                    </button>
+                    </>) : null}
+                    {/* The tip sits on a wrapper so it still explains a disabled button. */}
+                    <span
+                      className="inline-flex"
+                      data-tip={hasPlan && !canEditPlan && !locked
+                        ? "You can't delete planned sets. Clear the log cells instead."
+                        : 'Delete this set (plan and log)'}
+                    >
+                      <button
+                        type="button"
+                        disabled={locked || (hasPlan && !canEditPlan)}
+                        onClick={() => deleteRow(laneIndex)}
+                        className={actionButton}
+                        aria-label={`Delete set ${laneIndex + 1}`}
+                        data-testid={`delete-set-${id}-${laneIndex + 1}`}
+                      >
+                        <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
+                      </button>
+                    </span>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
         </tbody>
         {!locked ? (
           <tfoot>
-            <tr className="border-t border-[var(--cal-hairline)]">
-              <td colSpan={2} />
-              <td colSpan={4} className="px-1.5 py-1 text-center">
+            <tr>
+              {/* One "add row" strip across # → Log: it adds both halves, and it is as wide as the grid on any screen. */}
+              <td colSpan={9} className="p-0 pt-1">
                 <button
                   type="button"
-                  data-testid={`add-plan-set-${id}`}
-                  aria-label="+ Plan set"
-                  onClick={() => addSet('plan')}
-                  title={`Add a blank plan set to ${title}`}
-                  disabled={!canEditPlan}
-                  className={addSetButton}
+                  data-testid={`add-set-${id}`}
+                  aria-label="Add set"
+                  onClick={addSet}
+                  title={canEditPlan ? `Add a blank set (plan and log) to ${title}` : `Add a blank log set to ${title}`}
+                  className="sheet-add-row"
                 >
                   <Plus size={12} strokeWidth={2} aria-hidden="true" />
-                  <span>Plan set</span>
+                  <span>Add set</span>
                 </button>
               </td>
-              <td />
-              <td colSpan={4} className="px-1.5 py-1 text-center">
-                <button
-                  type="button"
-                  data-testid={`add-log-set-${id}`}
-                  aria-label="+ Log set"
-                  onClick={() => addSet('log')}
-                  title={`Add a blank log set to ${title}`}
-                  className={addSetButton}
-                >
-                  <Plus size={12} strokeWidth={2} aria-hidden="true" />
-                  <span>Log set</span>
-                </button>
-              </td>
-              <td colSpan={3} />
+              <td colSpan={5} />
             </tr>
           </tfoot>
         ) : null}
       </table>
-      </div>
-      </div>
+      {rangeBox ? (
+        <div
+          aria-hidden="true"
+          data-testid={`set-grid-range-${id}`}
+          className="sheet-range-box"
+          style={{ left: rangeBox.left, top: rangeBox.top, width: rangeBox.width, height: rangeBox.height }}
+        />
       ) : null}
+      </div>
+      {gridNotice ? (
+        <p role="status" data-testid={`set-grid-notice-${id}`} className="flex flex-wrap items-center gap-2 px-1 text-[13px] text-[var(--cal-muted)]">
+          <span>{gridNotice.text}</span>
+          {gridNotice.action ? (
+            <button
+              type="button"
+              data-testid={`set-grid-notice-action-${id}`}
+              onClick={gridNotice.action.run}
+              className="cal-dock-btn cal-dock-btn--main focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+            >
+              {gridNotice.action.label}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setGridNotice(null)}
+            className="ml-auto text-xs text-[var(--cal-muted)] hover:text-[var(--cal-ink)]"
+          >
+            Dismiss
+          </button>
+        </p>
+      ) : null}
+      </div>
+      {/* Lift totals + note: wide card = totals in a column right of the grid with the note under them; narrow = one compact row under the grid (index.css .lift-layout). */}
+      <aside className="lift-side" data-testid={`lift-side-${id}`}>
+        {liftStats('stacked')}
+        <div className="lift-note">
+        {onUpdateMeta && (noteOpen || noteDraft.trim()) ? (
+          <section className="w-full" data-testid={`lift-note-panel-${id}`}>
+            {noteOpen ? (
+              <div className="flex flex-col gap-1">
+                <textarea
+                  data-testid={`lift-note-${id}`}
+                  aria-label="Lift note"
+                  autoFocus
+                  value={noteDraft}
+                  disabled={locked || noteSaving}
+                  onChange={(event) => {
+                    setNoteDraft(event.target.value);
+                    setNoteStatus('idle');
+                  }}
+                  onBlur={(event) => {
+                    // Save when leaving the note, unless focus moved to its own Save button.
+                    if ((event.relatedTarget as HTMLElement | null)?.dataset?.testid === `save-lift-note-${id}`) return;
+                    void saveLiftNote().then(() => setNoteOpen(false));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      (event.currentTarget as HTMLTextAreaElement).blur();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setNoteDraft(liftNote ?? '');
+                      setNoteOpen(false);
+                    }
+                  }}
+                  placeholder="Cues, setup, how it felt…"
+                  rows={Math.min(6, Math.max(2, noteDraft.split('\n').length))}
+                  className="w-full resize-none rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-canvas)] px-3 py-2 text-sm leading-5 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-50"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--cal-muted)]">Saves when you click away · Ctrl+Enter</span>
+                  <button
+                    type="button"
+                    data-testid={`save-lift-note-${id}`}
+                    disabled={locked || noteSaving}
+                    onClick={() => void saveLiftNote().then(() => setNoteOpen(false))}
+                    className={headerButton}
+                  >
+                    {noteSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid={`open-lift-note-${id}`}
+                disabled={locked}
+                onClick={() => setNoteOpen(true)}
+                className="flex w-full min-w-0 items-center gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] text-[var(--cal-body)] hover:bg-[var(--cal-surface-soft)] disabled:opacity-60"
+                title="Edit note"
+              >
+                <StickyNote size={13} aria-hidden="true" className="shrink-0 text-[var(--cal-muted)]" />
+                <span className="truncate">{noteDraft}</span>
+                <span
+                  className={`ml-auto shrink-0 text-xs ${noteStatus === 'error' ? 'text-[var(--cal-error)]' : 'text-[var(--cal-success)]'}`}
+                  role={noteStatus === 'error' ? 'alert' : undefined}
+                >
+                  {noteStatus === 'error' ? 'Save failed' : noteStatus === 'saved' ? 'Saved' : ''}
+                </span>
+              </button>
+            )}
+          </section>
+        ) : null}
+        {onUpdateMeta && !noteOpen && !noteDraft.trim() ? (
+          <button
+            type="button"
+            data-testid={`add-lift-note-${id}`}
+            disabled={locked}
+            onClick={() => setNoteOpen(true)}
+            className={headerButton}
+          >
+            <Plus size={13} aria-hidden="true" />
+            Note
+          </button>
+        ) : null}
+        </div>
+      </aside>
+      </>
+      ) : null}
+      </div>
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}
@@ -1051,7 +1551,7 @@ function DropPercentCell({
   if (locked) {
     return (
       <span
-        className="text-[11px] tnum text-[var(--cal-muted)]"
+        className="flex h-9 w-16 items-center justify-end px-3 text-sm tnum text-[var(--cal-muted)]"
         data-testid="set-drop-pct"
       >
         {dropPercentDisplay(value) ? String(dropPercentDisplay(value)) + '%' : ''}
@@ -1066,7 +1566,7 @@ function DropPercentCell({
       placeholder=""
       fieldKey="set-drop-pct"
       label="Adjustment percent"
-      widthClass="w-10"
+      widthClass="w-16"
       step={1}
       suffix="%"
       grid={grid}

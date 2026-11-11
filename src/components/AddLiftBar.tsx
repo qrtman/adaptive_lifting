@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { apiService } from '../services/api';
 import { MOVEMENT_PATTERNS, filterCatalog, type CatalogExercise, type MovementPattern } from '../services/exerciseCatalog';
 import { compileVariation, defaultModifiers } from '../services/liftVariation';
+import { Plus } from 'lucide-react';
 import { CenteredDialog } from './CenteredDialog';
 import { optionDomId } from './LiftCatalogChoice';
 import { LiftVariationPicker } from './LiftVariationPicker';
@@ -32,7 +33,16 @@ type Picked =
  * name); 2) set tier and modifiers with a live name preview. The dialog keeps one height,
  * so lists and steps scroll inside instead of resizing it.
  */
-export function AddLiftBar({ sessionId, onAdded }: { sessionId: string; onAdded: () => Promise<void> | void }) {
+export function AddLiftBar({
+  sessionId,
+  onAdded,
+  variant = 'bar',
+}: {
+  sessionId: string;
+  onAdded: () => Promise<void> | void;
+  /** "empty": just the button, for the empty-session prompt. "bar": below the lift list. */
+  variant?: 'bar' | 'empty';
+}) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
   const [search, setSearch] = useState('');
@@ -274,8 +284,14 @@ export function AddLiftBar({ sessionId, onAdded }: { sessionId: string; onAdded:
   ) : null;
 
   return (
-    <div className="px-2 py-3 border-t border-[var(--cal-hairline)]">
-      <button type="button" data-testid="add-lift" onClick={() => { reset(); setOpen(true); }} className="h-8 px-3 text-xs text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)]">
+    <div className={variant === 'empty' ? '' : 'py-3 border-t border-[var(--cal-hairline)]'}>
+      <button
+        type="button"
+        data-testid="add-lift"
+        onClick={() => { reset(); setOpen(true); }}
+        className="inline-flex h-9 items-center gap-1.5 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)]"
+      >
+        <Plus size={15} aria-hidden="true" />
         Add lift
       </button>
       {open ? (

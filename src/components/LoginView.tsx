@@ -116,7 +116,8 @@ export const LoginView = () => {
     }
   };
 
-  const showDevelopmentLogin = Boolean((import.meta as any).env.DEV);
+  // The Edge backend has no /api/dev/login route; only a local test backend does.
+  const showDevelopmentLogin = Boolean((import.meta as any).env.DEV) && (import.meta as any).env.VITE_DEV_LOGIN === 'true';
 
   if (pending) return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--cal-canvas)] p-4">
