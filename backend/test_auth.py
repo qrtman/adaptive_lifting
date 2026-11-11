@@ -853,7 +853,11 @@ def test_coach_create_session_requires_linked_athlete():
         json={"date": "2026-09-12", "title": "Squat", "athleteId": coach_id},
         cookies=coach_cookies,
     )
-    assert own.status_code == 403
+    # A coach keeps their own training plan: no link or coaching access needed.
+    assert own.status_code == 200
+    own_plan = client.get(f"/api/microcycles?athlete_id={coach_id}", cookies=coach_cookies)
+    assert own_plan.status_code == 200
+    assert any(w["title"] == "Squat" for mc in own_plan.json() for w in mc.get("workouts", []))
 
     code = client.post("/api/auth/coach-code", cookies=coach_cookies).json()["code"]
     linked = client.post("/api/auth/link-athlete", json={"code": code}, cookies=athlete_cookies)

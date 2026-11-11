@@ -705,6 +705,9 @@ def create_coaching_history_snapshot(db: Session, rel: CoachingRelationship, end
 def assert_plan_access(db: Session, current_user: User, athlete_id: str) -> str:
     """Return athlete_id if current_user may read/write that athlete plan space."""
     require_eligible_account(current_user)
+    if athlete_id == current_user.id:
+        # Own plan, whatever the role: a coach keeps their own training.
+        return athlete_id
     if current_user.role == "ATHLETE":
         if athlete_id != current_user.id:
             raise HTTPException(status_code=403, detail="Athletes can only access their own plan")
@@ -1127,7 +1130,7 @@ def log_set(req: LogSetRequest, db: Session = Depends(get_db), current_user: Use
 def athlete_fatigue_summary(db: Session, current_user: User, athlete_id: Optional[str] = None) -> dict:
     target_id = athlete_id if athlete_id else current_user.id
     
-    if current_user.role == "COACH":
+    if current_user.role == "COACH" and target_id != current_user.id:
         rel = active_coaching_query(db).filter(CoachingRelationship.coach_id == current_user.id, CoachingRelationship.athlete_id == target_id).first()
         if not rel:
             raise HTTPException(status_code=403, detail="Not authorized to view this athlete")
@@ -1560,7 +1563,7 @@ def require_session_for_write(db: Session, current_user: User, session_id: str, 
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
     if require_programming:
-        require_programming_access(db, current_user)
+        require_programming_access(db, current_user, owner_id)
     if workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Session not found")
     return workout
@@ -1707,7 +1710,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
         sources.append(workout)
 
     assert_plan_access(db, current_user, owner_id)
-    require_programming_access(db, current_user)
+    require_programming_access(db, current_user, owner_id)
 
     created = []
     for source in sources:
@@ -1742,7 +1745,7 @@ def copy_week(req: CopyWeekRequest, db: Session = Depends(get_db), current_user:
 def create_session(req: CreateSessionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     athlete_id = resolve_athlete_id(current_user, req.athleteId)
     assert_plan_access(db, current_user, athlete_id)
-    require_programming_access(db, current_user)
+    require_programming_access(db, current_user, athlete_id)
     session_date = require_iso_date(req.date)
     block_label = optional_label(req.blockLabel)
     week_label = optional_label(req.weekLabel)
@@ -2041,7 +2044,7 @@ def update_session(session_id: str, req: UpdateSessionRequest, db: Session = Dep
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
-    require_programming_access(db, current_user)
+    require_programming_access(db, current_user, owner_id)
     if workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -2092,7 +2095,7 @@ def delete_session(session_id: str, db: Session = Depends(get_db), current_user:
     if not owner_id:
         raise HTTPException(status_code=400, detail="Session has no owner")
     assert_plan_access(db, current_user, owner_id)
-    require_programming_access(db, current_user)
+    require_programming_access(db, current_user, owner_id)
     if workout.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Session not found")
     workout.deleted_at = datetime.utcnow()
@@ -2116,7 +2119,7 @@ def bulk_update_session_labels(req: BulkLabelsRequest, db: Session = Depends(get
         if not owner_id:
             continue
         assert_plan_access(db, current_user, owner_id)
-        require_programming_access(db, current_user)
+        require_programming_access(db, current_user, owner_id)
         if req.clearBlock:
             workout.block_label = None
         elif req.blockLabel is not None:

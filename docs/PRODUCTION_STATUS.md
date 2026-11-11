@@ -107,6 +107,14 @@ Still PENDING: owner confirms reset email delivery/link; merge `ux-and-prod-smok
 
 **CONFIRMED:** Placeholders filled in `public/privacy.html` and `public/terms.html` (commit 5771882): operator "Bekali Gartman", governing law "the Republic of Korea", effective date "8 November 2026". The hidden "Replace every [PLACEHOLDER]" comment was removed; the "DRAFT – needs legal review" comment remains. Owner deployed with `npm run build:production` and the cutover config; active Worker version `19fb6d1a-5d49-4ba6-a926-3b928a485d12`. Readback: `/privacy` and `/terms` show the new values with no placeholders left; `/api/health` 200; temporary `wrangler.production.local.jsonc` removed.
 
+## Staging: coach keeps their own plan — 2026-11-12
+
+- Owner-approved. Production NOT touched (the repo `supabase/` link points at production; staging was targeted with `--project-ref admyuepbbtstayaydjmo` from a scratch workdir).
+- Applied `20261111120000_coach_own_plan_access` with `supabase db query -f` and recorded it in `supabase_migrations.schema_migrations`. Readback: 6 functions patched (`al_workout_sync`, `al_session_update`, `al_set_log`, `al_session_create`, `al_microcycles_read`, `al_analytics_read_facts`); a second run was a no-op; owners, SECURITY DEFINER, and runtime grants unchanged.
+- No Edge or Worker deploy needed for the SQL; the app changes (My training switcher, dialogs) were tested from localhost against staging (`npm run dev:staging`). They are not deployed to the staging Worker yet.
+- The staging test account was promoted to COACH with no coaching access, then reverted to ATHLETE (verified). Promotion left one empty workspace row owned by that account.
+- PASS: `e2e/prod/coach-own-plan.spec.ts` (My training: create session, add lift, log kg/reps, reload, Insights open) and `e2e/prod/logsets.spec.ts` run as that coach. Test sessions were deleted by the suites' cleanup.
+
 ## Staging rollout of launch-gap branch — 2026-11-08
 
 - Owner-approved. Branch `ux-and-prod-smoke` (commit `c1ca390` plus later local changes). Production NOT touched.
@@ -403,6 +411,9 @@ worker allowed, which real users always have; the earlier smoke test blocked it)
   from outside the repo directory, see the `.env` note below):
   1. Coach registers and verifies their email in the app.
   2. `select al_private.al_operator_promote_coach('<email>');`
+     The account keeps its own training as **My training** in the switcher. This needs
+     migration `20261111120000_coach_own_plan_access.sql` applied first; without it a
+     promoted account cannot see or log its own sessions.
   3. `select al_private.al_billing_operator_create_voucher('<email>','coach_starter',<days>,<valid_days>,'<payment ref>','<notes>');`
      returns the one-time code (`VCH-XXXXX-XXXXX-XXXXX-XXXXX`); deliver it securely, it is
      not stored in plaintext and cannot be shown again.

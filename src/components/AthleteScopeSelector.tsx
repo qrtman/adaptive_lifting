@@ -33,6 +33,8 @@ export function AthleteScopeSelector({
   const { user } = useAuth();
   const { activeAthleteId, setActiveAthleteId } = usePeriodization();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
+  // A coach also trains: their own plan is always the first choice.
+  const selfId = user?.id ? String(user.id) : getUiPref(UI_KEYS.userId);
 
   const [roster, setRoster] = useState<RosterAthlete[]>([]);
   const [query, setQuery] = useState('');
@@ -53,23 +55,20 @@ export function AthleteScopeSelector({
         const linked = Array.isArray(data) ? data : [];
         setRoster(linked);
         const ids = new Set(linked.map((athlete) => athlete.id));
-        if (linked.length === 0) {
-          setActiveAthleteId(null);
-          return;
-        }
+        if (selfId) ids.add(selfId);
         if (!activeAthleteId || !ids.has(activeAthleteId)) {
-          setActiveAthleteId(linked[0].id);
+          setActiveAthleteId(linked[0]?.id ?? selfId ?? null);
         }
       })
       .catch(() => {
         if (cancelled) return;
         setRoster([]);
-        setActiveAthleteId(null);
+        setActiveAthleteId(selfId ?? null);
       });
     return () => {
       cancelled = true;
     };
-  }, [isCoach, setActiveAthleteId]);
+  }, [isCoach, selfId, setActiveAthleteId]);
 
   useEffect(() => {
     if (forceOpen) {
@@ -81,10 +80,14 @@ export function AthleteScopeSelector({
     }
   }, [forceOpen, onOpened]);
 
-  const items: ScopeItem[] = useMemo(
-    () => roster.map((athlete) => ({ id: athlete.id, label: athlete.displayName?.trim() || athlete.email, email: athlete.email })),
-    [roster],
-  );
+  const items: ScopeItem[] = useMemo(() => {
+    const athletes = roster
+      .filter((athlete) => athlete.id !== selfId)
+      .map((athlete) => ({ id: athlete.id, label: athlete.displayName?.trim() || athlete.email, email: athlete.email }));
+    if (!selfId) return athletes;
+    return [{ id: selfId, label: 'My training', email: String(user?.email || '') }, ...athletes];
+  }, [roster, selfId, user?.email]);
+  const hasLinkedAthletes = items.some((item) => item.id !== selfId);
 
   const searchable = items.length > ATHLETE_SEARCH_THRESHOLD;
   const filtered = useMemo(() => {
@@ -94,6 +97,7 @@ export function AthleteScopeSelector({
   }, [items, query]);
 
   const selected = items.find((item) => item.id === activeAthleteId);
+  const selectedIsSelf = Boolean(selected) && selected?.id === selfId;
   const triggerLabel = selected?.label || 'Select athlete…';
 
   const selectItem = (id: string) => {
@@ -164,7 +168,7 @@ export function AthleteScopeSelector({
       id="athlete-scope-list"
       role="listbox"
       tabIndex={0}
-      aria-label="Linked athletes"
+      aria-label="Plans"
       data-testid="athlete-scope-list"
       onKeyDown={onListKeyDown}
       className="max-h-48 overflow-y-auto outline-none"
@@ -188,9 +192,10 @@ export function AthleteScopeSelector({
               }`}
             >
               <span className="block truncate">{item.label}</span>
-              {item.label !== item.email && <span className="block truncate text-[10px] text-[var(--cal-muted)]">{item.email}</span>}
+              {item.label !== item.email && item.email && <span className="block truncate text-[10px] text-[var(--cal-muted)]">{item.email}</span>}
             </button>
           ))}
+      {items.length > 0 && !hasLinkedAthletes && !query && emptyList}
     </div>
   );
 
@@ -278,7 +283,7 @@ export function AthleteScopeSelector({
               >
                 Open sessions
               </button>
-              <button
+              {!selectedIsSelf && <button
                 type="button"
                 data-testid="athlete-push-program"
                 disabled={pushBusy}
@@ -286,7 +291,7 @@ export function AthleteScopeSelector({
                 onClick={() => void pushProgram()}
               >
                 {pushBusy ? 'Pushing…' : 'Acknowledge push'}
-              </button>
+              </button>}
               {pushNote && <p className="text-[10px] text-[var(--cal-muted)]">{pushNote}</p>}
             </div>
           )}

@@ -99,6 +99,7 @@ These are the non-negotiable principles governing all design decisions.
 ### 3.2 Key Constraints
 
 * **Athlete-Owned Plan Space**: Training rows are owned by the athlete. A linked coach shares full write on that space. Ending the relationship does not move or delete the plan.
+* **Coach Own Plan**: A coach account also owns a plan space of its own and trains in it exactly like an athlete owner. Coaching access (grant or subscription) and coaching links apply only to other athletes' plans; a coach's own training is never locked behind them.
 * **Shared Full Write While Linked**: Linked coach and athlete may both structure and log on the shared plan, subject to the single-writer workout lock.
 * **Single-Writer per Workout**: Only one user (coach or athlete) may have a workout in an editable state at a time to prevent merge conflicts.
 * **Session-First Scheduling**: Sessions can be created with only a date. Block/Week labels are optional and may be assigned or changed anytime (including bulk). Unlabeled sessions are valid.
@@ -227,7 +228,7 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 
 | Entity | Key | Core Attributes | Relationships |
 | :--- | :--- | :--- | :--- |
-| **User** | `id` (UUID) | `email`, optional `display_name`, `role`, `subscription_status` | Owns athlete plan space when role is athlete; coaches publish InviteCodes and participate in CoachingRelationships |
+| **User** | `id` (UUID) | `email`, optional `display_name`, `role`, `subscription_status` | Owns a plan space (athletes and coaches alike); coaches also publish InviteCodes and participate in CoachingRelationships |
 | **CoachingRelationship** | `id` (Int) | `coach_id`, `athlete_id`, `created_at`, `ended_at` | One row per link period; at most one active relationship per athlete |
 | **CoachingHistorySnapshot** | `relationship_id` (Int) | `snapshot_at`, `snapshot_json` | Immutable read-only copy of workouts dated during the relationship, captured when it ends; excludes later activity and edits |
 | **Mesocycle** | `id` (String) | `name`, `status`, `color`, `startDate`, `endDate`, `owner_id` | Optional analytics/container grouping; owned by athlete |
@@ -913,19 +914,19 @@ Browser profile preferences are presentation data, not authorization. Online res
 
 ### 9.2 Role-Based Access Control (RBAC) Matrix
 
-| Resource | COACH (linked) | ATHLETE (plan owner) |
+| Resource | COACH (linked) | Plan owner (ATHLETE, or a COACH on their own plan) |
 | :--- | :--- | :--- |
 | Session structure (create/edit/delete, dates, Block/Week labels) | **Read/Write** on linked athlete plan space | **Read/Write** on own plan space |
 | Exercise prescriptions | **Read/Write** | **Read/Write** |
 | Execution data (`actual`, `reps`, `executedRpe`) | **Read/Write** | **Read/Write** |
 | Velocity / HRV / Readiness | Read/Write | Read/Write |
-| Analytics & Export | Linked athletes | Own data |
+| Analytics & Export | Linked athletes (plus the coach's own data) | Own data |
 | Coach code / unlink | Generate/rotate code; accept unlink | Enter coach code to link; unlink keeps plan |
 
 Authorization is enforced before service execution and again at repository query boundaries:
 
-- Coach live-plan reads/writes must join through an active `CoachingRelationship` (`ended_at IS NULL`) and target the athlete plan `owner_id`.
-- Athlete-scoped reads/writes must use the authenticated athlete as `owner_id`.
+- Coach live-plan reads/writes on another athlete's plan must join through an active `CoachingRelationship` (`ended_at IS NULL`), target the athlete plan `owner_id`, and require active coaching access.
+- Owner-scoped reads/writes must use the authenticated account as `owner_id`. This covers athletes and a coach on their own plan; that path needs no relationship and no coaching access (migration `20261111120000_coach_own_plan_access.sql`).
 - Ended relationships immediately lose access to the live plan, sessions, notes, analytics, and new activity. The former coach may read only that relationship's unlink-time `CoachingHistorySnapshot`; snapshot routes never read current athlete-owned rows.
 - Offline snapshots may be read only for owner scopes in the verified, signed offline grant, for athletes and coaches. A coach's grant includes only athletes actively linked when `/api/auth/me` issued it. A later unlink prevents new online access and new grants; an already-issued offline grant can authorize its prior scope until its bounded expiry (at most 24 hours). An open client that processes unlink/access-denied clears that athlete's cached view. On reconnect, the client revalidates the active athlete before showing the live plan again.
 - A snapshot is captured in the unlink transaction and contains only sessions dated from that relationship's `created_at` through its `ended_at` date. Later edits, logs, and new sessions are not reflected.

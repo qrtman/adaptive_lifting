@@ -64,7 +64,6 @@ function SortableExerciseCard({ value, reorderContainerRef, canReorder = true, .
 export default function App() {
   const { user, checking } = useAuth();
   const { canProgram } = useAccountAccess();
-  const coachCanProgram = !shouldDisableCoachAction(String(user?.role || '').toUpperCase() === 'COACH', canProgram);
   const {
     activeWorkoutId,
     setActiveWorkoutId,
@@ -74,8 +73,11 @@ export default function App() {
     finishSession,
     reloadMicrocycles,
     planAthleteId,
+    viewingOwnPlan,
     setActiveAthleteId,
   } = usePeriodization();
+  // Coaching access gates other athletes' plans only; a coach's own training is always theirs to edit.
+  const coachCanProgram = !shouldDisableCoachAction(String(user?.role || '').toUpperCase() === 'COACH' && !viewingOwnPlan, canProgram);
 
   const [initialLocation] = useState(() => parseAppLocation());
 

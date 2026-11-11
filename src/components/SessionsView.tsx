@@ -388,6 +388,7 @@ export function SessionsView({
     reloadMicrocycles,
     activeAthleteId,
     planAthleteId,
+    viewingOwnPlan,
   } = usePeriodization();
   const { isOnline } = useSync();
 
@@ -477,7 +478,7 @@ export function SessionsView({
 
   const showCoachSelectAthlete = isCoach && !activeAthleteId;
   const [showNewSession, setShowNewSession] = useState(false);
-  const coachCanProgram = !shouldDisableCoachAction(isCoach, canProgram);
+  const coachCanProgram = !shouldDisableCoachAction(isCoach && !viewingOwnPlan, canProgram);
   const canCopy = isOnline && !showCoachSelectAthlete && coachCanProgram;
 
   useEffect(() => {

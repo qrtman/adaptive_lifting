@@ -74,7 +74,7 @@ function verifyMigrationOrder() {
   const versions = readdirSync(migrationDir)
     .filter((name) => name.endsWith('.sql'))
     .sort();
-  if (versions.length !== 66) fail(`expected 66 SQL migrations, found ${versions.length}`);
+  if (versions.length !== 67) fail(`expected 67 SQL migrations, found ${versions.length}`);
   let previous = '';
   for (const name of versions) {
     const match = /^(\d{14})_[a-z0-9_]+\.sql$/.exec(name);
