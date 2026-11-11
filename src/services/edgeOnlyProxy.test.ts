@@ -136,3 +136,13 @@ describe('Edge-only local API routing', () => {
     }
   });
 });
+
+describe('local dev cookies for Safari', () => {
+  it('drops only the Secure attribute so http://localhost keeps the session', async () => {
+    const { stripSecure } = await import('../../deploy/edgeOnlyProxy');
+    expect(stripSecure('session_id=x; Path=/; HttpOnly; SameSite=lax; Max-Age=604800; Secure'))
+      .toBe('session_id=x; Path=/; HttpOnly; SameSite=lax; Max-Age=604800');
+    expect(stripSecure('a=1; Secure; SameSite=Lax; Path=/')).toBe('a=1; SameSite=Lax; Path=/');
+    expect(stripSecure('SecureToken=1; Path=/')).toBe('SecureToken=1; Path=/');
+  });
+});

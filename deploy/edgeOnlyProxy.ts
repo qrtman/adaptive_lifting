@@ -20,6 +20,9 @@ function siteOrigin(value: string): string {
 
 const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
+/** Exported for tests: drop the Secure attribute from a Set-Cookie value. */
+export const stripSecure = (cookie: string) => cookie.replace(/;\s*Secure(?=;|$)/gi, '');
+
 /**
  * One same-origin development proxy for every application API route.
  *
@@ -47,6 +50,16 @@ export function edgeOnlyProxy(edgeUrl?: string, appOrigin?: string): Record<stri
             if (!fromLocalPage) return;
             proxyReq.setHeader('origin', site);
             proxyReq.removeHeader('referer');
+          });
+          // The deployed API marks cookies Secure. Safari drops Secure cookies on
+          // http://localhost (Chrome/Brave accept them), so sign-in "worked" but every
+          // next request was signed out. Strip Secure only for the local http dev page.
+          proxy.on('proxyRes', (proxyRes, req) => {
+            const host = req.headers.host ? `http://${req.headers.host}` : '';
+            if (!LOOPBACK_ORIGIN.test(host)) return;
+            const cookies = proxyRes.headers['set-cookie'];
+            if (!cookies) return;
+            proxyRes.headers['set-cookie'] = cookies.map(stripSecure);
           });
         },
       } : {}),
