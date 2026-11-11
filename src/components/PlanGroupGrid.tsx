@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { groupPlanRows, removePlanGroup, resizePlanGroup, type PlanGroup, type PlanLane } from '../features/plan/planGroups';
@@ -26,6 +26,8 @@ export function PlanGroupGrid({
   readOnly,
   onChange,
   onNotice,
+  enter,
+  onExit,
 }: {
   liftId: string;
   sets: any[];
@@ -33,10 +35,30 @@ export function PlanGroupGrid({
   readOnly: boolean;
   onChange: (next: any[]) => void;
   onNotice: (text: string | null) => void;
+  /** Focus handed over from a neighbouring lift (session sheet phase 4). */
+  enter?: { edge: 'first' | 'last'; col: number; n: number } | null;
+  /** Up/down past the first/last row: let the previous/next lift take focus. */
+  onExit?: (direction: 'up' | 'down', col: number) => boolean;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const groups = useMemo(() => groupPlanRows(planRows, expanded), [planRows, expanded]);
+
+  useEffect(() => {
+    if (!enter || groups.length === 0) return;
+    const row = enter.edge === 'first' ? 0 : groups.length - 1;
+    const col = Math.min(Math.max(enter.col, 0), FIELDS.length - 1);
+    setCursor({ row, col: !(FIELDS[col] === 'pct' && groups[row]?.start === 0) ? col : col + 1, mode: 'selected', overwrite: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enter?.n]);
+
+  const leave = (row: number, col: number, direction: GridMove): boolean => {
+    if (direction !== 'up' && direction !== 'down') return false;
+    if (direction === 'down' ? row < groups.length - 1 : row > 0) return false;
+    if (!onExit?.(direction, col)) return false;
+    setCursor(null);
+    return true;
+  };
 
   // Drop % has no editor on the very first set of the lift.
   const editable = (row: number, col: number) => !(FIELDS[col] === 'pct' && groups[row]?.start === 0);
@@ -117,6 +139,7 @@ export function PlanGroupGrid({
     onBeginEdit: (r, c, overwrite, seed) => setCursor({ row: r, col: c, mode: 'editing', overwrite, seed }),
     onCommit: (r, c, _value, move, kind) => {
       if (move && kind) {
+        if (kind !== 'tab' && leave(r, c, move)) return;
         const next = step(r, c, move, kind);
         setCursor({ ...next, mode: 'selected', overwrite: false });
         return;
@@ -125,6 +148,7 @@ export function PlanGroupGrid({
     },
     onCancel: (r, c) => setCursor({ row: r, col: c, mode: 'selected', overwrite: false }),
     onMove: (r, c, direction, kind) => {
+      if (kind !== 'tab' && leave(r, c, direction)) return;
       const next = step(r, c, direction, kind);
       setCursor({ ...next, mode: 'selected', overwrite: false });
     },

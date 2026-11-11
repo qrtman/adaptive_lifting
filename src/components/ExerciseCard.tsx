@@ -3,6 +3,7 @@ import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
+import { GRID_ENTER_EVENT, handOffGrid, type GridEnterDetail } from '../services/sessionGridNav';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
 import { CenteredDialog, NestedCard } from './CenteredDialog';
@@ -266,6 +267,7 @@ export const ExerciseCard = ({
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteStatus, setNoteStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [noteOpen, setNoteOpen] = useState(false);
+  const [planEnter, setPlanEnter] = useState<(GridEnterDetail & { n: number }) | null>(null);
   const [ownMinimized, setOwnMinimized] = useState(initialMinimized);
   const minimized = minimizedProp ?? ownMinimized;
   const [grid, setGrid] = useState<{
@@ -463,6 +465,16 @@ export const ExerciseCard = ({
     });
   };
 
+  /** Up/down (or Enter) past this lift's first/last row continues in the previous/next lift. */
+  const leaveAtEdge = (row: number, col: number, move: string, nextRow: number) => {
+    if ((move !== 'up' && move !== 'down') || nextRow !== row) return false;
+    const rows = Math.max(planRows.length, logRows.length);
+    if (move === 'down' ? row < rows - 1 : row > 0) return false;
+    if (!handOffGrid(id, move, col)) return false;
+    setGrid(null);
+    return true;
+  };
+
   // Log view hides the Plan columns: moves and Tab stay on Log cells.
   const inView = (next: { row: number; col: number }) => (view === 'log' && next.col < 4 ? { row: next.row, col: 4 } : next);
 
@@ -494,6 +506,7 @@ export const ExerciseCard = ({
           return;
         }
         const next = neighbor(addressFrom(id, nextRow, nextCol), move, kind, Math.max(planRows.length, logRows.length));
+        if (leaveAtEdge(nextRow, nextCol, move, next.row)) return;
         setGrid({ ...inView({ row: next.row, col: colOf(next) }), mode: 'selected', overwrite: false });
         return;
       }
@@ -523,8 +536,31 @@ export const ExerciseCard = ({
         return;
       }
       const next = neighbor(addressFrom(id, nextRow, nextCol), direction, kind, Math.max(planRows.length, logRows.length));
+      if (leaveAtEdge(nextRow, nextCol, direction, next.row)) return;
       setGrid({ ...inView({ row: next.row, col: colOf(next) }), mode: 'selected', overwrite: false });
     },
+  });
+
+  // Focus handed over from the previous / next lift (session sheet phase 4).
+  useEffect(() => {
+    const host = gridWrapRef.current;
+    if (!host) return undefined;
+    const onEnter = (event: Event) => {
+      const { edge, col } = (event as CustomEvent<GridEnterDetail>).detail;
+      if (view === 'plan') {
+        setPlanEnter({ edge, col, n: Date.now() });
+        return;
+      }
+      const rows = Math.max(planRows.length, logRows.length);
+      if (rows === 0) {
+        handOffGrid(id, edge === 'first' ? 'down' : 'up', col);
+        return;
+      }
+      setGrid({ ...inView({ row: edge === 'first' ? 0 : rows - 1, col }), mode: 'selected', overwrite: false });
+      requestAnimationFrame(() => host.querySelector<HTMLElement>('[data-grid-mode]')?.scrollIntoView?.({ block: 'nearest' }));
+    };
+    host.addEventListener(GRID_ENTER_EVENT, onEnter);
+    return () => host.removeEventListener(GRID_ENTER_EVENT, onEnter);
   });
 
   const td = "p-0 align-middle whitespace-nowrap";
@@ -1039,7 +1075,7 @@ export const ExerciseCard = ({
       {!minimized ? (
       <>
       <div className="lift-main flex min-w-0 max-w-full flex-col gap-3">
-      <div id={`lift-grid-${id}`} ref={gridWrapRef} className="relative min-w-0 max-w-full overflow-x-auto">
+      <div id={`lift-grid-${id}`} ref={gridWrapRef} data-lift-grid-host={id} className="relative min-w-0 max-w-full overflow-x-auto">
       {view === 'plan' ? (
         <>
           <PlanGroupGrid
@@ -1049,6 +1085,8 @@ export const ExerciseCard = ({
             readOnly={locked || !canEditPlan}
             onChange={(next) => updateAndPropagate(next)}
             onNotice={(text) => setGridNotice(text ? { text } : null)}
+            enter={planEnter}
+            onExit={(direction, col) => handOffGrid(id, direction, col)}
           />
           {!locked && canEditPlan ? (
             <button
