@@ -126,8 +126,13 @@ describe('Edge-only local API routing', () => {
       const address = dev.httpServer?.address();
       if (!address || typeof address === 'string') throw new Error('Expected Vite TCP address');
       const url = `http://127.0.0.1:${address.port}/api/auth/login`;
-      await fetch(url, { method: 'POST', headers: { Origin: 'http://localhost:3000', Referer: 'http://localhost:3000/calendar' } });
-      await fetch(url, { method: 'POST', headers: { Origin: 'https://evil.example' } });
+      const localPageResponse = await fetch(url, {
+        method: 'POST',
+        headers: { Origin: 'http://localhost:3000', Referer: 'http://localhost:3000/calendar' },
+      });
+      await localPageResponse.text();
+      const externalOriginResponse = await fetch(url, { method: 'POST', headers: { Origin: 'https://evil.example' } });
+      await externalOriginResponse.text();
       expect(origins).toEqual(['https://staging.example', 'https://evil.example']);
       expect(referers).toEqual([undefined, undefined]);
     } finally {

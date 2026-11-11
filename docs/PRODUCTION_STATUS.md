@@ -1,6 +1,25 @@
 # Production status
 
-## Root fix: merge stale set edits, one sync per session — 2026-11-08 (CURRENT)
+## Session lift cards, set grid and % intensity fixes — 2026-11-11 (CURRENT)
+
+**CONFIRMED: deployed.** PR #62 (branch `fix/new-session-dialog`) merged as `310d8e4` (commit `c1a055d`); owner deployed Worker `adaptive-lifting-production` version `b3b7deb2-8b00-4b44-a875-9e242456f419` (2026-11-11 08:14 UTC), route `app.goatedmethod.me/*`. Frontend + Worker only; no Edge function or database migration in this PR.
+
+What shipped:
+- New session dialog: block picker, slot fields, number steppers, session header.
+- Set grid: range selection, undo history, one full-width "Add set" row, plan cells in the same colour.
+- Lift totals (Intensity, Sets, NL, e1RM, Volume): a column right of the grid on wide cards (container >= 1080px), a compact row under it on narrow.
+- Lifts open by default; collapse remembered per lift per device (localStorage UI pref `al_collapsed_lifts`); Collapse all / Expand all.
+- Accessories use the same lift card as main lifts.
+- Fix: % intensity no longer read as RPE (plan e1RM, top-set anchor, suggestions, "@ 80%" readouts, trends).
+- Fix: a log with no RPE shows e1RM "—" instead of the bar weight.
+
+Verification: `tsc -b` clean; vitest 606 passed / 1 skipped; checked on localhost against staging at 1440/1600/1920/1100/390 px with temporary test sessions (deleted, 200). After deploy: `/api/health` 200; live JS bundle contains the new code (`al_collapsed_lifts`, `toggle-all-lifts`).
+
+PENDING / known gaps:
+- Server SQL (`sessions_replace_exercise_sets` / `workout_sync`) still uses coalesce(executedRpe, plannedRpe) as RPE for the top-set label and treats a set with no RPE as e1RM = weight (migration offered, not done).
+- Reloading while a session is open shows "No session open" (URL stays `#/calendar`); pre-existing, not fixed.
+
+## Root fix: merge stale set edits, one sync per session — 2026-11-08
 
 **CONFIRMED: deployed.** PR #58 merged (`97f5f81`); owner deployed Worker version `8c421752-805d-49c8-9a30-00f72886516e` (2026-11-08 15:07 UTC). Live bundle contains the merge code.
 
