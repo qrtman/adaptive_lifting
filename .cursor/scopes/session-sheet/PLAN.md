@@ -66,12 +66,16 @@ Owner decision 2026-11-12: grouping lives in a **Plan** view (Plan · Both · Lo
 - **Both mode:** one Plan row faces its N Log rows (rowspan).
 - **Risk.** Rows pair plan and log by position (see `ExerciseCardCopyToLog.test.tsx`). Grouping maps on top of that pairing, so it needs heavy tests in that style.
 
-### 4 · One keyboard table for the whole session
+### 4 · One keyboard table for the whole session — DONE
+Shipped: `src/services/sessionGridNav.ts` (`data-lift-grid-host`, `al-grid-enter`), hand-off in `ExerciseCard` and `PlanGroupGrid`; tests `ExerciseCardSessionNav.test.tsx`. Paste across lifts still deferred.
+
 - Arrows, Tab and Enter cross from the last row of a lift to the next lift. Focus moves to a session-level controller that lift cards register with.
 - Update `design.md` §11.4 ("then the next set of the **same** lift").
 - Pasting from Sheets across lifts is deferred until its rules are agreed.
 
-### 5 · Inline lift actions
+### 5 · Inline lift actions — DONE
+Shipped: `InlineAddLift`, lift `⋯` menu + clickable variation title in `ExerciseCard`, `src/features/plan/liftCopy.ts` (Duplicate / rail drag, Plan only), rail drag in `WeekRail` + drop zone in `App`. Note: the add-exercise reply carries no revision and a new lift is already at revision 2, so the copy reads the revision back before replacing sets (and retries once on 409). Tests `LiftActions.test.tsx`, `liftCopy.test.ts`, staging `e2e/prod/lift-actions.spec.ts`.
+
 - **New lift row** at the bottom, "Type a lift name…", with catalog search (`exerciseCatalog`). Enter adds; Tab goes to Sets. `AddLiftBar` stays.
 - **Variation chip** opens the existing `LiftVariationPicker` (Bar / Tempo / ROM / Gear). Never a fixed list.
 - **`⋯` menu:** Duplicate, Swap lift…, Add note, Delete.

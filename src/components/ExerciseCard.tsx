@@ -3,6 +3,7 @@ import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
+import { GRID_ENTER_EVENT, handOffGrid, type GridEnterDetail } from '../services/sessionGridNav';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
 import { CenteredDialog, NestedCard } from './CenteredDialog';
@@ -190,6 +191,8 @@ export const ExerciseCard = ({
   initialMinimized = true,
   minimized: minimizedProp,
   view = 'both',
+  onDuplicate,
+  duplicateDisabledReason,
 }: { 
   id: string,
   title: string, 
@@ -215,6 +218,10 @@ export const ExerciseCard = ({
   minimized?: boolean,
   /** Session view (session sheet phase 3): `plan` groups identical sets and hides Log; `log` hides Plan. */
   view?: 'plan' | 'both' | 'log',
+  /** Copy this lift (Plan sets only) into the same session (session sheet phase 5). */
+  onDuplicate?: () => void | Promise<void>,
+  /** Why Duplicate is unavailable right now (e.g. offline); shown on the disabled item. */
+  duplicateDisabledReason?: string,
   key?: string,
 }) => {
   const recalculatePresetsAndSugs = (setArray: any[]) => refreshSetAnchors(setArray);
@@ -266,6 +273,21 @@ export const ExerciseCard = ({
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteStatus, setNoteStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [noteOpen, setNoteOpen] = useState(false);
+  const [planEnter, setPlanEnter] = useState<(GridEnterDetail & { n: number }) | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [menuOpen]);
   const [ownMinimized, setOwnMinimized] = useState(initialMinimized);
   const minimized = minimizedProp ?? ownMinimized;
   const [grid, setGrid] = useState<{
@@ -463,6 +485,16 @@ export const ExerciseCard = ({
     });
   };
 
+  /** Up/down (or Enter) past this lift's first/last row continues in the previous/next lift. */
+  const leaveAtEdge = (row: number, col: number, move: string, nextRow: number) => {
+    if ((move !== 'up' && move !== 'down') || nextRow !== row) return false;
+    const rows = Math.max(planRows.length, logRows.length);
+    if (move === 'down' ? row < rows - 1 : row > 0) return false;
+    if (!handOffGrid(id, move, col)) return false;
+    setGrid(null);
+    return true;
+  };
+
   // Log view hides the Plan columns: moves and Tab stay on Log cells.
   const inView = (next: { row: number; col: number }) => (view === 'log' && next.col < 4 ? { row: next.row, col: 4 } : next);
 
@@ -494,6 +526,7 @@ export const ExerciseCard = ({
           return;
         }
         const next = neighbor(addressFrom(id, nextRow, nextCol), move, kind, Math.max(planRows.length, logRows.length));
+        if (leaveAtEdge(nextRow, nextCol, move, next.row)) return;
         setGrid({ ...inView({ row: next.row, col: colOf(next) }), mode: 'selected', overwrite: false });
         return;
       }
@@ -523,8 +556,31 @@ export const ExerciseCard = ({
         return;
       }
       const next = neighbor(addressFrom(id, nextRow, nextCol), direction, kind, Math.max(planRows.length, logRows.length));
+      if (leaveAtEdge(nextRow, nextCol, direction, next.row)) return;
       setGrid({ ...inView({ row: next.row, col: colOf(next) }), mode: 'selected', overwrite: false });
     },
+  });
+
+  // Focus handed over from the previous / next lift (session sheet phase 4).
+  useEffect(() => {
+    const host = gridWrapRef.current;
+    if (!host) return undefined;
+    const onEnter = (event: Event) => {
+      const { edge, col } = (event as CustomEvent<GridEnterDetail>).detail;
+      if (view === 'plan') {
+        setPlanEnter({ edge, col, n: Date.now() });
+        return;
+      }
+      const rows = Math.max(planRows.length, logRows.length);
+      if (rows === 0) {
+        handOffGrid(id, edge === 'first' ? 'down' : 'up', col);
+        return;
+      }
+      setGrid({ ...inView({ row: edge === 'first' ? 0 : rows - 1, col }), mode: 'selected', overwrite: false });
+      requestAnimationFrame(() => host.querySelector<HTMLElement>('[data-grid-mode]')?.scrollIntoView?.({ block: 'nearest' }));
+    };
+    host.addEventListener(GRID_ENTER_EVENT, onEnter);
+    return () => host.removeEventListener(GRID_ENTER_EVENT, onEnter);
   });
 
   const td = "p-0 align-middle whitespace-nowrap";
@@ -925,7 +981,7 @@ export const ExerciseCard = ({
   };
 
   return (
-    <div className="lift-card cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
+    <div className="lift-card group/lift cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
       {/* Narrow card: name row on top, grid, then totals. Wide open card: name row on top, grid, totals and note in a column on the right (index.css .lift-layout). */}
       <div className={`lift-layout ${minimized ? '' : 'lift-layout--open'}`}>
       <div className="lift-head flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -964,7 +1020,17 @@ export const ExerciseCard = ({
             className="text-base leading-6 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
             data-testid={`exercise-title-${id}`}
           >
-            {variation}
+            {onUpdateMeta && !locked ? (
+              <button
+                type="button"
+                data-testid={`variation-${id}`}
+                onClick={() => setEditOpen(true)}
+                title="Change exercise or variation"
+                className="max-w-full truncate rounded-[var(--cal-radius-md)] text-left hover:underline hover:decoration-[var(--cal-hairline)] hover:underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+              >
+                {variation}
+              </button>
+            ) : variation}
           </h4>
           <div
             id={minimized ? `lift-grid-${id}` : undefined}
@@ -1016,6 +1082,68 @@ export const ExerciseCard = ({
               Down
             </button>
           )}
+          {onUpdateMeta || onDuplicate || onRemove ? (
+            <div ref={menuRef} className="relative">
+              <button
+                type="button"
+                data-testid={`lift-menu-${id}`}
+                aria-label={`More actions for ${variation}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                disabled={locked}
+                onClick={() => setMenuOpen((open) => !open)}
+                className={`${headerIcon} ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/lift:opacity-100 group-focus-within/lift:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100'}`}
+              >
+                <span aria-hidden="true" className="text-base leading-none">⋯</span>
+              </button>
+              {menuOpen ? (
+                <div role="menu" aria-label={`Actions for ${variation}`} data-testid={`lift-menu-list-${id}`}
+                  className="absolute right-0 top-8 z-30 flex w-48 flex-col rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] p-1 shadow-[var(--cal-shadow-lift)]">
+                  {onDuplicate ? (
+                    <button type="button" role="menuitem" data-testid={`lift-duplicate-${id}`}
+                      disabled={Boolean(duplicateDisabledReason)} title={duplicateDisabledReason}
+                      onClick={() => { setMenuOpen(false); void onDuplicate(); }}
+                      className="h-8 rounded-[var(--cal-radius-md)] px-2.5 text-left text-[13px] text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] disabled:opacity-40">
+                      Duplicate
+                    </button>
+                  ) : null}
+                  {onUpdateMeta ? (<>
+                    <button type="button" role="menuitem" data-testid={`lift-swap-${id}`}
+                      onClick={() => { setMenuOpen(false); setEditOpen(true); }}
+                      className="h-8 rounded-[var(--cal-radius-md)] px-2.5 text-left text-[13px] text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]">
+                      Swap lift…
+                    </button>
+                    <button type="button" role="menuitem" data-testid={`lift-add-note-${id}`}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        if (minimized) {
+                          if (minimizedProp === undefined) setOwnMinimized(false);
+                          onMinimizedChange?.(false);
+                        }
+                        setNoteOpen(true);
+                      }}
+                      className="h-8 rounded-[var(--cal-radius-md)] px-2.5 text-left text-[13px] text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]">
+                      {liftNote?.trim() ? 'Edit note' : 'Add note'}
+                    </button>
+                  </>) : null}
+                  {onRemove ? (<>
+                    <div className="my-1 h-px bg-[var(--cal-hairline)]" aria-hidden="true" />
+                    <button type="button" role="menuitem" data-testid={`lift-delete-${id}`}
+                      disabled={removing}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        if (!window.confirm(`Remove ${title} from this session?`)) return;
+                        setRemoving(true);
+                        void Promise.resolve(onRemove()).finally(() => setRemoving(false));
+                      }}
+                      className="h-8 rounded-[var(--cal-radius-md)] px-2.5 text-left text-[13px] text-[var(--cal-error)] hover:bg-[var(--cal-surface-soft)]">
+                      Delete
+                    </button>
+                  </>) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {onRemove && (
             <button
               type="button"
@@ -1039,7 +1167,7 @@ export const ExerciseCard = ({
       {!minimized ? (
       <>
       <div className="lift-main flex min-w-0 max-w-full flex-col gap-3">
-      <div id={`lift-grid-${id}`} ref={gridWrapRef} className="relative min-w-0 max-w-full overflow-x-auto">
+      <div id={`lift-grid-${id}`} ref={gridWrapRef} data-lift-grid-host={id} className="relative min-w-0 max-w-full overflow-x-auto">
       {view === 'plan' ? (
         <>
           <PlanGroupGrid
@@ -1049,6 +1177,8 @@ export const ExerciseCard = ({
             readOnly={locked || !canEditPlan}
             onChange={(next) => updateAndPropagate(next)}
             onNotice={(text) => setGridNotice(text ? { text } : null)}
+            enter={planEnter}
+            onExit={(direction, col) => handOffGrid(id, direction, col)}
           />
           {!locked && canEditPlan ? (
             <button
