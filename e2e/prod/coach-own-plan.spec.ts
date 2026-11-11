@@ -41,9 +41,8 @@ test.describe('coach trains on their own plan', () => {
       await expect(page.getByText('Sync conflict needs review')).toHaveCount(0);
 
       await page.reload();
-      // The switcher does not remember the pick across a reload yet (it reopens on the first
-      // linked athlete), so choose the coach's own plan again.
-      await selectMyTraining(page);
+      // The pick survives a reload, even with linked athletes.
+      await expect(selector).not.toHaveText('Select athlete…', { timeout: 20_000 });
       await expect(selector).toHaveText('My training', { timeout: 20_000 });
       await openSession(page, TITLE);
       await expect(page.getByTestId(`${lift}-actual-weight`).first()).toHaveText(/(^|\D)140(\D|$)/, { timeout: 20_000 });
