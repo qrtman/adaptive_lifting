@@ -1,6 +1,27 @@
 # Production status
 
-## Session lift cards, set grid and % intensity fixes — 2026-11-11 (CURRENT)
+## First automated deploy: sync, Copy plan → log, coach own plan — 2026-11-12 (CURRENT)
+
+**CONFIRMED: deployed** by the new **Deploy production** workflow (#70), run `43079219576` attempt 2, owner-approved on the `production` environment. Commit `bd1a873` (main after #63–#70).
+
+- Migrations: `supabase db push` applied exactly one, `20261111120000_coach_own_plan_access` (its built-in checks passed). Production history matched the repo beforehand (66/66).
+- Edge functions deployed: `api`, `email-verification-worker`.
+- Worker `adaptive-lifting-production` version `a0e2fec1-be24-49a1-8000-a18d1a1618d4`, route `app.goatedmethod.me/*`.
+- Smoke: `/` 200, `/api/health` 200, `/api/auth/me` 401 (pipeline and manual recheck).
+
+What shipped:
+- #63: logging a set no longer conflicts while the previous save is in flight.
+- #64: Copy plan → log fills the log of the copied row.
+- #67: a coach keeps their own plan ("My training"). The DB rule lets the plan owner act on it whatever their role.
+- #65: dev-only Safari cookie fix. #69: deflaked the CI proxy test (main CI green again).
+
+Attempt 1 stopped at "Check required configuration" because the Supabase secrets were not set yet; nothing was changed.
+
+Owner promoted to COACH on 2026-11-12 with `al_operator_grant_coach_access('<owner email>','coach_unlimited',null,true,…)`: grant `449a74ba-44e7-4cf8-8c40-327651d2b0ba`, no expiry, coach workspace created. Their own training stays visible as My training.
+
+PENDING: owner browser check of My training on production (sign out and in first).
+
+## Session lift cards, set grid and % intensity fixes — 2026-11-11
 
 **CONFIRMED: deployed.** PR #62 (branch `fix/new-session-dialog`) merged as `310d8e4` (commit `c1a055d`); owner deployed Worker `adaptive-lifting-production` version `b3b7deb2-8b00-4b44-a875-9e242456f419` (2026-11-11 08:14 UTC), route `app.goatedmethod.me/*`. Frontend + Worker only; no Edge function or database migration in this PR.
 
