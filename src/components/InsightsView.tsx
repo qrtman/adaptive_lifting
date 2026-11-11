@@ -37,8 +37,9 @@ export function InsightsView() {
   const { user } = useAuth();
   const { canUseAnalytics } = useAccountAccess();
   const isCoach = String(user?.role || '').toUpperCase() === 'COACH';
-  const analyticsBlocked = isCoach && canUseAnalytics === false;
-  const { planAthleteId } = usePeriodization();
+  const { planAthleteId, viewingOwnPlan } = usePeriodization();
+  // Coach analytics access is for athletes' plans; a coach's own training is always open.
+  const analyticsBlocked = isCoach && !viewingOwnPlan && canUseAnalytics === false;
   const { isOnline } = useSync();
   const [cards, setCards] = useState<SavedCard[]>([]);
   const [catalog, setCatalog] = useState<AnalyticsCatalog | null>(null);

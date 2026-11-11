@@ -21,6 +21,8 @@ interface PeriodizationState {
   mesocycles: MesocycleData[];
   activeAthleteId: string | null;
   planAthleteId: string | null;
+  /** The plan on screen belongs to the signed-in account (a coach's own training included). */
+  viewingOwnPlan: boolean;
   setActiveAthleteId: (id: string | null) => void;
   reloadMicrocycles: (athleteId?: string | null) => Promise<void>;
   activeWorkoutId: string | null;
@@ -78,6 +80,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
     if (role === 'COACH') return activeAthleteId;
     return selfId || activeAthleteId;
   }, [user, activeAthleteId]);
+  const viewingOwnPlan = Boolean(planAthleteId) && planAthleteId === selfUserId(user);
 
   const resolvePlanOwnerId = useCallback((athleteId?: string | null) => {
     const role = accountRole(user);
@@ -377,6 +380,7 @@ export function PeriodizationProvider({ children }: { children: ReactNode }) {
         mesocycles,
         activeAthleteId,
         planAthleteId,
+        viewingOwnPlan,
         setActiveAthleteId,
         reloadMicrocycles,
         activeWorkoutId,

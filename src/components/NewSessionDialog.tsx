@@ -39,10 +39,10 @@ export function NewSessionDialog({
   const { user } = useAuth();
   const { microcycles } = usePeriodization();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
-  const coachUserId = user?.id ? String(user.id) : '';
-  const linkedAthleteId = athleteId && athleteId !== coachUserId ? athleteId : null;
-  const needsAthlete = isCoach && !linkedAthleteId;
-  const prefAthleteId = isCoach ? linkedAthleteId : (user?.id ? String(user.id) : athleteId);
+  // The plan in the switcher: a linked athlete or the coach's own training (My training).
+  const planOwnerId = athleteId || null;
+  const needsAthlete = isCoach && !planOwnerId;
+  const prefAthleteId = isCoach ? planOwnerId : (user?.id ? String(user.id) : athleteId);
   const blockOptions = distinctBlocks(microcycles.flatMap((micro) => micro.workouts.map((workout) => workout.blockLabel)));
   const nameOptions = uniquePlanTitles(microcycles);
 
@@ -83,7 +83,7 @@ export function NewSessionDialog({
         dayLabel: dayCanonical || undefined,
         blockLabel: block,
         weekLabel: weekCanonical,
-        athleteId: isCoach ? linkedAthleteId || undefined : undefined,
+        athleteId: isCoach ? planOwnerId || undefined : undefined,
       });
       setRecentDay(prefAthleteId, dayCanonical);
       if (name) setRecentName(prefAthleteId, name);

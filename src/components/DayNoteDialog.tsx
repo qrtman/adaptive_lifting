@@ -23,9 +23,9 @@ export function DayNoteDialog({
 }) {
   const { user } = useAuth();
   const isCoach = String(user?.role || getUiPref(UI_KEYS.role) || '').toUpperCase() === 'COACH';
-  const coachUserId = user?.id ? String(user.id) : '';
-  const linkedAthleteId = athleteId && athleteId !== coachUserId ? athleteId : null;
-  const needsAthlete = isCoach && !linkedAthleteId;
+  // The plan in the switcher: a linked athlete or the coach's own training (My training).
+  const planOwnerId = athleteId || null;
+  const needsAthlete = isCoach && !planOwnerId;
   const [body, setBody] = useState(initialBody);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function DayNoteDialog({
       const saved = await apiService.upsertDayNote({
         date,
         body: next,
-        athleteId: isCoach ? linkedAthleteId : undefined,
+        athleteId: isCoach ? planOwnerId : undefined,
       });
       await onSaved(saved.body || '');
     } catch (err: unknown) {

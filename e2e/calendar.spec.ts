@@ -278,8 +278,9 @@ test('coach without an athlete cannot create; linked coach can', async ({ page, 
     await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
     await page.getByRole('button', { name: 'Calendar' }).click();
     await expect(page.getByTestId('calendar-empty')).toBeVisible();
-    await expect(page.getByText('Select an athlete')).toBeVisible();
-    await expect(page.getByTestId('athlete-scope-selector')).toHaveText('Select athlete…');
+    // With no linked athletes a coach lands on their own training.
+    await expect(page.getByTestId('athlete-scope-selector')).toHaveText('My training');
+    await expect(page.getByText('Select an athlete')).toHaveCount(0);
     await expect(page.getByTestId('app-sidebar').getByText('Athlete plan')).toHaveCount(0);
     await page.getByTestId('athlete-scope-selector').click();
     await expect(page.getByText('No linked athletes.')).toBeVisible();

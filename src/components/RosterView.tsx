@@ -104,7 +104,8 @@ export function RosterView({ onNavigate }: { onNavigate: (mode: DashboardMode) =
       setAthletes((current) => current.filter((item) => item.id !== athlete.id));
       if (activeAthleteId === athlete.id) {
         setMicrocycles([]);
-        setActiveAthleteId(null);
+        // Fall back to the coach's own training, not an empty "select an athlete" screen.
+        setActiveAthleteId(user?.id ? String(user.id) : null);
         setActiveWorkoutId(null);
         setActiveMicrocycleId(null);
       }

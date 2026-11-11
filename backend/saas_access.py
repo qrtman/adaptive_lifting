@@ -86,7 +86,10 @@ def require_coach_entitlement(db: Session, current_user: User, capability: str |
     return entitlements
 
 
-def require_programming_access(db: Session, current_user: User):
+def require_programming_access(db: Session, current_user: User, plan_owner_id: str | None = None):
+    """Coaching access gates other athletes' plans; a coach's own plan never needs it."""
+    if plan_owner_id is not None and plan_owner_id == current_user.id:
+        return None
     return require_coach_entitlement(db, current_user, "can_program")
 
 

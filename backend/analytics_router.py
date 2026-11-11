@@ -68,7 +68,8 @@ def create_analytics_router(get_current_user):
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ):
-        if current_user.role == "COACH":
+        # Coach analytics access is for athletes' plans; a coach's own plan is always open.
+        if current_user.role == "COACH" and req.athlete_id not in (None, current_user.id):
             require_analytics_access(db, current_user)
         return run_query(db, current_user, req)
 

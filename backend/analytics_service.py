@@ -31,6 +31,8 @@ WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 def resolve_athlete_id(db: Session, current_user: User, requested: Optional[str]) -> str:
     target = requested or current_user.id
+    if target == current_user.id:
+        return current_user.id
     if current_user.role == "COACH":
         rel = db.query(CoachingRelationship).filter(
             CoachingRelationship.coach_id == current_user.id,

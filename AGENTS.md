@@ -32,7 +32,7 @@ These rules are always active:
 - Do not bypass RBAC, workout locks, tombstones, idempotency, backend canonical math, or audit logging from integrations.
 - Nested cards are allowed along the product tree (`.cursor/scopes/cal-theme/10-nested-cards.md`). Still no decorative hero, gradient-orb backgrounds, or marketing landing unless explicitly requested.
 - Do not auto-seed demo microcycles, sample athletes (e.g. Zahar), or restore seed plans on empty fetch or coach push. New athlete plans start empty.
-- Treat the training plan as **athlete-owned space**. A linked coach has shared full write. Athlete unlink revokes coach access only; the plan stays with the athlete.
+- Treat the training plan as **athlete-owned space**. A linked coach has shared full write. Athlete unlink revokes coach access only; the plan stays with the athlete. A coach account also owns its own plan (My training) and trains in it like an athlete; coaching access never gates it.
 - Coach–athlete linking uses a **coach code** the athlete enters. Do not use coach email as the link code.
 - Sessions (dated workouts) are first-class. Block/Week are optional grouping labels (block is a prefix of week). Labels may be set at create or anytime later; unlabeled sessions are allowed.
 - Do not invent fixed Mon–Sun week containers or require creating a week before the first session.
