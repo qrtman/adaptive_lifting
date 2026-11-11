@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type ViteDevServer } from 'vite';
-import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { edgeOnlyProxy } from '../../deploy/edgeOnlyProxy';
 import { edgeTargetRequiredPlugin } from '../../deploy/edgeTargetRequired';
 
@@ -14,6 +14,23 @@ async function listen(server: Server): Promise<string> {
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Expected TCP address');
   return `http://127.0.0.1:${address.port}`;
+}
+
+/**
+ * POST on a fresh connection (no keep-alive reuse) and read the whole reply.
+ * Node 22's fetch could reuse a socket the dev server had already closed, which
+ * failed this file in CI with "other side closed".
+ */
+async function postOnce(url: string, headers: Record<string, string>): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    const req = httpRequest(url, { method: 'POST', headers, agent: false }, (res) => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode ?? 0));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 async function close(server: Server): Promise<void> {
@@ -126,13 +143,8 @@ describe('Edge-only local API routing', () => {
       const address = dev.httpServer?.address();
       if (!address || typeof address === 'string') throw new Error('Expected Vite TCP address');
       const url = `http://127.0.0.1:${address.port}/api/auth/login`;
-      const localPageResponse = await fetch(url, {
-        method: 'POST',
-        headers: { Origin: 'http://localhost:3000', Referer: 'http://localhost:3000/calendar' },
-      });
-      await localPageResponse.text();
-      const externalOriginResponse = await fetch(url, { method: 'POST', headers: { Origin: 'https://evil.example' } });
-      await externalOriginResponse.text();
+      await postOnce(url, { Origin: 'http://localhost:3000', Referer: 'http://localhost:3000/calendar' });
+      await postOnce(url, { Origin: 'https://evil.example' });
       expect(origins).toEqual(['https://staging.example', 'https://evil.example']);
       expect(referers).toEqual([undefined, undefined]);
     } finally {
