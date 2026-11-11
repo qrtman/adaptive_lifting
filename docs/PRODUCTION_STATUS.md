@@ -17,7 +17,9 @@ What shipped:
 
 Attempt 1 stopped at "Check required configuration" because the Supabase secrets were not set yet; nothing was changed.
 
-PENDING: owner promotion to coach (`al_operator_grant_coach_access`) when wanted; a browser check of My training on production.
+Owner promoted to COACH on 2026-11-12 with `al_operator_grant_coach_access('<owner email>','coach_unlimited',null,true,…)`: grant `449a74ba-44e7-4cf8-8c40-327651d2b0ba`, no expiry, coach workspace created. Their own training stays visible as My training.
+
+PENDING: owner browser check of My training on production (sign out and in first).
 
 ## Session lift cards, set grid and % intensity fixes — 2026-11-11
 
