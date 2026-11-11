@@ -25,7 +25,9 @@ Each PR: tests for the new logic, the existing e2e that touch the surface, a sta
 - This plan, `.cursor/rules/session-sheet.mdc`.
 - Pointers in `session-console.mdc`, `SCOPE.md`, `design.md`, `knowledge.md`, `agent-file-map.mdc`.
 
-### 1 · Week rail + session header
+### 1 · Week rail + session header — DONE
+Shipped: `src/features/plan/weekRail.ts` (range rule, scheme, set count), `src/components/WeekRail.tsx` (column + phone strip), Day-first `SessionHeader`; staging e2e `e2e/prod/week-rail.spec.ts`. Also fixed: the coach switcher no longer overwrites a pick made while the roster loads.
+
 - **New `WeekRail`** beside the session (left column on desktop, a day strip on phone).
 - **Data.** Built from microcycles already in `PeriodizationContext`: no new request.
 - **Rows.** One row per day; one line per lift: name + scheme (`1×3 · 3×5`, `4×6 @8`); set count per day; day-note line when a note exists.

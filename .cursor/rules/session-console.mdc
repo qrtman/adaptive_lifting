@@ -25,7 +25,7 @@ This rule **overrides** `design.md` calendar 4-pill filter, header Adj, Δ-as-RP
 | Adj | **Gone** from the lift header. `%` column stays. No ± on `%`. |
 | Δ | **e1RM %** `(log − plan) / plan`, column **right of logged e1RM**. No kg Δ, no RPE Δ. |
 | Grid headers | Plan / Log on the row above. kg · reps · RPE as real columns. No `×` `@` between inputs. 6-col keyboard unchanged. |
-| Session header | **Name** is the only large line. Day · Week · Block + tonnage + Edit are muted meta. **Superseded** by `session-sheet.mdc` (phase 1): Day is the large line, Name an optional subtitle, no session tonnage. |
+| Session header | **Name** is the only large line. Day · Week · Block + tonnage + Edit are muted meta. **Superseded** by `session-sheet.mdc` (phase 1, shipped): Day is the large line, Name an optional subtitle, no session tonnage. |
 | Sessions list | **Name** leads. Day · date are meta. Every set is Plan vs Log. No Block/Week inside grouped cards. No `—×5@8`. No `COMPLETED · 0kg`. |
 
 ## Agent load order

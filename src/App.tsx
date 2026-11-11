@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ComponentProps, type RefObject } from 'react';
+import { useState, useEffect, useMemo, useRef, type ComponentProps, type RefObject } from 'react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import { CalendarView } from './components/CalendarView';
 import { SessionsView } from './components/SessionsView';
@@ -14,6 +14,7 @@ import { RosterView } from './components/RosterView';
 import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { SessionHeader } from './components/SessionHeader';
+import { WeekRail } from './components/WeekRail';
 import { Lock } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { useAccountAccess } from './contexts/AccessContext';
@@ -27,6 +28,7 @@ import type { ThemePreference } from './theme/themePref';
 import { isDashboardModeAvailable, parseAppLocation, writeAppLocation, type DashboardMode } from './navigation';
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel, isPlaceholderTitle, sessionHeadline } from './features/plan/sessionLabels';
+import { buildWeekRail, sessionSetCount, type RailSession } from './features/plan/weekRail';
 import { isWorkoutCompleted, splitWorkoutExercises, type LiftMetaPatch } from './types';
 import { useSync } from './contexts/SyncContext';
 import { useCollapsedLifts } from './features/plan/useCollapsedLifts';
@@ -65,6 +67,7 @@ export default function App() {
   const { user, checking } = useAuth();
   const { canProgram } = useAccountAccess();
   const {
+    microcycles,
     activeWorkoutId,
     setActiveWorkoutId,
     setActiveMicrocycleId,
@@ -108,7 +111,31 @@ export default function App() {
   // An unnamed session's title already reads "Day 1 · Week 2"; don't repeat it below.
   const headlineShowsSlot = Boolean(activeWorkout && isPlaceholderTitle(activeWorkout.title) && (sessionDayLabel || sessionWeekLabel));
   const workoutExercises = activeWorkout ? splitWorkoutExercises(activeWorkout.exercises) : null;
-  const { lockedWorkoutIds } = useSync();
+  const { lockedWorkoutIds, isOnline } = useSync();
+  const isCoachAccount = String(user?.role || '').toUpperCase() === 'COACH';
+  // Week rail: the other days of this session's Block/Week (session sheet phase 1).
+  const weekRail = useMemo(() => buildWeekRail(microcycles, activeWorkoutId), [microcycles, activeWorkoutId]);
+  const [dayNotes, setDayNotes] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (currentView !== 'session' || !user) return;
+    let cancelled = false;
+    apiService.fetchDayNotes(isCoachAccount ? planAthleteId : undefined)
+      .then((notes) => {
+        if (cancelled) return;
+        setDayNotes(Object.fromEntries(notes.filter((n) => n.body?.trim()).map((n) => [n.date, n.body])));
+      })
+      .catch(() => { if (!cancelled) setDayNotes({}); });
+    return () => { cancelled = true; };
+  }, [currentView, user, isCoachAccount, planAthleteId]);
+  const assignToWeek = async (session: RailSession) => {
+    if (weekRail?.kind !== 'week') return;
+    try {
+      await apiService.updateSession(session.workout.id, { weekLabel: weekRail.weekLabel, blockLabel: weekRail.blockLabel });
+      await reloadMicrocycles(planAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to assign the week');
+    }
+  };
   const readOnlyReason = sessionReadOnlyReason(activeWorkout, lockedWorkoutIds);
   const sessionFinished = activeWorkout ? isWorkoutCompleted(activeWorkout.status) : false;
   const sessionLocked = readOnlyReason !== null;
@@ -349,9 +376,24 @@ export default function App() {
               className="flex-1 overflow-y-auto bg-[var(--cal-canvas)]"
             >
               {activeWorkout ? (
-                <div className="mx-auto w-full max-w-[1200px] px-3 pb-8 sm:px-4">
+                <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-3 pb-8 sm:px-4">
+                  {weekRail ? (
+                    <WeekRail
+                      model={weekRail}
+                      activeId={activeWorkout.id}
+                      notes={dayNotes}
+                      onOpen={(session) => handleViewSession(session.workout, session.microId)}
+                      canAssign={coachCanProgram && isOnline}
+                      assignDisabledReason={!isOnline ? 'Connect to change labels.' : 'Active coaching access is required to edit athlete programming.'}
+                      onAssign={(session) => { void assignToWeek(session); }}
+                      onAssignWeek={() => setEditSessionOpen(true)}
+                    />
+                  ) : null}
+                  <div className="mx-auto w-full min-w-0 max-w-[1200px] flex-1">
                   <SessionHeader
                     session={activeWorkout}
+                    setCount={sessionSetCount(activeWorkout)}
+                    dayNote={dayNotes[activeWorkout.date]}
                     backLabel={dashboardMode === 'sessions' ? 'Sessions' : 'Calendar'}
                     onBack={() => {
                       setEditSessionOpen(false);
@@ -372,6 +414,18 @@ export default function App() {
                       }
                     }}
                   />
+                  {weekRail ? (
+                    <WeekRail
+                      variant="strip"
+                      model={weekRail}
+                      activeId={activeWorkout.id}
+                      notes={dayNotes}
+                      onOpen={(session) => handleViewSession(session.workout, session.microId)}
+                      canAssign={false}
+                      onAssign={() => undefined}
+                      onAssignWeek={() => setEditSessionOpen(true)}
+                    />
+                  ) : null}
 
                   {readOnlyReason ? (
                     <p
@@ -481,6 +535,7 @@ export default function App() {
                       }}
                     />
                   )}
+                  </div>
                 </div>
               ) : (
                 <div className="h-full flex flex-col justify-center items-center text-center py-20 px-4">
