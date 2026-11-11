@@ -17,6 +17,8 @@ export const AccessoryLedger = ({
   locked = false,
   canEditPlan = true,
   view = 'both',
+  onDuplicate,
+  duplicateDisabledReason,
   roleMode = 'athlete'
 }: {
   exercises: ExerciseData[],
@@ -29,6 +31,8 @@ export const AccessoryLedger = ({
   locked?: boolean,
   canEditPlan?: boolean,
   view?: 'plan' | 'both' | 'log',
+  onDuplicate?: (exerciseId: string) => void | Promise<void>,
+  duplicateDisabledReason?: string,
   roleMode?: 'coach' | 'athlete'
 }) => {
   const [open, setOpen] = useState(true);
@@ -85,6 +89,8 @@ export const AccessoryLedger = ({
           locked={locked}
           canEditPlan={canEditPlan}
           view={view}
+          onDuplicate={onDuplicate ? () => onDuplicate(exercise.id) : undefined}
+          duplicateDisabledReason={duplicateDisabledReason}
           roleMode={roleMode}
           minimized={isCollapsed(exercise.id)}
           onMinimizedChange={(value) => onCollapsedChange?.(exercise.id, value)}

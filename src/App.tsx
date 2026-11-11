@@ -15,6 +15,7 @@ import { AddLiftBar } from './components/AddLiftBar';
 import { EditSessionDialog } from './components/EditSessionDialog';
 import { SessionHeader } from './components/SessionHeader';
 import { WeekRail } from './components/WeekRail';
+import { InlineAddLift } from './components/InlineAddLift';
 import { Lock } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { useAccountAccess } from './contexts/AccessContext';
@@ -29,7 +30,10 @@ import { isDashboardModeAvailable, parseAppLocation, writeAppLocation, type Dash
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel, isPlaceholderTitle, sessionHeadline } from './features/plan/sessionLabels';
 import { buildWeekRail, sessionSetCount, type RailSession } from './features/plan/weekRail';
-import { isWorkoutCompleted, splitWorkoutExercises, type LiftMetaPatch } from './types';
+import { copyLiftIntoSession, type NewLiftPayload } from './features/plan/liftCopy';
+import { GRID_ENTER_EVENT, type GridEnterDetail } from './services/sessionGridNav';
+import { LIFT_DRAG_MIME } from './components/WeekRail';
+import { isWorkoutCompleted, splitWorkoutExercises, type ExerciseData, type LiftMetaPatch } from './types';
 import { useSync } from './contexts/SyncContext';
 import { useCollapsedLifts } from './features/plan/useCollapsedLifts';
 import { sessionReadOnlyReason } from './features/plan/sessionReadOnly';
@@ -136,6 +140,48 @@ export default function App() {
       .catch(() => { if (!cancelled) setDayNotes({}); });
     return () => { cancelled = true; };
   }, [currentView, user, isCoachAccount, planAthleteId]);
+  // Session sheet phase 5: copy a lift (Duplicate / drag from the rail), add one by name.
+  const canCopyLifts = coachCanProgram && isOnline;
+  const copyLift = async (exercise: ExerciseData) => {
+    if (!activeWorkout) return;
+    try {
+      await copyLiftIntoSession(apiService, activeWorkout.id, exercise, readLiftRevision);
+      await reloadMicrocycles(planAthleteId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to copy the lift');
+    }
+  };
+  /** A lift's current server revision (a fresh plan read; the create reply has none). */
+  const readLiftRevision = async (workoutId: string, exerciseId: string): Promise<number | null> => {
+    const plan = await apiService.fetchMicrocycles(planAthleteId ?? undefined, { allowOffline: false });
+    const lift = plan.flatMap((micro) => micro.workouts).find((w) => w.id === workoutId)?.exercises.find((e) => e.id === exerciseId);
+    return typeof lift?.revision === 'number' ? lift.revision : null;
+  };
+  const addLiftByName = async (payload: NewLiftPayload): Promise<string | null> => {
+    if (!activeWorkout) return null;
+    const created = await apiService.addSessionExercise(activeWorkout.id, payload);
+    await reloadMicrocycles(planAthleteId);
+    return created?.id ?? null;
+  };
+  /** Put the keyboard in the first cell of a lift once it has rendered. */
+  const focusLift = (liftId: string) => {
+    let frames = 0;
+    const tryFocus = () => {
+      const host = document.querySelector<HTMLElement>(`[data-lift-grid-host="${liftId}"]`);
+      if (host) {
+        const detail: GridEnterDetail = { edge: 'first', col: sessionView === 'plan' ? 0 : 1 };
+        host.dispatchEvent(new CustomEvent(GRID_ENTER_EVENT, { detail }));
+        return;
+      }
+      if (frames++ < 60) requestAnimationFrame(tryFocus);
+    };
+    requestAnimationFrame(tryFocus);
+  };
+  const [liftDropOver, setLiftDropOver] = useState(false);
+  const findLift = (workoutId: string, exerciseId: string) => microcycles
+    .flatMap((micro) => micro.workouts)
+    .find((w) => w.id === workoutId)?.exercises.find((e) => e.id === exerciseId) ?? null;
+
   const assignToWeek = async (session: RailSession) => {
     if (weekRail?.kind !== 'week') return;
     try {
@@ -396,6 +442,7 @@ export default function App() {
                       assignDisabledReason={!isOnline ? 'Connect to change labels.' : 'Active coaching access is required to edit athlete programming.'}
                       onAssign={(session) => { void assignToWeek(session); }}
                       onAssignWeek={() => setEditSessionOpen(true)}
+                      canDragLifts={canCopyLifts && !sessionLocked}
                     />
                   ) : null}
                   <div className="mx-auto w-full min-w-0 max-w-[1200px] flex-1">
@@ -469,7 +516,33 @@ export default function App() {
                       </div>
                     </div>
                   ) : null}
-                  <div>
+                  <div
+                    data-testid="session-lifts"
+                    onDragOver={(event) => {
+                      if (!canCopyLifts || sessionLocked || !event.dataTransfer.types.includes(LIFT_DRAG_MIME)) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'copy';
+                      setLiftDropOver(true);
+                    }}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setLiftDropOver(false);
+                    }}
+                    onDrop={(event) => {
+                      setLiftDropOver(false);
+                      const raw = event.dataTransfer.getData(LIFT_DRAG_MIME);
+                      if (!raw || !canCopyLifts || sessionLocked) return;
+                      event.preventDefault();
+                      try {
+                        const { workoutId, exerciseId } = JSON.parse(raw) as { workoutId: string; exerciseId: string };
+                        const lift = findLift(workoutId, exerciseId);
+                        if (lift) void copyLift(lift);
+                      } catch { /* not ours */ }
+                    }}
+                    className={liftDropOver ? 'rounded-[var(--cal-radius-lg)] outline outline-2 outline-dashed outline-[var(--cal-accent)] outline-offset-4' : undefined}
+                  >
+                    {liftDropOver ? (
+                      <p data-testid="session-lift-drop-hint" className="mb-2 px-2 text-[12px] text-[var(--cal-accent)]">Drop to copy this lift here, with its Plan sets</p>
+                    ) : null}
                     {activeWorkout.exercises.length === 0 && (
                       <div
                         data-testid="session-empty-lifts"
@@ -524,6 +597,8 @@ export default function App() {
                         onMinimizedChange={(value) => setCollapsed(ex.id, value)}
                         canEditPlan={coachCanProgram}
                         view={sessionView}
+                        onDuplicate={coachCanProgram ? () => copyLift(ex) : undefined}
+                        duplicateDisabledReason={!isOnline ? 'Connect to duplicate lifts.' : undefined}
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={coachCanProgram ? (patch) => handleUpdateLift(ex.id, patch) : undefined}
                         onRemove={coachCanProgram ? () => handleRemoveLift(ex.id) : undefined}
@@ -540,6 +615,11 @@ export default function App() {
                       onUpdateSets={updateExerciseSets}
                       canEditPlan={coachCanProgram}
                       view={sessionView}
+                      onDuplicate={coachCanProgram ? (exerciseId) => {
+                        const lift = activeWorkout.exercises.find((e) => e.id === exerciseId);
+                        return lift ? copyLift(lift) : undefined;
+                      } : undefined}
+                      duplicateDisabledReason={!isOnline ? 'Connect to duplicate lifts.' : undefined}
                       onUpdateMeta={coachCanProgram ? handleUpdateLift : undefined}
                       onRemove={coachCanProgram ? handleRemoveLift : undefined}
                     />
@@ -551,6 +631,13 @@ export default function App() {
                     ) : (
                       <p className="px-2 py-3 text-xs text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</p>
                     )}
+                    {!sessionLocked && coachCanProgram && activeWorkout.exercises.length > 0 ? (
+                      <InlineAddLift
+                        disabledReason={!isOnline ? 'Connect to add lifts' : null}
+                        onAdd={addLiftByName}
+                        onFocusLift={focusLift}
+                      />
+                    ) : null}
                   </div>
                   {editSessionOpen && (
                     <EditSessionDialog

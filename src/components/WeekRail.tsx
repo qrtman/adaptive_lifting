@@ -1,6 +1,9 @@
 import { formatPlanLabel, formatSessionDate } from '../features/plan/sessionLabels';
 import { liftScheme, sessionSetCount, setCountLabel, type RailSession, type WeekRailModel } from '../features/plan/weekRail';
 
+/** Drag payload of a lift dragged out of the rail: `{ workoutId, exerciseId }` as JSON. */
+export const LIFT_DRAG_MIME = 'application/x-al-lift';
+
 /**
  * The other days of this session's Week, next to the session (session sheet phase 1,
  * `.cursor/rules/session-sheet.mdc`). Desktop: a column. Phone: a strip of days.
@@ -16,7 +19,10 @@ export function WeekRail({
   onAssign,
   onAssignWeek,
   variant = 'column',
+  canDragLifts = false,
 }: {
+  /** Lifts of other days can be dragged into the open session (copies its Plan sets). */
+  canDragLifts?: boolean;
   /** `column`: desktop side column (lg+). `strip`: phone day strip (below lg). */
   variant?: 'column' | 'strip';
   model: WeekRailModel;
@@ -100,7 +106,18 @@ export function WeekRail({
                 {workout.exercises.length ? (
                   <span className="mt-1 flex flex-col">
                     {workout.exercises.map((exercise) => (
-                      <span key={exercise.id} className="flex items-baseline justify-between gap-2 text-[12px] leading-[19px]">
+                      <span
+                        key={exercise.id}
+                        data-testid={`week-rail-lift-${exercise.id}`}
+                        draggable={canDragLifts && !active}
+                        title={canDragLifts && !active ? 'Drag into this session to copy it with its Plan sets' : undefined}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData(LIFT_DRAG_MIME, JSON.stringify({ workoutId: workout.id, exerciseId: exercise.id }));
+                          event.dataTransfer.setData('text/plain', exercise.title);
+                          event.dataTransfer.effectAllowed = 'copy';
+                        }}
+                        className={`flex items-baseline justify-between gap-2 text-[12px] leading-[19px] ${canDragLifts && !active ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                      >
                         <span className="truncate text-[var(--cal-ink)]">{exercise.title}</span>
                         <span className="tnum whitespace-nowrap text-[var(--cal-muted)]">{liftScheme(exercise.sets)}</span>
                       </span>
