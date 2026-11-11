@@ -1,6 +1,6 @@
 import { apiUrl, registerVerified } from './verified-fixture';
 import { expect, test, type Locator } from '@playwright/test';
-import { fillEditableCell, pickComboOption, pinCalendarClock } from './helpers';
+import { fillEditableCell, pinCalendarClock, setSessionSlot } from './helpers';
 
 test.use({ baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000' });
 
@@ -50,9 +50,7 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await page.getByTestId('sessions-add').click();
   await page.getByTestId('new-session-date').fill('2026-09-01');
   await page.getByTestId('new-session-title').fill('Lower');
-  await pickComboOption(page, 'new-session-day', 'Day 1');
-  await page.getByTestId('new-session-block').fill('1');
-  await page.getByTestId('new-session-week').fill('1');
+  await setSessionSlot(page, 'new-session', { day: 1, week: 1, block: '1' });
   await page.getByTestId('new-session-create').click();
   const card = page.locator('[data-testid^="sessions-card-"]');
   await expect(card).toHaveCount(1, { timeout: 10_000 });

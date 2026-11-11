@@ -55,7 +55,9 @@ Until PLAN cells get `rowIndex` + lift identity **and** a shared 6-col neighbor 
 
 **In scope:** one lift’s set table as a **6-column keyboard grid** of numeric plan/log cells. Navigation and in-cell typing match Google Sheets for that subset.
 
-**Out of scope:** a general spreadsheet (formulas, fill handle, freeze, sheets/tabs, named ranges, multi-cell range, TSV paste of blocks, merge, format painter).
+**Out of scope:** a general spreadsheet (formulas, fill-handle drag, freeze, sheets/tabs, named ranges, merge, format painter, ranges across lifts).
+
+**Superseded 2026-11-10:** range selection, TSV copy/paste, fill down, accept-suggestions and undo are now **in scope** for one lift. See "Range selection" below; it overrides the Drop rows for them in this file.
 
 ### What “1:1 string input” means here
 
@@ -220,8 +222,8 @@ After commit+move, the destination is **selected**, not editing.
 | F2 begin edit; while editing F2 is no-op (no formula range mode) | **Keep** | No formulas in this grid |
 | Home/End in selected = first/last cell of the **row**; in edit = caret | **Keep** | Cheap; 6-col row |
 | Ctrl/Cmd+Arrow to row/col end | **Drop** | Tiny grid; Home/End enough |
-| Shift+arrows **range** select | **Drop** | This grid has no range. Shift+arrows in **edit** still select **text** |
-| Copy/paste **TSV** / fill / Ctrl+D / Ctrl+R | **Drop** | Not in this checkout. Session copy stays `copyClipboard.ts` |
+| Shift+arrows **range** select | **Keep** (2026-11-10) | Extends a range in selected mode. Shift+arrows in **edit** still select **text** |
+| Copy/paste **TSV** / Ctrl+D | **Keep** (2026-11-10) | One lift only; see Range selection. Ctrl+R and fill-handle drag stay dropped. Session copy stays `copyClipboard.ts` |
 | Single-cell Ctrl/Cmd+C / V in **selected** mode | **Keep** | Sheets copies the active cell; without this, selected mode copies nothing |
 | Page Up/Down, Ctrl+Home/End sheet jump, freeze, new sheet | **Drop** | |
 | Formulas, `=`, autocomplete, data validation UI | **Drop** | Structured fields only |
@@ -232,6 +234,28 @@ After commit+move, the destination is **selected**, not editing.
 | Auto-seed demo sets | **Drop** | Empty plans stay empty |
 
 ---
+
+## Range selection (added 2026-11-10 — overrides the Drop rows above)
+
+State: the active cell (`row`, `col`) plus optional `range: { anchor, end }` in `ExerciseCard`. The rectangle is min/max of the two corners over the 7 logical columns of `COLS` (0 `%`, 1–3 Plan, 4–6 Log). Pure math in `src/services/sheetRange.ts`; undo stack in `src/services/setGridHistory.ts`.
+
+| Action (selected mode) | Result |
+| :--- | :--- |
+| Mouse drag / Shift+click | Select a rectangle (table-level mousedown/mouseover on `[data-grid-pos]` tds; `user-select: none` while dragging) |
+| Shift+Arrows | Extend the range, clamped |
+| Arrow / Tab / plain click / Esc | Collapse (Esc only claims the key when a range existed) |
+| Delete / Backspace | Clear every writable cell; never deletes rows |
+| Ctrl/Cmd+C | TSV of the range (bare numbers, empty `""`) |
+| Ctrl/Cmd+V | TSV block from the top-left, or one value into every cell; clipped at the last row/column |
+| Ctrl/Cmd+D | Fill down from the first row (one-row range: from the row above) |
+| Ctrl/Cmd+Enter | Write the `use {n}` Plan kg offer where one exists — explicit keypress only |
+| Ctrl/Cmd+A | Select the whole lift |
+| Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z / Ctrl+Y | Undo / redo (input's own undo while editing) |
+
+- **Writable cell rule** (one function for clear/paste/fill/accept): not locked; Plan cols need `canEditPlan` and a plan set in that row; Log cols need a log set in that row; row 0 `%` never. Others are skipped and counted in the status line — never created.
+- **Paste overflow:** clipped; status line "Pasted N of M rows" with an **Add K sets** button (only offered when the plan/log lists it joins are full to the last row). Sets are only added on that click.
+- **Undo:** each local change records `{before, after}` (no-op commits are not recorded; cap 50; cleared on lock). Undo applies only while the current sets equal `after` on saved fields (`sameSets`); otherwise "Can't undo: this lift changed since." It goes through the normal save path.
+- **Delete set:** one row tool removes the whole row (plan + log, even two records). A `both` record whose other half shows in another row keeps that half. Without plan rights it is disabled on rows with a plan.
 
 ## Ideas to steal (no new deps)
 
@@ -314,7 +338,7 @@ Do not add a component-library screenshot test as a substitute.
 
 ## Non-goals
 
-- Full spreadsheet, range selection, TSV, formulas
+- Full spreadsheet, formulas, ranges across lifts
 - Changing backend canonical math, sync, RBAC, locks
 - Parsing prescriptions from one text box
 - Replacing the mobile quick adjuster with a desktop input

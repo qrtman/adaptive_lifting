@@ -22,7 +22,7 @@ import {
   groupLabeledSessions,
   type CopyClipboard,
 } from '../features/plan/copyClipboard';
-import { formatPlanLabel, isDayLikeTitle } from '../features/plan/sessionLabels';
+import { formatPlanLabel, isDayLikeTitle, isPlaceholderTitle } from '../features/plan/sessionLabels';
 import { formatSessionStatusMeta, formatSetReadout, getLoggedLiftSummary } from '../features/plan/sessionSetReadout';
 import { sortByFirstSession, weekBoardRows } from '../features/plan/weekBoard';
 import { buildPreviousWeekLiftSummaries, formatSigned, metricChange, type LoggedLiftSummary } from '../features/plan/sessionComparison';
@@ -111,7 +111,7 @@ function SessionCard({
   key?: string;
 }) {
   const dayLabel = formatPlanLabel('Day', workout.dayLabel);
-  const title = workout.title?.trim() || '';
+  const title = isPlaceholderTitle(workout.title) ? '' : workout.title.trim();
   const headline = dayLabel ? dayLabel : title || 'Session';
   const secondaryTitle = dayLabel && title && !isDayLikeTitle(title) && title.toLowerCase() !== dayLabel.toLowerCase() ? title : null;
   const statusMeta = formatSessionStatusMeta(workout.status, workout.tonnage);
@@ -177,7 +177,7 @@ function SessionCard({
                   {Array.from({ length: Math.max(rowCount, 1) }).map((_, index) => {
                     const planSet = planRows[index];
                     const logSet = logRows[index];
-                    const planned = planSet ? formatSetReadout(planSet.plannedWeight, planSet.plannedReps, planSet.plannedRpe) : '—';
+                    const planned = planSet ? formatSetReadout(planSet.plannedWeight, planSet.plannedReps, planSet.target_value ?? planSet.plannedRpe, planSet.intensity_type === 'PERCENT' ? '%' : '') : '—';
                     const logged = logSet ? formatSetReadout(logSet.actual, logSet.reps, logSet.executedRpe) : '—';
                     const rowKey = `${planSet?.id ?? 'no-plan'}-${logSet?.id ?? 'no-log'}-${index}`;
                     return (

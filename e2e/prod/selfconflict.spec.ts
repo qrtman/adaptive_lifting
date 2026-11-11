@@ -37,12 +37,12 @@ test.describe('production self-conflict', () => {
       };
       // Reproduced on production 2026-11-08 with exactly this sequence.
       const planRows = await planKg.count();
-      await page.locator('[data-testid^="add-plan-set-"]').first().click();
+      await page.locator('[data-testid^="add-set-"]').first().click();
       await expect(planKg).toHaveCount(planRows + 1);
       await typeInto(planKg.nth(planRows), 100);
       await page.waitForTimeout(2_300); // the add-set save leaves (debounce) and is in flight
       const logRows = await logKg.count();
-      await page.locator('[data-testid^="add-log-set-"]').first().click();
+      await page.locator('[data-testid^="add-set-"]').first().click();
       await expect(logKg).toHaveCount(logRows + 1);
       await typeInto(logKg.nth(logRows), 102.5);
       await page.waitForTimeout(300);

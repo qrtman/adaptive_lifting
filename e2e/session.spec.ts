@@ -69,8 +69,8 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('rx-weight').first()).toHaveText('180');
 
   await page.getByRole('button', { name: '+ Plan set' }).click();
-  await expect(page.getByTestId('reps').nth(1)).toHaveText('\u2014');
-  await expect(page.getByTestId('targetValue').nth(1)).toHaveText('\u2014');
+  await expect(page.getByTestId('reps').nth(1)).toHaveText('');
+  await expect(page.getByTestId('targetValue').nth(1)).toHaveText('');
   await expect(page.getByTestId('plan-suggest')).toHaveCount(0);
   await typeCell(page.getByTestId('reps').nth(1), '5');
   await typeCell(page.getByTestId('targetValue').nth(1), '6');
@@ -206,7 +206,7 @@ test('set grid headers sit on kg/reps/RPE; \u0394% is e1RM percent; Adj is gone'
   await expect(page.getByTestId('set-grid-h-plan')).toHaveText('Plan');
   await expect(page.getByTestId('set-grid-h-log')).toHaveText('Log');
   await expect(page.getByTestId('set-grid-h-planKg')).toHaveText('kg');
-  await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('reps');
+  await expect(page.getByTestId('set-grid-h-planReps')).toHaveText('Reps');
   await expect(page.getByTestId('set-grid-h-planTarget')).toHaveText('Intensity');
   await expect(page.getByTestId('set-grid-h-logKg')).toHaveText('kg');
   await expect(page.getByTestId('set-grid-h-delta')).toHaveText('\u0394%');
@@ -214,7 +214,7 @@ test('set grid headers sit on kg/reps/RPE; \u0394% is e1RM percent; Adj is gone'
   await expect(page.getByTestId('set-grid-h-inol')).toHaveText('INOL');
 
   const intensityMode = page.getByTestId('rx-intensity').first();
-  await expect(intensityMode).toHaveText('@');
+  await expect(intensityMode).toHaveText('RPE');
   await intensityMode.press('Enter');
   const targetModeMenu = page.getByRole('menu', { name: 'Target mode' });
   await expect(targetModeMenu).toBeVisible();
@@ -223,7 +223,7 @@ test('set grid headers sit on kg/reps/RPE; \u0394% is e1RM percent; Adj is gone'
   await expect(page.getByLabel('Target %').first()).toBeVisible();
   await intensityMode.press('Enter');
   await targetModeMenu.getByRole('menuitem', { name: 'RPE' }).click();
-  await expect(intensityMode).toHaveText('@');
+  await expect(intensityMode).toHaveText('RPE');
 
   const kgHeaderBox = await page.getByTestId('set-grid-h-planKg').boundingBox();
   const kgCellBox = await page.getByTestId('rx-weight').first().boundingBox();
@@ -287,7 +287,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   const headers = page.locator('thead th');
   await expect(headers).toHaveCount(16);
   await expect(headers.nth(0)).toHaveText('#');
-  await expect(page.getByTestId('set-grid-h-pct')).toHaveText('Adj %');
+  await expect(page.getByTestId('set-grid-h-pct')).toHaveText('Drop %');
   await expect(page.getByTestId('set-grid-h-plan')).toHaveText('Plan');
   await expect(page.getByRole('button', { name: 'Adj', exact: true })).toHaveCount(0);
 
@@ -303,7 +303,7 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
   const addedSave = waitForSetsPut();
   await page.getByRole('button', { name: '+ Plan set' }).click();
   await addedSave;
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('\u2014');
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('');
   await typeCell(page.getByTestId('reps').nth(1), '5');
   await typeCell(page.getByTestId('targetValue').nth(1), '6');
 
@@ -316,15 +316,14 @@ test('set % column on later sets scales use {n} without writing Plan kg', async 
 
   const laterPct = page.getByTestId('set-drop-pct');
   await expect(laterPct).toHaveAttribute('tabindex', '-1');
-  await expect(laterPct).toHaveText('%');
-  const laterPctCell = page.locator('tbody tr').nth(1).locator('td').nth(1);
-  await expect(laterPctCell).toContainText('%');
+  // An empty drop cell is blank; the % sign appears with a value.
+  await expect(laterPct).toHaveText('');
 
   const saved = waitForSetsPut();
   await laterPct.dblclick();
   await page.getByTestId('set-drop-pct').fill('-5');
   await page.getByTestId('set-drop-pct').blur();
-  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('—');
+  await expect(page.getByTestId('rx-weight').nth(1)).toHaveText('');
   const payload = await saved.then((response) => response.json());
   const written = payload.sets.find((row: { dropPercent?: number }) => row.dropPercent === -5);
   expect(written).toBeTruthy();

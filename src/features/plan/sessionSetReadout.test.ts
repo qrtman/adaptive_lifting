@@ -54,3 +54,15 @@ describe('formatSessionStatusMeta', () => {
     expect(formatSessionStatusMeta('COMPLETED', 3787.5)).toBe('Done · 3787.5 kg');
   });
 });
+
+describe('formatSetReadout percent', () => {
+  it('marks a % target', () => {
+    expect(formatSetReadout(160, 5, 80, '%')).toBe('160 × 5 @ 80%');
+  });
+});
+
+describe('getTopLoggedE1RM without RPE', () => {
+  it('does not turn a set logged without RPE into an e1RM', () => {
+    expect(getTopLoggedE1RM([set('a', 100, 4, null)])).toBeNull();
+  });
+});

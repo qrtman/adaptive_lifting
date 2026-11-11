@@ -49,7 +49,7 @@ export function CenteredDialog({
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const target = dialogRef.current?.querySelector<HTMLElement>('[autofocus], [role="combobox"]')
+    const target = dialogRef.current?.querySelector<HTMLElement>('[data-autofocus], [autofocus], [role="combobox"]')
       ?? dialogRef.current?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
     target?.focus();
     return () => previouslyFocused?.focus();
@@ -99,22 +99,22 @@ export function CenteredDialog({
         transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
         className={`relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col ${fixedHeight ? 'h-[min(36rem,calc(100dvh-1rem))] sm:h-[min(36rem,85dvh)]' : ''} overflow-hidden bg-[var(--cal-surface-elevated)] border border-[var(--cal-hairline)] rounded-[var(--cal-radius-lg)] p-3 sm:max-h-[85dvh] sm:p-[var(--cal-space-md)] cal-card-outer`}
       >
-        <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
-          <div>
-            <h2 id={titleId} className="text-sm font-medium text-[var(--cal-ink)]">
+        <div className="mb-3 shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id={titleId} className="min-w-0 text-sm font-medium text-[var(--cal-ink)]">
               {title}
             </h2>
-            {subtitle ? <p className="text-xs text-[var(--cal-muted)] mt-1">{subtitle}</p> : null}
+            <button
+              type="button"
+              data-testid="dialog-close"
+              aria-label="Close"
+              onClick={onClose}
+              className="-mr-1 h-8 w-8 shrink-0 flex items-center justify-center rounded-[var(--cal-radius-md)] text-lg leading-none text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]"
+            >
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            data-testid="dialog-close"
-            aria-label="Close"
-            onClick={onClose}
-            className="h-8 w-8 flex items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] hover:text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)]"
-          >
-            ×
-          </button>
+          {subtitle ? <p className="text-xs text-[var(--cal-muted)] mt-1">{subtitle}</p> : null}
         </div>
         {onSubmit ? (
           <form
@@ -124,14 +124,16 @@ export function CenteredDialog({
               onSubmit();
             }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {/* Inner padding keeps focus rings (drawn outside fields) from being clipped by the scroll area. */}
+            <div className="-mx-1.5 -my-1.5 min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">{children}</div>
             <div className="mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-[var(--cal-hairline)] pt-3">
               {footer}
             </div>
           </form>
         ) : (
           <>
-            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {/* Inner padding keeps focus rings (drawn outside fields) from being clipped by the scroll area. */}
+            <div className="-mx-1.5 -my-1.5 min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">{children}</div>
             <div className="mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-[var(--cal-hairline)] pt-3">
               {footer}
             </div>

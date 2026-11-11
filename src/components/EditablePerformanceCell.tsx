@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import {
   reduceCellKey,
@@ -15,6 +15,7 @@ export const EditablePerformanceCell = ({
   widthClass = "w-16",
   isLogged = false,
   isAuto = false,
+  readOnly = false,
   suggestedValue = null,
   step = 1,
   variant = "default",
@@ -30,6 +31,8 @@ export const EditablePerformanceCell = ({
   widthClass?: string;
   isLogged?: boolean;
   isAuto?: boolean;
+  /** Selectable (moves, ranges, copy, paste-from-here) but never opens an editor. */
+  readOnly?: boolean;
   suggestedValue?: string | null;
   step?: number;
   variant?: "default" | "transparent";
@@ -49,6 +52,13 @@ export const EditablePerformanceCell = ({
   const domId = rowIndex !== undefined ? `cell-${fieldKey}-${rowIndex}` : undefined;
   const editDefault = grid.editOverwrite && grid.editSeed !== undefined ? grid.editSeed : (value || '');
 
+  // A key commit/cancel (Enter, Tab, Esc) sets skipBlurRef, but the input then unmounts
+  // without a blur, so the flag would leak into the next edit of this cell and that edit
+  // would be dropped on click-away. Every new edit session starts with it cleared.
+  useLayoutEffect(() => {
+    if (isEditing) skipBlurRef.current = false;
+  }, [isEditing]);
+
   useLayoutEffect(() => {
     if (!grid.isActive) return;
     if (isEditing) {
@@ -66,8 +76,26 @@ export const EditablePerformanceCell = ({
     displayRef.current?.focus({ preventScroll: true });
   }, [grid.isActive, isEditing]);
 
+  const copyText = () => (grid.copyText ? grid.copyText() : value);
+  const pasteText = (text: string) => {
+    if (grid.onPasteText) {
+      grid.onPasteText(text);
+      return;
+    }
+    onChange((text.split(/\r?\n/)[0] ?? '').replace(/\t/g, ''));
+  };
+
   const applyEffect = (event: KeyboardEvent, effect: CellKeyEffect, currentDraft: string) => {
     if (effect.type === 'none' || effect.type === 'ignore' || effect.type === 'caret') {
+      return;
+    }
+    if (effect.type === 'range') {
+      // Esc is only claimed when a range actually collapsed.
+      const handled = grid.onRangeCommand?.(effect.command) ?? false;
+      if (handled || effect.preventDefault) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       return;
     }
     if ('preventDefault' in effect && effect.preventDefault) {
@@ -81,13 +109,19 @@ export const EditablePerformanceCell = ({
       return;
     }
     if (effect.type === 'beginEdit') {
+      if (readOnly) return;
       flushSync(() => {
         grid.onBeginEdit(grid.row, grid.col, effect.overwrite, effect.draft);
       });
       return;
     }
+    if (effect.type === 'extend') {
+      grid.onExtend?.(effect.direction);
+      return;
+    }
     if (effect.type === 'clear') {
-      onChange('');
+      if (grid.onClearRange) grid.onClearRange();
+      else onChange('');
       return;
     }
     if (effect.type === 'commit') {
@@ -102,14 +136,11 @@ export const EditablePerformanceCell = ({
       return;
     }
     if (effect.type === 'copy') {
-      void navigator.clipboard.writeText(value).catch(() => {});
+      void navigator.clipboard?.writeText(copyText()).catch(() => {});
       return;
     }
     if (effect.type === 'paste') {
-      void navigator.clipboard.readText().then((text) => {
-        const first = (text.split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
-        onChange(first);
-      }).catch(() => {});
+      void navigator.clipboard?.readText().then(pasteText).catch(() => {});
     }
   };
 
@@ -149,16 +180,26 @@ export const EditablePerformanceCell = ({
     applyEffect(event, effect, el.value);
   };
 
-  const handleClick = () => {
-    if (isSelected) {
-      grid.onBeginEdit(grid.row, grid.col, false);
-    } else {
+  // The table selects on mousedown (for drag ranges), so remember whether this cell was
+  // already the single selected cell before that; only then does the click start editing.
+  const wasSelectedRef = useRef<boolean | null>(null);
+  const handleMouseDown = () => {
+    wasSelectedRef.current = isSelected && !grid.inRange;
+  };
+  const handleClick = (event: MouseEvent) => {
+    if (event.shiftKey) return;
+    // No mousedown seen (keyboard/synthetic click): judge by the current selection.
+    const wasSelected = wasSelectedRef.current ?? isSelected;
+    wasSelectedRef.current = null;
+    if (wasSelected) {
+      if (!readOnly) grid.onBeginEdit(grid.row, grid.col, false);
+    } else if (!isSelected) {
       grid.onSelect(grid.row, grid.col);
     }
   };
 
   const handleDoubleClick = () => {
-    grid.onBeginEdit(grid.row, grid.col, false);
+    if (!readOnly) grid.onBeginEdit(grid.row, grid.col, false);
   };
 
   const displayValue = value
@@ -167,7 +208,6 @@ export const EditablePerformanceCell = ({
       ? suggestedValue
       : placeholder;
 
-  const selectedRing = isSelected ? 'border-[var(--cal-accent)] ring-1 ring-[var(--cal-accent)]' : '';
 
   const sharedAttrs = {
     id: domId,
@@ -206,32 +246,32 @@ export const EditablePerformanceCell = ({
             grid.onCommit(grid.row, grid.col, e.target.value);
           }}
           onKeyDown={handleInputKeyDown}
-          className={`${variant === "transparent" ? "w-12 py-0 text-center text-xs" : `${widthClass} py-0 h-6 text-center text-xs`} bg-[var(--cal-surface-card)] border ${
-            isLogged ? 'border-[var(--cal-success)] text-[var(--cal-success)]' : 'border-[var(--cal-accent)] text-[var(--cal-ink)]'
-          } rounded-sm tnum focus:outline-none`}
+          className={`${variant === "transparent" ? "w-12" : widthClass} sheet-cell sheet-cell--editing h-9 px-3 text-right text-sm tnum bg-[var(--cal-surface-card)] text-[var(--cal-ink)] outline-none`}
         />
       ) : variant === "transparent" ? (
         <div
           ref={displayRef}
           {...sharedAttrs}
           tabIndex={grid.tabStop ? 0 : -1}
+          onMouseDown={handleMouseDown}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onKeyDown={handleDisplayKeyDown}
           onCopy={(e) => {
             if (!isSelected) return;
             e.preventDefault();
-            e.clipboardData.setData('text/plain', value);
+            e.clipboardData.setData('text/plain', copyText());
           }}
           onPaste={(e) => {
             if (!isSelected) return;
             e.preventDefault();
-            const text = (e.clipboardData.getData('text/plain').split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
-            onChange(text);
+            pasteText(e.clipboardData.getData('text/plain'));
           }}
-          className={`${widthClass} h-6 flex items-center justify-center cursor-pointer select-none ${selectedRing}`}
+          data-selected={isSelected ? 'true' : undefined}
+          data-in-range={grid.inRange && !grid.isActive ? 'true' : undefined}
+          className={`${widthClass} sheet-cell h-9 px-3 flex items-center justify-end cursor-cell select-none`}
         >
-          <span className={`text-xs tnum ${value ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}`}>
+          <span className={`text-sm tnum ${value ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}`}>
             {value ? value : placeholder}
           </span>
         </div>
@@ -240,35 +280,32 @@ export const EditablePerformanceCell = ({
           ref={displayRef}
           {...sharedAttrs}
           tabIndex={grid.tabStop ? 0 : -1}
+          onMouseDown={handleMouseDown}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onKeyDown={handleDisplayKeyDown}
           onCopy={(e) => {
             if (!isSelected) return;
             e.preventDefault();
-            e.clipboardData.setData('text/plain', value);
+            e.clipboardData.setData('text/plain', copyText());
           }}
           onPaste={(e) => {
             if (!isSelected) return;
             e.preventDefault();
-            const text = (e.clipboardData.getData('text/plain').split(/\r?\n/)[0] ?? '').replace(/\t/g, '');
-            onChange(text);
+            pasteText(e.clipboardData.getData('text/plain'));
           }}
-          className={`${widthClass} h-6 rounded-sm text-center text-xs tnum cursor-pointer border flex items-center justify-center ${
-            isSelected
-              ? `border-[var(--cal-accent)] ring-1 ring-[var(--cal-accent)] ${isLogged && value ? 'text-[var(--cal-success)]' : value ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}`
-              : isLogged
-                ? value
-                  ? 'border-[color-mix(in_srgb,var(--cal-success)_40%,transparent)] text-[var(--cal-success)]'
-                  : 'border-[var(--cal-hairline)] text-[var(--cal-muted-soft)]'
-                : value
-                  ? 'border-[var(--cal-hairline)] text-[var(--cal-ink)]'
-                  : isAuto && suggestedValue
-                    ? 'border-dashed border-[color-mix(in_srgb,var(--cal-accent)_40%,transparent)] text-[color-mix(in_srgb,var(--cal-accent)_70%,transparent)]'
-                    : 'border-[var(--cal-hairline)] text-[var(--cal-muted-soft)]'
+          data-selected={isSelected ? 'true' : undefined}
+          data-in-range={grid.inRange && !grid.isActive ? 'true' : undefined}
+          data-logged={isLogged && value ? 'true' : undefined}
+          className={`${widthClass} sheet-cell h-9 px-3 flex items-center justify-end text-sm tnum cursor-cell select-none ${
+            value
+              ? 'text-[var(--cal-ink)]'
+              : isAuto && suggestedValue
+                ? 'italic text-[color-mix(in_srgb,var(--cal-accent)_70%,transparent)]'
+                : 'text-[var(--cal-muted-soft)]'
           }`}
         >
-          {displayValue}{suffix ? <span className="ml-0.5 text-[var(--cal-muted)]">{suffix}</span> : null}
+          {displayValue}{suffix && value ? <span className="ml-0.5 text-[var(--cal-muted)]">{suffix}</span> : null}
         </div>
       )}
 

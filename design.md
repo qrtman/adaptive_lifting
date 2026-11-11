@@ -1406,6 +1406,12 @@ Gym environments introduce specific physical challenges: sweat, dust, low dungeo
 - **Timers:** Gym timers must preserve ticking state when the application moves to background loops. Local storage locks hold timestamps to calculate elapsed time on return.
 - **Focus Shifts:** Background app suspensions (like telephone calls or battery warnings) trigger automatic storage hydration. Active unsaved state must be persisted to IndexedDB snapshots within **200ms** of focus loss to guarantee zero data loss.
 
+### 11.3a Lift cards: open/collapsed
+- Every lift card (main lifts and accessories) opens by default. Collapsing a lift is remembered per lift on this device (UI preference, `al_collapsed_lifts`); it never affects sync.
+- A session with 2+ lifts shows **Collapse all / Expand all** above the lift list.
+- Wide open card (container >= 1080px): name row on top; the totals (Intensity, Sets, NL, e1RM, Volume) in a column right of the set grid, with the note under them. Narrow card: the totals and note sit in one row under the grid. Collapsed: totals inline in the header.
+- Accessories use the same lift card as main lifts (same open and collapsed look) under a plain **Accessories** heading that hides or shows the group. The heading is a group label, not a card around the cards. Accessories are not reorderable.
+
 ### 11.4 Power-User Spreadsheet Keyboard Navigation (Desktop Console)
 Coaches designing programs or logging data require high-velocity data-entry that matches Google Sheets for the PLAN/LOG set grid only — not a general spreadsheet. Do not add Handsontable, AG Grid, Luckysheet, Univer, FullCalendar, or any grid library.
 
@@ -1443,7 +1449,21 @@ then the next set of the **same** lift. Chrome (set #, `%` drop, plan→log copy
 
 **Mobile Guard:** This Sheets keyboard is restricted to desktop. On touch-screen mobile devices (`<768px` or `maxTouchPoints > 0`), cell tap opens the large touch-safe Quick Adjuster bottom sheet. Do not apply spreadsheet keys to that sheet.
 
-**Out of scope:** range selection, TSV paste, fill handle, formulas, freeze, sheet tabs, Ctrl+Arrow jump, Page Up/Down.
+**Range selection (selected mode)**
+- Mouse drag or Shift+click selects a rectangle; Shift+Arrows extend it (clamped). The active cell stays where it was and is where typing goes. Plain Arrow / Tab / click, or Esc, collapse it. Ranges never leave one lift and cover the editable columns only (`%`, Plan kg/reps/intensity, Log kg/reps/RPE); #, e1RM, Δ%, INOL and row tools are never part of a range.
+- Look: light accent fill on the cells, one 2px accent outline around the whole range (Sheets). No text highlight while dragging.
+- Delete / Backspace clears every writable cell in the range (values empty, `%` 0). It never deletes rows — **Delete set** (row tool) does that.
+- Ctrl/Cmd+C copies the range as TSV (bare numbers, empty cells `""`), so it pastes into Google Sheets / Excel. Ctrl/Cmd+V pastes a TSV block from the top-left of the range, or a single value into every cell of the range. Decimal commas, `kg` and `%` suffixes are accepted; text that is not a number is skipped.
+- Ctrl/Cmd+D fills down: a taller range copies its first row into the rows below; a one-row range copies the row above.
+- Ctrl/Cmd+Enter writes the `use {n}` Plan kg offer for every Plan kg cell in the range that has one. Only on that keypress; never automatically.
+- Ctrl/Cmd+A selects all of the lift's cells. Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or Ctrl+Y) undo / redo the lift's grid changes; while editing, the input's own undo applies.
+- **Writable cells:** not locked; Plan columns need plan rights and a plan set in that row; Log columns need a log set in that row; set 1 has no `%`. Everything else is skipped and reported, never created.
+- **Paste past the last set** is clipped. A status line under the grid says "Pasted 3 of 5 rows" with an **Add 2 sets** button; only that click adds sets. Navigation and paste never create sets on their own.
+- **Undo safety:** undo only applies while the lift still matches what the change produced. If a coach edit or sync merge changed it meanwhile, undo refuses ("Can't undo: this lift changed since.") instead of overwriting.
+
+**Row tools:** Copy plan → log, Copy this set, Copy this log set, and one **Delete set** that removes the whole row (plan and log). To remove only a log, clear the log cells. Without plan rights, Delete set is disabled on rows with a plan (log-only rows stay deletable).
+
+**Out of scope:** formulas, fill handle drag, freeze, sheet tabs, Ctrl+Arrow jump, Page Up/Down, multi-lift ranges.
 
 ---
 

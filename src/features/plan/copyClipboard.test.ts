@@ -27,8 +27,8 @@ describe('dateOffsetDays', () => {
 });
 
 describe('resolveDayTargetBlock', () => {
-  it('uses recent block only when every source is unlabeled', () => {
-    expect(resolveDayTargetBlock([unlabeled], 'Hypertrophy')).toBe('Hypertrophy');
+  it('never stamps a remembered block onto unlabeled sessions', () => {
+    expect(resolveDayTargetBlock([unlabeled], 'Hypertrophy')).toBeUndefined();
     expect(resolveDayTargetBlock([unlabeled], '')).toBeUndefined();
   });
 
@@ -50,8 +50,8 @@ describe('resolveWeekTargetBlock', () => {
     expect(resolveWeekTargetBlock([squat, bench], 'Meet')).toBe('Block2');
   });
 
-  it('falls back to recent when the week is unlabeled for block', () => {
-    expect(resolveWeekTargetBlock([{ ...squat, blockLabel: null }, { ...bench, blockLabel: '' }], 'Meet')).toBe('Meet');
+  it('keeps an unlabeled week unlabeled (no remembered block)', () => {
+    expect(resolveWeekTargetBlock([{ ...squat, blockLabel: null }, { ...bench, blockLabel: '' }], 'Meet')).toBeUndefined();
   });
 });
 
@@ -112,12 +112,31 @@ describe('groupLabeledSessions', () => {
       {
         blockLabel: 'Block2',
         all: [squat, { ...bench, weekLabel: null }],
-        weeks: [{ weekLabel: 'Week3', items: [squat] }],
+        weeks: [{ weekLabel: '3', items: [squat] }],
         noWeek: [{ ...bench, weekLabel: null }],
       },
     ]);
     expect(grouped.weeksNoBlock).toEqual([
-      { weekLabel: 'Week1', items: [{ ...meet, blockLabel: null }] },
+      { weekLabel: '1', items: [{ ...meet, blockLabel: null }] },
+    ]);
+  });
+});
+
+describe('groupLabeledSessions merges spellings', () => {
+  it('puts "Week1" and "1" in one week and ignores block case', () => {
+    const items = [
+      { id: 'a', blockLabel: 'Hypertrophy', weekLabel: 'Week1' },
+      { id: 'b', blockLabel: 'hypertrophy', weekLabel: '1' },
+      { id: 'c', blockLabel: 'Hypertrophy', weekLabel: '10' },
+      { id: 'd', blockLabel: 'Hypertrophy', weekLabel: '2' },
+    ];
+    const grouped = groupLabeledSessions(items, (item) => item);
+    expect(grouped.blocks).toHaveLength(1);
+    expect(grouped.blocks[0].blockLabel).toBe('Hypertrophy');
+    expect(grouped.blocks[0].weeks.map((week) => [week.weekLabel, week.items.map((item) => item.id)])).toEqual([
+      ['1', ['a', 'b']],
+      ['2', ['d']],
+      ['10', ['c']],
     ]);
   });
 });

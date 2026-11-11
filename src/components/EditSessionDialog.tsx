@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { apiService } from '../services/api';
 import { usePeriodization } from '../contexts/PeriodizationContext';
-import { displayDayField, normalizeDayLabel } from '../features/plan/sessionLabels';
+import { UNNAMED_SESSION_TITLE, formatSessionDate, isPlaceholderTitle, labelNumber, normalizeDayLabel } from '../features/plan/sessionLabels';
 import { setRecentBlock, setRecentDay, setRecentName, setRecentWeek } from '../storage/uiPrefs';
-import { CenteredDialog, NestedCard } from './CenteredDialog';
-import { ComboBox } from './ComboBox';
-import { dayComboOptions, uniquePlanLabels, uniquePlanTitles } from './LabelCombo';
+import { CenteredDialog } from './CenteredDialog';
+import { uniquePlanTitles } from './LabelCombo';
+import { distinctBlocks } from './BlockPicker';
+import { SessionSlotFields } from './SessionSlotFields';
 
 export function EditSessionDialog({
   session,
@@ -26,38 +27,38 @@ export function EditSessionDialog({
   onDeleted?: () => void | Promise<void>;
 }) {
   const { microcycles, planAthleteId } = usePeriodization();
-  const blockOptions = uniquePlanLabels(microcycles, 'blockLabel');
-  const weekOptions = uniquePlanLabels(microcycles, 'weekLabel');
-  const dayOptions = dayComboOptions(microcycles);
+  const blockOptions = distinctBlocks(microcycles.flatMap((micro) => micro.workouts.map((workout) => workout.blockLabel)));
+  // Old free-text labels that are not numbers ("Deload") stay unless a number is picked.
+  const storedDay = normalizeDayLabel(session.dayLabel);
+  const storedWeek = session.weekLabel?.trim() || null;
+  const legacyDay = storedDay && labelNumber('Day', storedDay) === null ? storedDay : null;
+  const legacyWeek = storedWeek && labelNumber('Week', storedWeek) === null ? storedWeek : null;
   const nameOptions = uniquePlanTitles(microcycles);
-  const [dayInput, setDayInput] = useState(() => displayDayField(session.dayLabel));
-  const [title, setTitle] = useState(session.title || '');
-  const [blockLabel, setBlockLabel] = useState(session.blockLabel || '');
-  const [weekLabel, setWeekLabel] = useState(session.weekLabel || '');
+  const [day, setDay] = useState<number | null>(() => labelNumber('Day', storedDay));
+  const [week, setWeek] = useState<number | null>(() => labelNumber('Week', storedWeek));
+  const [block, setBlock] = useState<string | null>(session.blockLabel?.trim() || null);
+  const [title, setTitle] = useState(isPlaceholderTitle(session.title) ? '' : session.title.trim());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
     if (busy) return;
-    const name = title.trim();
-    if (!name) {
-      setError('Enter a name');
-      return;
-    }
+    const name = isPlaceholderTitle(title) ? '' : title.trim();
     setBusy(true);
     setError(null);
     try {
-      const dayCanonical = normalizeDayLabel(dayInput);
+      const dayCanonical = day !== null ? String(day) : legacyDay;
+      const weekCanonical = week !== null ? String(week) : legacyWeek ?? '';
       await apiService.updateSession(session.id, {
-        title: name,
+        title: name || UNNAMED_SESSION_TITLE,
         dayLabel: dayCanonical ?? session.date,
-        blockLabel: blockLabel.trim(),
-        weekLabel: weekLabel.trim(),
+        blockLabel: block ?? '',
+        weekLabel: weekCanonical,
       });
-      if (dayCanonical) setRecentDay(planAthleteId, dayCanonical);
-      setRecentName(planAthleteId, name);
-      if (blockLabel.trim()) setRecentBlock(planAthleteId, blockLabel.trim());
-      if (weekLabel.trim()) setRecentWeek(planAthleteId, weekLabel.trim());
+      setRecentDay(planAthleteId, day === null ? null : String(day));
+      if (name) setRecentName(planAthleteId, name);
+      setRecentBlock(planAthleteId, block);
+      setRecentWeek(planAthleteId, week === null ? null : String(week));
       await onSaved();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save session');
@@ -81,7 +82,7 @@ export function EditSessionDialog({
 
   return (
     <CenteredDialog
-      title={`Edit session · ${session.date}`}
+      title={`Edit session · ${formatSessionDate(session.date)}`}
       onClose={onClose}
       testId="edit-session-dialog"
       footer={(
@@ -117,56 +118,24 @@ export function EditSessionDialog({
         </>
       )}
     >
-      <div className="flex flex-col gap-2">
-        <NestedCard testId="edit-session-name-card" className="relative z-20 overflow-visible focus-within:!transform-none">
-          <ComboBox
-            label="Name"
-            value={title}
-            onChange={setTitle}
-            options={nameOptions}
-            placeholder="Squat, Meet…"
-            testId="session-title"
-          />
-        </NestedCard>
-        <NestedCard testId="edit-session-slot-card" className="overflow-visible">
-          <div className="@container min-w-0">
-            <div
-              data-testid="edit-session-slot-row"
-              className="grid grid-cols-2 @min-[340px]:grid-cols-3 gap-1.5 items-start min-w-0"
-            >
-              <div className="col-span-2 @min-[340px]:col-span-1 min-w-0">
-                <ComboBox
-                  label="Day"
-                  value={dayInput}
-                  onChange={setDayInput}
-                  options={dayOptions}
-                  placeholder="Day 1…"
-                  testId="session-day"
-                />
-              </div>
-              <div className="min-w-0">
-                <ComboBox
-                  label="Block (optional)"
-                  value={blockLabel}
-                  onChange={setBlockLabel}
-                  options={blockOptions}
-                  placeholder="Block…"
-                  testId="session-block"
-                />
-              </div>
-              <div className="min-w-0">
-                <ComboBox
-                  label="Week (optional)"
-                  value={weekLabel}
-                  onChange={setWeekLabel}
-                  options={weekOptions}
-                  placeholder="Week…"
-                  testId="session-week"
-                />
-              </div>
-            </div>
-          </div>
-        </NestedCard>
+      <div className="flex flex-col gap-3">
+        <SessionSlotFields
+          day={day}
+          week={week}
+          block={block}
+          blocks={blockOptions}
+          title={title}
+          nameOptions={nameOptions}
+          onDay={setDay}
+          onWeek={setWeek}
+          onBlock={setBlock}
+          onTitle={setTitle}
+          testIdPrefix="session"
+          titleTestId="session-title"
+          legacyDay={legacyDay}
+          legacyWeek={legacyWeek}
+          autoFocusFirst
+        />
         {error && <p data-testid="edit-session-error" className="text-xs text-[var(--cal-error)]">{error}</p>}
       </div>
     </CenteredDialog>

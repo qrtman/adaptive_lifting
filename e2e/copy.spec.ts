@@ -94,9 +94,9 @@ test('copy week lands D1 and increments the week label', async ({ page, request 
 
   await signIn(page, email);
   await page.getByRole('button', { name: 'Sessions' }).click();
-  await expect(page.getByTestId('sessions-week-row-Block2::Week3')).toBeVisible();
-  await page.getByTestId('sessions-week-actions-Block2::Week3').click();
-  await page.getByTestId('sessions-copy-week-Block2::Week3').click();
+  await expect(page.getByTestId('sessions-week-row-Block2::3')).toBeVisible();
+  await page.getByTestId('sessions-week-actions-Block2::3').click();
+  await page.getByTestId('sessions-copy-week-Block2::3').click();
   await expect(page.getByTestId('copy-to-banner')).toContainText('Copy week');
   await expect(page.getByTestId('copy-to-banner')).toContainText('click where D1 lands');
   await page.getByTestId('calendar-day-2026-09-22').click();
@@ -151,11 +151,11 @@ test('offline disables copy; coach without an athlete has no copy', async ({ pag
 
     await signIn(page, athleteEmail);
     await page.getByRole('button', { name: 'Sessions' }).click();
-    await page.getByTestId('sessions-week-actions-Block2::Week3').click();
-    await expect(page.getByTestId('sessions-copy-week-Block2::Week3')).toBeEnabled();
+    await page.getByTestId('sessions-week-actions-Block2::3').click();
+    await expect(page.getByTestId('sessions-copy-week-Block2::3')).toBeEnabled();
     await context.setOffline(true);
     await expect(page.getByTestId('copy-offline')).toBeVisible();
-    await expect(page.getByTestId('sessions-copy-week-Block2::Week3')).toBeDisabled();
+    await expect(page.getByTestId('sessions-copy-week-Block2::3')).toBeDisabled();
     await context.setOffline(false);
     await page.getByRole('button', { name: 'Sign out' }).click();
 

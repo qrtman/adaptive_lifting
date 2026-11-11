@@ -1,4 +1,23 @@
-import { useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
+
+const LIST_MAX_HEIGHT = 160; // max-h-40
+const LIST_GAP = 4;
+
+/** Fixed position for the list, so dialogs and scroll areas never clip it. Flips up when needed. */
+function listPosition(anchor: HTMLElement): CSSProperties {
+  const rect = anchor.getBoundingClientRect();
+  const below = window.innerHeight - rect.bottom - LIST_GAP;
+  const above = rect.top - LIST_GAP;
+  const openUp = below < LIST_MAX_HEIGHT && above > below;
+  return {
+    position: 'fixed',
+    left: rect.left,
+    width: rect.width,
+    maxHeight: Math.max(Math.min(LIST_MAX_HEIGHT, openUp ? above : below) - LIST_GAP, 80),
+    ...(openUp ? { bottom: window.innerHeight - rect.top + LIST_GAP } : { top: rect.bottom + LIST_GAP }),
+  };
+}
 
 const inputClass =
   'h-10 w-full min-w-0 px-3 rounded-[var(--cal-radius-md)] bg-[var(--cal-canvas)] border border-[var(--cal-hairline)] text-sm text-[var(--cal-ink)] placeholder:text-[var(--cal-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]';
@@ -12,7 +31,10 @@ export function ComboBox({
   options,
   placeholder,
   testId,
+  hideLabel = false,
 }: {
+  /** The label is shown by the surrounding form row; keep it for screen readers only. */
+  hideLabel?: boolean;
   label: string;
   value: string;
   onChange: (next: string) => void;
@@ -34,6 +56,23 @@ export function ComboBox({
   }, [options, value]);
 
   const listOpen = open && filtered.length > 0;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [position, setPosition] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    if (!listOpen || !inputRef.current) {
+      setPosition(null);
+      return;
+    }
+    const place = () => { if (inputRef.current) setPosition(listPosition(inputRef.current)); };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [listOpen]);
 
   const moveHighlight = (delta: number) => {
     if (filtered.length === 0) return;
@@ -85,9 +124,10 @@ export function ComboBox({
 
   return (
     <label className="flex w-full min-w-0 flex-col gap-1">
-      <span className={labelClass}>{label}</span>
-      <div className={`relative min-w-0 ${listOpen ? 'z-30' : ''}`}>
+      <span className={hideLabel ? 'sr-only' : labelClass}>{label}</span>
+      <div className="relative min-w-0">
         <input
+          ref={inputRef}
           data-testid={testId}
           role="combobox"
           aria-expanded={listOpen}
@@ -111,13 +151,14 @@ export function ComboBox({
           onKeyDown={onKeyDown}
           className={inputClass}
         />
-        {listOpen ? (
+        {listOpen ? createPortal((
           <div
             id={listId}
             role="listbox"
             aria-label={label}
             data-testid={`${testId}-listbox`}
-            className="absolute z-30 mt-1 w-full max-h-40 overflow-y-auto p-1 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] shadow-[var(--cal-shadow-lift)]"
+            style={position ?? { position: 'fixed', visibility: 'hidden' }}
+            className="z-[60] overflow-y-auto p-1 rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] shadow-[var(--cal-shadow-lift)]"
           >
             {filtered.map((option, index) => {
               const active = index === highlightIndex;
@@ -144,7 +185,7 @@ export function ComboBox({
               );
             })}
           </div>
-        ) : null}
+        ), document.body) : null}
       </div>
     </label>
   );

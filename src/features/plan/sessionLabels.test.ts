@@ -3,6 +3,10 @@ import {
   displayDayField,
   formatPlanLabel,
   isDayLikeTitle,
+  isPlaceholderTitle,
+  sessionHeadline,
+  labelNumber,
+  formatSessionDate,
   isUnlabeledDay,
   normalizeDayLabel,
 } from './sessionLabels';
@@ -90,5 +94,42 @@ describe('isDayLikeTitle', () => {
     expect(isDayLikeTitle('AM')).toBe(false);
     expect(isDayLikeTitle('Session')).toBe(false);
     expect(isDayLikeTitle('')).toBe(false);
+  });
+});
+
+describe('unnamed sessions', () => {
+  it('treats empty and the stored placeholder as no name', () => {
+    expect(isPlaceholderTitle('')).toBe(true);
+    expect(isPlaceholderTitle(null)).toBe(true);
+    expect(isPlaceholderTitle(' session ')).toBe(true);
+    expect(isPlaceholderTitle('Heavy squat')).toBe(false);
+  });
+
+  it('names a session by its name, else Day · Week, else Session', () => {
+    expect(sessionHeadline({ title: 'Meet', dayLabel: '1', weekLabel: '2' })).toBe('Meet');
+    expect(sessionHeadline({ title: 'Session', dayLabel: '1', weekLabel: '2' })).toBe('Day 1 · Week 2');
+    expect(sessionHeadline({ title: '', dayLabel: '3', weekLabel: null })).toBe('Day 3');
+    expect(sessionHeadline({ title: 'Session', dayLabel: '2026-09-03', weekLabel: 'Week 4' })).toBe('Week 4');
+    expect(sessionHeadline({ title: 'Session' })).toBe('Session');
+  });
+});
+
+describe('structured Day/Week', () => {
+  it('reads numbers from old and new spellings', () => {
+    expect(labelNumber('Day', '3')).toBe(3);
+    expect(labelNumber('Day', 'Day 3')).toBe(3);
+    expect(labelNumber('Day', 'D3')).toBe(3);
+    expect(labelNumber('Week', 'Week3')).toBe(3);
+    expect(labelNumber('Week', 'wk 3')).toBe(3);
+    expect(labelNumber('Week', 'Deload')).toBeNull();
+    expect(labelNumber('Week', '')).toBeNull();
+    expect(labelNumber('Week', '0')).toBeNull();
+  });
+
+  it('formats dates for people', () => {
+    const today = new Date(2026, 10, 9);
+    expect(formatSessionDate('2026-11-18', today)).toBe('Wed, 18 Nov');
+    expect(formatSessionDate('2027-11-18', today)).toBe('Thu, 18 Nov 2027');
+    expect(formatSessionDate('bad', today)).toBe('bad');
   });
 });

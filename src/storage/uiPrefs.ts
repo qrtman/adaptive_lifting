@@ -22,6 +22,7 @@ export const UI_KEYS = {
   recentWeek: 'al_recent_week',
   recentDay: 'al_recent_day',
   recentName: 'al_recent_name',
+  collapsedLifts: 'al_collapsed_lifts',
 } as const;
 
 const LEGACY_UI_MAP: Array<[string, string]> = [
@@ -92,8 +93,10 @@ function getAthletePref(base: string, athleteId: string | null | undefined): str
 
 function setAthletePref(base: string, athleteId: string | null | undefined, value: string | null | undefined): void {
   const next = (value || '').trim();
-  if (!athleteId || !next) return;
-  setUiPref(athletePrefKey(base, athleteId), next);
+  if (!athleteId) return;
+  // Empty clears it, so "No block" (or no Day/Week) is remembered too.
+  if (!next) removeUiPref(athletePrefKey(base, athleteId));
+  else setUiPref(athletePrefKey(base, athleteId), next);
 }
 
 /** Athlete-scoped UI pref. Not used for workout sync. */
@@ -130,4 +133,29 @@ export function setRecentName(athleteId: string | null | undefined, name: string
   const next = (name || '').trim();
   if (next === 'Session') return;
   setAthletePref(UI_KEYS.recentName, athleteId, next);
+}
+
+/** Max lift ids remembered as collapsed (oldest dropped first). */
+export const COLLAPSED_LIFTS_CAP = 300;
+
+/** Lift ids the person collapsed on this device. Missing, blocked or malformed storage = all open. */
+export function getCollapsedLifts(): Set<string> {
+  try {
+    const raw = getUiPref(UI_KEYS.collapsedLifts);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Saves in insertion order, keeping only the most recent COLLAPSED_LIFTS_CAP ids. */
+export function setCollapsedLifts(ids: Set<string>): void {
+  try {
+    const list = [...ids].slice(-COLLAPSED_LIFTS_CAP);
+    if (list.length === 0) removeUiPref(UI_KEYS.collapsedLifts);
+    else setUiPref(UI_KEYS.collapsedLifts, JSON.stringify(list));
+  } catch {
+    // Storage blocked: collapse still works for this visit.
+  }
 }

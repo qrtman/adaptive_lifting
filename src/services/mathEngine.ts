@@ -55,6 +55,30 @@ export function calculateE1RM(weight: number, reps: number, rpe: number): number
   return Math.round((weight / denominator) * 100) / 100;
 }
 
+/**
+ * e1RM implied by a planned set. The plan target lives in `plannedRpe`/`target_value` for both
+ * intensity types, so a % target (e.g. 80) must never be read as RPE 80.
+ * RPE: linear-decay e1RM. PERCENT: weight / (pct / 100). No target: same as calculateE1RM (weight).
+ */
+export function calculatePlannedE1RM(
+  weight: number,
+  reps: number,
+  intensityType: string | null | undefined,
+  target: number,
+): number {
+  if (intensityType !== 'PERCENT') return calculateE1RM(weight, reps, target);
+  if (weight <= 0 || reps <= 0) return 0;
+  if (target <= 0) return weight;
+  return Math.round((weight / (target / 100)) * 100) / 100;
+}
+
+/** Planned RPE of a set, or null when its target is a % (the stored number is then a percent). */
+export function plannedRpeOf(set: { intensity_type?: unknown; intensityType?: unknown; plannedRpe?: unknown; target_value?: unknown }): unknown {
+  const type = set.intensity_type ?? set.intensityType;
+  if (type === 'PERCENT') return null;
+  return set.plannedRpe ?? set.target_value ?? null;
+}
+
 export function calculateINOL(reps: number, intensityPct: number): number {
   if (intensityPct >= 100.0) return reps * 1.0;
   if (intensityPct <= 0) return 0;

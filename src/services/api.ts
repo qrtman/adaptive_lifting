@@ -3,7 +3,7 @@ import { queueMutation } from './sync_engine';
 import { MicrocycleData, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
 import { getSnapshot, saveSnapshot, clearSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
-import { calculateE1RM } from './mathEngine';
+import { calculateE1RM, plannedRpeOf } from './mathEngine';
 import { trainingInt, trainingIntOrZero, trainingNumber, trainingOrZero } from './numericTraining';
 import type { AnalyticsCatalog, CardConfig, QueryResult, SavedCard } from '../insights/types';
 import type { CopyMode } from '../features/plan/copyClipboard';
@@ -416,7 +416,7 @@ export const apiService = {
             e.sets.forEach((s) => {
               const weightVal = trainingOrZero(s.actual ?? s.plannedWeight);
               const repsVal = trainingIntOrZero(s.reps ?? s.plannedReps);
-              const rpeVal = trainingOrZero(s.executedRpe ?? s.plannedRpe);
+              const rpeVal = trainingOrZero(s.executedRpe ?? plannedRpeOf(s));
               
               if (weightVal > 0 && repsVal > 0) {
                 const e1rmVal = calculateE1RM(weightVal, repsVal, rpeVal);
