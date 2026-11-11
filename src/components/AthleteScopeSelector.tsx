@@ -46,6 +46,11 @@ export function AthleteScopeSelector({
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // The roster loads after the switcher renders. Read the selection at answer time, not
+  // at request time, so a pick made meanwhile (e.g. My training) is not overwritten.
+  const activeRef = useRef(activeAthleteId);
+  activeRef.current = activeAthleteId;
+
   useEffect(() => {
     if (!isCoach) return;
     let cancelled = false;
@@ -56,14 +61,15 @@ export function AthleteScopeSelector({
         setRoster(linked);
         const ids = new Set(linked.map((athlete) => athlete.id));
         if (selfId) ids.add(selfId);
-        if (!activeAthleteId || !ids.has(activeAthleteId)) {
+        const current = activeRef.current;
+        if (!current || !ids.has(current)) {
           setActiveAthleteId(linked[0]?.id ?? selfId ?? null);
         }
       })
       .catch(() => {
         if (cancelled) return;
         setRoster([]);
-        setActiveAthleteId(selfId ?? null);
+        if (activeRef.current !== selfId) setActiveAthleteId(selfId ?? null);
       });
     return () => {
       cancelled = true;

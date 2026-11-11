@@ -62,7 +62,7 @@ async function expectNoAccentCellRing(day: Locator) {
 async function expectSessionHeaderHierarchy(page: Page) {
   const name = page.getByTestId('session-name');
   const labels = page.getByTestId('session-labels');
-  const tonnage = page.getByTestId('workout-tonnage');
+  const setCount = page.getByTestId('session-set-count');
   const nameStyle = await name.evaluate((el) => {
     const computed = getComputedStyle(el);
     return { size: parseFloat(computed.fontSize), weight: parseInt(computed.fontWeight, 10) };
@@ -75,10 +75,11 @@ async function expectSessionHeaderHierarchy(page: Page) {
   // Both identity and label chips use semibold; size defines the hierarchy.
   expect(nameStyle.weight).toBeGreaterThanOrEqual(labelStyle.weight);
   const nameBox = await name.boundingBox();
-  const tonnageBox = await tonnage.boundingBox();
+  const setCountBox = await setCount.boundingBox();
   const editBox = await page.getByTestId('session-edit').boundingBox();
-  expect(nameBox && tonnageBox && editBox).toBeTruthy();
-  expect(tonnageBox!.y).toBeGreaterThan(nameBox!.y);
+  expect(nameBox && setCountBox && editBox).toBeTruthy();
+  await expect(page.getByTestId('workout-tonnage')).toHaveCount(0);
+  expect(setCountBox!.y).toBeGreaterThan(nameBox!.y);
   expect(editBox!.y).toBeGreaterThan(nameBox!.y);
 }
 
@@ -175,9 +176,10 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await page.getByTestId('new-session-create').click();
   await expect(page.getByTestId('session-empty-lifts')).toBeVisible();
   await expect(page.getByTestId('add-lift')).toBeVisible();
-  await expect(page.getByTestId('session-name')).toHaveText('Squat');
-  await expect(page.getByTestId('session-name')).not.toContainText('Day');
-  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
+  // Day leads the header; the Name is a small subtitle beside it (session sheet phase 1).
+  await expect(page.getByTestId('session-name')).toHaveText('Day 1');
+  await expect(page.getByTestId('session-title-sub')).toHaveText('Squat');
+  await expect(page.getByTestId('session-labels')).not.toContainText('Day');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await expectSessionHeaderHierarchy(page);
@@ -199,8 +201,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('new-session-title')).toHaveValue('');
   await page.getByTestId('new-session-title').fill('Squat');
   await page.getByTestId('new-session-create').click();
-  await expect(page.getByTestId('session-name')).toHaveText('Squat');
-  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
+  await expect(page.getByTestId('session-name')).toHaveText('Day 1');
+  await expect(page.getByTestId('session-title-sub')).toHaveText('Squat');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await page.getByRole('button', { name: 'Back' }).click();
@@ -234,8 +236,8 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(copiedCard).not.toContainText('×');
 
   await copiedCard.click();
-  await expect(page.getByTestId('session-name')).toHaveText('Squat');
-  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
+  await expect(page.getByTestId('session-name')).toHaveText('Day 1');
+  await expect(page.getByTestId('session-title-sub')).toHaveText('Squat');
   await expect(page.getByTestId('session-labels')).toContainText('Week 1');
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await page.getByTestId('session-edit').click();
@@ -245,7 +247,7 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await setSessionSlot(page, 'session', { week: 2, block: 'Meet' });
   await page.getByTestId('edit-session-save').click();
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
-  await expect(page.getByTestId('session-labels')).toContainText('Day 1');
+  await expect(page.getByTestId('session-name')).toHaveText('Day 1');
   await expect(page.getByTestId('session-labels')).toContainText('Week 2');
   await expect(page.getByTestId('session-labels')).toContainText('Block Meet');
   await page.getByRole('button', { name: 'Back' }).click();
@@ -563,7 +565,8 @@ test('name is optional: a session with only Day/Week is called by them', async (
   await page.getByTestId('calendar-day-2026-09-08').click();
   await setSessionSlot(page, 'new-session', { day: 2, week: 3 });
   await page.getByTestId('new-session-create').click();
-  await expect(page.getByTestId('session-name')).toHaveText('Day 2 · Week 3');
+  await expect(page.getByTestId('session-name')).toHaveText('Day 2');
+  await expect(page.getByTestId('session-labels')).toHaveText('Week 3');
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.locator('[data-testid^="workout-card-"]').first()).toContainText('Day 2 · Week 3');
 });

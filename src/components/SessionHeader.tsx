@@ -7,12 +7,13 @@ type HeaderSession = {
   dayLabel?: string | null;
   weekLabel?: string | null;
   blockLabel?: string | null;
-  tonnage: number;
 };
 
 /**
- * Session page header. Name is the only large line; date, Day · Week · Block, tonnage and Edit
- * share one readable meta line below it (session-console scope 05). Controls are real buttons.
+ * Session page header (session sheet phase 1). The Day slot is the large line and the
+ * optional Name sits beside it as a small subtitle. Date · Week · Block · set count and
+ * Edit share one meta line; the day note follows when there is one. No session tonnage:
+ * it mixes different lifts. Without a Day, the Name (or Week) leads as before.
  */
 export function SessionHeader({
   session,
@@ -24,8 +25,12 @@ export function SessionHeader({
   finished,
   locked,
   onComplete,
+  setCount,
+  dayNote,
 }: {
   session: HeaderSession;
+  setCount: number;
+  dayNote?: string | null;
   backLabel: string;
   onBack: () => void;
   onEdit: () => void;
@@ -38,11 +43,15 @@ export function SessionHeader({
   const day = formatPlanLabel('Day', session.dayLabel);
   const week = formatPlanLabel('Week', session.weekLabel);
   const block = formatPlanLabel('Block', session.blockLabel);
-  // An unnamed session's title already reads "Day 1 · Week 2"; don't repeat it below.
-  const headlineShowsSlot = isPlaceholderTitle(session.title) && Boolean(day || week);
-  const labels = headlineShowsSlot
+  const named = !isPlaceholderTitle(session.title);
+  // Day leads when there is one; otherwise the name, else "Week n" (sessionHeadline).
+  const headline = day ?? sessionHeadline(session);
+  const subtitle = day && named ? session.title.trim() : null;
+  const headlineIsWeek = !day && !named && Boolean(week);
+  const labels = headlineIsWeek
     ? block
-    : `${[day, week, block].filter(Boolean).join(' · ')}${day && !week && !block ? ' · ' : ''}${!week && !block ? 'No block/week' : ''}`;
+    : [week, block].filter(Boolean).join(' · ') || 'No block/week';
+  const note = dayNote?.trim();
 
   return (
     <header
@@ -61,8 +70,11 @@ export function SessionHeader({
       </button>
 
       <div className="mt-1 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <h1 data-testid="session-name" className="min-w-0 flex-1 basis-64 break-words text-2xl font-semibold tracking-tight text-[var(--cal-ink)]">
-          {sessionHeadline(session)}
+        <h1 className="flex min-w-0 flex-1 basis-64 flex-wrap items-baseline gap-x-2.5 break-words">
+          <span data-testid="session-name" className="text-2xl font-semibold tracking-tight text-[var(--cal-ink)]">{headline}</span>
+          {subtitle ? (
+            <span data-testid="session-title-sub" className="text-[15px] font-medium text-[var(--cal-muted)]">{subtitle}</span>
+          ) : null}
         </h1>
         {finished ? (
           <span
@@ -95,9 +107,7 @@ export function SessionHeader({
           </>
         ) : null}
         <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
-        <span data-testid="workout-tonnage">
-          Tonnage <span className="tnum font-semibold text-[var(--cal-ink)]">{session.tonnage.toLocaleString()} kg</span>
-        </span>
+        <span data-testid="session-set-count" className="tnum">{setCount} {setCount === 1 ? 'set' : 'sets'}</span>
         <button
           type="button"
           data-testid="session-edit"
@@ -110,6 +120,12 @@ export function SessionHeader({
           Edit
         </button>
       </div>
+      {note ? (
+        <p data-testid="session-day-note" className="mt-1 text-[13px] text-[var(--cal-body)]">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--cal-muted)]">Day note</span>{' '}
+          {note}
+        </p>
+      ) : null}
     </header>
   );
 }

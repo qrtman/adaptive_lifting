@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   activeAthleteId: null as string | null,
   roster: [] as { id: string; email: string; displayName?: string | null }[],
+  pending: null as null | Promise<unknown>,
 }));
 const setActiveAthleteId = vi.fn((id: string | null) => { state.activeAthleteId = id; });
 
@@ -16,7 +17,7 @@ vi.mock('../contexts/PeriodizationContext', () => ({
   usePeriodization: () => ({ activeAthleteId: state.activeAthleteId, setActiveAthleteId }),
 }));
 vi.mock('../services/api', () => ({
-  apiService: { fetchRoster: vi.fn(async () => state.roster), pushProgramming: vi.fn() },
+  apiService: { fetchRoster: vi.fn(async () => { if (state.pending) await state.pending; return state.roster; }), pushProgramming: vi.fn() },
 }));
 vi.mock('../storage/uiPrefs', () => ({ getUiPref: () => null, UI_KEYS: { role: 'role', userId: 'userId' } }));
 
@@ -29,6 +30,7 @@ let container: HTMLDivElement;
 beforeEach(() => {
   state.activeAthleteId = null;
   state.roster = [];
+  state.pending = null;
   setActiveAthleteId.mockClear();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -65,6 +67,18 @@ describe('coach plan switcher', () => {
     await act(async () => { q('athlete-scope-selector')!.click(); });
     expect(options()).toEqual(['My trainingcoach@example.com', 'Anaa@example.com']);
     expect(container.textContent).not.toContain('No linked athletes.');
+  });
+
+  it('keeps a pick made while the roster is still loading', async () => {
+    state.roster = [{ id: 'ath-1', email: 'a@example.com' }];
+    let release!: () => void;
+    state.pending = new Promise<void>((resolve) => { release = resolve; });
+    await act(async () => { root.render(<AthleteScopeSelector />); });
+    // The coach picks My training before the roster answers.
+    state.activeAthleteId = 'coach-1';
+    await act(async () => { root.render(<AthleteScopeSelector />); });
+    await act(async () => { release(); await state.pending; });
+    expect(setActiveAthleteId).not.toHaveBeenCalledWith('ath-1');
   });
 
   it('keeps My training selected across reloads and hides athlete-only actions', async () => {
