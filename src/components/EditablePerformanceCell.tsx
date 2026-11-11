@@ -17,6 +17,7 @@ export const EditablePerformanceCell = ({
   isAuto = false,
   readOnly = false,
   suggestedValue = null,
+  ghost = null,
   step = 1,
   variant = "default",
   suffix = "",
@@ -34,6 +35,8 @@ export const EditablePerformanceCell = ({
   /** Selectable (moves, ranges, copy, paste-from-here) but never opens an editor. */
   readOnly?: boolean;
   suggestedValue?: string | null;
+  /** Faint target shown while the cell is empty (e.g. the Plan value in a Log cell). Display only. */
+  ghost?: string | null;
   step?: number;
   variant?: "default" | "transparent";
   suffix?: string;
@@ -202,11 +205,14 @@ export const EditablePerformanceCell = ({
     if (!readOnly) grid.onBeginEdit(grid.row, grid.col, false);
   };
 
+  const showGhost = !value && Boolean(ghost);
   const displayValue = value
     ? value
-    : isAuto && suggestedValue
-      ? suggestedValue
-      : placeholder;
+    : showGhost
+      ? ghost
+      : isAuto && suggestedValue
+        ? suggestedValue
+        : placeholder;
 
 
   const sharedAttrs = {
@@ -297,10 +303,14 @@ export const EditablePerformanceCell = ({
           data-selected={isSelected ? 'true' : undefined}
           data-in-range={grid.inRange && !grid.isActive ? 'true' : undefined}
           data-logged={isLogged && value ? 'true' : undefined}
+          data-ghost={showGhost ? 'true' : undefined}
+          title={showGhost ? 'Plan target · Ctrl/Cmd+Enter to accept' : undefined}
           className={`${widthClass} sheet-cell h-9 px-3 flex items-center justify-end text-sm tnum cursor-cell select-none ${
             value
               ? 'text-[var(--cal-ink)]'
-              : isAuto && suggestedValue
+              : showGhost
+                ? 'text-[color-mix(in_srgb,var(--cal-muted-soft)_50%,transparent)]'
+                : isAuto && suggestedValue
                 ? 'italic text-[color-mix(in_srgb,var(--cal-accent)_70%,transparent)]'
                 : 'text-[var(--cal-muted-soft)]'
           }`}

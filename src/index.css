@@ -369,8 +369,9 @@
   -webkit-user-select: text;
   user-select: text;
 }
+/* Lines inside a lift stay near-invisible (session sheet phase 2); the selection outline carries focus. */
 .sheet-grid td.sheet-td {
-  border: 1px solid var(--cal-hairline);
+  border: 1px solid var(--cal-hairline-soft);
   padding: 0;
 }
 /* Header is a label band, not more cells: no vertical lines, one rule under each row. */

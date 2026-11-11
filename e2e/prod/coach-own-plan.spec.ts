@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   addDeadlift, cleanupRunSessions, createSession, creds, expectQueueClean, hasCoachCreds, logRunId,
-  login, newPage, openSession, pendingMutations, sessionTitle,
+  login, newPage, openSession, pendingMutations, selectMyTraining, sessionTitle,
 } from './helpers';
 import { fillEditableCell } from '../helpers';
 
@@ -22,13 +22,8 @@ test.describe('coach trains on their own plan', () => {
     const { context, page } = await newPage(browser);
     try {
       await login(page, creds.coachEmail!, creds.coachPassword!);
+      await selectMyTraining(page);
       const selector = page.getByTestId('athlete-scope-selector');
-      await expect(selector).toBeVisible({ timeout: 20_000 });
-      if ((await selector.textContent())?.trim() !== 'My training') {
-        await selector.click();
-        await page.getByRole('option', { name: /My training/ }).click();
-      }
-      await expect(selector).toHaveText('My training');
 
       await createSession(page, TITLE, '2026-11-12');
       await openSession(page, TITLE, false);
@@ -46,10 +41,14 @@ test.describe('coach trains on their own plan', () => {
       await expect(page.getByText('Sync conflict needs review')).toHaveCount(0);
 
       await page.reload();
+      // The switcher does not remember the pick across a reload yet (it reopens on the first
+      // linked athlete), so choose the coach's own plan again.
+      await selectMyTraining(page);
       await expect(selector).toHaveText('My training', { timeout: 20_000 });
       await openSession(page, TITLE);
       await expect(page.getByTestId(`${lift}-actual-weight`).first()).toHaveText(/(^|\D)140(\D|$)/, { timeout: 20_000 });
       await expect(page.getByTestId(`${lift}-reps`).first()).toHaveText(/(^|\D)4(\D|$)/);
+      await expect(page.getByTestId(`${lift}-actual-weight`).first()).not.toHaveAttribute('data-ghost', 'true');
 
       await page.getByTestId('nav-insights').click();
       await expect(page.getByTestId('insights-add-card')).toBeEnabled({ timeout: 20_000 });

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   API_HEADERS, addDeadlift, cleanupRunSessions, expectQueueClean, hasCreds, logRunId, login, newPage, openSession,
-  RUN_ID, sessionTitle,
+  RUN_ID, selectMyTraining, sessionTitle,
 } from './helpers';
 
 // Session sheet phase 1: the week rail shows the other days of the same Block/Week, an
@@ -42,16 +42,8 @@ test.describe('week rail on the session screen', () => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.reload();
       await expect(page.getByTestId('nav-sessions')).toBeVisible({ timeout: 25_000 });
-      if (isCoach) {
-        // The sessions are on the coach's own plan; the switcher may open on a linked athlete.
-        const selector = page.getByTestId('athlete-scope-selector');
-        await expect(selector).toBeVisible({ timeout: 20_000 });
-        if ((await selector.textContent())?.trim() !== 'My training') {
-          await selector.click();
-          await page.getByRole('option', { name: /My training/ }).click();
-        }
-        await expect(selector).toHaveText('My training');
-      }
+      // The sessions are on the coach's own plan; the switcher may open on a linked athlete.
+      if (isCoach) await selectMyTraining(page);
       // The unlabeled session is in Sessions › Unassigned; its dates sit inside Week 3.
       await openSession(page, loose);
       const rail = page.getByTestId('week-rail');

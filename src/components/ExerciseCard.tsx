@@ -99,6 +99,20 @@ function formatE1rmDeltaPct(planE1rm: number, logE1rm: number): string {
   return '0%';
 }
 
+/** Δ stays quiet within ±3%; only a real miss or overshoot gets colour (session sheet phase 2). */
+export function e1rmDeltaTone(delta: string): 'quiet' | 'over' | 'under' {
+  const pct = Number.parseInt(delta, 10);
+  if (!Number.isFinite(pct) || Math.abs(pct) < 3) return 'quiet';
+  return pct > 0 ? 'over' : 'under';
+}
+
+/** Plan targets for the Log cells of one row: kg, reps, RPE (no RPE target on a % row). */
+function planTargetsForLog(plan: any): [string, string, string] {
+  if (!plan) return ['', '', ''];
+  const rpe = plan.intensity_type === 'PERCENT' ? '' : cellText(plan.target_value ?? plan.plannedRpe);
+  return [cellText(plan.plannedWeight), cellText(plan.plannedReps), rpe];
+}
+
 type ExerciseSummarySet = {
   scope?: string;
   actual?: unknown;
@@ -509,7 +523,7 @@ export const ExerciseCard = ({
   const td = "p-0 align-middle whitespace-nowrap";
   const th = "px-3 py-2 text-left text-[13px] font-semibold text-[var(--cal-ink)] whitespace-nowrap";
   const thField = "px-3 py-1.5 text-right text-xs font-normal text-[var(--cal-muted)] whitespace-nowrap";
-  const thMetric = "px-3 py-1.5 text-center text-xs font-normal text-[var(--cal-muted)] whitespace-nowrap";
+  const thMetric = "px-3 py-1.5 text-right text-xs font-normal text-[var(--cal-muted)] whitespace-nowrap";
   const actionCell = "w-14 px-0 py-1 align-middle whitespace-nowrap";
   // Row tools: quiet ghost icons, shown on row hover/focus (always on touch), like the calendar day tools.
   const actionButton = "inline-flex h-6 w-6 items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] opacity-0 transition-[opacity,background-color,color] hover:bg-[var(--cal-surface-strong)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 group-hover:disabled:opacity-30";
@@ -557,6 +571,11 @@ export const ExerciseCard = ({
   const setsRef = useRef(sets);
   setsRef.current = sets;
   const rowCount = Math.max(planRows.length, logRows.length);
+  // The set to do next: first row with a Plan whose Log has no kg + reps yet (tinted).
+  const currentLane = locked ? -1 : planRows.findIndex((_, row) => {
+    const log = logRows[row]?.set;
+    return !(trainingOrZero(log?.actual) > 0 && trainingIntOrZero(log?.reps) > 0);
+  });
   const rangeRect: GridRect | null = grid
     ? grid.range ? rectOf(grid.range.anchor, grid.range.end) : rectOf({ row: grid.row, col: grid.col })
     : null;
@@ -701,17 +720,33 @@ export const ExerciseCard = ({
     saveWrites(sets, planFillDown(rangeRect, readCell));
   };
 
+  /**
+   * Ctrl/Cmd+Enter accepts what the grid suggests:
+   * - Plan kg: the `use {n}` offer (needs plan rights);
+   * - Log: the faint Plan target. Touching any Log cell of a row fills that set's
+   *   empty Log cells from its Plan; typed Log values are never overwritten.
+   */
   const acceptSuggestions = () => {
-    if (!rangeRect || locked || !canEditPlan) return;
+    if (!rangeRect || locked) return;
     const writes: CellWrite[] = [];
+    let touchedLog = false;
     for (let row = rangeRect.top; row <= rangeRect.bottom; row += 1) {
-      if (!rectHas(rangeRect, row, 1)) continue;
       const plan = planRows[row]?.set;
-      const offer = plan ? planKgOfferKg(plan.suggestedWeight ?? null, plan.plannedWeight) : null;
-      if (offer != null) writes.push({ row, col: 1, raw: String(offer) });
+      if (canEditPlan && rectHas(rangeRect, row, 1)) {
+        const offer = plan ? planKgOfferKg(plan.suggestedWeight ?? null, plan.plannedWeight) : null;
+        if (offer != null) writes.push({ row, col: 1, raw: String(offer) });
+      }
+      if ([4, 5, 6].some((col) => rectHas(rangeRect, row, col))) {
+        touchedLog = true;
+        if (!plan || !logRows[row]) continue;
+        planTargetsForLog(plan).forEach((target, offset) => {
+          const col = 4 + offset;
+          if (target !== '' && readCell(row, col) === '') writes.push({ row, col, raw: target });
+        });
+      }
     }
     if (writes.length === 0) {
-      setGridNotice({ text: 'No suggested weights in the selection.' });
+      setGridNotice({ text: touchedLog ? 'Nothing to accept: the Log is filled or the row has no Plan target.' : 'No suggested weights in the selection.' });
       return;
     }
     setGridNotice(null);
@@ -1096,15 +1131,21 @@ export const ExerciseCard = ({
               const intensityPct = inolMax > 0 && weight > 0 ? (weight / inolMax) * 100 : 0;
               const inol = intensityPct > 0 && reps > 0 ? calculateINOL(reps, intensityPct) : 0;
               
-              const rowHighlight = 'hover:bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]';
+              const isCurrent = laneIndex === currentLane;
+              const isDone = weight > 0 && reps > 0;
+              const rowHighlight = isCurrent
+                ? 'bg-[color-mix(in_srgb,var(--cal-accent)_6%,transparent)]'
+                : 'hover:bg-[color-mix(in_srgb,var(--cal-surface-soft)_60%,transparent)]';
+              const [ghostKg, ghostReps, ghostRpe] = planTargetsForLog(planSet);
+              const deltaTone = e1rmDeltaTone(e1rmDelta);
 
               const hasPlan = Boolean(planEntry);
               const hasLog = Boolean(logEntry);
 
               return (
-                <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`}>
+                <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`} data-current-set={isCurrent ? 'true' : undefined}>
                   {hasPlan ? (<>
-                  <td className={`${td} sheet-td sheet-td--num w-10 px-2 tnum text-[13px] text-[var(--cal-muted)] text-center ${set.isTop ? 'sheet-td--top' : ''}`} title={set.isTop ? 'Top set' : undefined}>{laneIndex + 1}</td>
+                  <td className={`${td} sheet-td sheet-td--num w-10 px-2 tnum text-[12px] text-[var(--cal-muted-soft)] text-center ${set.isTop ? 'sheet-td--top' : ''}`} title={set.isTop ? 'Top set' : undefined}>{laneIndex + 1}</td>
                   <td data-grid-pos={`${laneIndex}:0`} className={`${td} sheet-td`}>
                     {laneIndex === 0 ? (
                       locked ? (
@@ -1182,6 +1223,7 @@ export const ExerciseCard = ({
                         fieldKey={`${id}-actual-weight`}
                         label="Log Weight"
                         widthClass="w-[72px]"
+                        ghost={ghostKg}
                         isLogged={true}
                         isAuto={false}
                         suggestedValue={null}
@@ -1202,6 +1244,7 @@ export const ExerciseCard = ({
                         fieldKey={`${id}-reps`}
                         label="Log Reps"
                         widthClass="w-14"
+                        ghost={ghostReps}
                         isLogged={true}
                         step={1}
                         rowIndex={logIndex}
@@ -1220,6 +1263,7 @@ export const ExerciseCard = ({
                         fieldKey={`${id}-executedRpe`}
                         label="Log RPE"
                         widthClass="w-14"
+                        ghost={ghostRpe}
                         isLogged={true}
                         step={0.5}
                         rowIndex={logIndex}
@@ -1228,15 +1272,15 @@ export const ExerciseCard = ({
                     )}
                   </td>
                   <td className="sheet-gap" aria-hidden="true" />
-                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-center tnum text-sm`} data-testid={`set-metrics-${set.id}`}>
-                    <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-ink)]' : 'text-[var(--cal-muted-soft)]'}>
+                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px]`} data-testid={`set-metrics-${set.id}`}>
+                    <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
                   </td>
-                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-center tnum text-[13px] ${e1rmDelta.startsWith('-') ? 'text-[var(--cal-warning,var(--cal-muted))]' : e1rmDelta.startsWith('+') ? 'text-[var(--cal-success)]' : 'text-[var(--cal-muted)]'}`} data-testid={`set-e1rm-delta-${set.id}`}>
+                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px] ${deltaTone === 'under' ? 'font-medium text-[var(--cal-warning,var(--cal-muted))]' : deltaTone === 'over' ? 'font-medium text-[var(--cal-success)]' : 'text-[var(--cal-muted-soft)]'}`} data-testid={`set-e1rm-delta-${set.id}`} data-tone={deltaTone}>
                     {e1rmDelta}
                   </td>
-                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-center tnum text-[13px]`}>
+                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
                       className={inol > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}
@@ -1249,11 +1293,22 @@ export const ExerciseCard = ({
                       {/* No log set yet: keep the gridlines, cells stay read-only until "Add set" fills this row. */}
                       {Array.from({ length: 7 }).map((_, cell) => (cell === 3
                         ? <td key="nolog-gap" className="sheet-gap" aria-hidden="true" />
-                        : <td key={`nolog-${cell}`} data-grid-pos={cell < 3 ? `${laneIndex}:${cell + 4}` : undefined} className="sheet-td sheet-td--readonly h-9" aria-label={cell === 0 ? 'No log set' : undefined} />
+                        : <td key={`nolog-${cell}`} data-grid-pos={cell < 3 ? `${laneIndex}:${cell + 4}` : undefined} className="sheet-td sheet-td--readonly h-9 px-3 text-right tnum text-sm text-[color-mix(in_srgb,var(--cal-muted-soft)_50%,transparent)]" aria-label={cell === 0 ? 'No log set' : undefined}>
+                            {cell < 3 && !locked ? [ghostKg, ghostReps, ghostRpe][cell] : null}
+                          </td>
                       ))}
                     </>
                   )}
-                  <td className="w-[7.5rem] whitespace-nowrap bg-[var(--cal-surface-card)] px-1 align-middle">
+                  <td className="relative w-[7.5rem] whitespace-nowrap bg-[var(--cal-surface-card)] px-1 align-middle">
+                    {isDone ? (
+                      <span
+                        data-testid={`set-done-${laneIndex + 1}`}
+                        aria-label="Logged"
+                        className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--cal-muted-soft)] group-hover:hidden group-focus-within:hidden [@media(hover:none)]:hidden"
+                      >
+                        ✓
+                      </span>
+                    ) : null}
                     <div className="flex items-center gap-0.5">
                     {hasPlan ? (<>
                     <button

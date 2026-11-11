@@ -43,7 +43,9 @@ Shipped: `src/features/plan/weekRail.ts` (range rule, scheme, set count), `src/c
   - No session tonnage.
 - **Tests.** Scheme formatter, range rule (all four cases), rail selection.
 
-### 2 · Hierarchy pass on the existing set grid
+### 2 · Hierarchy pass on the existing set grid — DONE
+Shipped in `ExerciseCard.tsx` / `EditablePerformanceCell.tsx` (`ghost` prop) / `index.css`; tests `ExerciseCardHierarchy.test.tsx`. Row tools were already hover/focus-only and numbers already right-aligned.
+
 - **Text levels:** typed values dark, 14px. Lift name semibold. Derived values (e1RM, Δ, INOL, NL, Volume, Int) grey, 12–13px. Set numbers and headers faintest, 11px.
 - **Layout:** numbers right-aligned. Lifts separated by space; near-invisible lines inside a lift.
 - **Ghost targets:** an empty Log cell shows its Plan target faintly. Plain Enter does not fill it. **Ctrl/Cmd+Enter** accepts it: it copies Plan into that set, using the existing `acceptSuggestions` key with the same meaning as `use {n}` in Plan.
