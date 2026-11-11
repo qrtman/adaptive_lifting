@@ -89,6 +89,8 @@ test.describe('log sets across two lifts without conflicts', () => {
       await page.reload();
       await openSession(page, TITLE);
       await expect(cell(liftA, 'actual-weight')).toHaveText(/(^|\D)120(\D|$)/, { timeout: 20_000 });
+      // A logged value, not the faint Plan target an empty Log cell shows.
+      for (const field of ['actual-weight', 'reps', 'executedRpe']) await expect(cell(liftA, field)).not.toHaveAttribute('data-ghost', 'true');
       await expect(cell(liftA, 'reps')).toHaveText(/(^|\D)5(\D|$)/);
       await expect(cell(liftA, 'executedRpe')).toHaveText(/(^|\D)9(\D|$)/);
     } finally {

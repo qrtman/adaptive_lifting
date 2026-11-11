@@ -134,7 +134,9 @@ test('Sheets-parity: click selects; Tab kgâ†’reps; Enter down same column; PLANâ
   await logKg0.click();
   await expectCellSelected(logKg0);
   await logKg0.press('Backspace');
-  await expect(logKg0).toHaveText('');
+  // Cleared: no logged value left. An empty Log cell may show its Plan target faintly (data-ghost).
+  await expect(logKg0).not.toHaveAttribute('data-logged', 'true');
+  expect(await logKg0.evaluate((el) => el.textContent === '' || el.getAttribute('data-ghost') === 'true')).toBe(true);
 
   // 8. Enter while selected starts insert-edit and does not move
   await planKg0.click();

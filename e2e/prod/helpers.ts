@@ -147,6 +147,24 @@ export async function addDeadlift(page: Page) {
 
 export const fill = (page: Page, id: string, value: number) => fillLogCell(page, id, value);
 
+/**
+ * Coach accounts: switch the sidebar plan to the coach's own training. Waits for the
+ * switcher to finish loading first; a pick made in the first moments after sign-in can be
+ * reset while the account loads.
+ */
+export async function selectMyTraining(page: Page) {
+  const selector = page.getByTestId('athlete-scope-selector');
+  await expect(selector).toBeVisible({ timeout: 20_000 });
+  await expect(selector).not.toHaveText('Select athlete…', { timeout: 20_000 });
+  await expect(async () => {
+    if ((await selector.textContent())?.trim() !== 'My training') {
+      await selector.click();
+      await page.getByRole('option', { name: /My training/ }).click({ timeout: 2_000 });
+    }
+    await expect(selector).toHaveText('My training', { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
 type ServerWorkout = { id: string; title?: string; deletedAt?: unknown; deleted_at?: unknown; exercises?: any[] };
 
 /** Every workout this account can see on the server, its own plan included (a coach's too). */

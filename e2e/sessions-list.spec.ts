@@ -92,6 +92,10 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   await expect(squatRow.locator('[data-testid$="-reps"]').first()).toHaveText('5');
   await typeCell(squatRow.locator('[data-testid$="-executedRpe"]').first(), '6');
   await expect(squatRow.locator('[data-testid$="-executedRpe"]').first()).toHaveText('6');
+  // Typed values, not the faint Plan targets an empty Log cell shows.
+  for (const field of ['actual-weight', 'reps', 'executedRpe']) {
+    await expect(squatRow.locator(`[data-testid$="-${field}"]`).first()).not.toHaveAttribute('data-ghost', 'true');
+  }
 
   await squatRow.getByRole('button', { name: '+ Plan set' }).click();
   await typeCell(squatRow.getByTestId('rx-weight').nth(1), '140');
