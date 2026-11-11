@@ -375,18 +375,37 @@ export const ExerciseCard = ({
     updateAndPropagate(next);
   };
 
-  const syncTarget = (index: number, laneIndex: number) => {
+  /**
+   * Copy plan → log for one row. Rows pair the Nth plan record with the Nth log record, so the
+   * log must land at log position `laneIndex` and the plan rows must not move. Only log fields
+   * are written; a record's scope changes only when a plan-only record can carry this row's log.
+   */
+  const syncTarget = (planIndex: number, laneIndex: number) => {
     if (locked) return;
-    const set = sets[index];
+    const plan = sets[planIndex];
+    if (!plan) return;
+    const logValues = {
+      actual: trainingNumber(plan.plannedWeight),
+      reps: trainingInt(plan.plannedReps),
+      executedRpe: plan.intensity_type === 'PERCENT' ? null : trainingNumber(plan.plannedRpe),
+      isAuto: false,
+    };
+    // This row already shows a log (same record or a separate one): fill it, keep its scope.
     const logEntry = logRows[laneIndex];
-    const targetIndex = logEntry?.index ?? index;
-    updateSet(targetIndex, {
-      scope: 'both',
-      actual: trainingNumber(set.plannedWeight),
-      reps: trainingInt(set.plannedReps),
-      executedRpe: set.intensity_type === 'PERCENT' ? null : trainingNumber(set.plannedRpe),
-      isAuto: false
-    });
+    if (logEntry) {
+      updateSet(logEntry.index, logValues);
+      return;
+    }
+    // No log in this row. Logs fill rows top-down, so the plan record itself can carry it only
+    // when it is plan-only and every existing log sits in an earlier row and an earlier record.
+    if (plan.scope === 'plan' && logRows.length === laneIndex && logRows.every(({ index }) => index < planIndex)) {
+      updateSet(planIndex, { ...logValues, scope: 'both' });
+      return;
+    }
+    // Otherwise add log sets at the end: empty ones for the rows above that have no log yet,
+    // then this row's. Plan rows are untouched.
+    const blanks = Array.from({ length: laneIndex - logRows.length }, (_, i) => newSetRecord(sets.length + 1 + i, 'log'));
+    updateAndPropagate([...sets, ...blanks, { ...newSetRecord(sets.length + blanks.length + 1, 'log'), ...logValues }]);
   };
 
   const totalVolume = sets.reduce((acc, s) => acc + (trainingOrZero(s.actual) * trainingIntOrZero(s.reps)), 0);
@@ -1239,7 +1258,7 @@ export const ExerciseCard = ({
                     {hasPlan ? (<>
                     <button
                       type="button"
-                      disabled={locked || !canEditPlan}
+                      disabled={locked}
                       onClick={() => syncTarget(planIndex, laneIndex)}
                       className={actionButton}
                       data-tip="Copy plan to log"
