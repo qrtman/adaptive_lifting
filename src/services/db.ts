@@ -245,6 +245,33 @@ export async function deleteSupersededMutation(mutation_id: string, expectedUpda
   });
 }
 
+/**
+ * Store the baseline a superseding edit inherited from the edits it replaced. Only the
+ * baseline is written: an edit merged into this row meanwhile keeps its newer fields.
+ */
+export async function setMutationBaseline(
+  mutation_id: string,
+  baseline: Pick<SyncMutation, 'base_revision' | 'base_fields' | 'snapshot_key'>,
+): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('mutations', 'readwrite');
+    const store = tx.objectStore('mutations');
+    const req = store.get(mutation_id);
+    req.onsuccess = () => {
+      const row = req.result as SyncMutation | undefined;
+      if (!row || (row.status !== 'PENDING' && row.status !== 'IN_FLIGHT')) return;
+      row.base_revision = baseline.base_revision;
+      row.base_fields = baseline.base_fields;
+      row.snapshot_key ??= baseline.snapshot_key;
+      store.put(row);
+    };
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function updateMutationStatus(mutation_id: string, status: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {

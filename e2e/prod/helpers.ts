@@ -140,18 +140,35 @@ export async function addDeadlift(page: Page) {
   await page.getByTestId('add-lift-confirm').click();
   // Production add-lift is a save plus a full plan reload (several seconds from far regions).
   await expect(page.getByRole('heading', { name: 'Deadlift', exact: true }).first()).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Expand Deadlift', exact: true }).click();
+  // A just-added lift opens expanded; only older builds needed the click.
+  const expand = page.getByRole('button', { name: 'Expand Deadlift', exact: true });
+  if (await expand.isVisible().catch(() => false)) await expand.click();
 }
 
 export const fill = (page: Page, id: string, value: number) => fillLogCell(page, id, value);
 
+type ServerWorkout = { id: string; title?: string; deletedAt?: unknown; deleted_at?: unknown; exercises?: any[] };
+
+/** Every workout this account can see on the server, its own plan included (a coach's too). */
+export async function serverWorkouts(page: Page): Promise<ServerWorkout[]> {
+  // Without athlete_id a coach gets only linked athletes' plans, so also read the account's own plan.
+  const me = await page.request.get('/api/auth/me', { headers: API_HEADERS });
+  const meBody = me.ok() ? await me.json() : {};
+  const selfId = String(meBody?.user?.id ?? meBody?.id ?? '');
+  const paths = ['/api/microcycles', ...(selfId ? [`/api/microcycles?athlete_id=${encodeURIComponent(selfId)}`] : [])];
+  const byId = new Map<string, ServerWorkout>();
+  for (const path of paths) {
+    const res = await page.request.get(path, { headers: API_HEADERS });
+    expect(res.ok(), `GET ${path} ${res.status()}`).toBeTruthy();
+    const cycles = (await res.json()) as { workouts?: ServerWorkout[] }[];
+    for (const w of (Array.isArray(cycles) ? cycles : []).flatMap((c) => c.workouts ?? [])) byId.set(w.id, w);
+  }
+  return [...byId.values()];
+}
+
 /** Server-side read: this account's sessions whose title carries this run id. */
 export async function serverRunSessions(page: Page): Promise<string[]> {
-  const res = await page.request.get('/api/microcycles', { headers: API_HEADERS });
-  expect(res.ok(), `GET /api/microcycles ${res.status()}`).toBeTruthy();
-  const cycles = (await res.json()) as { workouts?: { id: string; title?: string; deletedAt?: unknown; deleted_at?: unknown }[] }[];
-  return (Array.isArray(cycles) ? cycles : [])
-    .flatMap((c) => c.workouts ?? [])
+  return (await serverWorkouts(page))
     .filter((w) => (w.title ?? '').includes(RUN_ID) && !w.deletedAt && !w.deleted_at)
     .map((w) => w.id);
 }

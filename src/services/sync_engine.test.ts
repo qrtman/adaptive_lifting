@@ -6,6 +6,7 @@ import {
   isInsightCardMutation,
   isLockSyncCode,
   isSelfConflict,
+  mergeForResend,
   mutationsForInsightCards,
   mutationsForWorkout,
   parseSyncErrorCode,
@@ -511,6 +512,49 @@ describe('planSyncBatch: never send two overlapping edits of one entity together
     expect(ids(plan.send)).toEqual(['b', 'a', 'c']);
     expect(plan.superseded).toEqual([]);
     expect(plan.deferred).toEqual([]);
+  });
+
+  // Production 2026-11-11: log kg on a set, the save comes back stale and is re-based, log
+  // reps on the same set meanwhile. The reps edit was built on screen on top of the unsaved
+  // kg, so its own baseline already showed that kg. Merging on it read "the server cleared
+  // the kg" and erased it, or raised a conflict when the kg was typed again.
+  it('gives the newest edit the baseline of the unacknowledged edit it replaces', () => {
+    const row = (over: Record<string, unknown>) => ({ id: 's1', actual: null, reps: null, ...over });
+    const older = mut('m-old', '2026-11-11T10:00:00.000Z', { sets: [row({ actual: 100 })] }, {
+      base_revision: 9, base_fields: { sets: [row({})] }, snapshot_key: 'microcycles:a1',
+    });
+    const newer = mut('m-new', '2026-11-11T10:00:02.000Z', { sets: [row({ actual: 100, reps: 5 })] }, {
+      base_revision: 4, base_fields: { sets: [row({ actual: 100 })] },
+    });
+    const plan = planSyncBatch([newer, older]);
+    expect(ids(plan.send)).toEqual(['m-new']);
+    expect(ids(plan.superseded)).toEqual(['m-old']);
+    expect(ids(plan.rebaselined)).toEqual(['m-new']);
+    expect(plan.send[0]).toMatchObject({ base_revision: 9, base_fields: { sets: [row({})] }, snapshot_key: 'microcycles:a1' });
+  });
+
+  it('then re-sends both the earlier kg and the new reps instead of erasing or conflicting', () => {
+    const row = (over: Record<string, unknown>) => ({ id: 's1', label: 'Set 1', scope: 'both', actual: null, reps: null, ...over });
+    const older = mut('m-old', '2026-11-11T10:00:00.000Z', { sets: [row({ actual: 100 })] }, {
+      base_revision: 9, base_fields: { sets: [row({})] },
+    });
+    const newer = mut('m-new', '2026-11-11T10:00:02.000Z', { sets: [row({ actual: 100, reps: 5 })] }, {
+      base_revision: 4, base_fields: { sets: [row({ actual: 100 })] },
+    });
+    const [sent] = planSyncBatch([newer, older]).send;
+    // The server never got the kg; its revision moved because of saves to other lifts.
+    const resend = mergeForResend(sent, {
+      reason: 'STALE_REVISION', server_revision: 14, server_fields: { sets: [{ ...row({}), revision: 3, intensityType: 'RPE' }] },
+    });
+    expect(resend?.sets).toHaveLength(1);
+    expect(resend?.sets[0]).toMatchObject({ id: 's1', actual: 100, reps: 5 });
+  });
+
+  it('keeps the newest baseline when nothing is replaced', () => {
+    const only = mut('m1', '2026-11-11T10:00:00.000Z', { sets: [] }, { base_fields: { sets: [] } });
+    const plan = planSyncBatch([only]);
+    expect(plan.rebaselined).toEqual([]);
+    expect(plan.send[0]).toMatchObject({ base_revision: 4, base_fields: { sets: [] } });
   });
 
   it('drops nothing when two edits of a lift carry the same time (order unknown)', () => {

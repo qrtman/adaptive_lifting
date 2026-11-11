@@ -1,5 +1,5 @@
 import { clearAuthorization } from './authAuthorization';
-import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus, updateMutationConflict, deleteSupersededMutation } from './db';
+import { SyncMutation, saveMutation, getPendingMutations, updateMutationStatus, updateMutationConflict, deleteSupersededMutation, setMutationBaseline } from './db';
 import { UI_KEYS, getUiPref, setUiPref } from '../storage/uiPrefs';
 import { MATH_VERSION } from './mathEngine';
 import { API_BASE_URL } from './apiBase';
@@ -402,12 +402,13 @@ const fieldKeys = (m: SyncMutation) => Object.keys(m.fields || {});
  * (OVERLAPPING_BATCH_PATCH). That happens when an edit is queued while an earlier edit of
  * the same lift is in flight or being re-based. Per entity, oldest first:
  * - an older edit whose fields are all carried by the newest edit is superseded (dropped):
- *   the newest one holds the final values and was based on the older one's result;
+ *   the newest one holds the final values. The older one was never acknowledged, so the
+ *   newest takes over its baseline (see inheritBaseline);
  * - of the rest, edits that overlap one already in this batch wait for the next sync.
  * Order is by `updated_at`, since mutation ids are random and IndexedDB returns key order.
  */
 export function planSyncBatch(pending: SyncMutation[]): {
-  send: SyncMutation[]; superseded: SyncMutation[]; deferred: SyncMutation[];
+  send: SyncMutation[]; superseded: SyncMutation[]; deferred: SyncMutation[]; rebaselined: SyncMutation[];
 } {
   const groups = new Map<string, SyncMutation[]>();
   for (const m of pending) {
@@ -416,17 +417,23 @@ export function planSyncBatch(pending: SyncMutation[]): {
     groups.set(scopeOf(m), list);
   }
   const superseded = new Set<SyncMutation>();
+  const rebaselined: SyncMutation[] = [];
   for (const list of groups.values()) {
     if (list.length < 2) continue;
     list.sort((a, b) => String(a.updated_at).localeCompare(String(b.updated_at)));
     const newest = list[list.length - 1];
     const newestKeys = new Set(fieldKeys(newest));
+    const dropped: SyncMutation[] = [];
     for (const older of list.slice(0, -1)) {
       // Only a strictly older edit is dropped; on a tie the order is unknown, so keep both
       // (the overlap rule below then sends one and holds the other).
       if (String(older.updated_at) < String(newest.updated_at)
-        && fieldKeys(older).every((key) => newestKeys.has(key))) superseded.add(older);
+        && fieldKeys(older).every((key) => newestKeys.has(key))) {
+        superseded.add(older);
+        dropped.push(older);
+      }
     }
+    if (dropped.length > 0 && inheritBaseline(newest, dropped)) rebaselined.push(newest);
   }
   const ordered = [...pending]
     .filter((m) => !superseded.has(m))
@@ -444,7 +451,30 @@ export function planSyncBatch(pending: SyncMutation[]): {
     seen.set(scopeOf(m), keys);
     send.push(m);
   }
-  return { send, superseded: [...superseded], deferred };
+  return { send, superseded: [...superseded], deferred, rebaselined };
+}
+
+/**
+ * A superseded edit was never acknowledged, so the server may not hold its values. The
+ * newest edit was built on screen on top of it, so its own baseline (taken from the screen)
+ * already contains those unsaved values. Re-basing on that would read "the server cleared
+ * this" and undo the earlier log, or raise a conflict when the same cell is typed again.
+ * Take the baseline of the oldest dropped edit instead: that is what the server last showed.
+ * `dropped` is oldest first. Returns true when the newest edit's baseline changed.
+ */
+function inheritBaseline(newest: SyncMutation, dropped: SyncMutation[]): boolean {
+  const oldest = dropped[0];
+  let fields: Record<string, any> | undefined = newest.base_fields ? { ...newest.base_fields } : undefined;
+  // Newer to older, so for a key both carry the oldest baseline wins.
+  for (const older of [...dropped].reverse()) {
+    if (older.base_fields) fields = { ...(fields ?? {}), ...older.base_fields };
+  }
+  const revision = oldest.base_revision ?? newest.base_revision;
+  if (revision === newest.base_revision && JSON.stringify(fields) === JSON.stringify(newest.base_fields)) return false;
+  newest.base_revision = revision;
+  newest.base_fields = fields;
+  newest.snapshot_key ??= oldest.snapshot_key;
+  return true;
 }
 
 const syncRuns = new Map<string, Promise<any[]>>();
@@ -477,7 +507,13 @@ async function runSyncQueue(workout_id: string, accountId?: string): Promise<any
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
 
   const pendingAll = await getPendingMutations(undefined, accountId);
-  const { send: pending, superseded, deferred } = planSyncBatch(mutationsForWorkout(pendingAll, workout_id));
+  const { send: pending, superseded, deferred, rebaselined } = planSyncBatch(mutationsForWorkout(pendingAll, workout_id));
+  // Store the inherited baseline before dropping the edits it came from.
+  for (const m of rebaselined) {
+    await setMutationBaseline(m.mutation_id, {
+      base_revision: m.base_revision, base_fields: m.base_fields, snapshot_key: m.snapshot_key,
+    });
+  }
   for (const m of superseded) await deleteSupersededMutation(m.mutation_id, m.updated_at);
   if (pending.length === 0) return [];
 
