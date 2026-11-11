@@ -22,7 +22,7 @@ Copied here so a child-only read still has them. Canonical lock: `.cursor/rules/
 4. **Adj header is gone.** Per-set `%` stays. No ± steppers on `%`.
 5. **Δ is e1RM %** of plan vs log, sitting **right of logged e1RM**. No kg Δ, no RPE Δ in that column.
 6. **Plan / Log on the row above** kg · reps · RPE. Split those into real `<td>`s so headers line up. Drop `×` `@` between input cells.
-7. **Session header hierarchy** — Name is the only large line. Day · Week · Block + tonnage + Edit are muted meta.
+7. **Session header hierarchy** — Name is the only large line. Day · Week · Block + tonnage + Edit are muted meta. *(Superseded by `.cursor/rules/session-sheet.mdc`, phase 1: Day leads, Name optional subtitle, no session tonnage.)*
 8. **Sessions list** — Name leads; Day · date are meta; every set is Plan vs Log. Do not repeat Block/Week inside grouped cards.
 
 `design.md` calendar pill, Adj-in-header, and “Δ is RPE” lines are **wrong** for this program. Patch them in the implementation PRs.
