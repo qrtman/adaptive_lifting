@@ -87,7 +87,7 @@ Shipped: `InlineAddLift`, lift `⋯` menu + clickable variation title in `Exerci
 - **Set note:** a dot next to the set number opens a small editor. `ExerciseSet.note` exists and the log API sends it; add it to the Plan sync shape (`setSyncShape.ts`). Done: `note` is in the sync shape, the baseline and the three-way merge; migration `20261114120000_set_note_plan_sync` makes the nested `Exercise {sets}` write save it (key absent → note kept, so older clients never erase notes). A noted set is never merged in Plan view.
 - **Day note:** in the session header, from `fetchDayNotes`. Shown only when a note exists.
 
-### 7 · Summaries
+### 7 · Summaries — DONE
 - **Per lift:** NL · Volume · Int as columns in Plan; a `Plan … · Logged …` line in Both.
 - **Session and rail day:** set count only. In Both, `Logged x / y sets`.
 - **Never** session or day tonnage, NL, or average intensity. They mix different lifts, so they mean nothing.

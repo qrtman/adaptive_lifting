@@ -26,10 +26,13 @@ export function SessionHeader({
   locked,
   onComplete,
   setCount,
+  logged,
   dayNote,
 }: {
   session: HeaderSession;
   setCount: number;
+  /** Both / Log views (session sheet phase 7): logged sets of the session against planned ones. */
+  logged?: { logged: number; planned: number } | null;
   dayNote?: string | null;
   backLabel: string;
   onBack: () => void;
@@ -107,7 +110,13 @@ export function SessionHeader({
           </>
         ) : null}
         <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
-        <span data-testid="session-set-count" className="tnum">{setCount} {setCount === 1 ? 'set' : 'sets'}</span>
+        {logged && logged.planned > 0 ? (
+          <span data-testid="session-set-count" className="tnum">
+            Logged <span className="font-medium text-[var(--cal-ink)]">{logged.logged} / {logged.planned}</span> sets
+          </span>
+        ) : (
+          <span data-testid="session-set-count" className="tnum">{setCount} {setCount === 1 ? 'set' : 'sets'}</span>
+        )}
         <button
           type="button"
           data-testid="session-edit"

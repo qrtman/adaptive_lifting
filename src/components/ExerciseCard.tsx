@@ -4,6 +4,7 @@ import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
 import { SetNoteCell, setNoteText } from './SetNote';
+import { logSummary, logSummaryText, planSummary, planSummaryText } from '../features/plan/liftSummary';
 import { GRID_ENTER_EVENT, handOffGrid, type GridEnterDetail } from '../services/sessionGridNav';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
@@ -947,40 +948,32 @@ export const ExerciseCard = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey, sets.length, minimized]);
 
-  // Lift totals: one line in the minimized header, a stacked list beside the grid when open.
-  const liftStats = (layout: 'inline' | 'stacked') => {
+  // Lift totals in the minimized header (one line).
+  const liftStats = () => {
     const items: Array<{ key: string; label: string; value: ReactNode; testId?: string; title?: string }> = [];
     if (intensityPct != null) items.push({ key: 'intensity', label: 'Intensity', value: `${intensityPct}%`, testId: `lift-intensity-${id}` });
     items.push({
       key: 'sets',
       label: 'Sets',
       title: `${plannedCount} planned, ${loggedCount} logged`,
-      testId: `lift-set-count-${id}`,
-      // Each half stays whole, so a narrow totals column breaks at the dot, not inside "0 logged".
       value: <><span className="whitespace-nowrap"><span className="font-medium text-[var(--cal-ink)]">{plannedCount}</span> planned ·</span> <span className="whitespace-nowrap"><span className="font-medium text-[var(--cal-ink)]">{loggedCount}</span> logged</span></>,
     });
     items.push({ key: 'nl', label: 'NL', value: nl, testId: `lift-nl-${id}` });
     items.push({ key: 'e1rm', label: 'e1RM', value: sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—' });
     items.push({ key: 'volume', label: 'Volume', value: `${totalVolume.toLocaleString()} kg` });
-    if (layout === 'inline') {
-      return items.map((item) => (
-        <span key={item.key} className="whitespace-nowrap tnum" title={item.title}>
-          {item.key === 'sets' ? null : <>{item.label} </>}
-          <span className={item.key === 'sets' ? '' : 'font-medium text-[var(--cal-ink)]'} data-testid={item.testId}>{item.value}</span>
-        </span>
-      ));
-    }
-    return (
-      <dl className="lift-stats text-[13px] text-[var(--cal-muted)]" aria-label="Lift totals">
-        {items.map((item) => (
-          <div key={item.key} className="lift-stat" title={item.title}>
-            <dt>{item.label}</dt>
-            <dd className={`tnum ${item.key === 'sets' ? '' : 'font-medium text-[var(--cal-ink)]'}`} data-testid={item.testId}>{item.value}</dd>
-          </div>
-        ))}
-      </dl>
-    );
+    return items.map((item) => (
+      <span key={item.key} className="whitespace-nowrap tnum" title={item.title}>
+        {item.key === 'sets' ? null : <>{item.label} </>}
+        <span className={item.key === 'sets' ? '' : 'font-medium text-[var(--cal-ink)]'} data-testid={item.testId}>{item.value}</span>
+      </span>
+    ));
   };
+
+  // Open card (session sheet phase 7): one muted line under the rows, "Plan … · Logged …".
+  // Plan view shows these totals as grid columns instead.
+  const planSum = planSummary(sets);
+  const logSum = logSummary(sets);
+  const baselineE1rm = sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : null;
 
   return (
     <div className="lift-card group/lift cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
@@ -1059,7 +1052,7 @@ export const ExerciseCard = ({
           ) : null}
         </div>
         <div className="lift-head__tools flex items-center gap-4 shrink-0 text-[13px] text-[var(--cal-muted)]">
-          {minimized ? <>{liftStats('inline')}</> : null}
+          {minimized ? <>{liftStats()}</> : null}
           {onMoveUp && (
             <button
               type="button"
@@ -1600,11 +1593,38 @@ export const ExerciseCard = ({
         </p>
       ) : null}
       </div>
-      {/* Lift totals + note: wide card = totals in a column right of the grid, the note full width under the rows; narrow = totals row, then the note (index.css .lift-layout). */}
+      {/* Under the rows: the lift summary line, then the lift note (index.css .lift-layout). */}
       <aside className="lift-side" data-testid={`lift-side-${id}`}>
-        {liftStats('stacked')}
-        {/* With no note yet, "+ Note" stays beside the totals instead of adding a row under every lift. */}
-        <div className={`lift-note ${onUpdateMeta && !noteOpen && !noteDraft.trim() ? 'lift-note--add' : ''}`}>
+        {view !== 'plan' || (onUpdateMeta && !noteOpen && !noteDraft.trim()) ? (
+          <p className="lift-summary text-[12px] text-[var(--cal-muted-soft)] tnum" aria-label="Lift totals" data-testid={`lift-summary-${id}`}>
+            {view !== 'plan' ? (<>
+              {planSum.sets > 0 ? (<>
+                <span>Plan <span data-testid={`lift-plan-summary-${id}`}>{planSummaryText(planSum)}</span></span>
+                <span aria-hidden="true" className="text-[var(--cal-hairline)]">·</span>
+              </>) : null}
+              <span className="text-[var(--cal-muted)]" title={`${logSum.logged} logged of ${logSum.planned} planned`}>
+                Logged <span data-testid={`lift-set-count-${id}`}>{logSummaryText(logSum)}</span>
+              </span>
+              {baselineE1rm ? (<>
+                <span aria-hidden="true" className="text-[var(--cal-hairline)]">·</span>
+                <span title="Baseline e1RM for Plan suggestions">e1RM <span data-testid={`lift-e1rm-${id}`}>{baselineE1rm}</span></span>
+              </>) : null}
+            </>) : null}
+            {onUpdateMeta && !noteOpen && !noteDraft.trim() ? (
+              <button
+                type="button"
+                data-testid={`add-lift-note-${id}`}
+                disabled={locked}
+                onClick={() => setNoteOpen(true)}
+                className={`${headerButton} ml-auto h-6 text-[12px]`}
+              >
+                <Plus size={12} aria-hidden="true" />
+                Note
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+        <div className="lift-note">
         {onUpdateMeta && (noteOpen || noteDraft.trim()) ? (
           <section className="w-full" data-testid={`lift-note-panel-${id}`}>
             {noteOpen ? (
@@ -1658,7 +1678,7 @@ export const ExerciseCard = ({
                 data-testid={`open-lift-note-${id}`}
                 disabled={locked}
                 onClick={() => setNoteOpen(true)}
-                className="flex w-full min-w-0 items-start gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] leading-5 text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-body)] disabled:opacity-60"
+                className="-mx-2 flex w-[calc(100%+1rem)] min-w-0 items-start gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] leading-5 text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-body)] disabled:opacity-60"
                 title="Edit note"
               >
                 <StickyNote size={13} aria-hidden="true" className="mt-1 shrink-0 text-[var(--cal-muted-soft)]" />
@@ -1672,18 +1692,6 @@ export const ExerciseCard = ({
               </button>
             )}
           </section>
-        ) : null}
-        {onUpdateMeta && !noteOpen && !noteDraft.trim() ? (
-          <button
-            type="button"
-            data-testid={`add-lift-note-${id}`}
-            disabled={locked}
-            onClick={() => setNoteOpen(true)}
-            className={headerButton}
-          >
-            <Plus size={13} aria-hidden="true" />
-            Note
-          </button>
         ) : null}
         </div>
       </aside>

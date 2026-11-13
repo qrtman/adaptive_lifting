@@ -30,6 +30,7 @@ import { isDashboardModeAvailable, parseAppLocation, writeAppLocation, type Dash
 import { type CopyClipboard } from './features/plan/copyClipboard';
 import { formatPlanLabel, isPlaceholderTitle, sessionHeadline } from './features/plan/sessionLabels';
 import { buildWeekRail, sessionSetCount, type RailSession } from './features/plan/weekRail';
+import { sessionLogged } from './features/plan/liftSummary';
 import { copyLiftIntoSession, type NewLiftPayload } from './features/plan/liftCopy';
 import { GRID_ENTER_EVENT, type GridEnterDetail } from './services/sessionGridNav';
 import { LIFT_DRAG_MIME } from './components/WeekRail';
@@ -449,6 +450,7 @@ export default function App() {
                   <SessionHeader
                     session={activeWorkout}
                     setCount={sessionSetCount(activeWorkout)}
+                    logged={sessionView === 'plan' ? null : sessionLogged(activeWorkout.exercises)}
                     dayNote={dayNotes[activeWorkout.date]}
                     backLabel={dashboardMode === 'sessions' ? 'Sessions' : 'Calendar'}
                     onBack={() => {

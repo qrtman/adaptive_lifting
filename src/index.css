@@ -422,9 +422,9 @@
   user-select: none;
   cursor: cell;
 }
-/* Lift card layout. Narrow card: name row, grid, then totals/note in one compact row.
-   Wide open card: name row on top, grid, totals in a column on the right with the note under them,
-   so the card is only as tall as its sets. Minimized: just the name row. */
+/* Lift card layout (session sheet phase 7): name row, the set grid, then one muted summary
+   line ("Plan … · Logged …") and the lift note, full width under the rows. No side column.
+   Minimized: just the name row with inline totals. */
 .lift-card {
   container-type: inline-size;
 }
@@ -444,75 +444,25 @@
 }
 .lift-side {
   display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+.lift-summary {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.5rem;
-  min-width: 0;
-  padding: 0.75rem;
+  column-gap: 0.375rem;
+  row-gap: 0.125rem;
+  min-height: 1.75rem;
+  margin: 0;
 }
 .lift-note {
-  flex-basis: 100%;
   min-width: 0;
 }
-.lift-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-}
-.lift-stat {
-  display: flex;
-  gap: 0.25rem;
-  white-space: nowrap;
-}
-/* Wide card (>= 1080px): name row on top, grid with totals in a column on the right, the lift note full width under both (session sheet phase 6). */
-@container (min-width: 1080px) {
-  .lift-layout--open {
-    grid-template-columns: minmax(0, 1fr) 10rem;
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas: "head head" "main stats" "note note";
-    column-gap: 1rem;
-  }
-  .lift-layout--open .lift-head {
-    grid-area: head;
-  }
-  .lift-layout--open .lift-main {
-    grid-area: main;
-    padding: 0.75rem 0 0.75rem 0.75rem;
-  }
-  /* The aside's two children sit in their own grid areas. */
-  .lift-layout--open .lift-side {
-    display: contents;
-  }
-  .lift-layout--open .lift-stats {
-    grid-area: stats;
-    align-self: start;
-    padding: 0.75rem 0.75rem 0 0;
-  }
-  .lift-layout--open .lift-note {
-    grid-area: note;
-    min-width: 0;
-    padding: 0 0.75rem 0.75rem;
-  }
-  .lift-layout--open .lift-note:empty {
-    display: none;
-  }
-  .lift-layout--open .lift-note--add {
-    grid-area: stats;
-    align-self: end;
-    padding: 0 0.75rem 0.75rem 0;
-  }
-  .lift-stats {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.25rem 0.75rem;
-  }
-  .lift-stat {
-    display: contents;
-    white-space: normal;
-  }
-  .lift-stat dd {
-    text-align: right;
-  }
+.lift-note:empty {
+  display: none;
 }
 /* "Add set" strip: a full-width empty next row under Plan and Log. */
 .sheet-add-row {
