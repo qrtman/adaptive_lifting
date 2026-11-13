@@ -1223,7 +1223,8 @@ export const ExerciseCard = ({
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${thMetric} sheet-th w-10 px-2 align-bottom`} data-testid="set-grid-h-num">#</th>
-            <th rowSpan={2} className={`${th} sheet-th plan-brief align-bottom`}>Plan</th>
+            {/* Phones: Plan and Log bands on one line (index.css .plan-brief). */}
+            <th className={`${th} sheet-th sheet-th--group plan-brief`}>Plan</th>
             <th colSpan={4} className={`${th} sheet-th sheet-th--group plan-col`} data-testid="set-grid-h-plan">
               <span>Plan</span>
             </th>
@@ -1237,6 +1238,7 @@ export const ExerciseCard = ({
             <th rowSpan={2} className="p-0" aria-label="Set actions" data-testid="set-grid-h-copy" />
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
+            <th className={`${thField} sheet-th plan-brief`} aria-hidden="true" />
             <th className={`${thField} sheet-th w-14 plan-col`} data-testid="set-grid-h-pct">Drop %</th>
             <th className={`${thField} sheet-th plan-col`} data-testid="set-grid-h-planKg">kg</th>
             <th className={`${thField} sheet-th plan-col`} data-testid="set-grid-h-planReps">Reps</th>
@@ -1502,7 +1504,15 @@ export const ExerciseCard = ({
                         ✓
                       </span>
                     ) : null}
-                    {/* Row tools open over the metric cells on hover / focus (no column of their own). */}
+                    {/* Row tools open only from the row's end (⋯), so they never cover a cell you work in. */}
+                    <button
+                      type="button"
+                      data-testid={`set-tools-${id}-${laneIndex + 1}`}
+                      aria-label={`Set ${laneIndex + 1} actions`}
+                      className="sheet-tools__open absolute left-0.5 top-1/2 inline-flex h-6 w-5 -translate-y-1/2 items-center justify-center rounded-[var(--cal-radius-md)] text-[13px] leading-none text-[var(--cal-muted)] opacity-0 hover:bg-[var(--cal-surface-strong)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cal-accent)] group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                    >
+                      ⋯
+                    </button>
                     <div className="sheet-tools__bar">
                     {hasPlan ? (<>
                     <button

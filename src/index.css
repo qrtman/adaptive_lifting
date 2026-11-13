@@ -494,13 +494,13 @@
   pointer-events: none;
   transition: opacity 120ms ease;
 }
-.sheet-grid tr:hover .sheet-tools__bar,
-.sheet-grid tr:focus-within .sheet-tools__bar {
+.sheet-grid td.sheet-tools:hover .sheet-tools__bar,
+.sheet-grid td.sheet-tools:focus-within .sheet-tools__bar {
   opacity: 1;
   pointer-events: auto;
 }
-.sheet-grid tr:hover .sheet-tools__bar button,
-.sheet-grid tr:focus-within .sheet-tools__bar button {
+.sheet-grid td.sheet-tools:hover .sheet-tools__bar button,
+.sheet-grid td.sheet-tools:focus-within .sheet-tools__bar button {
   opacity: 1;
 }
 
@@ -740,6 +740,8 @@
   .sheet-grid th.plan-brief {
     display: table-cell;
     width: 38%;
+  }
+  .sheet-grid td.plan-brief {
     padding: 0;
   }
   .sheet-grid .plan-col,
@@ -758,7 +760,8 @@
     display: none;
   }
   /* Row tools move into the set sheet, so they never cover the cell you type in. */
-  .sheet-tools__bar {
+  .sheet-tools__bar,
+  .sheet-tools__open {
     display: none;
   }
   /* Touch-sized rows and inputs. */

@@ -86,7 +86,7 @@ export function PhoneSetSheet({
   };
 
   const field = 'h-12 w-full rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-canvas)] px-3 text-right text-lg tnum text-[var(--cal-ink)] disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cal-accent)]';
-  const label = 'flex flex-col gap-1 text-[12px] text-[var(--cal-muted)]';
+  const label = 'flex min-w-0 flex-col gap-1 text-[12px] text-[var(--cal-muted)]';
   const readOnly = !canEditPlan || !plan;
 
   return (
@@ -103,17 +103,9 @@ export function PhoneSetSheet({
           </button>
         </div>
         {plan ? (
-          <div className="grid grid-cols-3 gap-2">
-            <label className={label}>Plan kg
-              <input data-testid="phone-set-kg" inputMode="decimal" className={field} value={kg} disabled={readOnly} onChange={(e) => setKg(e.target.value)} />
-            </label>
-            <label className={label}>Reps
-              <input data-testid="phone-set-reps" inputMode="numeric" className={field} value={reps} disabled={readOnly} onChange={(e) => setReps(e.target.value)} />
-            </label>
-            <label className={label}>{type === 'PERCENT' ? '%1RM' : 'RPE'}
-              <input data-testid="phone-set-target" inputMode="decimal" className={field} value={target} disabled={readOnly} onChange={(e) => setTarget(e.target.value)} />
-            </label>
-            <div role="group" aria-label="Intensity" className="col-span-2 flex h-11 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] p-0.5">
+          <div className="flex flex-col gap-3">
+            {/* 1. How intensity is set, 2. the three numbers in one even row, 3. Drop % on its own line. */}
+            <div role="group" aria-label="Intensity" className="flex h-10 rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] p-0.5">
               {(['RPE', 'PERCENT'] as const).map((t) => (
                 <button key={t} type="button" aria-pressed={type === t} disabled={readOnly} data-testid={`phone-set-type-${t}`}
                   onClick={() => setType(t)}
@@ -122,29 +114,38 @@ export function PhoneSetSheet({
                 </button>
               ))}
             </div>
+            <div className="grid grid-cols-3 gap-2">
+              <label className={label}>kg
+                <input data-testid="phone-set-kg" inputMode="decimal" className={field} value={kg} disabled={readOnly} onChange={(e) => setKg(e.target.value)} />
+              </label>
+              <label className={label}>Reps
+                <input data-testid="phone-set-reps" inputMode="numeric" className={field} value={reps} disabled={readOnly} onChange={(e) => setReps(e.target.value)} />
+              </label>
+              <label className={label}>{type === 'PERCENT' ? '% 1RM' : 'RPE'}
+                <input data-testid="phone-set-target" inputMode="decimal" className={field} value={target} disabled={readOnly} onChange={(e) => setTarget(e.target.value)} />
+              </label>
+            </div>
             {showDrop ? (
-              <label className={label}>Drop %
-                <input data-testid="phone-set-drop" inputMode="numeric" className={field} value={drop} disabled={readOnly} onChange={(e) => setDrop(e.target.value)} />
+              <label className="flex items-center justify-between gap-3 text-[13px] text-[var(--cal-muted)]">
+                <span className="whitespace-nowrap">Drop %</span>
+                <input data-testid="phone-set-drop" inputMode="numeric" className={`${field} w-24`} value={drop} placeholder="0" disabled={readOnly} onChange={(e) => setDrop(e.target.value)} />
               </label>
             ) : null}
           </div>
         ) : (
           <p className="text-[13px] text-[var(--cal-muted)]">No Plan for this set — logged beyond the plan.</p>
         )}
-        <dl className="grid grid-cols-3 gap-2 text-center tnum" data-testid="phone-set-metrics">
-          {([['e1RM', metrics.e1rm], ['Δ%', metrics.delta], ['INOL', metrics.inol]] as const).map(([k, v]) => (
-            <div key={k} className="rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] px-2 py-2">
-              <dt className="text-[11px] text-[var(--cal-muted)]">{k}</dt>
-              <dd className="text-[15px] text-[var(--cal-ink)]">{v}</dd>
-            </div>
-          ))}
-        </dl>
+        <p className="flex gap-4 text-[13px] tnum text-[var(--cal-muted)]" data-testid="phone-set-metrics">
+          <span>e1RM <span className="text-[var(--cal-ink)]">{metrics.e1rm}</span></span>
+          <span>Δ <span className="text-[var(--cal-ink)]">{metrics.delta}</span></span>
+          <span>INOL <span className="text-[var(--cal-ink)]">{metrics.inol}</span></span>
+        </p>
         {actions.length ? (
           <div className="flex flex-wrap gap-2">
             {actions.map((action) => (
               <button key={action.testId} type="button" data-testid={action.testId} disabled={action.disabled}
                 onClick={() => { action.onClick(); onClose(); }}
-                className={`h-11 flex-1 whitespace-nowrap rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] px-3 text-[13px] disabled:opacity-40 ${action.danger ? 'text-[var(--cal-error)]' : 'text-[var(--cal-ink)]'}`}>
+                className={`h-11 flex-1 whitespace-nowrap rounded-[var(--cal-radius-md)] px-3 text-[13px] disabled:opacity-40 ${action.danger ? 'text-[var(--cal-error)]' : 'bg-[var(--cal-surface-soft)] text-[var(--cal-ink)]'}`}>
                 {action.label}
               </button>
             ))}
