@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { SetNoteCell, setNoteText } from './SetNote';
 import { formatKg, planSummary } from '../features/plan/liftSummary';
+import { PLAN_COLUMNS, sheetWidth } from '../features/plan/sheetColumns';
+import { SheetColGroup } from './SheetColumns';
 import { groupPlanRows, removePlanGroup, resizePlanGroup, type PlanGroup, type PlanLane } from '../features/plan/planGroups';
 import { applySetDropPercent, parseDropPercent } from '../services/setPrescription';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -169,7 +171,8 @@ export function PlanGroupGrid({
   const labels: Record<Field, string> = { sets: 'Sets', pct: 'Drop %', kg: 'kg', reps: 'Reps', intensity: 'Intensity' };
 
   return (
-    <table role="grid" aria-label="Plan sets" data-testid={`plan-group-grid-${liftId}`} className="sheet-grid text-left w-max max-w-full">
+    <table role="grid" aria-label="Plan sets" data-testid={`plan-group-grid-${liftId}`} className="sheet-grid sheet-grid--fixed text-left" style={{ width: sheetWidth(PLAN_COLUMNS) }}>
+      <SheetColGroup columns={PLAN_COLUMNS} />
       <thead>
         <tr className="border-b border-[var(--cal-hairline-soft)]">
           <th className={`${th} sheet-th w-12 text-center`}>#</th>
