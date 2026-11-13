@@ -398,7 +398,8 @@
   outline: none;
 }
 .sheet-cell[data-logged="true"] {
-  background: color-mix(in srgb, var(--cal-success) 9%, transparent);
+  /* What you typed reads dark; no fill (polish pass). */
+  color: var(--cal-ink);
 }
 .sheet-cell[data-selected="true"],
 .sheet-cell--editing {
@@ -427,6 +428,13 @@
    Minimized: just the name row with inline totals. */
 .lift-card {
   container-type: inline-size;
+  /* Flat, like rows of one sheet (polish pass): a hairline between lifts, no card chrome. */
+  border-top: 1px solid var(--cal-hairline);
+  transition: background-color 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lift-card:hover,
+.lift-card:focus-within {
+  background: color-mix(in srgb, var(--cal-surface-soft) 35%, transparent);
 }
 .lift-layout {
   display: grid;
@@ -435,9 +443,6 @@
 .lift-head {
   min-height: 2.75rem;
   padding: 0.375rem 0.5rem;
-}
-.lift-layout--open .lift-head {
-  border-bottom: 1px solid var(--cal-hairline-soft);
 }
 .lift-main {
   padding: 0.75rem 0.75rem 0;
@@ -490,7 +495,8 @@
   outline-offset: -2px;
 }
 .sheet-grid td.sheet-td--readonly {
-  background: color-mix(in srgb, var(--cal-surface-soft) 70%, transparent);
+  /* Calculated cells: grey text, no fill (polish pass). */
+  background: transparent;
 }
 .sheet-grid tr:hover td.sheet-td--num,
 .sheet-grid tr:focus-within td.sheet-td--num {

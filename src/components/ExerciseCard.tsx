@@ -976,7 +976,7 @@ export const ExerciseCard = ({
   const baselineE1rm = sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : null;
 
   return (
-    <div className="lift-card group/lift cal-nested-card cal-nested-flush mx-2 mb-2 overflow-hidden">
+    <div className="lift-card group/lift">
       {/* Narrow card: name row on top, grid, then totals. Wide open card: name row on top, grid, totals and note in a column on the right (index.css .lift-layout). */}
       <div className={`lift-layout ${minimized ? '' : 'lift-layout--open'}`}>
       <div className="lift-head flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -1466,7 +1466,7 @@ export const ExerciseCard = ({
                       ))}
                     </>
                   )}
-                  <td className="relative w-[7.5rem] whitespace-nowrap bg-[var(--cal-surface-card)] px-1 align-middle">
+                  <td className="relative w-[7.5rem] whitespace-nowrap px-1 align-middle">
                     {isDone ? (
                       <span
                         data-testid={`set-done-${laneIndex + 1}`}

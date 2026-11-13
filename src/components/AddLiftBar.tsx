@@ -40,8 +40,8 @@ export function AddLiftBar({
 }: {
   sessionId: string;
   onAdded: () => Promise<void> | void;
-  /** "empty": just the button, for the empty-session prompt. "bar": below the lift list. */
-  variant?: 'bar' | 'empty';
+  /** "empty": the button for the empty-session prompt. "link": a quiet "Browse lifts…" inside the type-a-name row. "bar": legacy, below the lift list. */
+  variant?: 'bar' | 'empty' | 'link';
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
@@ -284,16 +284,28 @@ export function AddLiftBar({
   ) : null;
 
   return (
-    <div className={variant === 'empty' ? '' : 'py-3 border-t border-[var(--cal-hairline)]'}>
-      <button
-        type="button"
-        data-testid="add-lift"
-        onClick={() => { reset(); setOpen(true); }}
-        className="inline-flex h-9 items-center gap-1.5 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)]"
-      >
-        <Plus size={15} aria-hidden="true" />
-        Add lift
-      </button>
+    <div className={variant === 'bar' ? 'py-3 border-t border-[var(--cal-hairline)]' : 'contents'}>
+      {variant === 'link' ? (
+        <button
+          type="button"
+          data-testid="add-lift"
+          onClick={() => { reset(); setOpen(true); }}
+          title="Pick from the catalog with tier, pattern and modifiers"
+          className="inline-flex h-7 shrink-0 items-center rounded-[var(--cal-radius-md)] px-2 text-[12px] text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+        >
+          Browse lifts…
+        </button>
+      ) : (
+        <button
+          type="button"
+          data-testid="add-lift"
+          onClick={() => { reset(); setOpen(true); }}
+          className="inline-flex h-9 items-center gap-1.5 px-4 text-sm font-medium text-[var(--cal-on-primary)] bg-[var(--cal-primary)] rounded-[var(--cal-radius-md)] hover:bg-[var(--cal-primary-active)]"
+        >
+          <Plus size={15} aria-hidden="true" />
+          Add lift
+        </button>
+      )}
       {open ? (
         <CenteredDialog
           title="Add lift"

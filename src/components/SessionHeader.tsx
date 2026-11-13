@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Check, ChevronLeft, Pencil } from 'lucide-react';
 import { formatPlanLabel, formatSessionDate, isPlaceholderTitle, sessionHeadline } from '../features/plan/sessionLabels';
 
@@ -27,8 +28,11 @@ export function SessionHeader({
   onComplete,
   setCount,
   logged,
+  viewToggle,
   dayNote,
 }: {
+  /** Plan · Both · Log switch, shown on the right of the title row. */
+  viewToggle?: ReactNode;
   session: HeaderSession;
   setCount: number;
   /** Both / Log views (session sheet phase 7): logged sets of the session against planned ones. */
@@ -79,6 +83,8 @@ export function SessionHeader({
             <span data-testid="session-title-sub" className="text-[15px] font-medium text-[var(--cal-muted)]">{subtitle}</span>
           ) : null}
         </h1>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {viewToggle}
         {finished ? (
           <span
             data-testid="session-finished-badge"
@@ -99,6 +105,7 @@ export function SessionHeader({
             Complete session
           </button>
         )}
+        </div>
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--cal-body)]">

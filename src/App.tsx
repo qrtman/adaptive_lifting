@@ -451,6 +451,26 @@ export default function App() {
                     session={activeWorkout}
                     setCount={sessionSetCount(activeWorkout)}
                     logged={sessionView === 'plan' ? null : sessionLogged(activeWorkout.exercises)}
+                    viewToggle={activeWorkout.exercises.length > 0 ? (
+                      <div role="group" aria-label="Show" data-testid="session-view" className="inline-flex rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] p-0.5">
+                        {(['plan', 'both', 'log'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            aria-pressed={sessionView === mode}
+                            data-testid={`session-view-${mode}`}
+                            onClick={() => setSessionView(mode)}
+                            className={`h-7 rounded-[calc(var(--cal-radius-md)-2px)] px-3 text-[12px] ${
+                              sessionView === mode
+                                ? 'bg-[var(--cal-surface-elevated)] font-semibold text-[var(--cal-ink)] shadow-sm'
+                                : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]'
+                            }`}
+                          >
+                            {mode === 'plan' ? 'Plan' : mode === 'both' ? 'Both' : 'Log'}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     dayNote={dayNotes[activeWorkout.date]}
                     backLabel={dashboardMode === 'sessions' ? 'Sessions' : 'Calendar'}
                     onBack={() => {
@@ -496,28 +516,6 @@ export default function App() {
                     </p>
                   ) : null}
 
-                  {activeWorkout.exercises.length > 0 ? (
-                    <div className="mb-2 flex justify-end">
-                      <div role="group" aria-label="Show" data-testid="session-view" className="inline-flex rounded-[var(--cal-radius-md)] bg-[var(--cal-surface-soft)] p-0.5">
-                        {(['plan', 'both', 'log'] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            aria-pressed={sessionView === mode}
-                            data-testid={`session-view-${mode}`}
-                            onClick={() => setSessionView(mode)}
-                            className={`h-7 rounded-[calc(var(--cal-radius-md)-2px)] px-3 text-[12px] ${
-                              sessionView === mode
-                                ? 'bg-[var(--cal-surface-elevated)] font-semibold text-[var(--cal-ink)] shadow-sm'
-                                : 'text-[var(--cal-muted)] hover:text-[var(--cal-ink)]'
-                            }`}
-                          >
-                            {mode === 'plan' ? 'Plan' : mode === 'both' ? 'Both' : 'Log'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
                   <div
                     data-testid="session-lifts"
                     onDragOver={(event) => {
@@ -626,18 +624,16 @@ export default function App() {
                       onRemove={coachCanProgram ? handleRemoveLift : undefined}
                     />
 
-                    {sessionLocked ? null : coachCanProgram ? (
-                      activeWorkout.exercises.length === 0 ? null : (
-                        <AddLiftBar sessionId={activeWorkout.id} onAdded={() => reloadMicrocycles(planAthleteId)} />
-                      )
-                    ) : (
+                    {!sessionLocked && !coachCanProgram ? (
                       <p className="px-2 py-3 text-xs text-[var(--cal-muted)]" role="note">Active coaching access is required to edit athlete programming.</p>
-                    )}
+                    ) : null}
+                    {/* One way to add: type a name, or "Browse lifts…" for the full catalog dialog. */}
                     {!sessionLocked && coachCanProgram && activeWorkout.exercises.length > 0 ? (
                       <InlineAddLift
                         disabledReason={!isOnline ? 'Connect to add lifts' : null}
                         onAdd={addLiftByName}
                         onFocusLift={focusLift}
+                        trailing={<AddLiftBar sessionId={activeWorkout.id} variant="link" onAdded={() => reloadMicrocycles(planAthleteId)} />}
                       />
                     ) : null}
                   </div>
