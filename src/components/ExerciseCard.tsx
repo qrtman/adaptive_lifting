@@ -3,6 +3,7 @@ import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
+import { SetNoteCell, setNoteText } from './SetNote';
 import { GRID_ENTER_EVENT, handOffGrid, type GridEnterDetail } from '../services/sessionGridNav';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { LiftVariationPicker } from './LiftVariationPicker';
@@ -390,6 +391,7 @@ export const ExerciseCard = ({
       }),
       dropPercent: 0,
       isAuto: false,
+      note: null,
     });
     updateAndPropagate(newSets);
   };
@@ -1300,11 +1302,23 @@ export const ExerciseCard = ({
 
               const hasPlan = Boolean(planEntry);
               const hasLog = Boolean(logEntry);
+              // Set note (phase 6): kept on whichever record of this row already has one, else on the Log record.
+              const noteIndex = [logEntry, planEntry].find((entry) => setNoteText(entry?.set.note))?.index
+                ?? logEntry?.index ?? planEntry?.index;
+              const setNumber = (
+                <SetNoteCell
+                  label={String(laneIndex + 1)}
+                  note={noteIndex !== undefined ? setNoteText(sets[noteIndex]?.note) : ''}
+                  readOnly={locked}
+                  onSave={noteIndex !== undefined ? (note) => updateSet(noteIndex, { note }) : undefined}
+                  testId={`set-note-${id}-${laneIndex + 1}`}
+                />
+              );
 
               return (
                 <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`} data-current-set={isCurrent ? 'true' : undefined}>
                   {hasPlan ? (<>
-                  <td className={`${td} sheet-td sheet-td--num w-10 px-2 tnum text-[12px] text-[var(--cal-muted-soft)] text-center ${set.isTop ? 'sheet-td--top' : ''}`} title={set.isTop ? 'Top set' : undefined}>{laneIndex + 1}</td>
+                  <td className={`${td} sheet-td sheet-td--num w-10 px-1 tnum text-[12px] text-[var(--cal-muted-soft)] text-center ${set.isTop ? 'sheet-td--top' : ''}`} title={set.isTop ? 'Top set' : undefined}>{setNumber}</td>
                   <td data-grid-pos={`${laneIndex}:0`} className={`${td} sheet-td`}>
                     {laneIndex === 0 ? (
                       locked ? (
@@ -1364,8 +1378,9 @@ export const ExerciseCard = ({
                     )}
                   </>) : (
                     <>
-                      {Array.from({ length: 5 }).map((_, cell) => (
-                        <td key={`noplan-${cell}`} data-grid-pos={cell > 0 ? `${laneIndex}:${cell - 1}` : undefined} className="sheet-td sheet-td--readonly h-9" aria-label={cell === 0 ? 'No plan set' : undefined} />
+                      {Array.from({ length: 5 }).map((_, cell) => (cell === 0
+                        ? <td key="noplan-0" className="sheet-td sheet-td--num h-9 w-10 px-1 text-center tnum text-[12px] text-[var(--cal-muted-soft)]" aria-label="No plan set">{setNumber}</td>
+                        : <td key={`noplan-${cell}`} data-grid-pos={`${laneIndex}:${cell - 1}`} className="sheet-td sheet-td--readonly h-9" />
                       ))}
                     </>
                   )}
@@ -1585,10 +1600,11 @@ export const ExerciseCard = ({
         </p>
       ) : null}
       </div>
-      {/* Lift totals + note: wide card = totals in a column right of the grid with the note under them; narrow = one compact row under the grid (index.css .lift-layout). */}
+      {/* Lift totals + note: wide card = totals in a column right of the grid, the note full width under the rows; narrow = totals row, then the note (index.css .lift-layout). */}
       <aside className="lift-side" data-testid={`lift-side-${id}`}>
         {liftStats('stacked')}
-        <div className="lift-note">
+        {/* With no note yet, "+ Note" stays beside the totals instead of adding a row under every lift. */}
+        <div className={`lift-note ${onUpdateMeta && !noteOpen && !noteDraft.trim() ? 'lift-note--add' : ''}`}>
         {onUpdateMeta && (noteOpen || noteDraft.trim()) ? (
           <section className="w-full" data-testid={`lift-note-panel-${id}`}>
             {noteOpen ? (
@@ -1642,11 +1658,11 @@ export const ExerciseCard = ({
                 data-testid={`open-lift-note-${id}`}
                 disabled={locked}
                 onClick={() => setNoteOpen(true)}
-                className="flex w-full min-w-0 items-center gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] text-[var(--cal-body)] hover:bg-[var(--cal-surface-soft)] disabled:opacity-60"
+                className="flex w-full min-w-0 items-start gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] leading-5 text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-body)] disabled:opacity-60"
                 title="Edit note"
               >
-                <StickyNote size={13} aria-hidden="true" className="shrink-0 text-[var(--cal-muted)]" />
-                <span className="truncate">{noteDraft}</span>
+                <StickyNote size={13} aria-hidden="true" className="mt-1 shrink-0 text-[var(--cal-muted-soft)]" />
+                <span className="min-w-0 whitespace-pre-line break-words">{noteDraft}</span>
                 <span
                   className={`ml-auto shrink-0 text-xs ${noteStatus === 'error' ? 'text-[var(--cal-error)]' : 'text-[var(--cal-success)]'}`}
                   role={noteStatus === 'error' ? 'alert' : undefined}

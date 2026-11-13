@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
+import { SetNoteCell, setNoteText } from './SetNote';
 import { groupPlanRows, removePlanGroup, resizePlanGroup, type PlanGroup, type PlanLane } from '../features/plan/planGroups';
 import { applySetDropPercent, parseDropPercent } from '../services/setPrescription';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -185,8 +186,21 @@ export function PlanGroupGrid({
           const unit = first.intensity_type === 'PERCENT' ? '%' : 'RPE';
           return (
             <tr key={group.key} className="group" data-testid={`plan-group-${liftId}-${row}`}>
-              <td className="sheet-td sheet-td--num w-12 px-2 text-center tnum text-[11px] text-[var(--cal-muted-soft)]" data-testid={`plan-group-${liftId}-${row}-index`}>
-                {label}
+              <td className="sheet-td sheet-td--num w-12 px-1 text-center tnum text-[11px] text-[var(--cal-muted-soft)]" data-testid={`plan-group-${liftId}-${row}-index`}>
+                {isGroup ? label : (
+                  <SetNoteCell
+                    label={label}
+                    note={setNoteText(first.note)}
+                    readOnly={readOnly}
+                    onSave={(note) => {
+                      const next = [...sets];
+                      const index = group.lanes[0].index;
+                      next[index] = { ...next[index], note };
+                      onChange(next);
+                    }}
+                    testId={`set-note-${liftId}-${group.start + 1}`}
+                  />
+                )}
               </td>
               {FIELDS.map((field, col) => (
                 <td key={field} className="p-0 align-middle whitespace-nowrap sheet-td">

@@ -33,6 +33,10 @@ def replace_exercise_sets(exercise: Exercise, rows: List[dict]) -> None:
             "executedRpe": row.get("executedRpe"),
             "dropPercent": row.get("dropPercent"),
         }
+        # Set note (session sheet phase 6): written when the row carries the key, else kept.
+        if "note" in row:
+            note = row.get("note")
+            payload["note"] = note.strip() or None if isinstance(note, str) else None
         if existing:
             if existing.deleted_at is not None:
                 existing.deleted_at = None

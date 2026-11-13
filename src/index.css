@@ -450,6 +450,10 @@
   min-width: 0;
   padding: 0.75rem;
 }
+.lift-note {
+  flex-basis: 100%;
+  min-width: 0;
+}
 .lift-stats {
   display: flex;
   flex-wrap: wrap;
@@ -460,12 +464,12 @@
   gap: 0.25rem;
   white-space: nowrap;
 }
-/* Wide card (>= 1080px): name row on top, grid, totals in a column on the right, note under the totals. */
+/* Wide card (>= 1080px): name row on top, grid with totals in a column on the right, the lift note full width under both (session sheet phase 6). */
 @container (min-width: 1080px) {
   .lift-layout--open {
     grid-template-columns: minmax(0, 1fr) 10rem;
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas: "head head" "main stats" "main side";
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "head head" "main stats" "note note";
     column-gap: 1rem;
   }
   .lift-layout--open .lift-head {
@@ -485,9 +489,17 @@
     padding: 0.75rem 0.75rem 0 0;
   }
   .lift-layout--open .lift-note {
-    grid-area: side;
+    grid-area: note;
     min-width: 0;
-    padding: 0.75rem 0.75rem 0.75rem 0;
+    padding: 0 0.75rem 0.75rem;
+  }
+  .lift-layout--open .lift-note:empty {
+    display: none;
+  }
+  .lift-layout--open .lift-note--add {
+    grid-area: stats;
+    align-self: end;
+    padding: 0 0.75rem 0.75rem 0;
   }
   .lift-stats {
     display: grid;

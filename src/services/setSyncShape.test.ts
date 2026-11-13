@@ -5,10 +5,20 @@ describe('toSyncSet', () => {
   it('builds the payload shape from a grid row', () => {
     expect(toSyncSet({ id: 's1', scope: 'plan', intensity_type: 'PERCENT', target_value: 80, plannedRpe: 7, plannedWeight: 100 }, 1)).toEqual({
       id: 's1', label: 'Set 2', scope: 'plan', plannedWeight: 100, plannedReps: null, plannedRpe: 80,
-      intensityType: 'PERCENT', dropPercent: 0, isAuto: false, isTop: false, actual: null, reps: null, executedRpe: null,
+      intensityType: 'PERCENT', dropPercent: 0, isAuto: false, isTop: false, actual: null, reps: null, executedRpe: null, note: null,
     });
     expect(toSyncSet({ id: 's0', scope: 'weird' }, 0)).toMatchObject({ scope: 'both', intensityType: 'RPE', isTop: true });
     expect(toSyncSets(undefined)).toEqual([]);
+  });
+
+  it('carries the set note, trimmed; empty is null (session sheet phase 6)', () => {
+    expect(toSyncSet({ id: 's1', note: '  belt on ' }, 0).note).toBe('belt on');
+    expect(toSyncSet({ id: 's1', note: '   ' }, 0).note).toBeNull();
+    expect(toSyncSet({ id: 's1' }, 0).note).toBeNull();
+    // A note-only edit is a change; the same note with other spacing is not.
+    expect(setListsMatch([{ id: 'a', note: 'x' }], [{ id: 'a', note: 'y' }])).toBe(false);
+    expect(setListsMatch([{ id: 'a', note: 'x ' }], [{ id: 'a', note: 'x' }])).toBe(true);
+    expect(setListsMatch([{ id: 'a' }], [{ id: 'a', note: null }])).toBe(true);
   });
 
   it('round-trips through the grid shape', () => {
@@ -121,5 +131,14 @@ describe('mergeSetLists (three-way, by set id)', () => {
   it('refuses ambiguous input', () => {
     expect(mergeSetLists([row('1'), row('1')], [row('1')], [row('1')]).ok).toBe(false);
     expect(mergeSetLists(undefined, [row('1')], [row('1')]).ok).toBe(false);
+  });
+
+  it('merges a set note like any other field', () => {
+    const base = [{ id: 'a', plannedWeight: 100 }];
+    const mine = [{ id: 'a', plannedWeight: 100, note: 'felt fast' }];
+    const server = [{ id: 'a', plannedWeight: 105 }];
+    const merged = mergeSetLists(base, mine, server);
+    expect(merged.ok && merged.sets[0]).toMatchObject({ plannedWeight: 105, note: 'felt fast' });
+    expect(mergeSetLists(base, mine, [{ id: 'a', plannedWeight: 100, note: 'slow' }])).toMatchObject({ ok: false });
   });
 });

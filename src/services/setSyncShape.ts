@@ -19,7 +19,11 @@ export interface SyncSet {
   actual: unknown;
   reps: unknown;
   executedRpe: unknown;
+  /** Set note (session sheet phase 6); null when empty. */
+  note: string | null;
 }
+
+const noteOf = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
 
 const scopeOf = (value: unknown): SyncSet['scope'] => (value === 'plan' || value === 'log' ? value : 'both');
 
@@ -39,6 +43,7 @@ export function toSyncSet(row: Record<string, any>, index: number): SyncSet {
     actual: row.actual ?? null,
     reps: row.reps ?? null,
     executedRpe: row.executedRpe ?? null,
+    note: noteOf(row.note),
   };
 }
 
@@ -70,6 +75,7 @@ export function setTrainingValues(row: Record<string, any>, index: number) {
     actual: trainingNumber(set.actual),
     reps: trainingNumber(set.reps),
     executedRpe: trainingNumber(set.executedRpe),
+    note: set.note,
   };
 }
 
@@ -148,7 +154,7 @@ export function overlayQueuedExerciseSets<T>(data: T, queued: QueuedSetsEdit[]):
 
 const MERGE_FIELDS = [
   'label', 'scope', 'plannedWeight', 'plannedReps', 'plannedRpe', 'intensityType',
-  'dropPercent', 'actual', 'reps', 'executedRpe',
+  'dropPercent', 'actual', 'reps', 'executedRpe', 'note',
 ] as const;
 
 export type SetMergeResult =
