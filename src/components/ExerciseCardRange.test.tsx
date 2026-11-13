@@ -236,7 +236,7 @@ describe('set grid range selection', () => {
     // 100 kg on a 60% row → 60% of the implied max → 4 / (100 − 60) = 0.10.
     expect(container.querySelector('[data-testid="set-inol-a"]')!.textContent).toBe('0.10');
     // The lift e1RM falls back to the plan: 100 / 0.60.
-    expect(container.querySelector('[data-testid="lift-side-lift-1"]')!.textContent).toContain('e1RM167');
+    expect(container.querySelector('[data-testid="lift-e1rm-lift-1"]')!.textContent).toBe('167');
   });
 
   it('a locked session takes no range edits', async () => {

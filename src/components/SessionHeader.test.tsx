@@ -48,6 +48,13 @@ describe('SessionHeader', () => {
     expect(props.onEdit).toHaveBeenCalled();
   });
 
+  it('in Both / Log shows logged of planned sets instead (phase 7); no plan → plain count', async () => {
+    await render({ logged: { logged: 4, planned: 14 } });
+    expect(q('session-set-count')!.textContent).toBe('Logged 4 / 14 sets');
+    await render({ setCount: 2, logged: { logged: 2, planned: 0 } });
+    expect(q('session-set-count')!.textContent).toBe('2 sets');
+  });
+
   it('shows the Name as a small subtitle next to the Day, and the day note', async () => {
     await render({ session: { ...session, title: 'Lower + Push' }, dayNote: 'Gym closes at 20:00' });
     expect(q('session-name')!.textContent).toBe('Day 1');

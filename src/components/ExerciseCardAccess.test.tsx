@@ -111,7 +111,9 @@ describe('ExerciseCard coach plan access', () => {
       ]} onUpdateSets={() => undefined} onUpdateMeta={onUpdateMeta}
     />));
     const text = container.textContent ?? '';
-    expect(container.querySelector('[data-testid="lift-set-count-lift-1"]')!.textContent).toBe('1 planned · 0 logged');
+    // Session sheet phase 7: one line under the rows, "Plan … · Logged …".
+    expect(container.querySelector('[data-testid="lift-set-count-lift-1"]')!.textContent).toBe('0 / 1');
+    expect(container.querySelector('[data-testid="lift-plan-summary-lift-1"]')!.textContent).toBe('1 set · NL 5 · 500 kg · 80%');
     expect(text).toContain('Comp·Knee dominant');
     expect(container.querySelector('[data-testid="set-grid-h-pct"]')!.textContent).toBe('Drop %');
     expect(container.querySelector('[data-testid="set-grid-h-planReps"]')!.textContent).toBe('Reps');

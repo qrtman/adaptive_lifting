@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { SetNoteCell, setNoteText } from './SetNote';
+import { formatKg, planSummary } from '../features/plan/liftSummary';
 import { groupPlanRows, removePlanGroup, resizePlanGroup, type PlanGroup, type PlanLane } from '../features/plan/planGroups';
 import { applySetDropPercent, parseDropPercent } from '../services/setPrescription';
 import { trainingInt, trainingNumber } from '../services/numericTraining';
@@ -44,6 +45,7 @@ export function PlanGroupGrid({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const groups = useMemo(() => groupPlanRows(planRows, expanded), [planRows, expanded]);
+  const totals = useMemo(() => planSummary(sets), [sets]);
 
   useEffect(() => {
     if (!enter || groups.length === 0) return;
@@ -172,12 +174,16 @@ export function PlanGroupGrid({
         <tr className="border-b border-[var(--cal-hairline-soft)]">
           <th className={`${th} sheet-th w-12 text-center`}>#</th>
           {FIELDS.map((field) => <th key={field} className={`${th} sheet-th`}>{labels[field]}</th>)}
+          {/* Lift totals (session sheet phase 7): calculated, so grey, on the lift's first row. */}
+          <th className={`${th} sheet-th w-14`} title="Number of lifts: planned reps of this lift">NL</th>
+          <th className={`${th} sheet-th w-24`} title="Planned volume of this lift">Volume</th>
+          <th className={`${th} sheet-th w-14`} title="Average planned intensity of this lift, %1RM">Int</th>
           <th className="w-16 p-0" aria-label="Group actions" />
         </tr>
       </thead>
       <tbody>
         {groups.length === 0 ? (
-          <tr><td colSpan={7} className="sheet-td px-3 py-3 text-[13px] text-[var(--cal-muted)]">No sets programmed.</td></tr>
+          <tr><td colSpan={10} className="sheet-td px-3 py-3 text-[13px] text-[var(--cal-muted)]">No sets programmed.</td></tr>
         ) : null}
         {groups.map((group, row) => {
           const label = group.start === group.end ? `${group.start + 1}` : `${group.start + 1}–${group.end + 1}`;
@@ -217,6 +223,16 @@ export function PlanGroupGrid({
                     step={field === 'kg' ? 2.5 : field === 'intensity' ? 0.5 : 1}
                     grid={bind(row, col)}
                   />
+                </td>
+              ))}
+              {[
+                ['nl', totals.nl > 0 ? String(totals.nl) : ''],
+                ['volume', totals.volume > 0 ? formatKg(totals.volume) : ''],
+                ['int', totals.intensityPct != null ? `${totals.intensityPct}%` : ''],
+              ].map(([key, value]) => (
+                <td key={key} className="sheet-td sheet-td--readonly px-3 text-right tnum text-[12px] text-[var(--cal-muted)] whitespace-nowrap"
+                  data-testid={row === 0 ? `plan-total-${liftId}-${key}` : undefined}>
+                  {row === 0 ? value : ''}
                 </td>
               ))}
               <td className="w-16 whitespace-nowrap px-1 align-middle">
