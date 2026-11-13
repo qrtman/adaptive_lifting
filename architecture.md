@@ -236,7 +236,7 @@ All entities inherit an `updated_at` and `deleted_at` (tombstone) timestamp for 
 | **Workout (Session)** | `id` (String) | `date`, `dayLabel`, `title`, `status`, `athlete_bw`, optional `block_label`, optional `week_label`, `owner_id`, optional `microcycle_id` | First-class dated session in athlete plan space; labels assignable anytime |
 | **DayNote** | `id` (String) | `date` (`YYYY-MM-DD`), `body`, `owner_id` | One note per calendar date in athlete plan space; not a weekday slot and not a Workout. Empty days may have a note. Distinct from set `note`. |
 | **Exercise** | `id` (String) | `title`, `lexo_rank`, `tier` (`Comp` \| `Variation` \| `Accessory`), `lift_category`, `movement_pattern`, `deleted_at` | Belongs to Workout; contains ExerciseSets |
-| **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `deleted_at` | Belongs to Exercise |
+| **ExerciseSet** | `id` (String) | `lexo_rank`, planned/actual weight, reps, RPE, `note`, `deleted_at` | Belongs to Exercise. `note` is a free-text set note; the Plan sync (`Exercise {sets}`) writes it when a set item carries the key and keeps it otherwise (`20261114120000_set_note_plan_sync`). |
 
 Accessory is **not** a sibling of Exercise. An accessory is an `Exercise` with `tier = Accessory`. Comp lifts, variations, and accessories all own individual `ExerciseSet` rows. The legacy `accessories` table is tombstoned after one-time migration and is not part of the canonical API.
 

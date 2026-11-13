@@ -25,6 +25,11 @@ describe('groupPlanRows', () => {
     expect(groupPlanRows(lanes(sets)).every((g) => g.lanes.length === 1)).toBe(true);
   });
 
+  it('keeps a set with a note as its own row (phase 6)', () => {
+    const sets = [set(130, 5, 7), set(130, 5, 7, { note: 'belt' }), set(130, 5, 7), set(130, 5, 7), set(130, 5, 7, { note: '  ' })];
+    expect(groupPlanRows(lanes(sets)).map((g) => [g.start, g.end])).toEqual([[0, 0], [1, 1], [2, 4]]);
+  });
+
   it('splits an expanded group into single rows', () => {
     const sets = [set(130, 5, 7), set(130, 5, 7), set(130, 5, 7)];
     const [group] = groupPlanRows(lanes(sets));

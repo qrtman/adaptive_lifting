@@ -5,7 +5,7 @@ import { trainingInt, trainingNumber } from '../../services/numericTraining';
  *
  * Display layer only: every set stays its own record. Consecutive plan rows merge into one
  * group when kg, reps, intensity (type + value) and drop % are all equal — different kg is
- * never merged. Rows pair the Nth plan record with the Nth log record, so any edit here
+ * never merged, and a set with a note is never merged. Rows pair the Nth plan record with the Nth log record, so any edit here
  * must keep the other rows' plan↔log pairs; `resizePlanGroup` refuses when it would not.
  */
 
@@ -36,11 +36,14 @@ export function samePrescription(a: SetRecord, b: SetRecord): boolean {
   return x.kg === y.kg && x.reps === y.reps && x.type === y.type && x.value === y.value && x.drop === y.drop;
 }
 
+/** A set with a note stays its own row, so the note keeps a visible place (session sheet phase 6). */
+const hasNote = (set: SetRecord) => typeof set.note === 'string' && set.note.trim() !== '';
+
 export function groupPlanRows(planRows: readonly PlanLane[], expanded: ReadonlySet<string> = new Set()): PlanGroup[] {
   const groups: PlanGroup[] = [];
   planRows.forEach((lane, row) => {
     const last = groups.at(-1);
-    if (last && samePrescription(last.lanes[0].set, lane.set)) {
+    if (last && samePrescription(last.lanes[0].set, lane.set) && !hasNote(last.lanes[0].set) && !hasNote(lane.set)) {
       last.lanes.push(lane);
       last.end = row;
     } else {
