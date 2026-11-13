@@ -59,7 +59,7 @@ export const AccessoryLedger = ({
         data-testid="accessory-ledger-toggle"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="mx-2 mb-1 mt-2 flex min-h-8 w-[calc(100%-1rem)] items-center justify-between gap-3 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+        className="mb-1 mt-4 flex min-h-8 w-full items-center justify-between gap-3 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-[var(--cal-muted)]">

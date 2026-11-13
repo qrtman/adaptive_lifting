@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Plus } from 'lucide-react';
 import { filterCatalog, type CatalogExercise } from '../services/exerciseCatalog';
 import { catalogLiftPayload, type NewLiftPayload } from '../features/plan/liftCopy';
@@ -12,7 +12,10 @@ export function InlineAddLift({
   disabledReason,
   onAdd,
   onFocusLift,
+  trailing,
 }: {
+  /** Shown at the end of the row (the "Browse lifts…" catalog dialog). */
+  trailing?: ReactNode;
   /** Set when adding is not possible right now (offline, no rights); shown in the field. */
   disabledReason?: string | null;
   /** Adds the lift; resolves to its id (null when it failed). */
@@ -65,8 +68,8 @@ export function InlineAddLift({
   };
 
   return (
-    <div className="relative mx-2 mt-1" data-testid="inline-add-lift">
-      <div className="flex h-10 items-center gap-2 rounded-[var(--cal-radius-md)] border border-dashed border-[var(--cal-hairline)] px-3 focus-within:border-[var(--cal-accent)]">
+    <div className="relative" data-testid="inline-add-lift">
+      <div className="flex h-10 items-center gap-2 border-t border-[var(--cal-hairline)] px-3 focus-within:bg-[color-mix(in_srgb,var(--cal-accent)_4%,transparent)]">
         <Plus size={14} aria-hidden="true" className="shrink-0 text-[var(--cal-muted)]" />
         <input
           role="combobox"
@@ -84,10 +87,11 @@ export function InlineAddLift({
           className="h-full min-w-0 flex-1 bg-transparent text-sm text-[var(--cal-ink)] outline-none placeholder:text-[var(--cal-muted)] disabled:cursor-not-allowed"
         />
         {busy ? <span className="text-[12px] text-[var(--cal-muted)]">Adding…</span> : null}
+        {trailing}
       </div>
       {options.length > 0 ? (
         <div id={listId} role="listbox" aria-label="Lifts" data-testid="inline-add-lift-options"
-          className="absolute left-0 top-11 z-30 flex w-[min(24rem,100%)] flex-col rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] p-1 shadow-[var(--cal-shadow-lift)]">
+          className="absolute left-0 top-10 z-30 flex w-[min(24rem,100%)] flex-col rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] p-1 shadow-[var(--cal-shadow-lift)]">
           {options.map((option, index) => (
             <button
               key={'custom' in option ? `custom-${option.name}` : option.name}
