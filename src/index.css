@@ -469,6 +469,165 @@
 .lift-note:empty {
   display: none;
 }
+/* Session sheet polish pass 2 (mockup v2): fixed column widths, so every lift lines up. */
+.sheet-grid.sheet-grid--fixed {
+  table-layout: fixed;
+}
+/* Row tools: a 24px status column (logged ✓); the tools open over the metric cells on hover/focus. */
+.sheet-grid td.sheet-tools {
+  overflow: visible;
+}
+.sheet-tools__bar {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem;
+  border-radius: var(--cal-radius-md);
+  background: var(--cal-surface-elevated);
+  box-shadow: var(--cal-shadow-soft, 0 1px 2px rgb(0 0 0 / 0.08));
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.sheet-grid tr:hover .sheet-tools__bar,
+.sheet-grid tr:focus-within .sheet-tools__bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sheet-grid tr:hover .sheet-tools__bar button,
+.sheet-grid tr:focus-within .sheet-tools__bar button {
+  opacity: 1;
+}
+
+/* One column header for the session; only on wide screens, where names take the first column. */
+.session-sheet {
+  container-type: inline-size;
+  container-name: sheet;
+}
+.sheet-head {
+  display: none;
+}
+@container sheet (min-width: 900px) {
+  .sheet-head {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--cal-hairline);
+    font-size: 11px;
+    color: var(--cal-muted-soft);
+    letter-spacing: 0.02em;
+  }
+  .sheet-head__name {
+    flex-shrink: 0;
+    padding-left: 0.375rem;
+  }
+  .sheet-head__table {
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  .sheet-head__table th {
+    padding: 0 0.75rem;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .sheet-head__table th.text-center {
+    padding: 0;
+  }
+}
+
+/* Wide lift (polish pass 2): the name in its own first column, beside the rows; the table
+   drops its own header (the session header above serves every lift). */
+@container (min-width: 900px) {
+  .lift-layout--open {
+    grid-template-columns: 140px minmax(0, 1fr);
+    grid-template-areas: "head main" "side side";
+    column-gap: 0.5rem;
+  }
+  /* Name column: chevron + name, then type · pattern, then the tools (on hover) in one line. */
+  .lift-layout--open .lift-head {
+    grid-area: head;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+    gap: 0 0.125rem;
+    min-width: 0;
+    padding: 0.375rem 0 0.25rem;
+  }
+  .lift-layout--open .lift-head__main {
+    display: contents;
+  }
+  .lift-layout--open .lift-head__title {
+    flex: 1 1 calc(100% - 2rem);
+    min-width: 0;
+    font-size: 15px;
+  }
+  .lift-layout--open .lift-head__meta {
+    order: 3;
+    display: block;
+    flex-basis: 100%;
+    overflow: hidden;
+    padding-left: 1.875rem;
+    font-size: 12px;
+    color: var(--cal-muted-soft);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lift-layout--open .lift-head__meta > span {
+    display: inline;
+  }
+  .lift-layout--open .lift-head__meta > span[aria-hidden="true"] {
+    margin: 0 0.25rem;
+  }
+  /* The name opens Edit lift and ⋯ has Swap lift…, so the Edit button is not repeated here. */
+  .lift-layout--open .lift-head__edit {
+    display: none;
+  }
+  .lift-layout--open .lift-head__tools {
+    order: 5;
+  }
+  /* Grip, Edit and the tools show under the name on hover / focus. */
+  .lift-layout--open .lift-head__main [data-role="grip"],
+  .lift-layout--open .lift-head__edit {
+    order: 4;
+  }
+  .lift-layout--open .lift-head__main [data-role="grip"],
+  .lift-layout--open .lift-head__edit,
+  .lift-layout--open .lift-head__tools {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .lift-card:hover .lift-layout--open .lift-head__main [data-role="grip"],
+  .lift-card:hover .lift-layout--open .lift-head__edit,
+  .lift-card:hover .lift-layout--open .lift-head__tools,
+  .lift-card:focus-within .lift-layout--open .lift-head__main [data-role="grip"],
+  .lift-card:focus-within .lift-layout--open .lift-head__edit,
+  .lift-card:focus-within .lift-layout--open .lift-head__tools {
+    opacity: 1;
+  }
+  .lift-layout--open .lift-head__tools {
+    gap: 0.125rem;
+  }
+  .lift-layout--open .lift-head__main [data-role="grip"] {
+    margin-left: 1.5rem;
+  }
+  .lift-layout--open .lift-main {
+    grid-area: main;
+    padding: 0.25rem 0 0;
+  }
+  .lift-layout--open .lift-side {
+    grid-area: side;
+    padding-left: 0.375rem;
+  }
+  .lift-layout--open .sheet-grid thead {
+    display: none;
+  }
+}
 /* "Add set" strip: a full-width empty next row under Plan and Log. */
 .sheet-add-row {
   display: flex;

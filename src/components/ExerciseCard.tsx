@@ -4,6 +4,8 @@ import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
 import { SetNoteCell, setNoteText } from './SetNote';
+import { SheetColGroup } from './SheetColumns';
+import { sheetColumns, sheetWidth } from '../features/plan/sheetColumns';
 import { logSummary, logSummaryText, planSummary, planSummaryText } from '../features/plan/liftSummary';
 import { GRID_ENTER_EVENT, handOffGrid, type GridEnterDetail } from '../services/sessionGridNav';
 import { PrescriptionEditor } from './PrescriptionEditor';
@@ -990,6 +992,7 @@ export const ExerciseCard = ({
               onPointerDown={(event) => dragControls.start(event)}
               className={`${headerIcon} cursor-grab touch-none active:cursor-grabbing disabled:cursor-not-allowed`}
               title="Drag to reorder lift"
+              data-role="grip"
             >
               <GripVertical size={15} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -1012,7 +1015,7 @@ export const ExerciseCard = ({
             {minimized ? <ChevronRight size={15} strokeWidth={2} /> : <ChevronDown size={15} strokeWidth={2} />}
           </button>
           <h4
-            className="text-base leading-6 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
+            className="lift-head__title text-base leading-6 font-semibold tracking-tight text-[var(--cal-ink)] truncate"
             data-testid={`exercise-title-${id}`}
           >
             {onUpdateMeta && !locked ? (
@@ -1031,7 +1034,7 @@ export const ExerciseCard = ({
             id={minimized ? `lift-grid-${id}` : undefined}
             data-testid={minimized ? `lift-minimized-${id}` : `lift-meta-${id}`}
             aria-label="Lift summary"
-            className="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-[var(--cal-muted)]"
+            className="lift-head__meta flex min-w-0 items-center gap-1.5 truncate text-[13px] text-[var(--cal-muted)]"
           >
             <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
             <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
@@ -1044,7 +1047,7 @@ export const ExerciseCard = ({
               aria-label={`Edit ${variation}`}
               disabled={locked}
               onClick={() => setEditOpen(true)}
-              className={headerButton}
+              className={`lift-head__edit ${headerButton}`}
             >
               <Pencil size={13} aria-hidden="true" />
               Edit
@@ -1162,6 +1165,22 @@ export const ExerciseCard = ({
       {!minimized ? (
       <>
       <div className="lift-main flex min-w-0 max-w-full flex-col gap-3">
+      {/* Plan suggestion for the selected row (was in the Plan header band; the header hides on wide screens). */}
+      {view !== 'plan' && selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
+        <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-[var(--cal-muted)]" data-testid={`plan-suggestion-${id}`}>
+          <span className="text-[var(--cal-muted-soft)]">Set {selectedPlanNumber}</span>
+          <span>{selectedPlanEntry.set.plannedWeight ?? '—'} → <span data-testid="plan-suggestion-value">{selectedPlanOffer}</span> kg</span>
+          <button
+            type="button"
+            data-testid="plan-suggest"
+            onClick={() => updateSet(selectedPlanEntry.index, { plannedWeight: selectedPlanOffer, isAuto: false })}
+            disabled={locked || !canEditPlan}
+            className="cal-dock-btn cal-dock-btn--main focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
+          >
+            Use
+          </button>
+        </p>
+      ) : null}
       <div id={`lift-grid-${id}`} ref={gridWrapRef} data-lift-grid-host={id} className="relative min-w-0 max-w-full overflow-x-auto">
       {view === 'plan' ? (
         <>
@@ -1194,30 +1213,15 @@ export const ExerciseCard = ({
         data-testid="set-grid"
         onMouseDown={onGridMouseDown}
         onMouseOver={onGridMouseOver}
-        className={`sheet-grid text-left w-max max-w-full ${dragging ? 'sheet-grid--dragging' : ''} ${view === 'log' ? 'sheet-grid--log-only' : ''}`}
+        className={`sheet-grid sheet-grid--fixed text-left ${dragging ? 'sheet-grid--dragging' : ''} ${view === 'log' ? 'sheet-grid--log-only' : ''}`}
+        style={{ width: sheetWidth(sheetColumns(view)) }}
       >
+        <SheetColGroup columns={sheetColumns(view)} />
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${thMetric} sheet-th w-10 px-2 align-bottom`} data-testid="set-grid-h-num">#</th>
             <th colSpan={4} className={`${th} sheet-th sheet-th--group plan-col`} data-testid="set-grid-h-plan">
-              <div className="relative flex min-h-5 items-center justify-start">
-                <span>Plan</span>
-                {selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
-                  <span className="absolute right-0 inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-[var(--cal-muted)]">
-                    <span className="text-[var(--cal-muted-soft)]">Set {selectedPlanNumber}</span>
-                    <span>{selectedPlanEntry.set.plannedWeight ?? '—'} → <span data-testid="plan-suggestion-value">{selectedPlanOffer}</span> kg</span>
-                    <button
-                      type="button"
-                      data-testid="plan-suggest"
-                      onClick={() => updateSet(selectedPlanEntry.index, { plannedWeight: selectedPlanOffer, isAuto: false })}
-                      disabled={locked || !canEditPlan}
-                      className="cal-dock-btn cal-dock-btn--main focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)]"
-                    >
-                      Use
-                    </button>
-                  </span>
-                ) : null}
-              </div>
+              <span>Plan</span>
             </th>
             <th rowSpan={2} className="sheet-gap plan-col" aria-hidden="true" />
             <th colSpan={3} className={`${th} sheet-th sheet-th--group`} data-testid="set-grid-h-log">Log</th>
@@ -1226,7 +1230,7 @@ export const ExerciseCard = ({
             <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-delta">Δ%</th>
             <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-inol">INOL</th>
             {/* Row tools live in a borderless gutter outside the sheet. */}
-            <th rowSpan={2} className="w-[7.5rem] p-0" aria-label="Set actions" data-testid="set-grid-h-copy" />
+            <th rowSpan={2} className="p-0" aria-label="Set actions" data-testid="set-grid-h-copy" />
           </tr>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th className={`${thField} sheet-th w-14 plan-col`} data-testid="set-grid-h-pct">Drop %</th>
@@ -1466,17 +1470,18 @@ export const ExerciseCard = ({
                       ))}
                     </>
                   )}
-                  <td className="relative w-[7.5rem] whitespace-nowrap px-1 align-middle">
+                  <td className="sheet-tools relative whitespace-nowrap p-0 align-middle">
                     {isDone ? (
                       <span
                         data-testid={`set-done-${laneIndex + 1}`}
                         aria-label="Logged"
-                        className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--cal-muted-soft)] group-hover:hidden group-focus-within:hidden [@media(hover:none)]:hidden"
+                        className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[12px] text-[var(--cal-muted-soft)] group-hover:hidden group-focus-within:hidden"
                       >
                         ✓
                       </span>
                     ) : null}
-                    <div className="flex items-center gap-0.5">
+                    {/* Row tools open over the metric cells on hover / focus (no column of their own). */}
+                    <div className="sheet-tools__bar">
                     {hasPlan ? (<>
                     <button
                       type="button"

@@ -16,6 +16,7 @@ import { EditSessionDialog } from './components/EditSessionDialog';
 import { SessionHeader } from './components/SessionHeader';
 import { WeekRail } from './components/WeekRail';
 import { InlineAddLift } from './components/InlineAddLift';
+import { SessionSheetHeader } from './components/SheetColumns';
 import { Lock } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { useAccountAccess } from './contexts/AccessContext';
@@ -538,7 +539,7 @@ export default function App() {
                         if (lift) void copyLift(lift);
                       } catch { /* not ours */ }
                     }}
-                    className={liftDropOver ? 'rounded-[var(--cal-radius-lg)] outline outline-2 outline-dashed outline-[var(--cal-accent)] outline-offset-4' : undefined}
+                    className={`session-sheet ${liftDropOver ? 'rounded-[var(--cal-radius-lg)] outline outline-2 outline-dashed outline-[var(--cal-accent)] outline-offset-4' : ''}`}
                   >
                     {liftDropOver ? (
                       <p data-testid="session-lift-drop-hint" className="mb-2 px-2 text-[12px] text-[var(--cal-accent)]">Drop to copy this lift here, with its Plan sets</p>
@@ -558,7 +559,7 @@ export default function App() {
                       </div>
                     )}
                     {allLiftIds.length >= 2 ? (
-                      <div className="mx-2 mb-1 flex justify-end">
+                      <div className="mb-1 flex justify-end">
                         <button
                           type="button"
                           data-testid="toggle-all-lifts"
@@ -569,6 +570,7 @@ export default function App() {
                         </button>
                       </div>
                     ) : null}
+                    {activeWorkout.exercises.length > 0 ? <SessionSheetHeader view={sessionView} /> : null}
                     <Reorder.Group
                       as="div"
                       axis="y"
