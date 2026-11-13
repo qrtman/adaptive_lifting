@@ -104,12 +104,15 @@ test.describe('production smoke', () => {
     }
   });
 
-  test('mobile 360: sidebar starts collapsed', async ({ browser }) => {
+  test('mobile 360: bottom tab bar instead of the sidebar, no page overflow', async ({ browser }) => {
     const context = await browser.newContext({ baseURL: PROD_ORIGIN, viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
     const page = await context.newPage();
     try {
       await login(page);
-      await expect(page.locator('[data-sidebar]').first()).toHaveAttribute('data-sidebar', 'collapsed');
+      await expect(page.getByTestId('app-sidebar')).toBeHidden();
+      await expect(page.getByTestId('bottom-nav')).toBeVisible();
+      await expect(page.getByTestId('tab-sessions')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     } finally {
       await context.close();
     }
