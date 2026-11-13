@@ -721,3 +721,61 @@
   background: var(--cal-surface-elevated);
   box-shadow: var(--cal-shadow-lift);
 }
+
+/* Portrait phone sets (.cursor/scopes/phone/PLAN.md, M2): when a lift is narrower than 600px,
+   Both / Log show `# · Plan (text) · Log kg · Reps · RPE · ✓`; Plan cells and e1RM / Δ / INOL
+   move into the set sheet (tap the Plan text). Plan view keeps `# · Sets · kg · Reps · Int`. */
+.sheet-grid .plan-brief {
+  display: none;
+}
+@container (max-width: 599px) {
+  .sheet-grid.sheet-grid--fixed {
+    table-layout: auto;
+    width: 100% !important;
+  }
+  .sheet-grid col {
+    width: auto !important;
+  }
+  .sheet-grid td.plan-brief,
+  .sheet-grid th.plan-brief {
+    display: table-cell;
+    width: 38%;
+    padding: 0;
+  }
+  .sheet-grid .plan-col,
+  .sheet-grid .metric-col,
+  .sheet-grid td[data-grid-pos$=":0"],
+  .sheet-grid td[data-grid-pos$=":1"],
+  .sheet-grid td[data-grid-pos$=":2"],
+  .sheet-grid td[data-grid-pos$=":3"] {
+    display: none;
+  }
+  /* Plan view: Drop % and the lift totals live in the summary line / landscape. */
+  .sheet-grid[aria-label="Plan sets"] tr > :nth-child(3),
+  .sheet-grid[aria-label="Plan sets"] tr > :nth-child(7),
+  .sheet-grid[aria-label="Plan sets"] tr > :nth-child(8),
+  .sheet-grid[aria-label="Plan sets"] tr > :nth-child(9) {
+    display: none;
+  }
+  /* Row tools move into the set sheet, so they never cover the cell you type in. */
+  .sheet-tools__bar {
+    display: none;
+  }
+  /* Touch-sized rows and inputs. */
+  .sheet-grid td.sheet-td {
+    height: 2.75rem;
+  }
+  .sheet-grid td.sheet-td input {
+    font-size: 16px;
+  }
+  /* Lift head: name and ⋯ on one line; Edit lives on the name; tools always reachable. */
+  .lift-head__edit {
+    display: none;
+  }
+  .lift-head [data-testid^="lift-menu-"] {
+    opacity: 1;
+  }
+  .lift-head [data-testid^="remove-lift-"] {
+    display: none;
+  }
+}

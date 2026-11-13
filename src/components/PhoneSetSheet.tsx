@@ -46,7 +46,10 @@ export function PhoneSetSheet({
   metrics,
   onSave,
   onClose,
+  actions = [],
 }: {
+  /** Row tools (Copy plan → log, Copy, Delete): on a phone they live here, not over the row. */
+  actions?: Array<{ label: string; testId: string; onClick: () => void; disabled?: boolean; danger?: boolean }>;
   liftTitle: string;
   setNumber: number;
   plan: Record<string, any> | undefined;
@@ -136,6 +139,17 @@ export function PhoneSetSheet({
             </div>
           ))}
         </dl>
+        {actions.length ? (
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <button key={action.testId} type="button" data-testid={action.testId} disabled={action.disabled}
+                onClick={() => { action.onClick(); onClose(); }}
+                className={`h-11 flex-1 whitespace-nowrap rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] px-3 text-[13px] disabled:opacity-40 ${action.danger ? 'text-[var(--cal-error)]' : 'text-[var(--cal-ink)]'}`}>
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {plan && canEditPlan ? (
           <button type="button" data-testid="phone-set-save" onClick={save}
             className="h-12 rounded-[var(--cal-radius-md)] bg-[var(--cal-primary)] text-[15px] font-medium text-[var(--cal-on-primary)]">

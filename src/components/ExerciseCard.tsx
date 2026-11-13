@@ -1,10 +1,11 @@
-import { useState, useEffect, useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Fragment, useState, useEffect, useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus, Pencil, StickyNote } from 'lucide-react';
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
 import { SetNoteCell, setNoteText } from './SetNote';
 import { SheetColGroup } from './SheetColumns';
+import { PhoneSetSheet, planBrief, type PlanPatch } from './PhoneSetSheet';
 import { sheetColumns, sheetWidth } from '../features/plan/sheetColumns';
 import { logSummary, logSummaryText, planSummary, planSummaryText } from '../features/plan/liftSummary';
 import { GRID_ENTER_EVENT, handOffGrid, type GridEnterDetail } from '../services/sessionGridNav';
@@ -264,6 +265,8 @@ export const ExerciseCard = ({
   const [sets, setSets] = useState(() => mapInitialSets(initialSets));
   const [removing, setRemoving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  /** Portrait phone: the row whose set sheet is open, with its metrics at open time. */
+  const [phoneSet, setPhoneSet] = useState<{ lane: number; planIndex: number | null; metrics: { e1rm: string; delta: string; inol: string } } | null>(null);
   const [editTitle, setEditTitle] = useState(title);
   const [editVariation, setEditVariation] = useState(variation);
   const [editTier, setEditTier] = useState<'Comp' | 'Variation' | 'Accessory'>(tier ?? 'Accessory');
@@ -1220,15 +1223,16 @@ export const ExerciseCard = ({
         <thead>
           <tr className="border-b border-[var(--cal-hairline-soft)]">
             <th rowSpan={2} className={`${thMetric} sheet-th w-10 px-2 align-bottom`} data-testid="set-grid-h-num">#</th>
+            <th rowSpan={2} className={`${th} sheet-th plan-brief align-bottom`}>Plan</th>
             <th colSpan={4} className={`${th} sheet-th sheet-th--group plan-col`} data-testid="set-grid-h-plan">
               <span>Plan</span>
             </th>
             <th rowSpan={2} className="sheet-gap plan-col" aria-hidden="true" />
             <th colSpan={3} className={`${th} sheet-th sheet-th--group`} data-testid="set-grid-h-log">Log</th>
-            <th rowSpan={2} className="sheet-gap" aria-hidden="true" />
-            <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-e1rm">e1RM</th>
-            <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-delta">Δ%</th>
-            <th rowSpan={2} className={`${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-inol">INOL</th>
+            <th rowSpan={2} className="sheet-gap metric-col" aria-hidden="true" />
+            <th rowSpan={2} className={`metric-col ${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-e1rm">e1RM</th>
+            <th rowSpan={2} className={`metric-col ${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-delta">Δ%</th>
+            <th rowSpan={2} className={`metric-col ${thMetric} sheet-th w-14 align-bottom`} data-testid="set-grid-h-inol">INOL</th>
             {/* Row tools live in a borderless gutter outside the sheet. */}
             <th rowSpan={2} className="p-0" aria-label="Set actions" data-testid="set-grid-h-copy" />
           </tr>
@@ -1311,11 +1315,29 @@ export const ExerciseCard = ({
                   testId={`set-note-${id}-${laneIndex + 1}`}
                 />
               );
+              // Portrait phones only (CSS): the Plan as text; tap for the set sheet (edit Plan, e1RM / Δ / INOL).
+              const planBriefCell = (
+                <td className="sheet-td plan-brief">
+                  <button
+                    type="button"
+                    data-testid={`plan-brief-${id}-${laneIndex + 1}`}
+                    onClick={() => setPhoneSet({
+                      lane: laneIndex,
+                      planIndex: planEntry ? planIndex : null,
+                      metrics: { e1rm: e1RM > 0 ? String(Math.round(e1RM)) : '—', delta: e1rmDelta || '—', inol: inol > 0 ? inol.toFixed(2) : '—' },
+                    })}
+                    className="h-full min-h-11 w-full px-2 text-left tnum text-[13px] text-[var(--cal-muted)]"
+                  >
+                    {planEntry ? planBrief(planSet) : '—'}
+                  </button>
+                </td>
+              );
 
               return (
                 <tr key={`${planEntry?.set.id ?? logEntry?.set.id ?? laneIndex}-${laneIndex}`} className={`group ${rowHighlight}`} data-current-set={isCurrent ? 'true' : undefined}>
                   {hasPlan ? (<>
                   <td className={`${td} sheet-td sheet-td--num w-10 px-1 tnum text-[12px] text-[var(--cal-muted-soft)] text-center ${set.isTop ? 'sheet-td--top' : ''}`} title={set.isTop ? 'Top set' : undefined}>{setNumber}</td>
+                  {planBriefCell}
                   <td data-grid-pos={`${laneIndex}:0`} className={`${td} sheet-td`}>
                     {laneIndex === 0 ? (
                       locked ? (
@@ -1376,7 +1398,7 @@ export const ExerciseCard = ({
                   </>) : (
                     <>
                       {Array.from({ length: 5 }).map((_, cell) => (cell === 0
-                        ? <td key="noplan-0" className="sheet-td sheet-td--num h-9 w-10 px-1 text-center tnum text-[12px] text-[var(--cal-muted-soft)]" aria-label="No plan set">{setNumber}</td>
+                        ? <Fragment key="noplan-0"><td className="sheet-td sheet-td--num h-9 w-10 px-1 text-center tnum text-[12px] text-[var(--cal-muted-soft)]" aria-label="No plan set">{setNumber}</td>{planBriefCell}</Fragment>
                         : <td key={`noplan-${cell}`} data-grid-pos={`${laneIndex}:${cell - 1}`} className="sheet-td sheet-td--readonly h-9" />
                       ))}
                     </>
@@ -1442,16 +1464,16 @@ export const ExerciseCard = ({
                       />
                     )}
                   </td>
-                  <td className="sheet-gap" aria-hidden="true" />
-                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px]`} data-testid={`set-metrics-${set.id}`}>
+                  <td className="sheet-gap metric-col" aria-hidden="true" />
+                  <td className={`metric-col ${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px]`} data-testid={`set-metrics-${set.id}`}>
                     <span data-testid={`set-e1rm-${set.id}`} className={e1RM > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}>
                       {e1RM > 0 ? Math.round(e1RM) : '—'}
                     </span>
                   </td>
-                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px] ${deltaTone === 'under' ? 'font-medium text-[var(--cal-warning,var(--cal-muted))]' : deltaTone === 'over' ? 'font-medium text-[var(--cal-success)]' : 'text-[var(--cal-muted-soft)]'}`} data-testid={`set-e1rm-delta-${set.id}`} data-tone={deltaTone}>
+                  <td className={`metric-col ${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px] ${deltaTone === 'under' ? 'font-medium text-[var(--cal-warning,var(--cal-muted))]' : deltaTone === 'over' ? 'font-medium text-[var(--cal-success)]' : 'text-[var(--cal-muted-soft)]'}`} data-testid={`set-e1rm-delta-${set.id}`} data-tone={deltaTone}>
                     {e1rmDelta}
                   </td>
-                  <td className={`${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px]`}>
+                  <td className={`metric-col ${td} sheet-td sheet-td--readonly w-16 px-3 text-right tnum text-[13px]`}>
                     <span
                       data-testid={`set-inol-${set.id}`}
                       className={inol > 0 ? 'text-[var(--cal-muted)]' : 'text-[var(--cal-muted-soft)]'}
@@ -1463,8 +1485,8 @@ export const ExerciseCard = ({
                     <>
                       {/* No log set yet: keep the gridlines, cells stay read-only until "Add set" fills this row. */}
                       {Array.from({ length: 7 }).map((_, cell) => (cell === 3
-                        ? <td key="nolog-gap" className="sheet-gap" aria-hidden="true" />
-                        : <td key={`nolog-${cell}`} data-grid-pos={cell < 3 ? `${laneIndex}:${cell + 4}` : undefined} className="sheet-td sheet-td--readonly h-9 px-3 text-right tnum text-sm text-[color-mix(in_srgb,var(--cal-muted-soft)_50%,transparent)]" aria-label={cell === 0 ? 'No log set' : undefined}>
+                        ? <td key="nolog-gap" className="sheet-gap metric-col" aria-hidden="true" />
+                        : <td key={`nolog-${cell}`} data-grid-pos={cell < 3 ? `${laneIndex}:${cell + 4}` : undefined} className={`${cell > 3 ? 'metric-col ' : ''}sheet-td sheet-td--readonly h-9 px-3 text-right tnum text-sm text-[color-mix(in_srgb,var(--cal-muted-soft)_50%,transparent)]`} aria-label={cell === 0 ? 'No log set' : undefined}>
                             {cell < 3 && !locked ? [ghostKg, ghostReps, ghostRpe][cell] : null}
                           </td>
                       ))}
@@ -1703,6 +1725,32 @@ export const ExerciseCard = ({
       </>
       ) : null}
       </div>
+      {phoneSet ? (
+        <PhoneSetSheet
+          liftTitle={variation}
+          setNumber={phoneSet.lane + 1}
+          plan={phoneSet.planIndex != null ? sets[phoneSet.planIndex] : undefined}
+          canEditPlan={canEditPlan && !locked}
+          showDrop={phoneSet.planIndex != null && phoneSet.lane > 0}
+          metrics={phoneSet.metrics}
+          actions={[
+            ...(phoneSet.planIndex != null ? [
+              { label: 'Plan → Log', testId: 'phone-set-copy-to-log', disabled: locked, onClick: () => syncTarget(phoneSet.planIndex!, phoneSet.lane) },
+              { label: 'Copy set', testId: 'phone-set-duplicate', disabled: locked || !canEditPlan, onClick: () => duplicateSet(phoneSet.planIndex!, 'plan') },
+            ] : []),
+            { label: 'Delete set', testId: 'phone-set-delete', danger: true, disabled: locked || (phoneSet.planIndex != null && !canEditPlan), onClick: () => deleteRow(phoneSet.lane) },
+          ]}
+          onClose={() => setPhoneSet(null)}
+          onSave={(patch: PlanPatch) => {
+            const index = phoneSet.planIndex;
+            if (index == null || locked || !canEditPlan) return;
+            const { dropPercent, ...rest } = patch;
+            let next = sets.map((row, i) => (i === index ? { ...row, ...rest } : row));
+            if (dropPercent !== undefined && index > 0) next = applySetDropPercent(next, index, dropPercent);
+            updateAndPropagate(next);
+          }}
+        />
+      ) : null}
       {editOpen && onUpdateMeta && (
         <CenteredDialog
           title={`Edit lift · ${title}`}
