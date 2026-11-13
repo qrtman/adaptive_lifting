@@ -1,6 +1,20 @@
 # Production status
 
-## First automated deploy: sync, Copy plan → log, coach own plan — 2026-11-12 (CURRENT)
+## Session sheet phases 1–5 + coach fixes — 2026-11-12 (CURRENT)
+
+**CONFIRMED: deployed manually** from the owner's machine (owner-approved) because GitHub-hosted runners stopped picking up jobs: `Validate repository` for `9a961c9` and the pending `Deploy production` runs sat in the queue for 40+ minutes with 0 jobs running, while githubstatus.com reported all systems operational.
+
+- Commit `9a961c9` (main after #72–#76), clean worktree, `npm ci`, `npm run build:production` (PASS incl. staging/private-marker scan), cutover config with ref `gadusaizqnshxqcckibq` checked (name, route `app.goatedmethod.me/*`, origin, `workers_dev: false`), Wrangler dry run, deploy. Account `05a07c48f5e8e3afb784e11931502508`.
+- Worker `adaptive-lifting-production` version `32917b40-3b2b-4568-a9b5-e0a089f53108`.
+- No migrations or Edge function changes since the last deploy (`bd1a873`), so only the Worker was deployed.
+- Smoke: `/` 200, `/api/health` 200, `/api/auth/me` 401. The live bundle contains the week rail, inline add-lift, lift menu, Plan view grid and cross-lift keyboard hosts.
+- Temporary `wrangler.production.local.jsonc` removed with the worktree.
+
+What shipped: week rail + Day-first header (#72); set grid hierarchy, Plan targets in Log, Ctrl/Cmd+Enter accept (#73); coach pick and open session survive a reload (#74); Plan · Both · Log view with grouped sets (#75); keyboard across lifts and inline lift actions (#76).
+
+PENDING: when GitHub runners recover, the queued `Deploy production` runs (for `2929288` and `9a961c9`) will ask for approval; they would redeploy the same or older code — reject them (or approve the `9a961c9` one, which is identical to what is live).
+
+## First automated deploy: sync, Copy plan → log, coach own plan — 2026-11-12
 
 **CONFIRMED: deployed** by the new **Deploy production** workflow (#70), run `43079219576` attempt 2, owner-approved on the `production` environment. Commit `bd1a873` (main after #63–#70).
 
