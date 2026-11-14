@@ -992,6 +992,22 @@ export const ExerciseCard = ({
     return stats;
   };
 
+  // Portrait phone second line: "Comp · 85% · e1RM 223". Accessories sit under their own label,
+  // so they skip the tier; the movement shows on an open lift (always for accessories). Empty values
+  // ("Misc", no e1RM) are left out. A lift planned only in its note shows the note.
+  const phoneSubLine = () => {
+    const isAccessory = tier === 'Accessory';
+    const movement = movementPattern && movementPattern !== 'Misc' ? sentenceCaseLabel(movementPattern) : null;
+    const parts: ReactNode[] = [];
+    if (tier && !isAccessory) parts.push(tier);
+    if (movement && (isAccessory || !minimized)) parts.push(movement);
+    if (intensityPct != null && plannedCount > 0) parts.push(<span className="text-[var(--cal-ink)]">{intensityPct}%</span>);
+    if (baselineE1rm && plannedCount > 0) parts.push(<>e1RM <span className="text-[var(--cal-ink)]">{baselineE1rm}</span></>);
+    const note = liftNote?.trim();
+    if (plannedCount === 0 && note && minimized) parts.push(note);
+    return parts.map((part, index) => <Fragment key={index}>{index > 0 ? ' · ' : null}{part}</Fragment>);
+  };
+
   // Open card (session sheet phase 7): one muted line under the rows, "Plan … · Logged …".
   // Plan view shows these totals as grid columns instead.
   const planSum = planSummary(sets);
@@ -1061,9 +1077,13 @@ export const ExerciseCard = ({
             aria-label="Lift summary"
             className="lift-head__meta flex min-w-0 items-center gap-1.5 truncate text-[13px] text-[var(--cal-muted)]"
           >
-            <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
-            <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
-            <span className="truncate whitespace-nowrap">{movementPattern ? sentenceCaseLabel(movementPattern) : liftCategory}</span>
+            <span className="lift-head__desk contents">
+              <span className="truncate whitespace-nowrap">{tier ?? 'Lift'}</span>
+              <span aria-hidden="true" className="text-[var(--cal-muted-soft)]">·</span>
+              <span className="truncate whitespace-nowrap">{movementPattern ? sentenceCaseLabel(movementPattern) : liftCategory}</span>
+            </span>
+            {/* Portrait phones (index.css): one quiet line, empty values left out. */}
+            <span className="lift-head__sub truncate whitespace-nowrap" data-testid={`lift-sub-${id}`}>{phoneSubLine()}</span>
           </div>
           {onUpdateMeta ? (
             <button
@@ -1080,33 +1100,19 @@ export const ExerciseCard = ({
           ) : null}
         </div>
         <div className="lift-head__tools flex items-center gap-4 shrink-0 text-[13px] text-[var(--cal-muted)]">
-          {minimized ? <>{liftStats()}</> : null}
-          {onMoveUp && (
-            <button
-              type="button"
-              data-testid={`move-lift-up-${id}`}
-              aria-label={`Move ${variation} up`}
-              disabled={locked}
-              onClick={() => void onMoveUp()}
-              className={headerButton}
-            >
-              Up
-            </button>
-          )}
-          {onMoveDown && (
-            <button
-              type="button"
-              data-testid={`move-lift-down-${id}`}
-              aria-label={`Move ${variation} down`}
-              disabled={locked}
-              onClick={() => void onMoveDown()}
-              className={headerButton}
-            >
-              Down
-            </button>
-          )}
-          {onUpdateMeta || onDuplicate || onRemove ? (
-            <div ref={menuRef} className="relative">
+          {minimized ? <span className="lift-head__stats contents">{liftStats()}</span> : null}
+          {/* Portrait phones (index.css): "1/3 sets" on the right, green when every planned set is logged. */}
+          <span
+            className="lift-head__count tnum"
+            data-testid={`lift-count-${id}`}
+            data-done={logSum.planned > 0 && logSum.logged >= logSum.planned ? 'true' : undefined}
+            title={`${logSum.logged} logged of ${logSum.planned} planned`}
+          >
+            {logSum.planned > 0 ? `${logSum.logged}/${logSum.planned}` : logSum.logged}
+            <small>{logSum.planned === 1 || (logSum.planned === 0 && logSum.logged === 1) ? 'set' : 'sets'}</small>
+          </span>
+          {onUpdateMeta || onDuplicate || onRemove || onMoveUp || onMoveDown ? (
+            <div ref={menuRef} className="lift-head__menu relative">
               <button
                 type="button"
                 data-testid={`lift-menu-${id}`}
@@ -1122,6 +1128,22 @@ export const ExerciseCard = ({
               {menuOpen ? (
                 <div role="menu" aria-label={`Actions for ${variation}`} data-testid={`lift-menu-list-${id}`}
                   className="absolute right-0 top-8 z-30 flex w-48 flex-col rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-surface-elevated)] p-1 shadow-[var(--cal-shadow-lift)]">
+                  {/* Reorder without the drag grip (phones hide it). */}
+                  {onMoveUp || onMoveDown ? (<>
+                    <button type="button" role="menuitem" data-testid={`move-lift-up-${id}`}
+                      disabled={!onMoveUp}
+                      onClick={() => { setMenuOpen(false); void onMoveUp?.(); }}
+                      className="h-8 rounded-[var(--cal-radius-md)] px-2.5 text-left text-[13px] text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] disabled:opacity-40">
+                      Move up
+                    </button>
+                    <button type="button" role="menuitem" data-testid={`move-lift-down-${id}`}
+                      disabled={!onMoveDown}
+                      onClick={() => { setMenuOpen(false); void onMoveDown?.(); }}
+                      className="h-8 rounded-[var(--cal-radius-md)] px-2.5 text-left text-[13px] text-[var(--cal-ink)] hover:bg-[var(--cal-surface-soft)] disabled:opacity-40">
+                      Move down
+                    </button>
+                    <div className="my-1 h-px bg-[var(--cal-hairline)]" aria-hidden="true" />
+                  </>) : null}
                   {onDuplicate ? (
                     <button type="button" role="menuitem" data-testid={`lift-duplicate-${id}`}
                       disabled={Boolean(duplicateDisabledReason)} title={duplicateDisabledReason}
@@ -1420,16 +1442,17 @@ export const ExerciseCard = ({
                 />
               );
               // Portrait phones only (CSS): the Plan as text; tap for the set sheet (edit Plan, e1RM / Δ / INOL).
+              const openSetSheet = () => setPhoneSet({
+                lane: laneIndex,
+                planIndex: planEntry ? planIndex : null,
+                metrics: { e1rm: e1RM > 0 ? String(Math.round(e1RM)) : '—', delta: e1rmDelta || '—', inol: inol > 0 ? inol.toFixed(2) : '—' },
+              });
               const planBriefCell = (
                 <td className="sheet-td plan-brief">
                   <button
                     type="button"
                     data-testid={`plan-brief-${id}-${laneIndex + 1}`}
-                    onClick={() => setPhoneSet({
-                      lane: laneIndex,
-                      planIndex: planEntry ? planIndex : null,
-                      metrics: { e1rm: e1RM > 0 ? String(Math.round(e1RM)) : '—', delta: e1rmDelta || '—', inol: inol > 0 ? inol.toFixed(2) : '—' },
-                    })}
+                    onClick={openSetSheet}
                     className="h-full min-h-11 w-full px-2 text-left tnum text-[13px] text-[var(--cal-muted)]"
                   >
                     {planEntry ? planBrief(planSet) : '—'}
@@ -1597,11 +1620,22 @@ export const ExerciseCard = ({
                     </>
                   )}
                   <td className="sheet-tools relative whitespace-nowrap p-0 align-middle">
+                    {/* Portrait phones (index.css): the row's ✓ opens the set sheet (Plan, e1RM / Δ / INOL, row actions). */}
+                    <button
+                      type="button"
+                      data-testid={`set-open-${id}-${laneIndex + 1}`}
+                      data-done={isDone ? 'true' : undefined}
+                      aria-label={`Set ${laneIndex + 1} details`}
+                      onClick={openSetSheet}
+                      className="sheet-tools__phone"
+                    >
+                      ✓
+                    </button>
                     {isDone ? (
                       <span
                         data-testid={`set-done-${laneIndex + 1}`}
                         aria-label="Logged"
-                        className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[12px] text-[var(--cal-muted-soft)] group-hover:hidden group-focus-within:hidden"
+                        className="sheet-tools__done pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[12px] text-[var(--cal-muted-soft)] group-hover:hidden group-focus-within:hidden"
                       >
                         ✓
                       </span>

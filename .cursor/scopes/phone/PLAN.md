@@ -32,6 +32,12 @@ Shipped: Plan text column (tap → set sheet with Plan edit, e1RM / Δ / INOL, P
 - Touch targets are at least 44px.
 - Done (not merged): lifts start minimized below 768px. Lifts opened during the visit stay open until reload (not saved). Desktop and landscape keep lifts open by default.
 - Done (not merged): the lift expand/minimize toggle is a 44px target (lift narrower than 600px). Tapping a minimized lift's row (not a button) opens it.
+- Done (not merged), readability pass (lift narrower than 600px unless noted):
+  - The lift head is two lines. Line 1: name (bold), `n/m sets` (green when every planned set is logged), then the arrow (minimized) or ⋯ (open; down arrow on the left). Line 2 is one quiet line: tier · movement · Int % · e1RM. Accessories skip the tier; empty values are left out; a lift planned only in its note shows the note there.
+  - The drag grip is hidden on phones. Main lifts have Move up / Move down in the lift ⋯ menu (all widths); the header Up/Down buttons are gone.
+  - A minimized phone row shows no NL or volume (the open lift's totals line keeps them).
+  - Log view on phone hides the Plan text column: only kg, Reps and RPE, with the Plan shown faintly in empty cells. Each set's ✓ (green once logged) opens the set sheet. In Both, the Plan text no longer wraps.
+  - Accessories header (all widths) reads `Logged n / m` (or `Logged n sets` with no Plan), replacing `3 lifts · 7 plan sets · 0 logged`.
 - The active row stays visible above the keyboard.
 - The Sheets keyboard and range selection stay desktop-only.
 

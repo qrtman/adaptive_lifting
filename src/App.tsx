@@ -565,7 +565,15 @@ export default function App() {
                       values={orderedMainExercises.map((exercise) => exercise.id)}
                       onReorder={(next) => { if (coachCanProgram && !sessionLocked) void handleReorderLifts(next); }}
                     >
-                    {orderedMainExercises.map((ex) => {
+                    {orderedMainExercises.map((ex, index) => {
+                      const canMove = coachCanProgram && !sessionLocked;
+                      const ids = orderedMainExercises.map((exercise) => exercise.id);
+                      const moveTo = (target: number) => {
+                        const next = ids.slice();
+                        next.splice(index, 1);
+                        next.splice(target, 0, ex.id);
+                        return handleReorderLifts(next);
+                      };
                       return (
                       <SortableExerciseCard
                         key={ex.id}
@@ -591,6 +599,8 @@ export default function App() {
                         onUpdateSets={(updatedSets) => updateExerciseSets(ex.id, updatedSets)}
                         onUpdateMeta={coachCanProgram ? (patch) => handleUpdateLift(ex.id, patch) : undefined}
                         onRemove={coachCanProgram ? () => handleRemoveLift(ex.id) : undefined}
+                        onMoveUp={canMove && index > 0 ? () => moveTo(index - 1) : undefined}
+                        onMoveDown={canMove && index < ids.length - 1 ? () => moveTo(index + 1) : undefined}
                       />
                     );
                     })}

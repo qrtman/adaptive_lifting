@@ -15,7 +15,10 @@ Plan and phases: `.cursor/scopes/session-sheet/PLAN.md`. Ship phases in order. E
 | Rail rows | One line per lift: name + scheme. Same list layout in every mode (Plan, Log, Both). Never a comma-joined line. Lift names high contrast. |
 | Session header | **Day** (`Day N`) is the large line. Name is optional and appears as a small muted subtitle. Date · Week · Block · set count are muted meta. Replaces session-console "Name is the only large line". |
 | Session/day summary | **Set count only** (and `Logged x / y sets` in Both). No session or day tonnage, NL, or average intensity. |
-| Lift summary | NL · Volume · Int per lift in the open lift. Minimized lift: `Logged n / m · NL x · y kg` (replaces `x planned · y logged`). No Plan sets: `Logged n sets` plus its note. |
+| Lift summary | NL · Volume · Int per lift in the open lift. Minimized lift on desktop: `Logged n / m · NL x · y kg` (replaces `x planned · y logged`). On a phone (lift under 600px) the minimized row shows no NL or volume. No Plan sets: `Logged n sets` plus its note. |
+| Accessories header | All widths: `Logged n / m`, or `Logged n sets` with no Plan (replaces `3 lifts · 7 plan sets · 0 logged`). |
+| Lift head (phone) | Under 600px, two lines. Line 1: name (bold), `n/m sets` (green when every planned set is logged), then the arrow (minimized) or ⋯ (open; down arrow on the left). Line 2, quiet: tier · movement · Int % · e1RM. Accessories skip the tier; movement shows on an open lift (always for accessories). Empty values are left out; a note-only lift shows its note. Grip hidden on phones. |
+| Log view (phone) | Under 600px: only kg · Reps · RPE, with the Plan faint in empty cells. Each set's ✓ (green once logged) opens the set sheet. In Both the Plan text no longer wraps. |
 | Lift note | Top of the open lift in all views, labelled `Note`. Read-only without edit rights. Free text only: the app shows it and never parses it (no e1RM, %, or suggestions from it). A lift may have a note and no Plan sets. In Log view, `+ Add set` adds a log-only set. |
 | Complete | Removed 2026-11-14 (owner). No Complete session button, no Finished badge, no done dot or `, finished` label on Calendar, no `Done` in Sessions list. Old COMPLETED data still loads; nothing marks a session complete. |
 | Grouping | Merge consecutive plan sets only when reps, intensity, `dropPercent` **and kg** are equal. Different kg: never merge. Label `3 sets`, with faint numbers `2–4`; a single set shows its number only. Display layer only: one record per set stays. |
@@ -23,7 +26,7 @@ Plan and phases: `.cursor/scopes/session-sheet/PLAN.md`. Ship phases in order. E
 | Fewer sets than logged | Set leaves Plan; its log stays as a `scope: 'log'` row. Never delete a log. |
 | Ghost targets | Empty Log cells show the Plan target faintly. Plain Enter does **not** fill. **Ctrl/Cmd+Enter** accepts (copies Plan to that set). |
 | Variation | `LiftVariationPicker` modifiers (Bar / Tempo / ROM / Gear). Never a fixed short list. |
-| Lift menu | `⋯`: Duplicate, Swap lift…, Add note, Delete. Shown on the hovered/focused row only. |
+| Lift menu | `⋯`: Move up / Move down (main lifts), Duplicate, Swap lift…, Add note, Delete. Shown on the hovered/focused row only. |
 | Columns kept | `%` (dropPercent) and INOL stay, even though the mockups omit them. Δ stays as defined until the Δ rethink. |
 | Copy | UI copy is **English**. Translation later. |
 

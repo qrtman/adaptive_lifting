@@ -7,6 +7,12 @@
 - Complete session button and Finished badge removed (owner decision 2026-11-14); Calendar done dot and `, finished` label removed; Sessions list no longer shows `Done`. Old COMPLETED data still loads; nothing new marks a session complete.
 - Minimized lift summary reads `Logged n / m · NL x · y kg` (replaces `x planned · y logged`); a lift with no Plan sets shows `Logged n sets` plus its note.
 - Lift note sits at the top of the open lift in all views, labelled `Note`; read-only without edit rights. Free text only, never parsed. In Log view, `+ Add set` adds a log-only set.
+- Readability pass (phone lift cards, lift narrower than 600px unless noted):
+  - Lift head is two lines: name (bold), `n/m sets` (green when all planned sets are logged), then the arrow (minimized) or ⋯ (open; down arrow on the left). Line 2 is one quiet line: tier · movement · Int % · e1RM. Accessories skip the tier; empty values are left out; a note-only lift shows its note there.
+  - Drag grip hidden on phones. Main lifts have Move up / Move down in the lift ⋯ menu (all widths); the header Up/Down buttons are gone.
+  - A minimized phone row no longer shows NL or volume (the open lift's totals line keeps them).
+  - Log view on phone hides the Plan text column: kg, Reps, RPE only, with the Plan faint in empty cells. Each set's ✓ (green once logged) opens the set sheet. In Both, the Plan text no longer wraps.
+  - Accessories header (all widths) reads `Logged n / m` (or `Logged n sets` with no Plan), replacing `3 lifts · 7 plan sets · 0 logged`.
 
 Verification: tsc clean; vitest 690 passed / 1 skipped. Local Playwright not run (no .venv for the test server).
 
