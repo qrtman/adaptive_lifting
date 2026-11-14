@@ -9,7 +9,7 @@ Owner decisions, 2026-11-14:
 
 ## Phases (one PR each)
 
-### M1 · Shell
+### M1 · Shell — DONE (#82)
 - Below 768px, a bottom tab bar replaces the sidebar: `Calendar · Sessions · Insights · More`. More is a sheet holding the athlete switcher, Roster, Integrations, Security, theme and sign-out.
 - The bar hides while the keyboard is open and in landscape.
 - Session header on phones:
@@ -18,7 +18,8 @@ Owner decisions, 2026-11-14:
   - Complete stays reachable.
 - No horizontal page overflow at 360px.
 
-### M2 · Portrait set table
+### M2 · Portrait set table — DONE
+Shipped: Plan text column (tap → set sheet with Plan edit, e1RM / Δ / INOL, Plan → Log, Copy set, Delete set); row tools never overlay a cell on phones; Plan view hides Drop % and the totals columns. Tap-to-edit and the numeric keyboard (from M3) shipped here too.
 - When the lift list is narrower than about 600px:
   - Both and Log show the narrow table described above;
   - Plan shows `# · Sets · kg · Reps · Int` (Drop % and the totals are in landscape and in the summary line).

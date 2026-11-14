@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { flushSync } from 'react-dom';
 import {
   reduceCellKey,
@@ -189,8 +189,20 @@ export const EditablePerformanceCell = ({
   const handleMouseDown = () => {
     wasSelectedRef.current = isSelected && !grid.inRange;
   };
+  // Touch (phone): one tap edits, so the numeric keyboard opens at once (.cursor/scopes/phone/PLAN.md, M3).
+  const touchRef = useRef(false);
+  const handlePointerDown = (event: PointerEvent) => {
+    touchRef.current = event.pointerType === 'touch' || event.pointerType === 'pen';
+  };
   const handleClick = (event: MouseEvent) => {
     if (event.shiftKey) return;
+    if (touchRef.current) {
+      touchRef.current = false;
+      wasSelectedRef.current = null;
+      if (!readOnly) grid.onBeginEdit(grid.row, grid.col, false);
+      else if (!isSelected) grid.onSelect(grid.row, grid.col);
+      return;
+    }
     // No mousedown seen (keyboard/synthetic click): judge by the current selection.
     const wasSelected = wasSelectedRef.current ?? isSelected;
     wasSelectedRef.current = null;
@@ -260,6 +272,7 @@ export const EditablePerformanceCell = ({
           {...sharedAttrs}
           tabIndex={grid.tabStop ? 0 : -1}
           onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onKeyDown={handleDisplayKeyDown}
@@ -287,6 +300,7 @@ export const EditablePerformanceCell = ({
           {...sharedAttrs}
           tabIndex={grid.tabStop ? 0 : -1}
           onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onKeyDown={handleDisplayKeyDown}
