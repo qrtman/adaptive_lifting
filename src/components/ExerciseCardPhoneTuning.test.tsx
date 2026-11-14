@@ -88,3 +88,46 @@ describe('Log view Add set', () => {
     expect(last[1].scope).toBe('log');
   });
 });
+
+describe('phone lift row (readability pass)', () => {
+  it('shows "1/3 sets" and turns done when every planned set is logged', async () => {
+    const logged = { actual: 80, reps: 10, executedRpe: 8 };
+    await render({ minimized: true, initialSets: [set(logged), set(), set()] });
+    expect(q('lift-count-lift-1')!.textContent).toBe('1/3sets');
+    expect(q('lift-count-lift-1')!.getAttribute('data-done')).toBeNull();
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await render({ minimized: true, initialSets: [set(logged), set(logged)] });
+    expect(q('lift-count-lift-1')!.getAttribute('data-done')).toBe('true');
+  });
+
+  it('second line leaves out empty values and the tier of an accessory', async () => {
+    await render({ minimized: true, tier: 'Accessory', movementPattern: 'Misc' });
+    const sub = q('lift-sub-lift-1')!.textContent!;
+    expect(sub).not.toContain('Misc');
+    expect(sub).not.toContain('Accessory');
+  });
+
+  it('comp lift: tier first, movement only once open', async () => {
+    await render({ minimized: true, tier: 'Comp', movementPattern: 'Knee Dominant' });
+    expect(q('lift-sub-lift-1')!.textContent).toMatch(/^Comp/);
+    expect(q('lift-sub-lift-1')!.textContent).not.toContain('Knee');
+    await render({ minimized: false, tier: 'Comp', movementPattern: 'Knee Dominant' });
+    expect(q('lift-sub-lift-1')!.textContent).toContain('Knee dominant');
+  });
+
+  it('reorders from the ⋯ menu', async () => {
+    const onMoveUp = vi.fn();
+    await render({ minimized: false, onMoveDown: undefined, onMoveUp, onUpdateMeta: vi.fn() });
+    await act(async () => { q('lift-menu-lift-1')!.click(); });
+    expect((q('move-lift-down-lift-1') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { q('move-lift-up-lift-1')!.click(); });
+    expect(onMoveUp).toHaveBeenCalled();
+  });
+
+  it('the row ✓ opens the set sheet', async () => {
+    await render({ minimized: false, view: 'log' });
+    await act(async () => { q('set-open-lift-1-1')!.click(); });
+    expect(q('phone-set-sheet')).not.toBeNull();
+  });
+});

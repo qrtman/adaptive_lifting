@@ -68,7 +68,7 @@ export const AccessoryLedger = ({
           <span className="text-sm font-semibold tracking-tight">Accessories</span>
         </span>
         <span className="tnum min-w-0 truncate text-[11px] text-[var(--cal-muted)]">
-          {exercises.length} lift{exercises.length === 1 ? '' : 's'} &middot; {summary.plan} plan set{summary.plan === 1 ? '' : 's'} &middot; {summary.logged} logged
+          {summary.plan > 0 ? <>Logged {summary.logged} / {summary.plan}</> : <>Logged {summary.logged} set{summary.logged === 1 ? '' : 's'}</>}
         </span>
       </button>
       {open ? exercises.map((exercise) => (
