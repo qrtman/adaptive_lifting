@@ -153,7 +153,7 @@ describe('CalendarView', () => {
     expect(dock('2027-03-11').getAttribute('data-open')).toBeNull();
   });
 
-  it('keeps day actions in the date row and shows a status dot on each session', async () => {
+  it('keeps day actions in the date row and shows no done/planned status on sessions', async () => {
     periodization.microcycles = [{
       id: 'micro-1',
       workouts: [
@@ -166,10 +166,8 @@ describe('CalendarView', () => {
     expect([...dock.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual(['New session', 'Copy to', 'Notes']);
     // The toolbar shares the date row: nothing is reserved at the bottom of the day.
     expect(dock.parentElement!.textContent).toContain('10');
-    const planned = container.querySelector('[data-testid="workout-card-w1"] [data-status]')!;
-    expect(planned.getAttribute('data-status')).toBe('planned');
     expect(container.querySelector('[data-testid="workout-card-w1"]')!.textContent).toContain('No lifts');
-    const done = container.querySelector('[data-testid="workout-card-w2"] [data-status]')!;
-    expect(done.getAttribute('data-status')).toBe('done');
+    expect(container.querySelector('[data-testid="workout-card-w2"] [data-status]')).toBeNull();
+    expect(container.querySelector('[data-testid="workout-card-w2"]')!.getAttribute('aria-label')).not.toContain('finished');
   });
 });

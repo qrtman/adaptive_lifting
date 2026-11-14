@@ -46,12 +46,9 @@ describe('formatSessionStatusMeta', () => {
     expect(formatSessionStatusMeta('PLANNED', 0)).toBeNull();
   });
 
-  it('shows Done without 0 kg', () => {
-    expect(formatSessionStatusMeta('COMPLETED', 0)).toBe('Done');
-  });
-
-  it('pairs Done with positive tonnage', () => {
-    expect(formatSessionStatusMeta('COMPLETED', 3787.5)).toBe('Done · 3787.5 kg');
+  it('has no Done state: an old completed session shows only its tonnage', () => {
+    expect(formatSessionStatusMeta('COMPLETED', 0)).toBeNull();
+    expect(formatSessionStatusMeta('COMPLETED', 3787.5)).toBe('3787.5 kg');
   });
 });
 

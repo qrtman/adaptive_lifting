@@ -1,5 +1,15 @@
 # Production status
 
+## Phone lift tuning, no Complete session, lift note on top — 2026-11-14 (PENDING, not merged)
+
+- Phone (< 768px): lift cards start minimized; lifts opened during the visit stay open until reload (not saved). Desktop and landscape unchanged.
+- Phone: the lift expand/minimize toggle is a 44px touch target (lift narrower than 600px); tapping a minimized lift's row (not a button) opens it.
+- Complete session button and Finished badge removed (owner decision 2026-11-14); Calendar done dot and `, finished` label removed; Sessions list no longer shows `Done`. Old COMPLETED data still loads; nothing new marks a session complete.
+- Minimized lift summary reads `Logged n / m · NL x · y kg` (replaces `x planned · y logged`); a lift with no Plan sets shows `Logged n sets` plus its note.
+- Lift note sits at the top of the open lift in all views, labelled `Note`; read-only without edit rights. Free text only, never parsed. In Log view, `+ Add set` adds a log-only set.
+
+Verification: tsc clean; vitest 690 passed / 1 skipped. Local Playwright not run (no .venv for the test server).
+
 ## Session sheet phases 1–5 + coach fixes — 2026-11-12 (CURRENT)
 
 **CONFIRMED: deployed manually** from the owner's machine (owner-approved) because GitHub-hosted runners stopped picking up jobs: `Validate repository` for `9a961c9` and the pending `Deploy production` runs sat in the queue for 40+ minutes with 0 jobs running, while githubstatus.com reported all systems operational.

@@ -15,7 +15,7 @@ Owner decisions, 2026-11-14:
 - Session header on phones:
   - top row: back, Day and the Plan · Both · Log switch;
   - one muted meta line below;
-  - Complete stays reachable.
+  - Complete session was removed (owner, 2026-11-14).
 - No horizontal page overflow at 360px.
 
 ### M2 · Portrait set table — DONE
@@ -30,6 +30,8 @@ Shipped: Plan text column (tap → set sheet with Plan edit, e1RM / Δ / INOL, P
 ### M3 · Touch input
 - Log cells use the numeric keyboard (`inputmode="decimal"`), with Next moving across kg → reps → RPE.
 - Touch targets are at least 44px.
+- Done (not merged): lifts start minimized below 768px. Lifts opened during the visit stay open until reload (not saved). Desktop and landscape keep lifts open by default.
+- Done (not merged): the lift expand/minimize toggle is a 44px target (lift narrower than 600px). Tapping a minimized lift's row (not a button) opens it.
 - The active row stays visible above the keyboard.
 - The Sheets keyboard and range selection stay desktop-only.
 

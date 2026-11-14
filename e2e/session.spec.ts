@@ -89,13 +89,14 @@ test('plans typed kg, suggests later kg after a log, then stays editable after C
   await expect(page.getByTestId('rx-weight').nth(1)).toHaveText(String(suggested));
   await expect(suggest).toHaveCount(0);
 
-  await page.getByTestId('session-complete').click();
+  // No Complete session any more: leave with Back.
+  await page.getByTestId('session-back').click();
   await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
   await expect(page.getByTestId('session-open')).toHaveCount(0);
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
   await expect(page.getByText(/SESSION LOCKED/i)).toHaveCount(0);
-  await expect(page.getByTestId('session-complete')).toBeVisible();
+  await expect(page.getByTestId('session-complete')).toHaveCount(0);
   await expect(page.getByTestId('add-lift')).toBeVisible();
   await page.getByRole('button', { name: 'Expand Squat', exact: true }).click();
   await expect(page.getByRole('button', { name: '+ Plan set' })).toBeVisible();

@@ -184,10 +184,11 @@ test('hover New session opens a dialog; cancel creates nothing', async ({ page, 
   await expect(page.getByTestId('session-labels')).toContainText('Block Hypertrophy');
   await expectSessionHeaderHierarchy(page);
   await page.setViewportSize({ width: 360, height: 740 });
-  await expect(page.getByTestId('session-complete')).toBeVisible();
-  const completeBox = await page.getByTestId('session-complete').boundingBox();
-  expect(completeBox).toBeTruthy();
-  expect(completeBox!.y + completeBox!.height).toBeLessThanOrEqual(740);
+  // Complete session was removed; the header still fits a phone.
+  await expect(page.getByTestId('session-complete')).toHaveCount(0);
+  const nameBox = await page.getByTestId('session-name').boundingBox();
+  expect(nameBox).toBeTruthy();
+  expect(nameBox!.y + nameBox!.height).toBeLessThanOrEqual(740);
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByTestId('edit-session-dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Back' }).click();

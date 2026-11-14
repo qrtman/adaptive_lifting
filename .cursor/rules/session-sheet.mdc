@@ -15,7 +15,9 @@ Plan and phases: `.cursor/scopes/session-sheet/PLAN.md`. Ship phases in order. E
 | Rail rows | One line per lift: name + scheme. Same list layout in every mode (Plan, Log, Both). Never a comma-joined line. Lift names high contrast. |
 | Session header | **Day** (`Day N`) is the large line. Name is optional and appears as a small muted subtitle. Date · Week · Block · set count are muted meta. Replaces session-console "Name is the only large line". |
 | Session/day summary | **Set count only** (and `Logged x / y sets` in Both). No session or day tonnage, NL, or average intensity. |
-| Lift summary | NL · Volume · Int per lift. |
+| Lift summary | NL · Volume · Int per lift in the open lift. Minimized lift: `Logged n / m · NL x · y kg` (replaces `x planned · y logged`). No Plan sets: `Logged n sets` plus its note. |
+| Lift note | Top of the open lift in all views, labelled `Note`. Read-only without edit rights. Free text only: the app shows it and never parses it (no e1RM, %, or suggestions from it). A lift may have a note and no Plan sets. In Log view, `+ Add set` adds a log-only set. |
+| Complete | Removed 2026-11-14 (owner). No Complete session button, no Finished badge, no done dot or `, finished` label on Calendar, no `Done` in Sessions list. Old COMPLETED data still loads; nothing marks a session complete. |
 | Grouping | Merge consecutive plan sets only when reps, intensity, `dropPercent` **and kg** are equal. Different kg: never merge. Label `3 sets`, with faint numbers `2–4`; a single set shows its number only. Display layer only: one record per set stays. |
 | Session view | Plan · Both · Log above the lifts, remembered per device, default Both. Grouping happens in **Plan** view (Log hidden) — Both keeps one row per set. |
 | Fewer sets than logged | Set leaves Plan; its log stays as a `scope: 'log'` row. Never delete a log. |

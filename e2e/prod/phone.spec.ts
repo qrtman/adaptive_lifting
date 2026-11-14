@@ -38,8 +38,13 @@ test.describe('phone session screen', () => {
       }
       await openSession(page, title);
       await page.waitForTimeout(2500);
-      // Portrait: Plan as text, no Plan or metric columns, no sidebar.
+      // Portrait: lifts start minimized; open Squat (44px toggle), then Plan as text, no sidebar.
       await expect(page.getByTestId('bottom-nav')).toBeVisible();
+      const toggle = page.getByTestId(`toggle-lift-${squatId}`);
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await expect(page.getByTestId('session-complete')).toHaveCount(0);
+      await toggle.tap();
       await expect(page.getByTestId(`plan-brief-${squatId}-1`)).toHaveText('150×3 @8');
       await expect(page.locator(`[data-lift-grid-host="${squatId}"] [data-testid="set-grid-h-planKg"]`)).toBeHidden();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

@@ -89,7 +89,7 @@ test('moves a lift up and keeps the order after reload', async ({ page, request 
   await expect(squatRow.getByTestId('rx-weight').first()).toHaveText('180');
   await expect(squatRow.getByTestId('rx-weight').nth(1)).toHaveText('');
 
-  await page.getByTestId('session-complete').click();
+  await page.getByTestId('session-back').click();
   await page.locator('[data-testid^="sessions-card-"] button').first().click();
   await expect(page.getByTestId('session-open')).toHaveCount(0);
   await expect(page.getByTestId('workout-lock-banner')).toHaveCount(0);
