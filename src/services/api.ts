@@ -1,6 +1,6 @@
 import { authorizedOfflineOwners, canReadOffline, clearAuthorization } from './authAuthorization';
 import { queueMutation } from './sync_engine';
-import { MicrocycleData, isWorkoutCompleted, isWorkoutInProgress, WorkoutData } from '../types';
+import { MicrocycleData, WorkoutData } from '../types';
 import { getSnapshot, saveSnapshot, clearSnapshot, microcycleSnapshotKey } from './db';
 import { UI_KEYS, removeUiPref, setUiPref } from '../storage/uiPrefs';
 import { calculateE1RM, plannedRpeOf } from './mathEngine';
@@ -411,29 +411,28 @@ export const apiService = {
     
     microcycles.forEach((mc) => {
       mc.workouts.forEach((w) => {
-        if (isWorkoutCompleted(w.status) || isWorkoutInProgress(w.status)) {
-          w.exercises.forEach((e) => {
-            e.sets.forEach((s) => {
-              const weightVal = trainingOrZero(s.actual ?? s.plannedWeight);
-              const repsVal = trainingIntOrZero(s.reps ?? s.plannedReps);
-              const rpeVal = trainingOrZero(s.executedRpe ?? plannedRpeOf(s));
-              
-              if (weightVal > 0 && repsVal > 0) {
-                const e1rmVal = calculateE1RM(weightVal, repsVal, rpeVal);
-                trends.push({
-                  date: w.date,
-                  exercise: e.title,
-                  variation: e.variation,
-                  weight: weightVal,
-                  reps: repsVal,
-                  rpe: rpeVal,
-                  e1rm: e1rmVal,
-                  volume: weightVal * repsVal
-                });
-              }
-            });
+        // Any session counts: there is no "done" state, so trends use logged sets only.
+        w.exercises.forEach((e) => {
+          e.sets.forEach((s) => {
+            const weightVal = trainingOrZero(s.actual);
+            const repsVal = trainingIntOrZero(s.reps);
+            const rpeVal = trainingOrZero(s.executedRpe ?? plannedRpeOf(s));
+            
+            if (weightVal > 0 && repsVal > 0) {
+              const e1rmVal = calculateE1RM(weightVal, repsVal, rpeVal);
+              trends.push({
+                date: w.date,
+                exercise: e.title,
+                variation: e.variation,
+                weight: weightVal,
+                reps: repsVal,
+                rpe: rpeVal,
+                e1rm: e1rmVal,
+                volume: weightVal * repsVal
+              });
+            }
           });
-        }
+        });
       });
     });
     

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Check, ChevronLeft, Pencil } from 'lucide-react';
+import { ChevronLeft, Pencil } from 'lucide-react';
 import { formatPlanLabel, formatSessionDate, isPlaceholderTitle, sessionHeadline } from '../features/plan/sessionLabels';
 
 type HeaderSession = {
@@ -23,9 +23,6 @@ export function SessionHeader({
   onEdit,
   canEdit,
   editDisabledReason,
-  finished,
-  locked,
-  onComplete,
   setCount,
   logged,
   viewToggle,
@@ -43,9 +40,6 @@ export function SessionHeader({
   onEdit: () => void;
   canEdit: boolean;
   editDisabledReason?: string;
-  finished: boolean;
-  locked: boolean;
-  onComplete: () => void;
 }) {
   const day = formatPlanLabel('Day', session.dayLabel);
   const week = formatPlanLabel('Week', session.weekLabel);
@@ -83,29 +77,7 @@ export function SessionHeader({
             <span data-testid="session-title-sub" className="text-[15px] font-medium text-[var(--cal-muted)]">{subtitle}</span>
           ) : null}
         </h1>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {viewToggle}
-        {finished ? (
-          <span
-            data-testid="session-finished-badge"
-            className="inline-flex h-9 items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--cal-success)_14%,transparent)] px-3 text-sm font-medium text-[var(--cal-ink)]"
-          >
-            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[var(--cal-success)]" />
-            Finished
-          </span>
-        ) : (
-          <button
-            type="button"
-            data-testid="session-complete"
-            disabled={locked}
-            onClick={onComplete}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--cal-radius-md)] bg-[var(--cal-primary)] px-4 text-sm font-medium text-[var(--cal-on-primary)] hover:bg-[var(--cal-primary-active)] disabled:opacity-40"
-          >
-            <Check size={15} aria-hidden="true" />
-            Complete session
-          </button>
-        )}
-        </div>
+        {viewToggle ? <div className="flex shrink-0 flex-wrap items-center gap-2">{viewToggle}</div> : null}
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--cal-body)]">

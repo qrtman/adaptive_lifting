@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUiPref, UI_KEYS } from '../storage/uiPrefs';
 import type { ThemePreference } from '../theme/themePref';
 import { isDashboardModeAvailable, type DashboardMode } from '../navigation';
+import { isPhoneWidth } from '../features/layout/phoneWidth';
 import { AthleteScopeSelector } from './AthleteScopeSelector';
 
 /**
@@ -24,9 +25,6 @@ const MORE: { mode: DashboardMode; label: string; Icon: typeof Calendar; coachOn
   { mode: 'integrations', label: 'Integrations', Icon: Link2 },
   { mode: 'security', label: 'Security', Icon: Settings },
 ];
-
-const isPhoneWidth = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-  && window.matchMedia('(max-width: 767px)').matches;
 
 export function BottomNav({
   dashboardMode,

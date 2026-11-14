@@ -12,7 +12,7 @@ const session = { title: 'Session', date: '2026-11-11', dayLabel: '1', weekLabel
 const render = async (props: Partial<React.ComponentProps<typeof SessionHeader>> = {}) => {
   const all = {
     session, setCount: 17, backLabel: 'Calendar', onBack: vi.fn(), onEdit: vi.fn(), canEdit: true,
-    finished: false, locked: false, onComplete: vi.fn(), ...props,
+    ...props,
   };
   await act(async () => root.render(<SessionHeader {...all} />));
   return all;
@@ -42,9 +42,8 @@ describe('SessionHeader', () => {
     const back = q('session-back')!;
     expect(back.getAttribute('aria-label')).toBe('Back');
     expect(back.textContent).toContain('Calendar');
-    await act(async () => { back.click(); q('session-complete')!.click(); q('session-edit')!.click(); });
+    await act(async () => { back.click(); q('session-edit')!.click(); });
     expect(props.onBack).toHaveBeenCalled();
-    expect(props.onComplete).toHaveBeenCalled();
     expect(props.onEdit).toHaveBeenCalled();
   });
 
@@ -72,16 +71,15 @@ describe('SessionHeader', () => {
     expect(q('session-labels')!.textContent).toBe('Block Hypertrophy');
   });
 
-  it('locks Complete and Edit when they are not allowed', async () => {
-    await render({ locked: true, canEdit: false, editDisabledReason: 'No access' });
-    expect((q('session-complete') as HTMLButtonElement).disabled).toBe(true);
+  it('locks Edit when it is not allowed', async () => {
+    await render({ canEdit: false, editDisabledReason: 'No access' });
     expect((q('session-edit') as HTMLButtonElement).disabled).toBe(true);
     expect(q('session-edit')!.getAttribute('title')).toBe('No access');
   });
 
-  it('shows Finished instead of Complete', async () => {
-    await render({ finished: true });
+  it('has no Complete session button or Finished badge', async () => {
+    await render();
     expect(q('session-complete')).toBeNull();
-    expect(q('session-finished-badge')!.textContent).toContain('Finished');
+    expect(q('session-finished-badge')).toBeNull();
   });
 });

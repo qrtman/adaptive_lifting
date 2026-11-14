@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus, Pencil, StickyNote } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronRight, GripVertical, Trash2, Copy, Plus, Pencil } from 'lucide-react';
 import type { DragControls } from 'motion/react';
 import { EditablePerformanceCell } from './EditablePerformanceCell';
 import { PlanGroupGrid } from './PlanGroupGrid';
@@ -464,7 +464,8 @@ export const ExerciseCard = ({
   // One "Add set": a new full row (plan + log). If the plan and log columns are uneven,
   // it first fills the next row that is missing a half. Without plan rights it adds a log set.
   const addSet = () => {
-    if (!canEditPlan) return addHalfSet('log');
+    // Log view logs what was done: a log-only set, so a lift planned in its note gets no empty Plan rows.
+    if (!canEditPlan || view === 'log') return addHalfSet('log');
     if (planRows.length < logRows.length) return addHalfSet('plan');
     if (logRows.length < planRows.length) return addHalfSet('log');
     const nextRow = planRows.length;
@@ -599,6 +600,12 @@ export const ExerciseCard = ({
   // Row tools: quiet ghost icons, shown on row hover/focus (always on touch), like the calendar day tools.
   const actionButton = "inline-flex h-6 w-6 items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] opacity-0 transition-[opacity,background-color,color] hover:bg-[var(--cal-surface-strong)] hover:text-[var(--cal-ink)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 group-hover:disabled:opacity-30";
   const headerButton = "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--cal-radius-md)] px-2 text-[13px] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-40";
+  const toggleMinimized = () => {
+    const next = !minimized;
+    if (minimizedProp === undefined) setOwnMinimized(next);
+    onMinimizedChange?.(next);
+    setGrid(null);
+  };
   const headerIcon = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--cal-radius-md)] text-[var(--cal-muted)] transition-colors hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-40";
 
   const commitDropPercent = (index: number, pct: number) => {
@@ -953,25 +960,36 @@ export const ExerciseCard = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey, sets.length, minimized]);
 
-  // Lift totals in the minimized header (one line).
+  // Minimized lift: one short line in the header's form ("Logged 0 / 4 · NL 18 · 2,400 kg").
+  // A lift planned only in its note shows "Logged n sets" and the note instead.
   const liftStats = () => {
     const items: Array<{ key: string; label: string; value: ReactNode; testId?: string; title?: string }> = [];
     if (intensityPct != null) items.push({ key: 'intensity', label: 'Intensity', value: `${intensityPct}%`, testId: `lift-intensity-${id}` });
     items.push({
-      key: 'sets',
-      label: 'Sets',
-      title: `${plannedCount} planned, ${loggedCount} logged`,
-      value: <><span className="whitespace-nowrap"><span className="font-medium text-[var(--cal-ink)]">{plannedCount}</span> planned ·</span> <span className="whitespace-nowrap"><span className="font-medium text-[var(--cal-ink)]">{loggedCount}</span> logged</span></>,
+      key: 'logged',
+      label: 'Logged',
+      title: `${logSum.logged} logged of ${logSum.planned} planned`,
+      value: logSum.planned > 0 ? `${logSum.logged} / ${logSum.planned}` : `${logSum.logged} ${logSum.logged === 1 ? 'set' : 'sets'}`,
+      testId: `lift-logged-${id}`,
     });
-    items.push({ key: 'nl', label: 'NL', value: nl, testId: `lift-nl-${id}` });
-    items.push({ key: 'e1rm', label: 'e1RM', value: sets[0]?.baseline_e1rm ? Math.round(sets[0].baseline_e1rm) : '—' });
-    items.push({ key: 'volume', label: 'Volume', value: `${totalVolume.toLocaleString()} kg` });
-    return items.map((item) => (
+    if (plannedCount > 0) {
+      items.push({ key: 'nl', label: 'NL', value: nl, testId: `lift-nl-${id}` });
+      if (sets[0]?.baseline_e1rm) items.push({ key: 'e1rm', label: 'e1RM', value: Math.round(sets[0].baseline_e1rm) });
+    }
+    if (totalVolume > 0) items.push({ key: 'volume', label: '', value: `${totalVolume.toLocaleString()} kg` });
+    const stats = items.map((item) => (
       <span key={item.key} className="whitespace-nowrap tnum" title={item.title}>
-        {item.key === 'sets' ? null : <>{item.label} </>}
-        <span className={item.key === 'sets' ? '' : 'font-medium text-[var(--cal-ink)]'} data-testid={item.testId}>{item.value}</span>
+        {item.label ? <>{item.label} </> : null}
+        <span className="font-medium text-[var(--cal-ink)]" data-testid={item.testId}>{item.value}</span>
       </span>
     ));
+    const note = liftNote?.trim();
+    if (plannedCount === 0 && note) {
+      stats.push(
+        <span key="note" className="max-w-[18ch] truncate" data-testid={`lift-minimized-note-${id}`} title={note}>{note}</span>,
+      );
+    }
+    return stats;
   };
 
   // Open card (session sheet phase 7): one muted line under the rows, "Plan … · Logged …".
@@ -982,9 +1000,18 @@ export const ExerciseCard = ({
 
   return (
     <div className="lift-card group/lift">
-      {/* Narrow card: name row on top, grid, then totals. Wide open card: name row on top, grid, totals and note in a column on the right (index.css .lift-layout). */}
+      {/* Open card: name row, then the lift note and grid (.lift-main), then the totals line (.lift-side). Wide cards put the name in its own column (index.css .lift-layout). */}
       <div className={`lift-layout ${minimized ? '' : 'lift-layout--open'}`}>
-      <div className="lift-head flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <div
+        className="lift-head flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+        data-tap-to-open={minimized ? 'true' : undefined}
+        onClick={(event) => {
+          // A minimized lift opens from a tap anywhere on its row; buttons keep their own action.
+          if (!minimized) return;
+          if ((event.target as HTMLElement).closest('button, a, input, select, textarea, [role="menu"]')) return;
+          toggleMinimized();
+        }}
+      >
         <div className="lift-head__main flex items-center gap-1.5 min-w-0">
           {dragControls ? (
             <button
@@ -1006,13 +1033,8 @@ export const ExerciseCard = ({
             aria-expanded={!minimized}
             aria-controls={`lift-grid-${id}`}
             aria-label={`${minimized ? 'Expand' : 'Minimize'} ${variation}`}
-            onClick={() => {
-              const next = !minimized;
-              if (minimizedProp === undefined) setOwnMinimized(next);
-              onMinimizedChange?.(next);
-              setGrid(null);
-            }}
-            className={headerIcon}
+            onClick={toggleMinimized}
+            className={`lift-head__toggle ${headerIcon}`}
             title={minimized ? 'Expand lift' : 'Minimize lift'}
           >
             {minimized ? <ChevronRight size={15} strokeWidth={2} /> : <ChevronDown size={15} strokeWidth={2} />}
@@ -1168,6 +1190,86 @@ export const ExerciseCard = ({
       {!minimized ? (
       <>
       <div className="lift-main flex min-w-0 max-w-full flex-col gap-3">
+      {/* The lift note sits on top: it often holds the plan written by hand (shown, never parsed). */}
+        <div className="lift-note" data-testid={`lift-note-top-${id}`}>
+        {onUpdateMeta && (noteOpen || noteDraft.trim()) ? (
+          <section className="w-full" data-testid={`lift-note-panel-${id}`}>
+            {noteOpen ? (
+              <div className="flex flex-col gap-1">
+                <textarea
+                  data-testid={`lift-note-${id}`}
+                  aria-label="Lift note"
+                  autoFocus
+                  value={noteDraft}
+                  disabled={locked || noteSaving}
+                  onChange={(event) => {
+                    setNoteDraft(event.target.value);
+                    setNoteStatus('idle');
+                  }}
+                  onBlur={(event) => {
+                    // Save when leaving the note, unless focus moved to its own Save button.
+                    if ((event.relatedTarget as HTMLElement | null)?.dataset?.testid === `save-lift-note-${id}`) return;
+                    void saveLiftNote().then(() => setNoteOpen(false));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      (event.currentTarget as HTMLTextAreaElement).blur();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setNoteDraft(liftNote ?? '');
+                      setNoteOpen(false);
+                    }
+                  }}
+                  placeholder="Cues, setup, how it felt…"
+                  rows={Math.min(6, Math.max(2, noteDraft.split('\n').length))}
+                  className="w-full resize-none rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-canvas)] px-3 py-2 text-sm leading-5 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-50"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--cal-muted)]">Saves when you click away · Ctrl+Enter</span>
+                  <button
+                    type="button"
+                    data-testid={`save-lift-note-${id}`}
+                    disabled={locked || noteSaving}
+                    onClick={() => void saveLiftNote().then(() => setNoteOpen(false))}
+                    className={headerButton}
+                  >
+                    {noteSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid={`open-lift-note-${id}`}
+                disabled={locked}
+                onClick={() => setNoteOpen(true)}
+                className="-mx-2 flex w-[calc(100%+1rem)] min-w-0 items-start gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] leading-5 text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-body)] disabled:opacity-60"
+                title="Edit note"
+              >
+                <span className="mt-px shrink-0 text-[11px] font-medium uppercase tracking-wide text-[var(--cal-muted)]">Note</span>
+                <span className="min-w-0 whitespace-pre-line break-words text-[var(--cal-body)]">{noteDraft}</span>
+                <span
+                  className={`ml-auto shrink-0 text-xs ${noteStatus === 'error' ? 'text-[var(--cal-error)]' : 'text-[var(--cal-success)]'}`}
+                  role={noteStatus === 'error' ? 'alert' : undefined}
+                >
+                  {noteStatus === 'error' ? 'Save failed' : noteStatus === 'saved' ? 'Saved' : ''}
+                </span>
+              </button>
+            )}
+          </section>
+        ) : liftNote?.trim() ? (
+          // No edit rights: the note (often the written plan) is still shown, read-only.
+          <p
+            data-testid={`lift-note-readonly-${id}`}
+            className="flex min-w-0 items-start gap-2 py-1 text-[13px] leading-5 text-[var(--cal-body)]"
+          >
+            <span className="mt-px shrink-0 text-[11px] font-medium uppercase tracking-wide text-[var(--cal-muted)]">Note</span>
+            <span className="min-w-0 whitespace-pre-line break-words">{liftNote.trim()}</span>
+          </p>
+        ) : null}
+        </div>
       {/* Plan suggestion for the selected row (was in the Plan header band; the header hides on wide screens). */}
       {view !== 'plan' && selectedPlanEntry && selectedPlanOffer != null && selectedPlanNumber != null ? (
         <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-[var(--cal-muted)]" data-testid={`plan-suggestion-${id}`}>
@@ -1630,7 +1732,7 @@ export const ExerciseCard = ({
         </p>
       ) : null}
       </div>
-      {/* Under the rows: the lift summary line, then the lift note (index.css .lift-layout). */}
+      {/* Under the rows: the lift summary line (the lift note is at the top of .lift-main). */}
       <aside className="lift-side" data-testid={`lift-side-${id}`}>
         {view !== 'plan' || (onUpdateMeta && !noteOpen && !noteDraft.trim()) ? (
           <p className="lift-summary text-[12px] text-[var(--cal-muted-soft)] tnum" aria-label="Lift totals" data-testid={`lift-summary-${id}`}>
@@ -1661,76 +1763,6 @@ export const ExerciseCard = ({
             ) : null}
           </p>
         ) : null}
-        <div className="lift-note">
-        {onUpdateMeta && (noteOpen || noteDraft.trim()) ? (
-          <section className="w-full" data-testid={`lift-note-panel-${id}`}>
-            {noteOpen ? (
-              <div className="flex flex-col gap-1">
-                <textarea
-                  data-testid={`lift-note-${id}`}
-                  aria-label="Lift note"
-                  autoFocus
-                  value={noteDraft}
-                  disabled={locked || noteSaving}
-                  onChange={(event) => {
-                    setNoteDraft(event.target.value);
-                    setNoteStatus('idle');
-                  }}
-                  onBlur={(event) => {
-                    // Save when leaving the note, unless focus moved to its own Save button.
-                    if ((event.relatedTarget as HTMLElement | null)?.dataset?.testid === `save-lift-note-${id}`) return;
-                    void saveLiftNote().then(() => setNoteOpen(false));
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                      event.preventDefault();
-                      (event.currentTarget as HTMLTextAreaElement).blur();
-                    }
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      setNoteDraft(liftNote ?? '');
-                      setNoteOpen(false);
-                    }
-                  }}
-                  placeholder="Cues, setup, how it felt…"
-                  rows={Math.min(6, Math.max(2, noteDraft.split('\n').length))}
-                  className="w-full resize-none rounded-[var(--cal-radius-md)] border border-[var(--cal-hairline)] bg-[var(--cal-canvas)] px-3 py-2 text-sm leading-5 text-[var(--cal-ink)] placeholder:text-[var(--cal-muted-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cal-accent)] disabled:opacity-50"
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-[var(--cal-muted)]">Saves when you click away · Ctrl+Enter</span>
-                  <button
-                    type="button"
-                    data-testid={`save-lift-note-${id}`}
-                    disabled={locked || noteSaving}
-                    onClick={() => void saveLiftNote().then(() => setNoteOpen(false))}
-                    className={headerButton}
-                  >
-                    {noteSaving ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                data-testid={`open-lift-note-${id}`}
-                disabled={locked}
-                onClick={() => setNoteOpen(true)}
-                className="-mx-2 flex w-[calc(100%+1rem)] min-w-0 items-start gap-2 rounded-[var(--cal-radius-md)] px-2 py-1 text-left text-[13px] leading-5 text-[var(--cal-muted)] hover:bg-[var(--cal-surface-soft)] hover:text-[var(--cal-body)] disabled:opacity-60"
-                title="Edit note"
-              >
-                <StickyNote size={13} aria-hidden="true" className="mt-1 shrink-0 text-[var(--cal-muted-soft)]" />
-                <span className="min-w-0 whitespace-pre-line break-words">{noteDraft}</span>
-                <span
-                  className={`ml-auto shrink-0 text-xs ${noteStatus === 'error' ? 'text-[var(--cal-error)]' : 'text-[var(--cal-success)]'}`}
-                  role={noteStatus === 'error' ? 'alert' : undefined}
-                >
-                  {noteStatus === 'error' ? 'Save failed' : noteStatus === 'saved' ? 'Saved' : ''}
-                </span>
-              </button>
-            )}
-          </section>
-        ) : null}
-        </div>
       </aside>
       </>
       ) : null}

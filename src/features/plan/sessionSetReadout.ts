@@ -1,4 +1,4 @@
-import { isWorkoutCompleted, isWorkoutInProgress, type SetData } from '../../types';
+import { isWorkoutInProgress, type SetData } from '../../types';
 import { calculateE1RM } from '../../services/mathEngine';
 import { trainingIntOrZero, trainingNumber, trainingOrZero } from '../../services/numericTraining';
 
@@ -56,8 +56,7 @@ export function formatSetReadout(kg: unknown, reps: unknown, rpe: unknown, unit:
 
 export function formatSessionStatusMeta(status: string, tonnage: unknown): string | null {
   const bits: string[] = [];
-  if (isWorkoutCompleted(status)) bits.push('Done');
-  else if (isWorkoutInProgress(status)) bits.push('Live');
+  if (isWorkoutInProgress(status)) bits.push('Live');
   else if (status === 'MISSED') bits.push('Missed');
   const load = trainingNumber(tonnage);
   if (load != null && load > 0) bits.push(`${load} kg`);

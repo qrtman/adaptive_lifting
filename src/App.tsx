@@ -35,7 +35,7 @@ import { sessionLogged } from './features/plan/liftSummary';
 import { copyLiftIntoSession, type NewLiftPayload } from './features/plan/liftCopy';
 import { GRID_ENTER_EVENT, type GridEnterDetail } from './services/sessionGridNav';
 import { LIFT_DRAG_MIME } from './components/WeekRail';
-import { isWorkoutCompleted, splitWorkoutExercises, type ExerciseData, type LiftMetaPatch } from './types';
+import { splitWorkoutExercises, type ExerciseData, type LiftMetaPatch } from './types';
 import { useSync } from './contexts/SyncContext';
 import { useCollapsedLifts } from './features/plan/useCollapsedLifts';
 import { sessionReadOnlyReason } from './features/plan/sessionReadOnly';
@@ -79,7 +79,6 @@ export default function App() {
     setActiveMicrocycleId,
     activeWorkout,
     updateExerciseSets,
-    finishSession,
     reloadMicrocycles,
     planAthleteId,
     viewingOwnPlan,
@@ -194,7 +193,6 @@ export default function App() {
     }
   };
   const readOnlyReason = sessionReadOnlyReason(activeWorkout, lockedWorkoutIds);
-  const sessionFinished = activeWorkout ? isWorkoutCompleted(activeWorkout.status) : false;
   const sessionLocked = readOnlyReason !== null;
 
   useEffect(() => {
@@ -215,7 +213,7 @@ export default function App() {
     const bIndex = mainLiftOrder.indexOf(b.id);
     return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
   });
-  // Lift cards are open unless collapsed; collapse is remembered per lift on this device.
+  // Desktop: lifts open unless collapsed (remembered per device). Phone: lifts start minimized.
   const { isCollapsed, setCollapsed, setMany: setManyCollapsed } = useCollapsedLifts();
   const allLiftIds = activeWorkout ? activeWorkout.exercises.map((exercise) => exercise.id) : [];
   const anyLiftOpen = allLiftIds.some((liftId) => !isCollapsed(liftId));
@@ -481,17 +479,6 @@ export default function App() {
                     onEdit={() => setEditSessionOpen(true)}
                     canEdit={coachCanProgram}
                     editDisabledReason="Active coaching access is required to edit athlete programming."
-                    finished={sessionFinished}
-                    locked={sessionLocked}
-                    onComplete={async () => {
-                      if (sessionLocked) return;
-                      try {
-                        await finishSession('COMPLETED');
-                        setCurrentView('dashboard');
-                      } catch (err) {
-                        alert(err instanceof Error ? err.message : 'Failed to complete session');
-                      }
-                    }}
                   />
                   {weekRail ? (
                     <WeekRail

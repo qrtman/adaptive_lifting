@@ -775,6 +775,16 @@
   .lift-head__edit {
     display: none;
   }
+  /* Expand / minimize: a thumb-sized (44px) target; a minimized lift also opens from its row. */
+  .lift-head .lift-head__toggle {
+    width: 2.75rem;
+    height: 2.75rem;
+    /* 44px to tap, but it still takes its old 28px in the row, so the name row doesn't wrap. */
+    margin-inline: -0.5rem;
+  }
+  .lift-head[data-tap-to-open="true"] {
+    cursor: pointer;
+  }
   .lift-head [data-testid^="lift-menu-"] {
     opacity: 1;
   }

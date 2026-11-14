@@ -11,7 +11,7 @@ import {
   StickyNote,
 } from 'lucide-react';
 import { CenteredDialog } from './CenteredDialog';
-import { MesocycleData, WorkoutData, isWorkoutCompleted } from '../types';
+import { MesocycleData, WorkoutData } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePeriodization } from '../contexts/PeriodizationContext';
 import { useSync } from '../contexts/SyncContext';
@@ -880,7 +880,7 @@ export function CalendarView({
                                         data-copy-source={copyClipboard?.sessionIds.includes(workout.id) ? 'true' : undefined}
                                         role="button"
                                         tabIndex={0}
-                                        aria-label={`Open ${headline}, ${dayAriaLabel(dateStr)}${isWorkoutCompleted(workout.status) ? ', finished' : ''}`}
+                                        aria-label={`Open ${headline}, ${dayAriaLabel(dateStr)}`}
                                         draggable
                                         onDragOver={(e) => e.preventDefault()}
                                         onDragStart={(e) => handleDragStart(e, workout.id, microId)}
@@ -909,12 +909,7 @@ export function CalendarView({
                                         >
                                           <Trash2 size={11} aria-hidden="true" />
                                         </button>
-                                        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--cal-ink)] leading-tight">
-                                          <span
-                                            aria-hidden="true"
-                                            data-status={isWorkoutCompleted(workout.status) ? 'done' : 'planned'}
-                                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${isWorkoutCompleted(workout.status) ? 'bg-[var(--cal-success)]' : 'bg-[var(--cal-muted-soft)]'}`}
-                                          />
+                                        <span className="flex min-w-0 items-center text-[10px] font-medium text-[var(--cal-ink)] leading-tight">
                                           <span className="truncate">{headline}</span>
                                         </span>
                                         {planMeta.length > 0 ? (

@@ -164,10 +164,9 @@ test('Sessions cards lead with Name and show every set as Plan vs Log', async ({
   expect(overflow).toBeFalsy();
 
   await card.getByTestId(/sessions-open-/).click();
-  await page.getByTestId('session-complete').click();
+  await expect(page.getByTestId('session-complete')).toHaveCount(0);
   await page.getByRole('button', { name: 'Back' }).click();
-  await expect(card).toContainText('Done');
-  await expect(card).toContainText('kg');
+  await expect(card).not.toContainText('Done');
   await expect(card).not.toContainText('COMPLETED');
 });
 
