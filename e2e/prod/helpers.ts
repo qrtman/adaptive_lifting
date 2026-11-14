@@ -41,7 +41,8 @@ export async function login(page: Page, email = creds.email!, password = creds.p
   await page.getByPlaceholder('coach@example.com').fill(email);
   await page.getByPlaceholder('Password').fill(password);
   await page.locator('button[type=submit]').click();
-  await expect(page.getByTestId('nav-sessions')).toBeVisible({ timeout: 25_000 });
+  // Desktop shows the sidebar; phones (< 768px) show the bottom tab bar instead.
+  await expect(page.locator('[data-testid="nav-sessions"]:visible, [data-testid="tab-sessions"]:visible').first()).toBeVisible({ timeout: 25_000 });
 }
 
 type MutationStatus = 'PENDING' | 'IN_FLIGHT' | 'ACKED' | 'REJECTED' | 'CONFLICTED' | 'RESOLVED_SERVER';

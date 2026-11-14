@@ -93,7 +93,7 @@ export const Sidebar = ({
     <aside
       data-testid="app-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
-      className={`fixed left-0 top-0 h-screen ${widthClass} bg-[var(--cal-canvas)] border-r border-[var(--cal-hairline)] flex flex-col py-[var(--cal-space-md)] z-50`}
+      className={`app-sidebar fixed left-0 top-0 h-screen ${widthClass} bg-[var(--cal-canvas)] border-r border-[var(--cal-hairline)] flex flex-col py-[var(--cal-space-md)] z-50`}
     >
       <div className={`mb-[var(--cal-space-md)] flex items-center ${collapsed ? 'justify-center' : 'px-2 justify-between gap-2'}`}>
         {!collapsed && (
